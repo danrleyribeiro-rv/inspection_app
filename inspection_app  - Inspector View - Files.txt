@@ -1,0 +1,2406 @@
+name: inspection_app
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.2
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^2.8.4
+  flutter_secure_storage: ^9.2.4
+  cached_network_image: ^3.4.1
+  path_provider: ^2.1.5
+  search_cep: ^4.0.2
+  camera: ^0.11.1
+  permission_handler: ^11.4.0
+  connectivity_plus: ^6.1.3
+  flutter_bloc: ^9.0.0
+  equatable: ^2.0.7
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_dotenv: ^5.2.1
+  http: ^1.3.0
+  shared_preferences: ^2.5.2
+  brasil_fields: ^1.17.0
+  image_picker: ^1.1.2
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^5.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/.env
+    
+  # Adicione suas fontes se necessário
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
+
+
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
+import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
+import 'package:inspection_app/presentation/screens/auth/login_screen.dart';
+import 'package:inspection_app/presentation/screens/auth/register_screen.dart';
+import 'package:inspection_app/presentation/screens/auth/forgot_passoword.dart';
+import 'package:inspection_app/presentation/screens/home/home_screen.dart';
+import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Forçar orientação retrato para a aplicação
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  await Supabase.initialize(
+    url: "https://hgzoyccbgsrxfteqrkpc.supabase.co",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnem95Y2NiZ3NyeGZ0ZXFya3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk4MzA0NjYsImV4cCI6MjA1NTQwNjQ2Nn0.xM3hHi9LcFxnxfah46XqMkhEpucJUzXJIHkT495GjmQ",
+    debug: false, // Defina como true apenas durante o desenvolvimento
+  );
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Inspection App',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primaryColor: const Color(0xFF1a237e),
+        scaffoldBackgroundColor: Colors.white,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1a237e),
+          brightness: Brightness.light,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1a237e),
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1a237e),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF1a237e),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF1a237e), width: 2),
+          ),
+        ),
+        fontFamily: 'Roboto',
+      ),
+      darkTheme: ThemeData(
+        primaryColor: const Color(0xFF1a237e),
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1a237e),
+          brightness: Brightness.dark,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1a237e),
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1a237e),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.lightBlueAccent,
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Colors.lightBlueAccent, width: 2),
+          ),
+        ),
+        fontFamily: 'Roboto',
+      ),
+      themeMode: ThemeMode.system, // Use as configurações do sistema para o tema
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/get-started': (context) => const GetStartedScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/settings': (context) => const SettingsScreen(),
+      },
+    );
+  }
+}
+
+
+// lib/presentation/screens/splash/splash_screen.dart
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _navigateToNext();
+  }
+
+  Future<void> _navigateToNext() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    
+    // Verificar se é primeiro acesso usando SharedPreferences
+    final isFirstTime = await _checkFirstTime();
+    if (isFirstTime) {
+      Navigator.pushReplacementNamed(context, '/get-started');
+    } else {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
+  }
+
+  Future<bool> _checkFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isFirstTime = prefs.getBool('isFirstTime') ?? true;
+    if (isFirstTime) {
+      await prefs.setBool('isFirstTime', false);
+    }
+    return isFirstTime;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1a237e), // Azul escuro
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/logo.png',
+              width: 200,
+              height: 200,
+            ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// lib/presentation/screens/get_started/get_started_screen.dart
+import 'package:flutter/material.dart';
+
+class GetStartedScreen extends StatelessWidget {
+  const GetStartedScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: 300,
+              ),
+              const SizedBox(height: 40),
+              const Text(
+                'Bem-vindo ao Inspeções',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Realize suas vistorias de forma simples e eficiente, mesmo offline',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/login');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1a237e),
+                  ),
+                  child: const Text(
+                    'Entrar',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/register');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF1a237e)),
+                  ),
+                  child: const Text(
+                    'Criar Conta',
+                    style: TextStyle(fontSize: 16, color: Color(0xFF1a237e)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// lib/presentation/screens/home/chat_tab.dart
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class ChatTab extends StatefulWidget {
+  const ChatTab({super.key});
+
+  @override
+  State<ChatTab> createState() => _ChatTabState();
+}
+
+class _ChatTabState extends State<ChatTab> {
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _conversations = [];
+  int? _inspectorId;
+  
+  @override
+  void initState() {
+    super.initState();
+    _getInspectorId().then((_) => _loadConversations());
+    _setupRealtimeSubscription();
+  }
+
+  @override
+  void dispose() {
+    _supabase.removeAllChannels();
+    super.dispose();
+  }
+
+  Future<void> _getInspectorId() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+      
+      final inspectorData = await _supabase
+          .from('inspectors')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+      
+      _inspectorId = inspectorData['id'];
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao obter dados do inspetor: $e')),
+        );
+      }
+    }
+  }
+
+  void _setupRealtimeSubscription() {
+    _supabase
+        .channel('public:conversations')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'conversations',
+          callback: (payload) {
+            _loadConversations();
+          },
+        )
+        .subscribe();
+  }
+
+
+  Future<void> _loadConversations() async {
+    if (_inspectorId == null) return; // Evita passar um valor nulo para a query
+    
+    try {
+      setState(() => _isLoading = true);
+
+      final inspections = await _supabase
+          .from('inspections')
+          .select('id, title, project_id')
+          .eq('inspector_id', _inspectorId!) // Uso do ! para garantir que não é nulo
+          .order('updated_at', ascending: false);
+      
+      setState(() {
+        _conversations = inspections.map((inspection) {
+          return {
+            'id': inspection['id'],
+            'title': 'Vistoria: ${inspection['title']}',
+            'last_message': 'Clique para ver a conversa desta vistoria',
+            'updated_at': DateTime.now().toIso8601String(),
+            'unread_count': 0,
+            'inspection_id': inspection['id'],
+            'project_id': inspection['project_id'],
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar conversas: $e')),
+        );
+      }
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mensagens'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadConversations,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _conversations.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Nenhuma conversa disponível',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'As conversas relacionadas às suas vistorias aparecerão aqui',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: _loadConversations,
+                        child: const Text('Atualizar'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _conversations.length,
+                  itemBuilder: (context, index) {
+                    final conversation = _conversations[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          child: const Icon(Icons.chat, color: Colors.white),
+                        ),
+                        title: Text(
+                          conversation['title'] ?? 'Sem título',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          conversation['last_message'] ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: conversation['unread_count'] > 0
+                            ? Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  conversation['unread_count'].toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                _formatTime(conversation['updated_at']),
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                        onTap: () {
+                          // Navegar para a tela de chat individual
+                          _navigateToChat(conversation);
+                        },
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+
+  void _navigateToChat(Map<String, dynamic> conversation) {
+    // Aqui você navegaria para a tela de chat individual
+    // Por exemplo:
+    // Navigator.of(context).push(
+    //   MaterialPageRoute(
+    //     builder: (context) => ChatScreen(
+    //       conversationId: conversation['id'],
+    //       inspectionId: conversation['inspection_id'],
+    //     ),
+    //   ),
+    // );
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Funcionalidade de chat em desenvolvimento!'),
+      ),
+    );
+  }
+
+  String _formatTime(String? timeStr) {
+    if (timeStr == null) return '';
+    
+    try {
+      final time = DateTime.parse(timeStr).toLocal();
+      final now = DateTime.now();
+      
+      if (now.difference(time).inDays > 0) {
+        // Se for mais de um dia, exibe a data
+        return '${time.day}/${time.month}';
+      } else {
+        // Senão exibe a hora
+        return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+}
+
+// lib/presentation/screens/home/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:inspection_app/presentation/screens/home/inspections_tab.dart';
+import 'package:inspection_app/presentation/screens/home/schedule_tab.dart';
+import 'package:inspection_app/presentation/screens/home/chat_tab.dart';
+import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
+  final _supabase = Supabase.instance.client;
+  
+  final List<Widget> _tabs = [
+    const InspectionsTab(),
+    const ScheduleTab(),
+    const ChatTab(),
+    const ProfileTab(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  void _checkAuth() {
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _tabs[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.check_box),
+            label: 'Vistorias',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today),
+            label: 'Agenda',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat),
+            label: 'Chats',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Perfil',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+// lib/presentation/screens/home/inspections_tab.dart
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class InspectionsTab extends StatefulWidget {
+  const InspectionsTab({super.key});
+
+  @override
+  State<InspectionsTab> createState() => _InspectionsTabState();
+}
+
+class _InspectionsTabState extends State<InspectionsTab> {
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _inspections = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInspections();
+  }
+
+  Future<void> _loadInspections() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Obter ID do inspetor associado ao usuário atual
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+      
+      final inspectorData = await _supabase
+          .from('inspectors')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+      
+      final inspectorId = inspectorData['id'];
+      
+      // Buscar vistorias atribuídas ao inspetor
+      final data = await _supabase
+          .from('inspections')
+          .select('*, rooms(count)')
+          .eq('inspector_id', inspectorId)
+          .eq('deleted_at', Null)
+          .order('scheduled_date', ascending: true);
+      
+      setState(() {
+        _inspections = List<Map<String, dynamic>>.from(data);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar vistorias: $e')),
+        );
+      }
+    }
+  }
+
+  // Calcula o progresso da vistoria com base nos dados
+  double _calculateProgress(Map<String, dynamic> inspection) {
+    // Implementação básica - pode ser aprimorada com dados reais
+    // Aqui você pode implementar a lógica para calcular o progresso
+    // com base nos itens completados vs total de itens no template
+    return 0.3; // Valor de exemplo (30% concluído)
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Minhas Vistorias'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadInspections,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _inspections.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Nenhuma vistoria encontrada',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadInspections,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _inspections.length,
+                    itemBuilder: (context, index) {
+                      final inspection = _inspections[index];
+                      final progress = _calculateProgress(inspection);
+                      
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        elevation: 2,
+                        child: InkWell(
+                          onTap: () {
+                            // Navegue para a tela de detalhes da vistoria
+                            // Navigator.of(context).push(...);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        inspection['title'] ?? 'Sem título',
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    _buildStatusChip(inspection['status']),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Endereço: ${_formatAddress(inspection)}',
+                                  style: const TextStyle(fontSize: 14),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Data: ${_formatDate(inspection['scheduled_date'])}',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Progresso:',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                                const SizedBox(height: 4),
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  backgroundColor: Colors.grey[300],
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor,
+                                  ),
+                                  minHeight: 8,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    if (inspection['status'] == 'pending' || 
+                                        inspection['status'] == 'in_progress')
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          // Iniciar ou continuar vistoria
+                                        },
+                                        child: Text(
+                                          inspection['status'] == 'pending'
+                                              ? 'Iniciar'
+                                              : 'Continuar',
+                                        ),
+                                      ),
+                                    if (inspection['status'] == 'in_progress')
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 8),
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            // Finalizar vistoria
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green,
+                                          ),
+                                          child: const Text('Finalizar'),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+    );
+  }
+
+  // Formata o endereço
+  String _formatAddress(Map<String, dynamic> inspection) {
+    final street = inspection['street'] ?? '';
+    final number = inspection['number'] ?? '';
+    final neighborhood = inspection['neighborhood'] ?? '';
+    final city = inspection['city'] ?? '';
+    final state = inspection['state'] ?? '';
+    
+    return '$street, $number - $neighborhood, $city - $state';
+  }
+
+  // Formata a data
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return 'Data não definida';
+    
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    } catch (e) {
+      return 'Data inválida';
+    }
+  }
+
+  // Constrói o chip de status
+  Widget _buildStatusChip(String? status) {
+    String label;
+    Color color;
+    
+    switch (status) {
+      case 'pending':
+        label = 'Pendente';
+        color = Colors.orange;
+        break;
+      case 'in_progress':
+        label = 'Em andamento';
+        color = Colors.blue;
+        break;
+      case 'completed':
+        label = 'Concluída';
+        color = Colors.green;
+        break;
+      case 'cancelled':
+        label = 'Cancelada';
+        color = Colors.red;
+        break;
+      default:
+        label = 'Desconhecido';
+        color = Colors.grey;
+    }
+    
+    return Chip(
+      backgroundColor: color.withOpacity(0.2),
+      side: BorderSide(color: color),
+      label: Text(
+        label,
+        style: TextStyle(color: color),
+      ),
+    );
+  }
+}
+
+
+// lib/presentation/screens/home/profile_tab.dart
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:inspection_app/presentation/screens/profile/edit_profile_screen.dart';
+
+class ProfileTab extends StatefulWidget {
+  const ProfileTab({super.key});
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  Map<String, dynamic>? _profile;
+  String? _profileImageBase64;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+      
+      final data = await _supabase
+          .from('inspectors')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+      
+      setState(() {
+        _profile = data;
+      });
+
+      // Carregar a imagem de perfil
+      await _loadProfileImage();
+      
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar perfil: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadProfileImage() async {
+    if (_profile == null) return;
+    
+    try {
+      final inspectorId = _profile!['id'];
+      final imagesList = await _supabase
+          .from('profile_images')
+          .select('image_data')
+          .eq('inspector_id', inspectorId)
+          .limit(1);
+
+      if (imagesList.isNotEmpty && imagesList[0]['image_data'] != null) {
+        setState(() {
+          _profileImageBase64 = imagesList[0]['image_data'];
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar imagem: $e');
+    }
+  }
+
+  Future<void> _navigateToEditProfile() async {
+    if (_profile == null) return;
+    
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(
+          profile: _profile!,
+        ),
+      ),
+    );
+    
+    // Se retornou true, recarregar o perfil
+    if (updated == true) {
+      _loadProfile();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Perfil'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/settings');
+            },
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Avatar e nome
+                  _buildProfileImage(),
+                  const SizedBox(height: 16),
+                  Text(
+                    _getFullName(),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  Text(
+                    _profile?['profession'] ?? 'Não especificado',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Seção de informações pessoais
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Informações Pessoais',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                  
+                  _buildInfoItem(Icons.email, 'Email', _profile?['email'] ?? 'Não informado'),
+                  _buildInfoItem(Icons.phone, 'Telefone', _profile?['phonenumber'] ?? 'Não informado'),
+                  _buildInfoItem(Icons.business, 'CNPJ/CPF', _profile?['document'] ?? 'Não informado'),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Seção de endereço
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Endereço',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                  
+                  _buildInfoItem(
+                    Icons.location_on, 
+                    'Rua', 
+                    _formatAddress()
+                  ),
+                  _buildInfoItem(
+                    Icons.location_city, 
+                    'Cidade/Estado', 
+                    '${_profile?['city'] ?? 'Não informado'} - ${_profile?['state'] ?? ''}'
+                  ),
+                  _buildInfoItem(
+                    Icons.markunread_mailbox, 
+                    'CEP', 
+                    _profile?['cep'] ?? 'Não informado'
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Botão de editar perfil
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _navigateToEditProfile,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Editar Perfil'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildProfileImage() {
+    if (_profileImageBase64 != null) {
+      try {
+        final imageBytes = base64Decode(_profileImageBase64!);
+        return CircleAvatar(
+          radius: 50,
+          backgroundImage: MemoryImage(imageBytes),
+        );
+      } catch (e) {
+        print('Erro ao decodificar imagem: $e');
+        // Em caso de erro, cair no fallback com iniciais
+      }
+    }
+    
+    return CircleAvatar(
+      radius: 50,
+      backgroundColor: Theme.of(context).primaryColor,
+      child: Text(
+        _getInitials(),
+        style: const TextStyle(
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  String _getFullName() {
+    final name = _profile?['name'] ?? '';
+    final lastName = _profile?['last_name'] ?? '';
+    return '$name $lastName'.trim();
+  }
+
+  String _getInitials() {
+    if (_profile == null) return '';
+    
+    final name = _profile?['name'] ?? '';
+    final lastName = _profile?['last_name'] ?? '';
+    
+    String initials = '';
+    if (name.isNotEmpty) {
+      initials += name[0];
+    }
+    
+    if (lastName.isNotEmpty) {
+      initials += lastName[0];
+    }
+    
+    return initials.toUpperCase();
+  }
+
+  String _formatAddress() {
+    final street = _profile?['street'] ?? '';
+    final neighborhood = _profile?['neighborhood'] ?? '';
+    
+    if (street.isEmpty && neighborhood.isEmpty) {
+      return 'Não informado';
+    }
+    
+    return '$street, $neighborhood'.trim();
+  }
+
+  Widget _buildInfoItem(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color: Theme.of(context).primaryColor,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+
+// lib/presentation/screens/home/schedule_tab.dart
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class ScheduleTab extends StatefulWidget {
+  const ScheduleTab({super.key});
+
+  @override
+  State<ScheduleTab> createState() => _ScheduleTabState();
+}
+
+class _ScheduleTabState extends State<ScheduleTab> {
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _scheduledInspections = [];
+  DateTime _selectedDate = DateTime.now();
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadScheduledInspections();
+  }
+
+  Future<void> _loadScheduledInspections() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Obter ID do inspetor associado ao usuário atual
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+      
+      final inspectorData = await _supabase
+          .from('inspectors')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+      
+      final inspectorId = inspectorData['id'];
+      
+      // Buscar vistorias agendadas para o inspetor
+      final startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+      final endDate = DateTime(_selectedDate.year, _selectedDate.month + 1, 0);
+      
+      final data = await _supabase
+          .from('inspections')
+          .select('*')
+          .eq('inspector_id', inspectorId)
+          .gte('scheduled_date', startDate.toIso8601String())
+          .lte('scheduled_date', endDate.toIso8601String())
+          .eq('deleted_at', Null)
+          .order('scheduled_date', ascending: true);
+      
+      setState(() {
+        _scheduledInspections = List<Map<String, dynamic>>.from(data);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar agenda: $e')),
+        );
+      }
+    }
+  }
+
+  // Agrupamento das inspeções por data
+  Map<DateTime, List<Map<String, dynamic>>> _groupInspectionsByDate() {
+    final grouped = <DateTime, List<Map<String, dynamic>>>{};
+    
+    for (final inspection in _scheduledInspections) {
+      if (inspection['scheduled_date'] != null) {
+        try {
+          final date = DateTime.parse(inspection['scheduled_date']).toLocal();
+          final dateOnly = DateTime(date.year, date.month, date.day);
+          
+          if (grouped[dateOnly] == null) {
+            grouped[dateOnly] = [];
+          }
+          
+          grouped[dateOnly]!.add(inspection);
+        } catch (e) {
+          // Ignorar datas inválidas
+        }
+      }
+    }
+    
+    return grouped;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groupedInspections = _groupInspectionsByDate();
+    final sortedDates = groupedInspections.keys.toList()..sort();
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Agenda'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: _selectMonth,
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadScheduledInspections,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    '${_getMonthName(_selectedDate.month)} ${_selectedDate.year}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: groupedInspections.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Nenhuma vistoria agendada neste mês',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: sortedDates.length,
+                          itemBuilder: (context, index) {
+                            final date = sortedDates[index];
+                            final inspections = groupedInspections[date]!;
+                            
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).primaryColor,
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        child: Text(
+                                          '${date.day}/${date.month}/${date.year}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _getWeekdayName(date.weekday),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                ...inspections.map((inspection) => Card(
+                                  margin: const EdgeInsets.only(bottom: 12, left: 8, right: 8),
+                                  child: InkWell(
+                                    onTap: () {
+                                      // Navegue para a tela de detalhes da vistoria
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            inspection['title'] ?? 'Sem título',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            _formatAddress(inspection),
+                                            style: const TextStyle(fontSize: 14),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              _buildStatusChip(inspection['status']),
+                                              if (inspection['status'] == 'pending')
+                                                ElevatedButton(
+                                                  onPressed: () {
+                                                    // Iniciar vistoria
+                                                  },
+                                                  child: const Text('Iniciar'),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                )),
+                                const Divider(),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _selectMonth() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDatePickerMode: DatePickerMode.year,
+    );
+
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = DateTime(picked.year, picked.month, 1);
+        _loadScheduledInspections();
+      });
+    }
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro'
+    ];
+    return months[month - 1];
+  }
+
+  String _getWeekdayName(int weekday) {
+    const weekdays = [
+      'Segunda-feira',
+      'Terça-feira',
+      'Quarta-feira',
+      'Quinta-feira',
+      'Sexta-feira',
+      'Sábado',
+      'Domingo'
+    ];
+    return weekdays[weekday - 1];
+  }
+
+  // Formata o endereço
+  String _formatAddress(Map<String, dynamic> inspection) {
+    final street = inspection['street'] ?? '';
+    final number = inspection['number'] ?? '';
+    final neighborhood = inspection['neighborhood'] ?? '';
+    final city = inspection['city'] ?? '';
+    final state = inspection['state'] ?? '';
+    
+    return '$street, $number - $neighborhood, $city - $state';
+  }
+
+  // Constrói o chip de status
+  Widget _buildStatusChip(String? status) {
+    String label;
+    Color color;
+    
+    switch (status) {
+      case 'pending':
+        label = 'Pendente';
+        color = Colors.orange;
+        break;
+      case 'in_progress':
+        label = 'Em andamento';
+        color = Colors.blue;
+        break;
+      case 'completed':
+        label = 'Concluída';
+        color = Colors.green;
+        break;
+      case 'cancelled':
+        label = 'Cancelada';
+        color = Colors.red;
+        break;
+      default:
+        label = 'Desconhecido';
+        color = Colors.grey;
+    }
+    
+    return Chip(
+      backgroundColor: color.withOpacity(0.2),
+      side: BorderSide(color: color),
+      label: Text(
+        label,
+        style: TextStyle(color: color),
+      ),
+    );
+  }
+}
+
+
+// lib/presentation/screens/profile/edit_profile_screen.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:brasil_fields/brasil_fields.dart';
+
+class EditProfileScreen extends StatefulWidget {
+  final Map<String, dynamic> profile;
+
+  const EditProfileScreen({
+    super.key,
+    required this.profile,
+  });
+
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
+  File? _profileImage;
+  String? _profileImageUrl;
+  bool _hasProfileImage = false;
+
+  // Controllers para os campos do formulário
+  late final TextEditingController _nameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _documentController;
+  late final TextEditingController _cepController;
+  late final TextEditingController _streetController;
+  late final TextEditingController _neighborhoodController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _stateController;
+  String? _selectedProfession;
+
+  final List<String> _professions = [
+    'Engenheiro(a) Civil',
+    'Arquiteto(a)',
+    'Técnico(a) em Edificações',
+    'Engenheiro(a) Elétricista',
+    'Outra Engenharia',
+    'Outro Técnico',
+    'Outro'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initControllers();
+    _checkProfileImage();
+  }
+
+  void _initControllers() {
+    _nameController = TextEditingController(text: widget.profile['name'] ?? '');
+    _lastNameController = TextEditingController(text: widget.profile['last_name'] ?? '');
+    _emailController = TextEditingController(text: widget.profile['email'] ?? '');
+    _phoneController = TextEditingController(text: widget.profile['phonenumber'] ?? '');
+    _documentController = TextEditingController(text: widget.profile['document'] ?? '');
+    _cepController = TextEditingController(text: widget.profile['cep'] ?? '');
+    _streetController = TextEditingController(text: widget.profile['street'] ?? '');
+    _neighborhoodController = TextEditingController(text: widget.profile['neighborhood'] ?? '');
+    _cityController = TextEditingController(text: widget.profile['city'] ?? '');
+    _stateController = TextEditingController(text: widget.profile['state'] ?? '');
+    _selectedProfession = widget.profile['profession'];
+  }
+
+  // Verificar se há imagem de perfil no banco de dados
+  Future<void> _checkProfileImage() async {
+    try {
+      final inspectorId = widget.profile['id'];
+      
+      final images = await _supabase
+          .from('profile_images')
+          .select('id')
+          .eq('inspector_id', inspectorId)
+          .limit(1);
+      
+      setState(() {
+        _hasProfileImage = images.isNotEmpty;
+      });
+    } catch (e) {
+      print('Erro ao verificar imagem de perfil: $e');
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _profileImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao selecionar imagem: $e')),
+      );
+    }
+  }
+
+  Future<void> _fetchCepData(String cep) async {
+    // Garantir que estamos trabalhando apenas com dígitos
+    final cepDigits = cep.replaceAll(RegExp(r'\D'), '');
+    if (cepDigits.length != 8) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final url = Uri.parse('https://viacep.com.br/ws/$cepDigits/json/');
+      final response = await http.get(url);
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['erro'] == true) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('CEP não encontrado')),
+            );
+          }
+          return;
+        }
+        if (mounted) {
+          setState(() {
+            _streetController.text = data['logradouro'] ?? '';
+            _neighborhoodController.text = data['bairro'] ?? '';
+            _cityController.text = data['localidade'] ?? '';
+            _stateController.text = data['uf'] ?? '';
+          });
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erro ao buscar o CEP')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final inspectorId = widget.profile['id'];
+      
+      // 1. Atualizar dados do perfil
+      await _supabase
+          .from('inspectors')
+          .update({
+            'name': _nameController.text,
+            'last_name': _lastNameController.text,
+            'profession': _selectedProfession,
+            'phonenumber': _phoneController.text,
+            'document': _documentController.text,
+            'cep': _cepController.text,
+            'street': _streetController.text,
+            'neighborhood': _neighborhoodController.text,
+            'city': _cityController.text,
+            'state': _stateController.text,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', inspectorId);
+      
+      // 2. Processar imagem de perfil se selecionada
+      if (_profileImage != null) {
+        // Abordagem alternativa: armazenar a imagem como base64 na tabela
+        final bytes = await _profileImage!.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        
+        // Verificar se já existe uma imagem para este inspetor
+        if (_hasProfileImage) {
+          // Atualizar registro existente
+          await _supabase
+              .from('profile_images')
+              .update({
+                'image_data': base64Image,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('inspector_id', inspectorId);
+        } else {
+          // Inserir novo registro
+          await _supabase
+              .from('profile_images')
+              .insert({
+                'inspector_id': inspectorId,
+                'image_data': base64Image,
+                'created_at': DateTime.now().toIso8601String(),
+              });
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Perfil atualizado com sucesso!')),
+        );
+        Navigator.of(context).pop(true); // Retorna true para indicar sucesso
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar perfil: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Editar Perfil'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _isLoading ? null : _saveProfile,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Imagem de perfil
+                    Center(
+                      child: Stack(
+                        children: [
+                          // Avatar ou imagem selecionada
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
+                            child: _profileImage != null 
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(60),
+                                  child: Image.file(
+                                    _profileImage!,
+                                    width: 120,
+                                    height: 120,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Text(
+                                  _getInitials(),
+                                  style: TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                          ),
+                          // Botão para editar
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.camera_alt, color: Colors.white),
+                                onPressed: _pickImage,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Dados pessoais
+                    const Text(
+                      'Dados Pessoais',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value == null || value.isEmpty 
+                          ? 'Campo obrigatório' 
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _lastNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Sobrenome',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value == null || value.isEmpty 
+                          ? 'Campo obrigatório' 
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedProfession,
+                      decoration: const InputDecoration(
+                        labelText: 'Profissão',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _professions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() => _selectedProfession = newValue);
+                      },
+                      validator: (value) => value == null 
+                          ? 'Selecione uma profissão' 
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      readOnly: true, // Email não pode ser alterado
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefone',
+                        border: OutlineInputBorder(),
+                        hintText: '(99) 99999-9999',
+                      ),
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        TelefoneInputFormatter(),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _documentController,
+                      decoration: const InputDecoration(
+                        labelText: 'CNPJ/CPF',
+                        border: OutlineInputBorder(),
+                        hintText: 'Digite CNPJ ou CPF',
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        CpfOuCnpjFormatter(),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Endereço
+                    const Text(
+                      'Endereço',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _cepController,
+                      decoration: const InputDecoration(
+                        labelText: 'CEP',
+                        border: OutlineInputBorder(),
+                        hintText: '00.000-000',
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        CepInputFormatter(),
+                      ],
+                      onChanged: (value) {
+                        // Removendo a formatação para usar apenas os dígitos
+                        final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+                        if (digitsOnly.length == 8) {
+                          _fetchCepData(digitsOnly);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _streetController,
+                      decoration: const InputDecoration(
+                        labelText: 'Rua',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _neighborhoodController,
+                      decoration: const InputDecoration(
+                        labelText: 'Bairro',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _cityController,
+                            decoration: const InputDecoration(
+                              labelText: 'Cidade',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _stateController,
+                            decoration: const InputDecoration(
+                              labelText: 'Estado',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // Botão de salvar
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _saveProfile,
+                        child: _isLoading
+                            ? const CircularProgressIndicator()
+                            : const Text('Salvar Alterações'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _documentController.dispose();
+    _cepController.dispose();
+    _streetController.dispose();
+    _neighborhoodController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    super.dispose();
+  }
+
+  String _getInitials() {
+    final name = _nameController.text;
+    final lastName = _lastNameController.text;
+    
+    String initials = '';
+    if (name.isNotEmpty) {
+      initials += name[0];
+    }
+    
+    if (lastName.isNotEmpty) {
+      initials += lastName[0];
+    }
+    
+    return initials.toUpperCase();
+  }
+}
+
+
+// lib/presentation/screens/settings/settings_screen.dart
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _supabase = Supabase.instance.client;
+  bool _darkMode = false;
+  bool _notificationsEnabled = true;
+  bool _locationPermission = true;
+  bool _cameraPermission = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _darkMode = prefs.getBool('darkMode') ?? false;
+      _notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
+      _locationPermission = prefs.getBool('locationPermission') ?? true;
+      _cameraPermission = prefs.getBool('cameraPermission') ?? true;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('darkMode', _darkMode);
+    await prefs.setBool('notificationsEnabled', _notificationsEnabled);
+    await prefs.setBool('locationPermission', _locationPermission);
+    await prefs.setBool('cameraPermission', _cameraPermission);
+  }
+
+  Future<void> _signOut() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      await _supabase.auth.signOut();
+      
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao sair: $e')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir conta'),
+        content: const Text(
+          'Tem certeza que deseja excluir sua conta? Esta ação não poderá ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      
+      try {
+        final userId = _supabase.auth.currentUser?.id;
+        if (userId == null) return;
+        
+        // Obter o ID do inspetor
+        final inspectorData = await _supabase
+            .from('inspectors')
+            .select('id')
+            .eq('user_id', userId)
+            .single();
+        
+        final inspectorId = inspectorData['id'];
+        
+        // Marcar o inspetor como excluído (soft delete)
+        await _supabase
+            .from('inspectors')
+            .update({'deleted_at': DateTime.now().toIso8601String()})
+            .eq('id', inspectorId);
+        
+        // Sair da conta
+        await _supabase.auth.signOut();
+        
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao excluir conta: $e')),
+          );
+        }
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Configurações'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              children: [
+                _buildSectionHeader('Aparência'),
+                SwitchListTile(
+                  title: const Text('Modo Escuro'),
+                  subtitle: const Text('Alternar entre tema claro e escuro'),
+                  value: _darkMode,
+                  onChanged: (value) {
+                    setState(() => _darkMode = value);
+                    _saveSettings();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Reinicie o aplicativo para aplicar o tema'),
+                      ),
+                    );
+                  },
+                ),
+                
+                _buildSectionHeader('Notificações'),
+                SwitchListTile(
+                  title: const Text('Notificações'),
+                  subtitle: const Text('Receber alertas sobre novas vistorias e mensagens'),
+                  value: _notificationsEnabled,
+                  onChanged: (value) {
+                    setState(() => _notificationsEnabled = value);
+                    _saveSettings();
+                  },
+                ),
+                
+                _buildSectionHeader('Permissões'),
+                SwitchListTile(
+                  title: const Text('Localização'),
+                  subtitle: const Text('Permissão para acessar a localização do dispositivo'),
+                  value: _locationPermission,
+                  onChanged: (value) {
+                    setState(() => _locationPermission = value);
+                    _saveSettings();
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text('Câmera'),
+                  subtitle: const Text('Permissão para acessar a câmera do dispositivo'),
+                  value: _cameraPermission,
+                  onChanged: (value) {
+                    setState(() => _cameraPermission = value);
+                    _saveSettings();
+                  },
+                ),
+                
+                _buildSectionHeader('Armazenamento'),
+                ListTile(
+                  title: const Text('Limpar Cache'),
+                  subtitle: const Text('Remover arquivos temporários'),
+                  leading: const Icon(Icons.cleaning_services),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Cache limpo com sucesso'),
+                      ),
+                    );
+                  },
+                ),
+                
+                _buildSectionHeader('Conta'),
+                ListTile(
+                  title: const Text('Sair'),
+                  subtitle: const Text('Encerrar a sessão atual'),
+                  leading: const Icon(Icons.logout),
+                  onTap: _signOut,
+                ),
+                ListTile(
+                  title: const Text('Excluir Conta'),
+                  subtitle: const Text('Remover permanentemente sua conta'),
+                  leading: const Icon(Icons.delete_forever, color: Colors.red),
+                  textColor: Colors.red,
+                  onTap: _deleteAccount,
+                ),
+                
+                _buildSectionHeader('Sobre'),
+                ListTile(
+                  title: const Text('Versão do Aplicativo'),
+                  subtitle: const Text('1.0.0'),
+                  leading: const Icon(Icons.info),
+                ),
+                const ListTile(
+                  title: Text('Política de Privacidade'),
+                  leading: Icon(Icons.privacy_tip),
+                ),
+                const ListTile(
+                  title: Text('Termos de Uso'),
+                  leading: Icon(Icons.gavel),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).primaryColor,
+        ),
+      ),
+    );
+  }
+}
+
+
+project file tree:
+lib
+ ┣ core
+ ┃ ┣ constants
+ ┃ ┣ errors
+ ┃ ┣ network
+ ┃ ┗ utils
+ ┣ data
+ ┃ ┣ datasources
+ ┃ ┣ models
+ ┃ ┗ repositories
+ ┣ domain
+ ┃ ┣ entities
+ ┃ ┣ repositories
+ ┃ ┗ usecases
+ ┣ presentation
+ ┃ ┣ bloc
+ ┃ ┣ screens
+ ┃ ┃ ┣ auth
+ ┃ ┃ ┃ ┣ forgot_passoword.dart
+ ┃ ┃ ┃ ┣ login_screen.dart
+ ┃ ┃ ┃ ┗ register_screen.dart
+ ┃ ┃ ┣ get_started
+ ┃ ┃ ┃ ┗ get_started_screen.dart
+ ┃ ┃ ┣ home
+ ┃ ┃ ┃ ┣ chat_tab.dart
+ ┃ ┃ ┃ ┣ home_screen.dart
+ ┃ ┃ ┃ ┣ inspections_tab.dart
+ ┃ ┃ ┃ ┣ profile_tab.dart
+ ┃ ┃ ┃ ┗ schedule_tab.dart
+ ┃ ┃ ┣ profile
+ ┃ ┃ ┃ ┗ edit_profile_screen.dart
+ ┃ ┃ ┣ settings
+ ┃ ┃ ┃ ┗ settings_screen.dart
+ ┃ ┃ ┗ splash
+ ┃ ┃ ┃ ┗ splash_screen.dart
+ ┃ ┗ widgets
+ ┗ main.dart
+
