@@ -30,12 +30,27 @@ class _SplashScreenState extends State<SplashScreen> {
         Navigator.pushReplacementNamed(context, '/get-started');
       }
     } else {
+      // Check for deep links from password reset flow
+      final uri = Uri.base;
+      if (uri.toString().contains('type=recovery')) {
+        // Handle password reset flow
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/reset-password');
+          return;
+        }
+      }
+
       // Verifica se há uma sessão ativa (usuário já logado)
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session != null) {
         // Check if session is still valid
         try {
+          // If the session is expired, refreshSession() will renew it
+          if (session.isExpired) {
+            await Supabase.instance.client.auth.refreshSession();
+          }
+          
           // Attempt to make a simple request to verify the session
           await Supabase.instance.client.from('inspectors').select('id').limit(1);
 

@@ -82,12 +82,6 @@ class _MediaInputWidgetState extends State<MediaInputWidget> {
 
       print("detailId: $detailId");
 
-      // Check if roomItemId is null before using it in the query
-      if (roomItemId == null) {
-        print("roomItemId is null, skipping media load query.");
-        return; // Exit the function early if roomItemId is null
-      }
-
 
       final mediaList = await _supabase
           .from('media')
@@ -232,7 +226,7 @@ class _MediaInputWidgetState extends State<MediaInputWidget> {
           'type': 'image',
           'url': publicUrl,
           'inspection_id': widget.inspectionId,
-          'room_id': roomId!, // roomId is checked for null above
+          'room_id': roomId, // roomId is checked for null above
           'room_item_id': roomItemId, // roomItemId is checked for null above
           'detail_id': detailId,
           'section': widget.detailName
@@ -315,7 +309,7 @@ class _MediaInputWidgetState extends State<MediaInputWidget> {
           'type': 'video',
           'url': publicUrl,
           'inspection_id': widget.inspectionId, // Use directly!
-          'room_id': roomId!, // Use the *actual* ID!
+          'room_id': roomId, // Use the *actual* ID!
           'room_item_id': roomItemId, // Use the *actual* ID!
           'detail_id': detailId, // Use detailId, can be null.
           'section': widget.detailName,

@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:inspection_app/presentation/screens/home/chat_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
@@ -20,7 +19,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Map<String, dynamic>? _inspection;
   List<dynamic> _rooms = [];
   final Map<String, Map<String, dynamic>> _inspectionData = {};
-  int _expandedRoomIndex = -1;
+  final int _expandedRoomIndex = -1;
   int _selectedRoomIndex = -1; // Track selected room in landscape
   int _selectedItemIndex = -1; // Track selected item in landscape
 
@@ -491,11 +490,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             }
    }
 
-
-  Future<void> _startChat() async {
-    // ... (rest of the _startChat function is the same)
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -505,10 +499,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _isLoading ? null : _saveInspectionData,
-          ),
-          IconButton(
-            icon: const Icon(Icons.chat),
-            onPressed: _isLoading ? null : _startChat,
           ),
         ],
       ),

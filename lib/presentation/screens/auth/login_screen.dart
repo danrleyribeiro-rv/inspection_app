@@ -14,6 +14,30 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Check for deep link coming from password reset
+    _checkDeepLink();
+  }
+
+  Future<void> _checkDeepLink() async {
+    // Check if we're returning from a password reset flow
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      if (mounted) {
+        // If session exists and we're on login screen, we might be in a password reset flow
+        final type = Uri.base.queryParameters['type'];
+        if (type == 'recovery') {
+          // Navigate to reset password screen
+          Navigator.of(context).pushReplacementNamed('/reset-password');
+        }
+      }
+    }
+  }
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
@@ -130,12 +154,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _passwordController,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Password',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.lock),
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.lock),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                            ),
                           ),
-                          obscureText: true,
+                          obscureText: !_isPasswordVisible,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your password';
@@ -197,4 +233,3 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 }
-

@@ -7,9 +7,11 @@ import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
 import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
 import 'package:inspection_app/presentation/screens/auth/login_screen.dart';
 import 'package:inspection_app/presentation/screens/auth/register_screen.dart';
-import 'package:inspection_app/presentation/screens/auth/forgot_passoword.dart';
+import 'package:inspection_app/presentation/screens/auth/forgot_password_screen.dart';
+import 'package:inspection_app/presentation/screens/auth/reset_password_screen.dart';
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
+import 'package:inspection_app/services/local_database_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,12 +20,16 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  await dotenv.load(fileName: ".env"); // Carregue as variáveis de ambiente
+  await dotenv.load(fileName: ".env");
+
+  // Initialize local database for offline functionality
+  await LocalDatabaseService.initialize();
 
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!, // Use as variáveis do .env
+    url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-    debug: true, // Defina como true apenas durante o desenvolvimento
+    debug: true,
+    //authFlowType: AuthFlowType.pkce,
   );
 
   runApp(const MyApp());
@@ -108,12 +114,14 @@ class MyApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.lightBlueAccent, width: 2),
+            borderSide:
+                const BorderSide(color: Colors.lightBlueAccent, width: 2),
           ),
         ),
         fontFamily: 'Roboto',
       ),
-      themeMode: ThemeMode.system, // Use as configurações do sistema para o tema
+      themeMode:
+          ThemeMode.system, // Use as configurações do sistema para o tema
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
@@ -121,6 +129,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/reset-password': (context) => const ResetPasswordScreen(),
         '/home': (context) => const HomeScreen(),
         '/settings': (context) => const SettingsScreen(),
       },
