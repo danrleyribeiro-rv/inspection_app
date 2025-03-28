@@ -11,7 +11,7 @@ class Detail {
   final String? observation;
   final bool? isDamaged;
   final List<String>? tags;
-    final DateTime? createdAt;
+  final DateTime? createdAt;
   final DateTime? updatedAt;
 
   Detail({
@@ -26,16 +26,16 @@ class Detail {
     this.observation,
     this.isDamaged,
     this.tags,
-        this.createdAt,
+    this.createdAt,
     this.updatedAt
   });
 
-   factory Detail.fromJson(Map<String, dynamic> json) {
+  factory Detail.fromJson(Map<String, dynamic> json) {
     return Detail(
       id: json['id'],
       inspectionId: json['inspection_id'],
       roomId: json['room_id'],
-      itemId: json['item_id'],
+      itemId: json['room_item_id'],
       detailId: json['detail_id'],
       position: json['position'],
       detailName: json['detail_name'],
@@ -47,12 +47,13 @@ class Detail {
       updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
     );
   }
+  
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'inspection_id': inspectionId,
       'room_id': roomId,
-      'item_id': itemId,
+      'room_item_id': itemId,
       'detail_id': detailId,
       'position': position,
       'detail_name': detailName,
@@ -63,5 +64,37 @@ class Detail {
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
+  }
+
+  Detail copyWith({
+    int? id,
+    int? inspectionId,
+    int? roomId,
+    int? itemId,
+    int? detailId,
+    int? position,
+    String? detailName,
+    String? detailValue,
+    String? observation,
+    bool? isDamaged,
+    List<String>? tags,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Detail(
+      id: id ?? this.id,
+      inspectionId: inspectionId ?? this.inspectionId,
+      roomId: roomId ?? this.roomId,
+      itemId: itemId ?? this.itemId,
+      detailId: detailId ?? this.detailId,
+      position: position ?? this.position,
+      detailName: detailName ?? this.detailName,
+      detailValue: detailValue ?? this.detailValue,
+      observation: observation ?? this.observation,
+      isDamaged: isDamaged ?? this.isDamaged,
+      tags: tags ?? this.tags,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }

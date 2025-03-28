@@ -1,6 +1,6 @@
 // lib/presentation/screens/home/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/presentation/screens/home/improved_inspection_tab.dart';
+import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
 import 'package:inspection_app/presentation/screens/home/schedule_tab.dart';
 import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,8 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final _supabase = Supabase.instance.client;
 
-    final List<Widget> _tabs = [
-    const ImprovedInspectionTab(),
+  final List<Widget> _tabs = [
+    const InspectionTab(),
     const ScheduleTab(),
     const ProfileTab(),
   ];

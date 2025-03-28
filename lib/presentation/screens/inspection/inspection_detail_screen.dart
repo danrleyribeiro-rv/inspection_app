@@ -1,8 +1,8 @@
 // lib/presentation/screens/inspection/inspection_detail_screen.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
+import 'package:inspection_app/presentation/screens/inspection/_room_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
+import 'package:inspection_app/presentation/screens/inspection/_detail_widget.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final int inspectionId;

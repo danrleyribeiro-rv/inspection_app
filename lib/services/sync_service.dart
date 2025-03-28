@@ -45,37 +45,46 @@ class SyncService {
         final room = Room.fromJson(roomData);
         await LocalDatabaseService.saveRoom(room);
         
+        // Skip if room ID is null
+        if (room.id == null) continue;
+        
         // 3. Fetch items for each room
         final itemsData = await _supabase
             .from('room_items')
             .select()
             .eq('inspection_id', inspectionId)
-            .eq('room_id', room.id);
+            .eq('room_id', room.id!);
         
         for (var itemData in itemsData) {
           final item = Item.fromJson(itemData);
           await LocalDatabaseService.saveItem(item);
+          
+          // Skip if item ID is null
+          if (item.id == null) continue;
           
           // 4. Fetch details for each item
           final detailsData = await _supabase
               .from('item_details')
               .select()
               .eq('inspection_id', inspectionId)
-              .eq('room_id', room.id)
-              .eq('room_item_id', item.id);
+              .eq('room_id', room.id!)
+              .eq('room_item_id', item.id!);
           
           for (var detailData in detailsData) {
             final detail = Detail.fromJson(detailData);
             await LocalDatabaseService.saveDetail(detail);
+            
+            // Skip if detail ID is null
+            if (detail.id == null) continue;
             
             // 5. Fetch media for each detail
             final mediaData = await _supabase
                 .from('media')
                 .select()
                 .eq('inspection_id', inspectionId)
-                .eq('room_id', room.id)
-                .eq('room_item_id', item.id)
-                .eq('detail_id', detail.id);
+                .eq('room_id', room.id!)
+                .eq('room_item_id', item.id!)
+                .eq('detail_id', detail.id!);
             
             for (var media in mediaData) {
               await _downloadMedia(
@@ -118,6 +127,9 @@ class SyncService {
       final rooms = await LocalDatabaseService.getRoomsByInspection(inspection.id);
       
       for (var room in rooms) {
+        // Skip if room ID is null
+        if (room.id == null) continue;
+        
         final roomExists = await _checkIfExists('rooms', 'id', room.id);
         
         if (roomExists) {
@@ -125,7 +137,7 @@ class SyncService {
           await _supabase
               .from('rooms')
               .update(room.toJson())
-              .eq('id', room.id);
+              .eq('id', room.id!);
         } else {
           // Insert new room
           final result = await _supabase
@@ -135,9 +147,23 @@ class SyncService {
               .single();
           
           // Update local room with server-generated ID if necessary
-          if (room.id == null) {
-            room.id = result['id'];
-            await LocalDatabaseService.saveRoom(room);
+          final newRoomId = result['id'];
+          if (newRoomId != null) {
+            // Create a new room with the server-generated ID
+            final updatedRoom = Room(
+              id: newRoomId,
+              inspectionId: room.inspectionId,
+              roomId: room.roomId,
+              position: room.position,
+              roomName: room.roomName,
+              roomLabel: room.roomLabel,
+              observation: room.observation,
+              isDamaged: room.isDamaged,
+              tags: room.tags,
+              createdAt: room.createdAt,
+              updatedAt: DateTime.now(),
+            );
+            await LocalDatabaseService.saveRoom(updatedRoom);
           }
         }
         
@@ -145,6 +171,9 @@ class SyncService {
         final items = await LocalDatabaseService.getItemsByRoom(inspection.id, room.id!);
         
         for (var item in items) {
+          // Skip if item ID is null
+          if (item.id == null) continue;
+          
           final itemExists = await _checkIfExists('room_items', 'id', item.id);
           
           if (itemExists) {
@@ -152,7 +181,7 @@ class SyncService {
             await _supabase
                 .from('room_items')
                 .update(item.toJson())
-                .eq('id', item.id);
+                .eq('id', item.id!);
           } else {
             // Insert new item
             final result = await _supabase
@@ -162,9 +191,25 @@ class SyncService {
                 .single();
             
             // Update local item with server-generated ID if necessary
-            if (item.id == null) {
-              item.id = result['id'];
-              await LocalDatabaseService.saveItem(item);
+            final newItemId = result['id'];
+            if (newItemId != null) {
+              // Create a new item with the server-generated ID
+              final updatedItem = Item(
+                id: newItemId,
+                inspectionId: item.inspectionId,
+                roomId: item.roomId,
+                itemId: item.itemId,
+                position: item.position,
+                itemName: item.itemName,
+                itemLabel: item.itemLabel,
+                evaluation: item.evaluation,
+                observation: item.observation,
+                isDamaged: item.isDamaged,
+                tags: item.tags,
+                createdAt: item.createdAt,
+                updatedAt: DateTime.now(),
+              );
+              await LocalDatabaseService.saveItem(updatedItem);
             }
           }
           
@@ -173,6 +218,9 @@ class SyncService {
               inspection.id, room.id!, item.id!);
           
           for (var detail in details) {
+            // Skip if detail ID is null
+            if (detail.id == null) continue;
+            
             final detailExists = await _checkIfExists('item_details', 'id', detail.id);
             
             if (detailExists) {
@@ -180,7 +228,7 @@ class SyncService {
               await _supabase
                   .from('item_details')
                   .update(detail.toJson())
-                  .eq('id', detail.id);
+                  .eq('id', detail.id!);
             } else {
               // Insert new detail
               final result = await _supabase
@@ -190,9 +238,25 @@ class SyncService {
                   .single();
               
               // Update local detail with server-generated ID if necessary
-              if (detail.id == null) {
-                detail.id = result['id'];
-                await LocalDatabaseService.saveDetail(detail);
+              final newDetailId = result['id'];
+              if (newDetailId != null) {
+                // Create a new detail with the server-generated ID
+                final updatedDetail = Detail(
+                  id: newDetailId,
+                  inspectionId: detail.inspectionId,
+                  roomId: detail.roomId,
+                  itemId: detail.itemId,
+                  detailId: detail.detailId,
+                  position: detail.position,
+                  detailName: detail.detailName,
+                  detailValue: detail.detailValue,
+                  observation: detail.observation,
+                  isDamaged: detail.isDamaged,
+                  tags: detail.tags,
+                  createdAt: detail.createdAt,
+                  updatedAt: DateTime.now(),
+                );
+                await LocalDatabaseService.saveDetail(updatedDetail);
               }
             }
             

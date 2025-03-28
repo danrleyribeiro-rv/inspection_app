@@ -26,7 +26,7 @@ class Room {
     this.updatedAt,
   });
 
-   factory Room.fromJson(Map<String, dynamic> json) {
+  factory Room.fromJson(Map<String, dynamic> json) {
     return Room(
       id: json['id'],
       inspectionId: json['inspection_id'],
@@ -60,5 +60,33 @@ class Room {
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
+  }
+
+  Room copyWith({
+    int? id,
+    int? inspectionId,
+    int? roomId,
+    int? position,
+    String? roomName,
+    String? roomLabel,
+    String? observation,
+    bool? isDamaged,
+    List<String>? tags,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Room(
+      id: id ?? this.id,
+      inspectionId: inspectionId ?? this.inspectionId,
+      roomId: roomId ?? this.roomId,
+      position: position ?? this.position,
+      roomName: roomName ?? this.roomName,
+      roomLabel: roomLabel ?? this.roomLabel,
+      observation: observation ?? this.observation,
+      isDamaged: isDamaged ?? this.isDamaged,
+      tags: tags ?? this.tags,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }

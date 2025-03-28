@@ -1,4 +1,4 @@
-// lib/presentation/screens/home/improved_inspection_tab.dart
+// lib/presentation/screens/home/inspection_tab.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:inspection_app/models/inspection.dart';
@@ -8,14 +8,14 @@ import 'package:inspection_app/services/sync_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 
-class ImprovedInspectionTab extends StatefulWidget {
-  const ImprovedInspectionTab({super.key});
+class InspectionTab extends StatefulWidget {
+  const InspectionTab({super.key});
 
   @override
-  State<ImprovedInspectionTab> createState() => _ImprovedInspectionTabState();
+  State<InspectionTab> createState() => _InspectionTabState();
 }
 
-class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
+class _InspectionTabState extends State<InspectionTab> {
   final _supabase = Supabase.instance.client;
   final _inspectionService = InspectionService();
   final _syncService = SyncService();
@@ -62,9 +62,8 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
       builder: (context) => AlertDialog(
         title: const Text('Offline Mode Available'),
         content: const Text(
-          'This app now works offline! Download inspections to work without an internet connection. '
-          'Changes will automatically sync when you\'re back online.'
-        ),
+            'This app now works offline! Download inspections to work without an internet connection. '
+            'Changes will automatically sync when you\'re back online.'),
         actions: [
           TextButton(
             onPressed: () async {
@@ -224,11 +223,14 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
   }
 
   void _navigateToInspection(int inspectionId) {
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       MaterialPageRoute(
-        builder: (context) => OfflineInspectionScreen(inspectionId: inspectionId),
+        builder: (context) =>
+            OfflineInspectionScreen(inspectionId: inspectionId),
       ),
-    ).then((_) {
+    )
+        .then((_) {
       // Refresh the list when returning from the inspection screen
       _loadInspections();
     });
@@ -250,7 +252,8 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
             children: [
               IconButton(
                 icon: const Icon(Icons.sync),
-                onPressed: _isSyncing || _isOffline ? null : _syncAllInspections,
+                onPressed:
+                    _isSyncing || _isOffline ? null : _syncAllInspections,
                 tooltip: 'Sync All',
               ),
               if (_isSyncing)
@@ -305,7 +308,9 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
                   child: Row(
                     children: [
                       Icon(
-                        _isOffline ? Icons.signal_wifi_off : Icons.signal_wifi_4_bar,
+                        _isOffline
+                            ? Icons.signal_wifi_off
+                            : Icons.signal_wifi_4_bar,
                         color: _isOffline ? Colors.red[700] : Colors.green[700],
                       ),
                       const SizedBox(width: 8),
@@ -314,7 +319,8 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
                             ? 'You are offline. Only downloaded inspections are available.'
                             : 'You are online. All inspections are available.',
                         style: TextStyle(
-                          color: _isOffline ? Colors.red[700] : Colors.green[700],
+                          color:
+                              _isOffline ? Colors.red[700] : Colors.green[700],
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -332,7 +338,8 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ..._localInspections.map((inspection) => _buildInspectionCard(inspection)),
+                  ..._localInspections
+                      .map((inspection) => _buildInspectionCard(inspection)),
                   const SizedBox(height: 16),
                 ],
 
@@ -346,7 +353,8 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...remoteOnlyInspections.map((inspection) => _buildRemoteInspectionCard(inspection)),
+                  ...remoteOnlyInspections.map(
+                      (inspection) => _buildRemoteInspectionCard(inspection)),
                 ],
               ],
             ),
@@ -399,7 +407,8 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
     }
 
     // Check if inspection needs sync
-    Future<bool> isSynced = _inspectionService.isInspectionSynced(inspection.id);
+    Future<bool> isSynced =
+        _inspectionService.isInspectionSynced(inspection.id);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -536,14 +545,17 @@ class _ImprovedInspectionTabState extends State<ImprovedInspectionTab> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 ElevatedButton.icon(
-                  onPressed: _isSyncing ? null : () => _downloadInspection(inspection['id']),
+                  onPressed: _isSyncing
+                      ? null
+                      : () => _downloadInspection(inspection['id']),
                   icon: _isSyncing
                       ? const SizedBox(
                           width: 12,
                           height: 12,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Icon(Icons.download),

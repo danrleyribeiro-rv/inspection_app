@@ -52,7 +52,8 @@ class Item {
           : null,
     );
   }
-    Map<String, dynamic> toJson() {
+  
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'inspection_id': inspectionId,
@@ -68,5 +69,37 @@ class Item {
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
+  }
+
+  Item copyWith({
+    int? id,
+    int? inspectionId,
+    int? roomId,
+    int? itemId,
+    int? position,
+    String? itemName,
+    String? itemLabel,
+    String? evaluation,
+    String? observation,
+    bool? isDamaged,
+    List<String>? tags,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Item(
+      id: id ?? this.id,
+      inspectionId: inspectionId ?? this.inspectionId,
+      roomId: roomId ?? this.roomId,
+      itemId: itemId ?? this.itemId,
+      position: position ?? this.position,
+      itemName: itemName ?? this.itemName,
+      itemLabel: itemLabel ?? this.itemLabel,
+      evaluation: evaluation ?? this.evaluation,
+      observation: observation ?? this.observation,
+      isDamaged: isDamaged ?? this.isDamaged,
+      tags: tags ?? this.tags,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }
