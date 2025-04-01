@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Importe flutter_dotenv
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
 import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
 import 'package:inspection_app/presentation/screens/auth/login_screen.dart';
@@ -15,14 +15,17 @@ import 'package:inspection_app/services/local_database_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  
+  // Remover a restrição de orientação para permitir modo paisagem
+  // OBS: Anteriormente estava limitado apenas a portrait
+  // await SystemChrome.setPreferredOrientations([
+  //   DeviceOrientation.portraitUp,
+  //   DeviceOrientation.portraitDown,
+  // ]);
 
   await dotenv.load(fileName: ".env");
-
-  // Initialize local database for offline functionality
+  
+  // Inicializar o banco de dados local para funcionalidade offline
   await LocalDatabaseService.initialize();
 
   await Supabase.initialize(
@@ -114,14 +117,12 @@ class MyApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide:
-                const BorderSide(color: Colors.lightBlueAccent, width: 2),
+            borderSide: const BorderSide(color: Colors.lightBlueAccent, width: 2),
           ),
         ),
         fontFamily: 'Roboto',
       ),
-      themeMode:
-          ThemeMode.system, // Use as configurações do sistema para o tema
+      themeMode: ThemeMode.system,
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),

@@ -4,10 +4,12 @@ import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/presentation/screens/inspection/item_widget.dart';
 import 'package:inspection_app/services/inspection_service.dart';
+import 'dart:async'; // Para debounce
+import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
+
 
 class RoomWidget extends StatefulWidget {
   final Room room;
-  final dynamic roomTemplate; // Template configuration from inspection
   final Function(Room) onRoomUpdated;
   final Function(int) onRoomDeleted;
   final bool isExpanded;
@@ -16,7 +18,6 @@ class RoomWidget extends StatefulWidget {
   const RoomWidget({
     Key? key,
     required this.room,
-    required this.roomTemplate,
     required this.onRoomUpdated,
     required this.onRoomDeleted,
     required this.isExpanded,
@@ -32,8 +33,9 @@ class _RoomWidgetState extends State<RoomWidget> {
   List<Item> _items = [];
   bool _isLoading = true;
   int _expandedItemIndex = -1;
-  TextEditingController _observationController = TextEditingController();
+  final TextEditingController _observationController = TextEditingController();
   late bool _isDamaged;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -46,6 +48,7 @@ class _RoomWidgetState extends State<RoomWidget> {
   @override
   void dispose() {
     _observationController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -53,21 +56,29 @@ class _RoomWidgetState extends State<RoomWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // Load items from local database
+      // Verificar se o room.id não é null
+      if (widget.room.id == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      // Carregar itens do banco de dados
       final items = await _inspectionService.getItems(
         widget.room.inspectionId,
         widget.room.id!,
       );
 
-      setState(() {
-        _items = items;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() {
+          _items = items;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading items: $e')),
+          SnackBar(content: Text('Erro ao carregar itens: $e')),
         );
       }
     }
@@ -86,80 +97,103 @@ class _RoomWidgetState extends State<RoomWidget> {
   }
 
   Future<void> _addItem() async {
-    // Find an item template that's not already implemented
-    List<dynamic> itemTemplates = widget.roomTemplate['items'] ?? [];
-    List<String> existingItemNames = _items.map((i) => i.itemName).toList();
+  // Verificar se o room.id não é null
+  if (widget.room.id == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Erro: ID do ambiente não encontrado')),
+    );
+    return;
+  }
 
-    List<dynamic> availableTemplates = itemTemplates
-        .where((t) => !existingItemNames.contains(t['name']))
-        .toList();
+  // Mostrar dialog de seleção de templates
+  final template = await showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (context) => TemplateSelectorDialog(
+      title: 'Adicionar Item',
+      type: 'item',
+      parentName: widget.room.roomName,
+    ),
+  );
+  
+  if (template == null) return;
+  
+  setState(() => _isLoading = true);
 
-    if (availableTemplates.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All available items have been added')),
-        );
-      }
-      return;
+  try {
+    // Nome do item vem do template selecionado ou de um nome personalizado
+    final itemName = template['name'] as String;
+    String? itemLabel = template['label'] as String?;
+    
+    // Adicionar o item no banco de dados local
+    final newItem = await _inspectionService.addItem(
+      widget.room.inspectionId,
+      widget.room.id!,
+      itemName,
+      label: itemLabel,
+    );
+
+    // Atualizar o item com campos adicionais do template, se não for personalizado
+    if (template['isCustom'] != true && template['description'] != null) {
+      final updatedItem = newItem.copyWith(
+        itemLabel: itemLabel,
+        observation: template['description'] as String?,
+      );
+      await _inspectionService.updateItem(updatedItem);
     }
 
-    // Show dialog to select an item to add
-    final selectedTemplate = await showDialog<dynamic>(
+    // Recarregar lista de itens
+    await _loadItems();
+
+    // Expandir o novo item
+    if (mounted) {
+      setState(() {
+        _expandedItemIndex = _items.indexWhere((i) => i.id == newItem.id);
+        _isLoading = false;
+      });
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao adicionar item: $e')),
+      );
+    }
+  }
+}
+
+  Future<String?> _showItemDialog() async {
+    final controller = TextEditingController();
+    String? result;
+    
+    // Exibir diálogo em um contexto separado para evitar problemas com o descarte do estado
+    await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Item'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: availableTemplates.length,
-            itemBuilder: (context, index) {
-              final template = availableTemplates[index];
-              return ListTile(
-                title: Text(template['name']),
-                subtitle: Text(template['description'] ?? ''),
-                onTap: () => Navigator.of(context).pop(template),
-              );
-            },
-          ),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Adicionar Item'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Nome do item'),
+          autofocus: true,
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              result = controller.text;
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Adicionar'),
           ),
         ],
       ),
     );
-
-    if (selectedTemplate == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Add the item to local database
-      final newItem = await _inspectionService.addItem(
-        widget.room.inspectionId,
-        widget.room.id!,
-        selectedTemplate['name'],
-        label: selectedTemplate['description'],
-      );
-
-      // Refresh items list
-      await _loadItems();
-
-      // Expand the new item
-      setState(() {
-        _expandedItemIndex = _items.indexWhere((i) => i.id == newItem.id);
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding item: $e')),
-        );
-      }
-    }
+    
+    return result;
   }
 
   void _handleItemUpdate(Item updatedItem) {
@@ -175,19 +209,32 @@ class _RoomWidgetState extends State<RoomWidget> {
 
   Future<void> _handleItemDelete(int itemId) async {
     try {
+      // Verificar se o room.id não é null
+      if (widget.room.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: ID do ambiente não encontrado')),
+        );
+        return;
+      }
+      
       await _inspectionService.deleteItem(
         widget.room.inspectionId,
         widget.room.id!,
         itemId,
       );
 
-      setState(() {
-        _items.removeWhere((i) => i.id == itemId);
-      });
+      // Recarregar os itens após deletar
+      await _loadItems();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item removido com sucesso')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting item: $e')),
+          SnackBar(content: Text('Erro ao remover item: $e')),
         );
       }
     }
@@ -196,155 +243,96 @@ class _RoomWidgetState extends State<RoomWidget> {
   Future<void> _showDeleteConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Room'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir Ambiente'),
         content: Text(
-            'Are you sure you want to delete "${widget.room.roomName}"?\n\nAll items, details, and media associated with this room will also be deleted.'),
+            'Tem certeza que deseja excluir "${widget.room.roomName}"?\n\nTodos os itens, detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Excluir'),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && widget.room.id != null) {
       widget.onRoomDeleted(widget.room.id!);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Calculate progress
-    int totalItems = _items.length;
-    int filledItems = _items
-        .where((i) => (i.observation != null && i.observation!.isNotEmpty))
-        .length;
-
-    double progress = totalItems > 0 ? filledItems / totalItems : 0.0;
-
-    // Check if room itself has data filled
-    bool isRoomFilled = (widget.room.observation != null &&
-        widget.room.observation!.isNotEmpty);
-
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 12),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: isRoomFilled ? Colors.purple : Colors.grey,
-          width: isRoomFilled ? 2 : 1,
+          color: _isDamaged ? Colors.red : Colors.grey.shade300,
+          width: _isDamaged ? 2 : 1,
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with title and progress
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isRoomFilled
-                  ? Colors.purple.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.room.roomName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
+          // Cabeçalho do card (sempre visível)
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.room.roomName,
+                          style: const TextStyle(
+                            fontSize: 18, 
+                            fontWeight: FontWeight.bold
+                          ),
                         ),
-                      ),
+                        if (widget.room.roomLabel != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.room.roomLabel!,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: _showDeleteConfirmation,
-                      tooltip: 'Delete Room',
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        widget.isExpanded
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                      ),
-                      onPressed: widget.onExpansionChanged,
-                      tooltip: widget.isExpanded ? 'Collapse' : 'Expand',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Progress bar
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: Colors.grey[300],
-                          minHeight: 10,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: _showDeleteConfirmation,
+                    tooltip: 'Excluir Ambiente',
+                  ),
+                  Icon(
+                    widget.isExpanded 
+                        ? Icons.expand_less 
+                        : Icons.expand_more,
+                  ),
+                ],
+              ),
             ),
           ),
-
-          // Only show content when expanded
-          if (widget.isExpanded)
+          
+          // Conteúdo expandido
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Room description if available
-                  if (widget.room.roomLabel != null &&
-                      widget.room.roomLabel!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        widget.room.roomLabel!,
-                        style: const TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-
-                  // Room general observation
-                  const Text(
-                    'General Observations',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Damaged checkbox
+                  // Checkbox para "Danificado"
                   Row(
                     children: [
                       Checkbox(
@@ -356,54 +344,61 @@ class _RoomWidgetState extends State<RoomWidget> {
                           _updateRoom();
                         },
                       ),
-                      const Text('Room is damaged'),
+                      const Text('Ambiente danificado'),
                     ],
                   ),
-
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Campo de observação
                   TextFormField(
                     controller: _observationController,
                     decoration: const InputDecoration(
-                      hintText: 'Enter any observations about this room...',
+                      labelText: 'Observações',
                       border: OutlineInputBorder(),
+                      hintText: 'Adicione observações sobre este ambiente...',
                     ),
                     maxLines: 3,
-                    onChanged: (_) => _updateRoom(),
+                    onChanged: (value) {
+                      // Usar debounce para não atualizar o banco a cada digitação
+                      if (_debounce?.isActive ?? false) _debounce?.cancel();
+                      _debounce = Timer(const Duration(milliseconds: 500), () {
+                        _updateRoom();
+                      });
+                    },
                   ),
-
+                  
                   const SizedBox(height: 24),
-
-                  // Items section
+                  
+                  // Seção de itens
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Items',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                        'Itens',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addItem,
                         icon: const Icon(Icons.add),
-                        label: const Text('Add Item'),
+                        label: const Text('Adicionar Item'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
+                          backgroundColor: Theme.of(context).primaryColor,
                         ),
                       ),
                     ],
                   ),
+                  
                   const SizedBox(height: 8),
-
+                  
+                  // Lista de itens
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_items.isEmpty)
                     const Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                            'No items added yet. Click "Add Item" to begin.'),
+                        padding: EdgeInsets.all(16),
+                        child: Text('Nenhum item adicionado ainda'),
                       ),
                     )
                   else
@@ -412,26 +407,14 @@ class _RoomWidgetState extends State<RoomWidget> {
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _items.length,
                       itemBuilder: (context, index) {
-                        final item = _items[index];
-
-                        // Find the template for this item
-                        final itemTemplate =
-                            (widget.roomTemplate['items'] as List?)?.firstWhere(
-                          (t) => t['name'] == item.itemName,
-                          orElse: () => <String,
-                              Object>{}, // Modificado para Map<String, Object>
-                        );
-
                         return ItemWidget(
-                          item: item,
-                          itemTemplate: itemTemplate,
+                          item: _items[index],
                           onItemUpdated: _handleItemUpdate,
                           onItemDeleted: _handleItemDelete,
                           isExpanded: index == _expandedItemIndex,
                           onExpansionChanged: () {
                             setState(() {
-                              _expandedItemIndex =
-                                  _expandedItemIndex == index ? -1 : index;
+                              _expandedItemIndex = _expandedItemIndex == index ? -1 : index;
                             });
                           },
                         );
@@ -440,6 +423,7 @@ class _RoomWidgetState extends State<RoomWidget> {
                 ],
               ),
             ),
+          ],
         ],
       ),
     );

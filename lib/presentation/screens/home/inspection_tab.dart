@@ -6,7 +6,7 @@ import 'package:inspection_app/presentation/screens/inspection/offline_inspectio
 import 'package:inspection_app/services/inspection_service.dart';
 import 'package:inspection_app/services/sync_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
+import 'package:shared_preferences/shared_preferences.dart';
 
 class InspectionTab extends StatefulWidget {
   const InspectionTab({super.key});
@@ -31,7 +31,7 @@ class _InspectionTabState extends State<InspectionTab> {
     super.initState();
     _loadInspections();
     _checkConnectivity();
-    _checkAndShowOfflineGuide(); // Add this line to check and show offline guide
+    _checkAndShowOfflineGuide();
 
     // Listen for connectivity changes
     Connectivity().onConnectivityChanged.listen((result) {
@@ -89,8 +89,9 @@ class _InspectionTabState extends State<InspectionTab> {
     setState(() => _isLoading = true);
 
     try {
-      // Load local inspections
+      // Load local inspections first - these will always be available
       final localInspections = await _inspectionService.getAllInspections();
+      setState(() => _localInspections = localInspections);
 
       // If online, also load remote inspections
       List<Map<String, dynamic>> remoteInspections = [];
@@ -115,25 +116,18 @@ class _InspectionTabState extends State<InspectionTab> {
                 .eq('inspector_id', inspectorId)
                 .filter('deleted_at', 'is', null)
                 .order('scheduled_date', ascending: true);
+
+            setState(() => _remoteInspections = remoteInspections);
           } catch (e) {
             // Ignore errors here, we'll just use local inspections
             print('Error fetching remote inspections: $e');
           }
         }
       }
-
-      setState(() {
-        _localInspections = localInspections;
-        _remoteInspections = remoteInspections;
-        _isLoading = false;
-      });
     } catch (e) {
+      print('Error loading inspections: $e');
+    } finally {
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading inspections: $e')),
-        );
-      }
     }
   }
 
@@ -282,7 +276,7 @@ class _InspectionTabState extends State<InspectionTab> {
   }
 
   Widget _buildInspectionList() {
-    // First, show local inspections
+    // Show local inspections first
     final localInspectionIds = _localInspections.map((i) => i.id).toSet();
 
     // Then, show remote inspections that aren't downloaded yet
@@ -314,21 +308,23 @@ class _InspectionTabState extends State<InspectionTab> {
                         color: _isOffline ? Colors.red[700] : Colors.green[700],
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        _isOffline
-                            ? 'You are offline. Only downloaded inspections are available.'
-                            : 'You are online. All inspections are available.',
-                        style: TextStyle(
-                          color:
-                              _isOffline ? Colors.red[700] : Colors.green[700],
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          _isOffline
+                              ? 'You are offline. Only downloaded inspections are available.'
+                              : 'You are online. All inspections are available.',
+                          style: TextStyle(
+                            color:
+                                _isOffline ? Colors.red[700] : Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                // Local inspections
+                // Local inspections (always show these first)
                 if (_localInspections.isNotEmpty) ...[
                   const Text(
                     'Downloaded Inspections',
@@ -343,7 +339,7 @@ class _InspectionTabState extends State<InspectionTab> {
                   const SizedBox(height: 16),
                 ],
 
-                // Remote inspections
+                // Remote inspections (only show when online)
                 if (remoteOnlyInspections.isNotEmpty && !_isOffline) ...[
                   const Text(
                     'Available Inspections',
@@ -407,7 +403,7 @@ class _InspectionTabState extends State<InspectionTab> {
     }
 
     // Check if inspection needs sync
-    Future<bool> isSynced =
+    final Future<bool> isSynced =
         _inspectionService.isInspectionSynced(inspection.id);
 
     return Card(
@@ -527,7 +523,7 @@ class _InspectionTabState extends State<InspectionTab> {
                 _buildStatusChip(inspection['status']),
               ],
             ),
-            const SizedBox(height: 8),
+                          const SizedBox(height: 8),
             if (inspection['street'] != null)
               Text(
                 '${inspection['street']}, ${inspection['city'] ?? ''} ${inspection['state'] ?? ''}',

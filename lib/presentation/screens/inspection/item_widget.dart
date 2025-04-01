@@ -1,13 +1,14 @@
-// lib/presentation/screens/inspection/_item_widget.dart
+// lib/presentation/screens/inspection/item_widget.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
 import 'package:inspection_app/services/inspection_service.dart';
+import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
+
 
 class ItemWidget extends StatefulWidget {
   final Item item;
-  final dynamic itemTemplate; // Template configuration from inspection
   final Function(Item) onItemUpdated;
   final Function(int) onItemDeleted;
   final bool isExpanded;
@@ -16,7 +17,6 @@ class ItemWidget extends StatefulWidget {
   const ItemWidget({
     Key? key,
     required this.item,
-    required this.itemTemplate,
     required this.onItemUpdated,
     required this.onItemDeleted,
     required this.isExpanded,
@@ -32,7 +32,7 @@ class _ItemWidgetState extends State<ItemWidget> {
   List<Detail> _details = [];
   bool _isLoading = true;
   int _expandedDetailIndex = -1;
-  TextEditingController _observationController = TextEditingController();
+  final TextEditingController _observationController = TextEditingController();
   late bool _isDamaged;
 
   @override
@@ -53,9 +53,18 @@ class _ItemWidgetState extends State<ItemWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // Load details from local database
+      // Verificar se o item.id e room.id não são null
+      if (widget.item.id == null || widget.item.roomId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      // Carregar detalhes do banco de dados
       final details = await _inspectionService.getDetails(
-          widget.item.inspectionId, widget.item.roomId!, widget.item.id!);
+        widget.item.inspectionId,
+        widget.item.roomId!,
+        widget.item.id!,
+      );
 
       setState(() {
         _details = details;
@@ -65,7 +74,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading details: $e')),
+          SnackBar(content: Text('Erro ao carregar detalhes: $e')),
         );
       }
     }
@@ -83,84 +92,69 @@ class _ItemWidgetState extends State<ItemWidget> {
     widget.onItemUpdated(updatedItem);
   }
 
-  Future<void> _addDetail() async {
-    // Find a detail template that's not already implemented
-    List<dynamic> detailTemplates = widget.itemTemplate['details'] ?? [];
-    List<String> existingDetailNames =
-        _details.map((d) => d.detailName).toList();
+Future<void> _addDetail() async {
+  // Verificar se o item.id e room.id não são null
+  if (widget.item.id == null || widget.item.roomId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Erro: ID do item ou ambiente não encontrado')),
+    );
+    return;
+  }
 
-    List<dynamic> availableTemplates = detailTemplates
-        .where((t) => !existingDetailNames.contains(t['name']))
-        .toList();
+  // Mostrar dialog de seleção de templates
+  final template = await showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (context) => TemplateSelectorDialog(
+      title: 'Adicionar Detalhe',
+      type: 'detail',
+      parentName: widget.item.itemName,
+    ),
+  );
+  
+  if (template == null) return;
+  
+  setState(() => _isLoading = true);
 
-    if (availableTemplates.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('All available details have been added')),
-        );
-      }
-      return;
-    }
-
-    // Show dialog to select a detail to add
-    final selectedTemplate = await showDialog<dynamic>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Detail'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: availableTemplates.length,
-            itemBuilder: (context, index) {
-              final template = availableTemplates[index];
-              return ListTile(
-                title: Text(template['name']),
-                subtitle: Text(template['type'] ?? 'text'),
-                onTap: () => Navigator.of(context).pop(template),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+  try {
+    // Nome do detalhe vem do template selecionado ou de um nome personalizado
+    final detailName = template['name'] as String;
+    String? detailValue = template['value'] as String?;
+    
+    // Adicionar o detalhe no banco de dados local
+    final newDetail = await _inspectionService.addDetail(
+      widget.item.inspectionId,
+      widget.item.roomId!,
+      widget.item.id!,
+      detailName,
+      value: detailValue,
     );
 
-    if (selectedTemplate == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Add the detail to local database
-      final newDetail = await _inspectionService.addDetail(
-        widget.item.inspectionId,
-        widget.item.roomId!,
-        widget.item.id!,
-        selectedTemplate['name'],
+    // Atualizar o detalhe com campos adicionais do template, se não for personalizado
+    if (template['isCustom'] != true && template['observation'] != null) {
+      final updatedDetail = newDetail.copyWith(
+        detailValue: detailValue,
+        observation: template['observation'] as String?,
       );
+      await _inspectionService.updateDetail(updatedDetail);
+    }
 
-      // Refresh details list
-      await _loadDetails();
+    // Recarregar lista de detalhes
+    await _loadDetails();
 
-      // Expand the new detail
-      setState(() {
-        _expandedDetailIndex = _details.indexWhere((d) => d.id == newDetail.id);
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding detail: $e')),
-        );
-      }
+    // Expandir o novo detalhe
+    setState(() {
+      _expandedDetailIndex = _details.indexWhere((d) => d.id == newDetail.id);
+      _isLoading = false;
+    });
+  } catch (e) {
+    setState(() => _isLoading = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao adicionar detalhe: $e')),
+      );
     }
   }
+}
 
   void _handleDetailUpdate(Detail updatedDetail) {
     setState(() {
@@ -175,6 +169,14 @@ class _ItemWidgetState extends State<ItemWidget> {
 
   Future<void> _handleDetailDelete(int detailId) async {
     try {
+      // Verificar se o item.id e room.id não são null
+      if (widget.item.id == null || widget.item.roomId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: ID do item ou ambiente não encontrado')),
+        );
+        return;
+      }
+      
       await _inspectionService.deleteDetail(
         widget.item.inspectionId,
         widget.item.roomId!,
@@ -182,13 +184,18 @@ class _ItemWidgetState extends State<ItemWidget> {
         detailId,
       );
 
-      setState(() {
-        _details.removeWhere((d) => d.id == detailId);
-      });
+      // Recarregar os detalhes após deletar
+      await _loadDetails();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Detalhe removido com sucesso')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting detail: $e')),
+          SnackBar(content: Text('Erro ao remover detalhe: $e')),
         );
       }
     }
@@ -198,156 +205,124 @@ class _ItemWidgetState extends State<ItemWidget> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Item'),
+        title: const Text('Excluir Item'),
         content: Text(
-            'Are you sure you want to delete "${widget.item.itemName}"?\n\nAll details and media associated with this item will also be deleted.'),
+            'Tem certeza que deseja excluir "${widget.item.itemName}"?\n\nTodos os detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Excluir'),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && widget.item.id != null) {
       widget.onItemDeleted(widget.item.id!);
     }
   }
 
+  // Helper para mostrar input dialog
+  Future<String?> _showTextInputDialog(String title, String label) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(labelText: label),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Adicionar'),
+          ),
+        ],
+      ),
+    );
+    
+    controller.dispose();
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Calculate progress
-    int totalDetails = _details.length;
-    int filledDetails = _details
-        .where((d) =>
-            (d.detailValue != null && d.detailValue!.isNotEmpty) ||
-            (d.observation != null && d.observation!.isNotEmpty))
-        .length;
-
-    double progress = totalDetails > 0 ? filledDetails / totalDetails : 0.0;
-
-    // Check if item itself has data filled
-    bool isItemFilled = (widget.item.observation != null &&
-        widget.item.observation!.isNotEmpty);
-
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: isItemFilled ? Colors.blue : Colors.grey,
-          width: isItemFilled ? 2 : 1,
+          color: _isDamaged ? Colors.red : Colors.grey.shade300,
+          width: _isDamaged ? 2 : 1,
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with title and progress
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isItemFilled
-                  ? Colors.blue.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.item.itemName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+          // Cabeçalho do card (sempre visível)
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.item.itemName,
+                          style: const TextStyle(
+                            fontSize: 16, 
+                            fontWeight: FontWeight.bold
+                          ),
                         ),
-                      ),
+                        if (widget.item.itemLabel != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.item.itemLabel!,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                          ),
+                        ],
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: _showDeleteConfirmation,
-                      tooltip: 'Delete Item',
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        widget.isExpanded
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                      ),
-                      onPressed: widget.onExpansionChanged,
-                      tooltip: widget.isExpanded ? 'Collapse' : 'Expand',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Progress bar
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: Colors.grey[300],
-                          minHeight: 10,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: _showDeleteConfirmation,
+                    tooltip: 'Excluir Item',
+                  ),
+                  Icon(
+                    widget.isExpanded 
+                        ? Icons.expand_less 
+                        : Icons.expand_more,
+                  ),
+                ],
+              ),
             ),
           ),
-
-          // Only show content when expanded
-          if (widget.isExpanded)
+          
+          // Conteúdo expandido
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Item description if available
-                  if (widget.item.itemLabel != null &&
-                      widget.item.itemLabel!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        widget.item.itemLabel!,
-                        style: const TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-
-                  // Item general observation
-                  const Text(
-                    'General Observations',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Damaged checkbox
+                  // Checkbox para "Danificado"
                   Row(
                     children: [
                       Checkbox(
@@ -359,54 +334,57 @@ class _ItemWidgetState extends State<ItemWidget> {
                           _updateItem();
                         },
                       ),
-                      const Text('Item is damaged'),
+                      const Text('Item danificado'),
                     ],
                   ),
-
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Campo de observação
                   TextFormField(
                     controller: _observationController,
                     decoration: const InputDecoration(
-                      hintText: 'Enter any observations about this item...',
+                      labelText: 'Observações',
                       border: OutlineInputBorder(),
+                      hintText: 'Adicione observações sobre este item...',
                     ),
                     maxLines: 3,
-                    onChanged: (_) => _updateItem(),
+                    onChanged: (value) => _updateItem(),
                   ),
-
+                  
                   const SizedBox(height: 24),
-
-                  // Details section
+                  
+                  // Seção de detalhes
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Details',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                        'Detalhes',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addDetail,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Detail'),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Adicionar Detalhe'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
+                          backgroundColor: Theme.of(context).primaryColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          textStyle: const TextStyle(fontSize: 14),
                         ),
                       ),
                     ],
                   ),
+                  
                   const SizedBox(height: 8),
-
+                  
+                  // Lista de detalhes
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_details.isEmpty)
                     const Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                            'No details added yet. Click "Add Detail" to begin.'),
+                        padding: EdgeInsets.all(16),
+                        child: Text('Nenhum detalhe adicionado ainda'),
                       ),
                     )
                   else
@@ -415,27 +393,14 @@ class _ItemWidgetState extends State<ItemWidget> {
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _details.length,
                       itemBuilder: (context, index) {
-                        final detail = _details[index];
-
-                        final detailTemplate =
-                            (widget.itemTemplate['details'] as List?)
-                                ?.firstWhere(
-                          (t) => t['name'] == detail.detailName,
-                          orElse: () => <String, Object>{
-                            'type': 'text'
-                          }, // Se precisar de valores padrão
-                        );
-
                         return DetailWidget(
-                          detail: detail,
-                          detailTemplate: detailTemplate,
+                          detail: _details[index],
                           onDetailUpdated: _handleDetailUpdate,
                           onDetailDeleted: _handleDetailDelete,
                           isExpanded: index == _expandedDetailIndex,
                           onExpansionChanged: () {
                             setState(() {
-                              _expandedDetailIndex =
-                                  _expandedDetailIndex == index ? -1 : index;
+                              _expandedDetailIndex = _expandedDetailIndex == index ? -1 : index;
                             });
                           },
                         );
@@ -444,6 +409,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                 ],
               ),
             ),
+          ],
         ],
       ),
     );

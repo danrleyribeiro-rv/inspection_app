@@ -1,13 +1,14 @@
 // lib/presentation/screens/inspection/offline_inspection_screen.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
 import 'package:inspection_app/services/inspection_service.dart';
 import 'package:inspection_app/services/sync_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:convert';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
+
 
 class OfflineInspectionScreen extends StatefulWidget {
   final int inspectionId;
@@ -29,7 +30,6 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
 
   Inspection? _inspection;
   List<Room> _rooms = [];
-  dynamic _template;
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOffline = false;
@@ -62,8 +62,6 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     });
   }
 
-// Modificação para o method _loadInspection em offline_inspection_screen.dart
-
   Future<void> _loadInspection() async {
     setState(() => _isLoading = true);
 
@@ -73,76 +71,52 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
           await _inspectionService.getInspection(widget.inspectionId);
 
       if (inspection == null) {
-        // Inspection not found locally, try to download from server
-        final downloaded =
-            await _syncService.downloadInspection(widget.inspectionId);
+        // Try to download if online
+        final connectivityResult = await Connectivity().checkConnectivity();
+        if (connectivityResult != ConnectivityResult.none) {
+          final downloaded =
+              await _syncService.downloadInspection(widget.inspectionId);
 
-        if (!downloaded) {
+          if (!downloaded) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content:
+                        Text('Inspection not found and could not be downloaded')),
+              );
+              Navigator.of(context).pop();
+            }
+            return;
+          }
+
+          // Now load the downloaded inspection
+          final downloadedInspection =
+              await _inspectionService.getInspection(widget.inspectionId);
+          if (downloadedInspection == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Error loading downloaded inspection')),
+              );
+              Navigator.of(context).pop();
+            }
+            return;
+          }
+
+          _inspection = downloadedInspection;
+        } else {
+          // Offline and no local data
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                  content:
-                      Text('Inspection not found and could not be downloaded')),
+                  content: Text('Inspection not found in offline storage')),
             );
             Navigator.of(context).pop();
           }
           return;
         }
-
-        // Now load the downloaded inspection
-        final downloadedInspection =
-            await _inspectionService.getInspection(widget.inspectionId);
-        if (downloadedInspection == null) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Error loading downloaded inspection')),
-            );
-            Navigator.of(context).pop();
-          }
-          return;
-        }
-
-        _inspection = downloadedInspection;
       } else {
         _inspection = inspection;
-      }
-
-      // Load template from database if online
-      if (!_isOffline && _inspection!.templateId != null) {
-        try {
-          final templateData = await _supabase
-              .from('templates')
-              .select('*')
-              .eq('id', _inspection!.templateId ?? 0)
-              .single();
-
-          if (templateData != null) {
-            // Parse o campo 'rooms' que está armazenado como JSON
-            if (templateData['rooms'] is String) {
-              try {
-                // Converte o campo rooms de String para objeto JSON
-                templateData['rooms'] = json.decode(templateData['rooms']);
-              } catch (e) {
-                print('Error parsing template rooms JSON: $e');
-                templateData['rooms'] =
-                    []; // Fallback para array vazio em caso de erro
-              }
-            }
-
-            _template = templateData;
-          } else {
-            // Fallback to default template if not found
-            _template = _getDefaultTemplate();
-          }
-        } catch (e) {
-          print('Error loading template: $e');
-          // Fallback to default template
-          _template = _getDefaultTemplate();
-        }
-      } else {
-        // Use default template if offline
-        _template = _getDefaultTemplate();
       }
 
       // Load rooms
@@ -176,136 +150,6 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
         );
       }
     }
-  }
-
-// Método auxiliar para criar um template padrão
-  dynamic _getDefaultTemplate() {
-    return {
-      'id': _inspection!.templateId ?? 0,
-      'title': 'Template for ${_inspection!.title}',
-      'rooms': [
-        {
-          'name': 'Living Room',
-          'description': 'The main living area',
-          'items': [
-            {
-              'name': 'Walls',
-              'description': 'Condition of walls',
-              'details': [
-                {
-                  'name': 'Paint',
-                  'type': 'select',
-                  'options': ['Excellent', 'Good', 'Fair', 'Poor']
-                },
-                {'name': 'Cracks', 'type': 'text'},
-              ]
-            },
-            {
-              'name': 'Floor',
-              'description': 'Condition of flooring',
-              'details': [
-                {
-                  'name': 'Type',
-                  'type': 'select',
-                  'options': ['Hardwood', 'Tile', 'Carpet', 'Laminate', 'Other']
-                },
-                {
-                  'name': 'Condition',
-                  'type': 'select',
-                  'options': ['Excellent', 'Good', 'Fair', 'Poor']
-                },
-              ]
-            },
-          ]
-        },
-        {
-          'name': 'Kitchen',
-          'description': 'Kitchen area',
-          'items': [
-            {
-              'name': 'Countertops',
-              'description': 'Kitchen countertops',
-              'details': [
-                {
-                  'name': 'Material',
-                  'type': 'select',
-                  'options': ['Granite', 'Quartz', 'Laminate', 'Other']
-                },
-                {
-                  'name': 'Condition',
-                  'type': 'select',
-                  'options': ['Excellent', 'Good', 'Fair', 'Poor']
-                },
-              ]
-            },
-            {
-              'name': 'Appliances',
-              'description': 'Kitchen appliances',
-              'details': [
-                {
-                  'name': 'Refrigerator',
-                  'type': 'select',
-                  'options': ['Working', 'Not Working', 'Not Present']
-                },
-                {
-                  'name': 'Stove',
-                  'type': 'select',
-                  'options': ['Working', 'Not Working', 'Not Present']
-                },
-                {
-                  'name': 'Dishwasher',
-                  'type': 'select',
-                  'options': ['Working', 'Not Working', 'Not Present']
-                },
-              ]
-            },
-          ]
-        },
-        {
-          'name': 'Bathroom',
-          'description': 'Bathroom area',
-          'items': [
-            {
-              'name': 'Fixtures',
-              'description': 'Bathroom fixtures',
-              'details': [
-                {
-                  'name': 'Sink',
-                  'type': 'select',
-                  'options': ['Working', 'Not Working', 'Not Present']
-                },
-                {
-                  'name': 'Toilet',
-                  'type': 'select',
-                  'options': ['Working', 'Not Working', 'Not Present']
-                },
-                {
-                  'name': 'Shower/Bath',
-                  'type': 'select',
-                  'options': ['Working', 'Not Working', 'Not Present']
-                },
-              ]
-            },
-            {
-              'name': 'Walls/Floor',
-              'description': 'Bathroom walls and floor',
-              'details': [
-                {
-                  'name': 'Tile Condition',
-                  'type': 'select',
-                  'options': ['Excellent', 'Good', 'Fair', 'Poor']
-                },
-                {
-                  'name': 'Grout Condition',
-                  'type': 'select',
-                  'options': ['Excellent', 'Good', 'Fair', 'Poor']
-                },
-              ]
-            },
-          ]
-        }
-      ]
-    };
   }
 
   Future<void> _updateCompletionPercentage() async {
@@ -360,94 +204,100 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
   }
 
   Future<void> _addRoom() async {
-    // Find a room template that's not already implemented
-    List<dynamic> roomTemplates = _template['rooms'] ?? [];
-    List<String> existingRoomNames = _rooms.map((r) => r.roomName).toList();
+  // Mostrar dialog de seleção de templates
+  final template = await showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (context) => const TemplateSelectorDialog(
+      title: 'Adicionar Ambiente',
+      type: 'room',
+    ),
+  );
+  
+  if (template == null) return;
+  
+  setState(() => _isLoading = true);
 
-    List<dynamic> availableTemplates = roomTemplates
-        .where((t) => !existingRoomNames.contains(t['name']))
-        .toList();
+  try {
+    // Nome do ambiente vem do template selecionado ou de um nome personalizado
+    final roomName = template['name'] as String;
+    String? roomLabel = template['label'] as String?;
+    
+    // Adicionar o ambiente no banco de dados local
+    final newRoom = await _inspectionService.addRoom(
+      widget.inspectionId,
+      roomName,
+      label: roomLabel,
+    );
 
-    if (availableTemplates.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All available rooms have been added')),
-        );
-      }
-      return;
+    // Atualizar o ambiente com campos adicionais do template, se não for personalizado
+    if (template['isCustom'] != true && template['description'] != null) {
+      final updatedRoom = newRoom.copyWith(
+        roomLabel: roomLabel,
+        observation: template['description'] as String?,
+      );
+      await _inspectionService.updateRoom(updatedRoom);
     }
 
-    // Show dialog to select a room to add
-    final selectedTemplate = await showDialog<dynamic>(
+    // Recarregar lista de ambientes
+    await _loadRooms();
+
+    // Expandir o novo ambiente
+    setState(() {
+      _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
+    });
+
+    // Marcar inspeção como modificada
+    await _inspectionService.saveInspection(
+      _inspection!.copyWith(updatedAt: DateTime.now()),
+      syncNow: false,
+    );
+
+    // Tentar sincronizar se estiver online
+    if (!_isOffline) {
+      _syncInspection(showSuccess: false);
+    }
+
+    // Atualizar percentual de conclusão
+    await _updateCompletionPercentage();
+  } catch (e) {
+    print('Erro ao adicionar ambiente: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao adicionar ambiente: $e')),
+      );
+    }
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
+
+  Future<String?> _showInputDialog(String title, String hint) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Room'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300, // Set a fixed height to make the dialog scrollable
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: availableTemplates.length,
-            itemBuilder: (context, index) {
-              final template = availableTemplates[index];
-              return ListTile(
-                title: Text(template['name']),
-                subtitle: Text(template['description'] ?? ''),
-                onTap: () => Navigator.of(context).pop(template),
-              );
-            },
-          ),
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(hintText: hint),
+          autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
-
-    if (selectedTemplate == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Add the room to local database
-      final newRoom = await _inspectionService.addRoom(
-        widget.inspectionId,
-        selectedTemplate['name'],
-        label: selectedTemplate['description'],
-      );
-
-      // Refresh rooms list
-      await _loadRooms();
-
-      // Expand the new room
-      setState(() {
-        _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
-      });
-
-      // Mark inspection as modified
-      await _inspectionService.saveInspection(
-        _inspection!.copyWith(updatedAt: DateTime.now()),
-        syncNow: false,
-      );
-
-      // Try to sync if online
-      if (!_isOffline) {
-        _syncInspection(showSuccess: false);
-      }
-
-      // Update completion percentage
-      await _updateCompletionPercentage();
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding room: $e')),
-        );
-      }
-    }
+    
+    controller.dispose();
+    return result;
   }
 
   void _handleRoomUpdate(Room updatedRoom) async {
@@ -725,17 +575,8 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                         itemBuilder: (context, index) {
                           final room = _rooms[index];
 
-                          // Find the template for this room
-                          final roomTemplate =
-                              (_template['rooms'] as List?)?.firstWhere(
-                            (t) => t['name'] == room.roomName,
-                            orElse: () => <String,
-                                Object>{}, // Corrigido o tipo de retorno
-                          );
-
                           return RoomWidget(
                             room: room,
-                            roomTemplate: roomTemplate,
                             onRoomUpdated: _handleRoomUpdate,
                             onRoomDeleted: _handleRoomDelete,
                             isExpanded: index == _expandedRoomIndex,
