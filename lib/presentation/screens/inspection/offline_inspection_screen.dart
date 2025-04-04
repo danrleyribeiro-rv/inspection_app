@@ -138,17 +138,36 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
   }
 
   Future<void> _loadRooms() async {
+    setState(() => _isLoading = true);
+    
     try {
-      final rooms = await _inspectionService.getRooms(widget.inspectionId);
+      // Limpar lista existente para evitar duplicações
+      _rooms.clear();
+      
+      // Verificar se já existem ambientes
+      final existingRooms = await _inspectionService.getRooms(widget.inspectionId);
+      
+      if (existingRooms.isNotEmpty) {
+        // Usar os ambientes existentes
+        setState(() {
+          _rooms = existingRooms;
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      // Se não houver ambientes, deixar a lista vazia
       setState(() {
-        _rooms = rooms;
+        _isLoading = false;
       });
     } catch (e) {
+      print('Erro ao carregar ambientes: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading rooms: $e')),
+          SnackBar(content: Text('Erro ao carregar ambientes: $e')),
         );
       }
+      setState(() => _isLoading = false);
     }
   }
 
@@ -271,6 +290,76 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
   }
 }
 
+
+    Future<void> _saveInspection() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Salvar Alterações'),
+        content: const Text('Deseja salvar as alterações feitas na inspeção?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Atualizar status da inspeção para "in_progress" se estiver "pending"
+      if (_inspection?.status == 'pending') {
+        final updatedInspection = _inspection!.copyWith(
+          status: 'in_progress', 
+          updatedAt: DateTime.now()
+        );
+        
+        await _inspectionService.saveInspection(updatedInspection, syncNow: !_isOffline);
+        
+        setState(() {
+          _inspection = updatedInspection;
+        });
+      } else {
+        // Apenas marcar como atualizado
+        final updatedInspection = _inspection!.copyWith(
+          updatedAt: DateTime.now()
+        );
+        
+        await _inspectionService.saveInspection(updatedInspection, syncNow: !_isOffline);
+      }
+      
+      // Tentar sincronizar se estiver online
+      if (!_isOffline) {
+        await _syncInspection(showSuccess: false);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inspeção salva com sucesso!'), 
+            backgroundColor: Colors.green
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erro ao salvar inspeção: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao salvar inspeção: $e')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   Future<String?> _showInputDialog(String title, String hint) async {
     final controller = TextEditingController();
@@ -429,7 +518,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     if (_isLoading && _inspection == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Loading Inspection...'),
+          title: const Text('Carregando Inspeção...'),
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -438,10 +527,10 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     if (_inspection == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Error'),
+          title: const Text('Erro'),
         ),
         body: const Center(
-          child: Text('Error loading inspection. Please try again.'),
+          child: Text('Erro ao carregar inspeção. Tente novamente.'),
         ),
       );
     }
@@ -453,7 +542,15 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
       appBar: AppBar(
         title: Text(_inspection!.title),
         actions: [
-          // Sync button - only show if not completed
+          // Botão de adicionar ambiente
+          if (!isCompleted)
+            IconButton(
+              icon: const Icon(Icons.add_circle),
+              onPressed: _addRoom,
+              tooltip: 'Adicionar Ambiente',
+            ),
+          
+          // Botão de sincronização
           if (!isCompleted)
             Stack(
               alignment: Alignment.center,
@@ -462,7 +559,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                   icon: const Icon(Icons.sync),
                   onPressed:
                       _isSyncing || _isOffline ? null : () => _syncInspection(),
-                  tooltip: _isOffline ? 'Offline' : 'Sync',
+                  tooltip: _isOffline ? 'Offline' : 'Sincronizar',
                 ),
                 if (_isSyncing)
                   const SizedBox(
@@ -474,6 +571,14 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                     ),
                   ),
               ],
+            ),
+            
+          // Botão de salvar
+          if (!isCompleted)
+            IconButton(
+              icon: const Icon(Icons.save),
+              onPressed: _isLoading ? null : _saveInspection,
+              tooltip: 'Salvar',
             ),
         ],
       ),
@@ -525,7 +630,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                     const Spacer(),
                     if (_inspection!.scheduledDate != null)
                       Text(
-                        'Date: ${_formatDate(_inspection!.scheduledDate!)}',
+                        'Data: ${_formatDate(_inspection!.scheduledDate!)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                         ),
@@ -541,7 +646,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Completion: ${(_completionPercentage * 100).toInt()}%',
+                  'Progresso: ${(_completionPercentage * 100).toInt()}%',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                   ),
@@ -603,7 +708,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                               ),
                               const SizedBox(height: 16),
                               const Text(
-                                'No rooms added yet',
+                                'Nenhum ambiente adicionado',
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -611,14 +716,14 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                               ),
                               const SizedBox(height: 8),
                               const Text(
-                                'Click the + button to add rooms to this inspection',
+                                'Clique no botão + na barra superior para adicionar ambientes',
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
                                 onPressed: isCompleted ? null : _addRoom,
                                 icon: const Icon(Icons.add),
-                                label: const Text('Add Room'),
+                                label: const Text('Adicionar Ambiente'),
                               ),
                             ],
                           ),
@@ -629,29 +734,15 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
         ],
       ),
 
-      // FAB para adicionar rooms e completar inspeção - SEMPRE visível quando não completado
-      floatingActionButton: isCompleted
-          ? null // No FAB for completed inspections
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Add room button
-                FloatingActionButton(
-                  onPressed: _addRoom,
-                  heroTag: 'addRoom',
-                  backgroundColor: Colors.blue,
-                  child: const Icon(Icons.add),
-                ),
-                const SizedBox(width: 16),
-                // Complete inspection button
-                FloatingActionButton.extended(
-                  onPressed: _completeInspection,
-                  heroTag: 'complete',
-                  backgroundColor: Colors.green,
-                  icon: const Icon(Icons.check),
-                  label: const Text('Complete'),
-                ),
-              ],
+      // Remover FAB, já que agora temos botões na AppBar
+      floatingActionButton: isCompleted 
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _completeInspection,
+              heroTag: 'complete',
+              backgroundColor: Colors.green,
+              icon: const Icon(Icons.check),
+              label: const Text('Finalizar'),
             ),
     );
   }

@@ -1,4 +1,5 @@
 // lib/presentation/screens/splash/splash_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,104 +26,91 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final isFirstTime = prefs.getBool('isFirstTime') ?? true;
-
-    if (isFirstTime) {
-      await prefs.setBool('isFirstTime', false);
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/get-started');
-      }
-      return;
-    }
-
-    // Check for deep links from password reset flow
-    final uri = Uri.base;
-    if (uri.toString().contains('type=recovery')) {
-      // Handle password reset flow
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/reset-password');
-        return;
-      }
-    }
-
-    // Check connectivity
+    // Primeiro verifica a conectividade antes de qualquer operação
     final connectivityResult = await Connectivity().checkConnectivity();
     final bool isOffline = connectivityResult == ConnectivityResult.none;
 
-    if (isOffline) {
-      // Offline mode - check if there's a locally stored active session
-      final hasLocalInspections = await _hasLocalData();
-      if (hasLocalInspections) {
-        // There are local inspections, allow offline access
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isFirstTime = prefs.getBool('isFirstTime') ?? true;
+
+      if (isFirstTime) {
+        await prefs.setBool('isFirstTime', false);
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
+          Navigator.pushReplacementNamed(context, '/get-started');
         }
         return;
       }
-    }
 
-    // Online mode or no local data
-    // Verifica se há uma sessão ativa (usuário já logado)
-    try {
-      final session = Supabase.instance.client.auth.currentSession;
+      // Se estiver offline, vá direto para verificação de dados locais
+      if (isOffline) {
+        _handleOfflineNavigation();
+        return;
+      }
 
-      if (session != null) {
-        // Check if session is still valid
-        try {
-          // If the session is expired, refreshSession() will renew it
-          if (session.isExpired) {
-            await Supabase.instance.client.auth.refreshSession();
-          }
-          
-          // If we're offline, don't try to verify with server
-          if (!isOffline) {
-            // Attempt to make a simple request to verify the session
-            await Supabase.instance.client.from('inspectors').select('id').limit(1);
-          }
+      // Check for deep links from password reset flow
+      final uri = Uri.base;
+      if (uri.toString().contains('type=recovery')) {
+        // Handle password reset flow
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/reset-password');
+        }
+        return;
+      }
 
-          // If no error, session is valid, go to home screen
+      // Se online, tenta verificar a sessão
+      try {
+        final session = Supabase.instance.client.auth.currentSession;
+
+        if (session != null) {
+          // Se session existe, vá para home
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/home');
           }
-        } catch (e) {
-          // Session is likely expired or invalid
-          // If offline with invalid session, show a specific message
-          if (isOffline) {
-            if (mounted) {
-              _showOfflineLoginError();
-            }
-            return;
-          }
-          
-          // If online with invalid session, sign out and go to login
-          await Supabase.instance.client.auth.signOut();
+        } else {
+          // Sem sessão ativa, ir para login
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/login');
           }
         }
-      } else {
-        // No active session, go to login
-        if (mounted) {
-          if (isOffline) {
-            // Can't login when offline without a session
-            _showOfflineLoginError();
-          } else {
-            Navigator.pushReplacementNamed(context, '/login');
-          }
-        }
+      } catch (e) {
+        // Se houver erro de conexão, trate como offline
+        print('Erro de autenticação: $e');
+        _handleOfflineNavigation();
       }
     } catch (e) {
-      // Handle any errors during the auth check
-      if (mounted) {
-        if (isOffline) {
-          _showOfflineLoginError();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error checking authentication: $e')),
-          );
+      // Em caso de erro, verifique se é um problema de rede
+      if (e is SocketException || e.toString().contains('SocketException') || isOffline) {
+        _handleOfflineNavigation();
+      } else {
+        print('Erro durante inicialização: $e');
+        if (mounted) {
           Navigator.pushReplacementNamed(context, '/login');
         }
+      }
+    }
+  }
+
+  // Método específico para lidar com navegação em modo offline
+  Future<void> _handleOfflineNavigation() async {
+    // Verificar se há dados locais
+    final hasLocalData = await _hasLocalData();
+    
+    if (hasLocalData) {
+      if (mounted) {
+        // Ir para home com mensagem de modo offline
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Modo offline ativado. Seus dados estão disponíveis localmente.'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } else {
+      // Sem dados locais, mostrar tela de erro de conexão
+      if (mounted) {
+        _showOfflineLoginError();
       }
     }
   }
@@ -133,7 +121,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final inspections = await LocalDatabaseService.getAllInspections();
       return inspections.isNotEmpty;
     } catch (e) {
-      print('Error checking local data: $e');
+      print('Erro ao verificar dados locais: $e');
       return false;
     }
   }
@@ -144,30 +132,28 @@ class _SplashScreenState extends State<SplashScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Cannot Login Offline'),
+        title: const Text('Sem conexão'),
         content: const Text(
-          'You are currently offline and do not have an active session. '
-          'Please connect to the internet to log in.'
+          'Você está offline e ainda não tem dados salvos localmente. '
+          'Conecte-se à internet para fazer login pela primeira vez.'
         ),
         actions: [
           TextButton(
             onPressed: () {
-              // Check connectivity again
+              // Verificar conectividade novamente
               Connectivity().checkConnectivity().then((result) {
                 if (result != ConnectivityResult.none) {
-                  // If back online, continue to login
+                  // Se voltar online, continue para login
                   Navigator.of(context).pop();
                   Navigator.pushReplacementNamed(context, '/login');
                 } else {
-                  // Still offline, exit app
+                  // Ainda offline, tentar novamente
                   Navigator.of(context).pop();
-                  // In a real app, you might use SystemNavigator.pop() to exit
-                  // but for this example, just go back to login
-                  Navigator.pushReplacementNamed(context, '/login');
+                  _navigateToNext();
                 }
               });
             },
-            child: const Text('Try Again'),
+            child: const Text('Tentar Novamente'),
           ),
         ],
       ),

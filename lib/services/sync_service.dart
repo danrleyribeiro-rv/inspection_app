@@ -111,157 +111,95 @@ class SyncService {
   // Upload an inspection with all its related data
   Future<bool> uploadInspection(Inspection inspection) async {
     try {
+      print('Iniciando upload da inspeção ${inspection.id}');
+      
       // Check connectivity
       final connectivityResult = await Connectivity().checkConnectivity();
       if (connectivityResult == ConnectivityResult.none) {
+        print('Sem conexão. Upload cancelado');
         return false;
       }
       
+      // Preparar dados da inspeção para upload, removendo IDs temporários
+      final Map<String, dynamic> inspectionData = inspection.toJson();
+      
       // 1. Update inspection in Supabase
+      print('Atualizando inspeção no Supabase');
       await _supabase
           .from('inspections')
-          .update(inspection.toJson())
+          .update(inspectionData)
           .eq('id', inspection.id);
       
       // 2. Get rooms from local database
+      print('Buscando ambientes locais');
       final rooms = await LocalDatabaseService.getRoomsByInspection(inspection.id);
+      print('Encontrados ${rooms.length} ambientes');
       
       for (var room in rooms) {
         // Skip if room ID is null
-        if (room.id == null) continue;
-        
-        final roomExists = await _checkIfExists('rooms', 'id', room.id);
-        
-        if (roomExists) {
-          // Update existing room
-          await _supabase
-              .from('rooms')
-              .update(room.toJson())
-              .eq('id', room.id!);
-        } else {
-          // Insert new room
-          final result = await _supabase
-              .from('rooms')
-              .insert(room.toJson())
-              .select('id')
-              .single();
-          
-          // Update local room with server-generated ID if necessary
-          final newRoomId = result['id'];
-          if (newRoomId != null) {
-            // Create a new room with the server-generated ID
-            final updatedRoom = Room(
-              id: newRoomId,
-              inspectionId: room.inspectionId,
-              roomId: room.roomId,
-              position: room.position,
-              roomName: room.roomName,
-              roomLabel: room.roomLabel,
-              observation: room.observation,
-              isDamaged: room.isDamaged,
-              tags: room.tags,
-              createdAt: room.createdAt,
-              updatedAt: DateTime.now(),
-            );
-            await LocalDatabaseService.saveRoom(updatedRoom);
-          }
+        if (room.id == null) {
+          print('Ambiente com ID nulo, pulando');
+          continue;
         }
         
-        // 3. Get items for this room from local database
-        final items = await LocalDatabaseService.getItemsByRoom(inspection.id, room.id!);
+        // Preparar dados para upload
+        final roomData = room.toJson();
         
-        for (var item in items) {
-          // Skip if item ID is null
-          if (item.id == null) continue;
-          
-          final itemExists = await _checkIfExists('room_items', 'id', item.id);
-          
-          if (itemExists) {
-            // Update existing item
-            await _supabase
-                .from('room_items')
-                .update(item.toJson())
-                .eq('id', item.id!);
-          } else {
-            // Insert new item
+        // Verificar se o ID é temporário (positivo, mas não do servidor)
+        bool isTemporaryId = room.id! > 0 && room.id! < 1000;
+        print('Ambiente ${room.id} (${room.roomName}) - ID temporário: $isTemporaryId');
+        
+        if (isTemporaryId) {
+          // Para IDs temporários, criar novo registro
+          print('Inserindo novo ambiente com nome: ${room.roomName}');
+          try {
+            // Remover o ID para que o servidor gere um novo
+            roomData.remove('id');
+            
             final result = await _supabase
-                .from('room_items')
-                .insert(item.toJson())
+                .from('rooms')
+                .insert(roomData)
                 .select('id')
                 .single();
             
-            // Update local item with server-generated ID if necessary
-            final newItemId = result['id'];
-            if (newItemId != null) {
-              // Create a new item with the server-generated ID
-              final updatedItem = Item(
-                id: newItemId,
-                inspectionId: item.inspectionId,
-                roomId: item.roomId,
-                itemId: item.itemId,
-                position: item.position,
-                itemName: item.itemName,
-                itemLabel: item.itemLabel,
-                evaluation: item.evaluation,
-                observation: item.observation,
-                isDamaged: item.isDamaged,
-                tags: item.tags,
-                createdAt: item.createdAt,
-                updatedAt: DateTime.now(),
-              );
-              await LocalDatabaseService.saveItem(updatedItem);
+            // Atualizar ID local com o do servidor
+            final newRoomId = result['id'];
+            print('Novo ID do servidor para ambiente: $newRoomId');
+            
+            if (newRoomId != null) {
+              await _updateRoomIdLocally(room, newRoomId);
             }
+          } catch (e) {
+            print('Erro ao inserir ambiente: $e');
+            continue;
           }
-          
-          // 4. Get details for this item from local database
-          final details = await LocalDatabaseService.getDetailsByItem(
-              inspection.id, room.id!, item.id!);
-          
-          for (var detail in details) {
-            // Skip if detail ID is null
-            if (detail.id == null) continue;
-            
-            final detailExists = await _checkIfExists('item_details', 'id', detail.id);
-            
-            if (detailExists) {
-              // Update existing detail
-              await _supabase
-                  .from('item_details')
-                  .update(detail.toJson())
-                  .eq('id', detail.id!);
-            } else {
-              // Insert new detail
+        } else {
+          // Para IDs já existentes no servidor, atualizar
+          print('Atualizando ambiente existente: ${room.id}');
+          try {
+            await _supabase
+                .from('rooms')
+                .update(roomData)
+                .eq('id', room.id!);
+          } catch (e) {
+            print('Erro ao atualizar ambiente: $e');
+            // Se falhar a atualização, tentar inserir
+            try {
+              roomData.remove('id');
               final result = await _supabase
-                  .from('item_details')
-                  .insert(detail.toJson())
+                  .from('rooms')
+                  .insert(roomData)
                   .select('id')
                   .single();
-              
-              // Update local detail with server-generated ID if necessary
-              final newDetailId = result['id'];
-              if (newDetailId != null) {
-                // Create a new detail with the server-generated ID
-                final updatedDetail = Detail(
-                  id: newDetailId,
-                  inspectionId: detail.inspectionId,
-                  roomId: detail.roomId,
-                  itemId: detail.itemId,
-                  detailId: detail.detailId,
-                  position: detail.position,
-                  detailName: detail.detailName,
-                  detailValue: detail.detailValue,
-                  observation: detail.observation,
-                  isDamaged: detail.isDamaged,
-                  tags: detail.tags,
-                  createdAt: detail.createdAt,
-                  updatedAt: DateTime.now(),
-                );
-                await LocalDatabaseService.saveDetail(updatedDetail);
+                  
+              // Atualizar ID local
+              final newRoomId = result['id'];
+              if (newRoomId != null) {
+                await _updateRoomIdLocally(room, newRoomId);
               }
+            } catch (insertError) {
+              print('Também falhou ao inserir: $insertError');
             }
-            
-            // 5. Upload media for this detail
-            await _uploadMedia(inspection.id, room.id!, item.id!, detail.id!);
           }
         }
       }
@@ -270,11 +208,19 @@ class SyncService {
       await LocalDatabaseService.setSyncStatus(inspection.id, true);
       return true;
     } catch (e) {
-      print('Error uploading inspection: $e');
+      print('Erro ao fazer upload da inspeção: $e');
       return false;
     }
   }
   
+  // Método para atualizar ID localmente
+  Future<void> _updateRoomIdLocally(Room room, int newId) async {
+    // Criar nova room com ID atualizado
+    final updatedRoom = room.copyWith(id: newId);
+    
+    // Salvar localmente
+    await LocalDatabaseService.saveRoom(updatedRoom);
+  }
   // Sync all pending inspections
   Future<void> syncAllPendingInspections() async {
     try {

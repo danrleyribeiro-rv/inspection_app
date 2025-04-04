@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
 import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
@@ -12,6 +13,7 @@ import 'package:inspection_app/presentation/screens/auth/reset_password_screen.d
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/services/local_database_service.dart';
+import 'package:inspection_app/services/template_cache_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,14 +30,40 @@ Future<void> main() async {
   // Inicializar o banco de dados local para funcionalidade offline
   await LocalDatabaseService.initialize();
 
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-    debug: true,
-    //authFlowType: AuthFlowType.pkce,
-  );
+  try {
+    // Verificar conectividade antes de inicializar Supabase
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      // Inicializar o Supabase somente se estiver online
+      await Supabase.initialize(
+        url: dotenv.env['SUPABASE_URL']!,
+        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+        debug: false, // Desabilitar modo debug em produção
+      );
+      
+      // Verificar necessidade de atualização do cache de templates
+      final cacheManager = TemplateCacheManager();
+      if (await cacheManager.needsCacheUpdate()) {
+        // Não esperar pela conclusão para não atrasar a inicialização do app
+        cacheManager.cacheBasicTemplates();
+      }
+    } else {
+      print('Iniciando em modo OFFLINE - Supabase não inicializado');
+    }
+  } catch (e) {
+    print('Erro ao inicializar Supabase: $e');
+    // Continuar mesmo com erro, o app funcionará em modo offline
+  }
 
   runApp(const MyApp());
+}
+
+bool isOfflineMode() {
+  try {
+    return Supabase.instance.client.auth.currentSession == null;
+  } catch (e) {
+    return true; // Se houver erro ao acessar Supabase, considerar offline
+  }
 }
 
 class MyApp extends StatelessWidget {

@@ -1,6 +1,8 @@
 // lib/presentation/widgets/template_selector_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/data_loader_service.dart';
+import 'package:inspection_app/services/template_cache_manager.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class TemplateSelectorDialog extends StatefulWidget {
   final String title;
@@ -20,10 +22,12 @@ class TemplateSelectorDialog extends StatefulWidget {
 
 class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
   final DataLoaderService _dataLoader = DataLoaderService();
+  final TemplateCacheManager _cacheManager = TemplateCacheManager();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _customNameController = TextEditingController();
   
   bool _isLoading = true;
+  bool _isOffline = false;
   List<Map<String, dynamic>> _allTemplates = [];
   List<Map<String, dynamic>> _filteredTemplates = [];
   bool _showCustomInput = false;
@@ -31,7 +35,15 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
   @override
   void initState() {
     super.initState();
+    _checkConnectivity();
     _loadTemplates();
+  }
+
+  Future<void> _checkConnectivity() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOffline = connectivityResult == ConnectivityResult.none;
+    });
   }
 
   @override
@@ -47,21 +59,60 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
     try {
       List<Map<String, dynamic>> templates = [];
       
-      // Carregar templates apropriados baseado no tipo
-      switch (widget.type) {
-        case 'room':
-          templates = await _dataLoader.loadRoomTemplates();
-          break;
-        case 'item':
-          if (widget.parentName != null) {
-            templates = await _dataLoader.loadItemTemplates(widget.parentName!);
+      // Tentar carregar do gerenciador de cache primeiro (mais rápido)
+      if (_isOffline) {
+        // No modo offline, sempre usar cache
+        switch (widget.type) {
+          case 'room':
+            templates = await _cacheManager.getRoomTemplates();
+            break;
+          case 'item':
+            if (widget.parentName != null) {
+              templates = await _cacheManager.getItemTemplates(widget.parentName!);
+            }
+            break;
+          case 'detail':
+            if (widget.parentName != null) {
+              templates = await _cacheManager.getDetailTemplates(widget.parentName!);
+            }
+            break;
+        }
+      } else {
+        // Em modo online, tentar carregar do serviço de dados
+        switch (widget.type) {
+          case 'room':
+            templates = await _dataLoader.loadRoomTemplates();
+            break;
+          case 'item':
+            if (widget.parentName != null) {
+              templates = await _dataLoader.loadItemTemplates(widget.parentName!);
+            }
+            break;
+          case 'detail':
+            if (widget.parentName != null) {
+              templates = await _dataLoader.loadDetailTemplates(widget.parentName!);
+            }
+            break;
+        }
+        
+        // Se não conseguiu buscar templates online, tenta usar o cache
+        if (templates.isEmpty) {
+          switch (widget.type) {
+            case 'room':
+              templates = await _cacheManager.getRoomTemplates();
+              break;
+            case 'item':
+              if (widget.parentName != null) {
+                templates = await _cacheManager.getItemTemplates(widget.parentName!);
+              }
+              break;
+            case 'detail':
+              if (widget.parentName != null) {
+                templates = await _cacheManager.getDetailTemplates(widget.parentName!);
+              }
+              break;
           }
-          break;
-        case 'detail':
-          if (widget.parentName != null) {
-            templates = await _dataLoader.loadDetailTemplates(widget.parentName!);
-          }
-          break;
+        }
       }
       
       setState(() {
@@ -69,6 +120,11 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
         _filteredTemplates = List.from(templates);
         _isLoading = false;
       });
+      
+      // Se estiver online e não tiver templates no cache, atualizar o cache
+      if (!_isOffline && templates.isEmpty) {
+        _cacheManager.cacheBasicTemplates();
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -131,6 +187,30 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Indicador de modo offline
+            if (_isOffline)
+              Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.wifi_off, color: Colors.orange, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Você está no modo offline. Usando templates do cache local.',
+                        style: TextStyle(fontSize: 12, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            
             // Barra de pesquisa
             TextField(
               controller: _searchController,
@@ -197,6 +277,9 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
                     return ListTile(
                       title: Text(template['name']),
                       subtitle: template['label'] != null ? Text(template['label']) : null,
+                      trailing: template.containsKey('isFromLocal') && template['isFromLocal'] == true
+                          ? const Icon(Icons.phone_android, size: 16, color: Colors.blue)
+                          : null,
                       onTap: () {
                         Navigator.of(context).pop(template);
                       },

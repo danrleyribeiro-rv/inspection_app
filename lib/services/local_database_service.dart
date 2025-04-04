@@ -7,6 +7,7 @@ import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalDatabaseService {
   static const String inspectionsBoxName = 'inspections';
@@ -34,6 +35,467 @@ class LocalDatabaseService {
     await Hive.openBox<bool>(syncStatusBoxName);
   }
 
+  static bool _isInitialized() {
+    try {
+      return Hive.isBoxOpen(inspectionsBoxName) &&
+             Hive.isBoxOpen(roomsBoxName) &&
+             Hive.isBoxOpen(itemsBoxName) &&
+             Hive.isBoxOpen(detailsBoxName);
+    } catch (e) {
+      print('Erro ao verificar inicialização do Hive: $e');
+      return false;
+    }
+  }
+
+  // Adicionar ao arquivo lib/services/local_database_service.dart
+
+  // Métodos para obter todos os ambientes salvos localmente
+  static Future<List<Room>> getAllLocalRooms() async {
+    try {
+      final box = Hive.box<Room>(roomsBoxName);
+      return box.values.toList();
+    } catch (e) {
+      print('Erro ao obter todos os ambientes: $e');
+      return [];
+    }
+  }
+  
+  // Obter um ambiente específico pelo ID
+  static Future<Room?> getRoomById(int roomId) async {
+    try {
+      final box = Hive.box<Room>(roomsBoxName);
+      // Buscar em todas as chaves que contenham esse roomId
+      for (var key in box.keys) {
+        final room = box.get(key);
+        if (room != null && room.id == roomId) {
+          return room;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Erro ao obter ambiente por ID: $e');
+      return null;
+    }
+  }
+  
+  // Métodos para obter todos os itens salvos localmente
+  static Future<List<Item>> getAllLocalItems() async {
+    try {
+      final box = Hive.box<Item>(itemsBoxName);
+      return box.values.toList();
+    } catch (e) {
+      print('Erro ao obter todos os itens: $e');
+      return [];
+    }
+  }
+
+  static Future<void> ensureInitialized() async {
+    if (!_isInitialized()) {
+      try {
+        // Re-inicializar
+        await Hive.initFlutter();
+        
+        // Registrar adapters novamente
+        try {
+          Hive.registerAdapter(InspectionAdapter());
+        } catch (e) {
+          print('Adapter de Inspection já registrado');
+        }
+        
+        try {
+          Hive.registerAdapter(RoomAdapter());
+        } catch (e) {
+          print('Adapter de Room já registrado');
+        }
+        
+        try {
+          Hive.registerAdapter(ItemAdapter());
+        } catch (e) {
+          print('Adapter de Item já registrado');
+        }
+        
+        try {
+          Hive.registerAdapter(DetailAdapter());
+        } catch (e) {
+          print('Adapter de Detail já registrado');
+        }
+        
+        // Abrir caixas
+        if (!Hive.isBoxOpen(inspectionsBoxName)) {
+          await Hive.openBox<Inspection>(inspectionsBoxName);
+        }
+        
+        if (!Hive.isBoxOpen(roomsBoxName)) {
+          await Hive.openBox<Room>(roomsBoxName);
+        }
+        
+        if (!Hive.isBoxOpen(itemsBoxName)) {
+          await Hive.openBox<Item>(itemsBoxName);
+        }
+        
+        if (!Hive.isBoxOpen(detailsBoxName)) {
+          await Hive.openBox<Detail>(detailsBoxName);
+        }
+        
+        if (!Hive.isBoxOpen(mediaBoxName)) {
+          await Hive.openBox<String>(mediaBoxName);
+        }
+        
+        if (!Hive.isBoxOpen(syncStatusBoxName)) {
+          await Hive.openBox<bool>(syncStatusBoxName);
+        }
+        
+        print('Hive reinicializado com sucesso');
+      } catch (e) {
+        print('Erro ao reinicializar Hive: $e');
+      }
+    }
+  }
+  
+  
+  // Obter um item específico pelo ID
+  static Future<Item?> getItemById(int itemId) async {
+    try {
+      final box = Hive.box<Item>(itemsBoxName);
+      // Buscar em todas as chaves que contenham esse itemId
+      for (var key in box.keys) {
+        final item = box.get(key);
+        if (item != null && item.id == itemId) {
+          return item;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Erro ao obter item por ID: $e');
+      return null;
+    }
+  }
+  
+  // Métodos para obter todos os detalhes salvos localmente
+  static Future<List<Detail>> getAllLocalDetails() async {
+    try {
+      final box = Hive.box<Detail>(detailsBoxName);
+      return box.values.toList();
+    } catch (e) {
+      print('Erro ao obter todos os detalhes: $e');
+      return [];
+    }
+  }
+  
+  // Obter um detalhe específico pelo ID
+  static Future<Detail?> getDetailById(int detailId) async {
+    try {
+      final box = Hive.box<Detail>(detailsBoxName);
+      // Buscar em todas as chaves que contenham esse detailId
+      for (var key in box.keys) {
+        final detail = box.get(key);
+        if (detail != null && detail.id == detailId) {
+          return detail;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Erro ao obter detalhe por ID: $e');
+      return null;
+    }
+  }
+
+    static Future<void> saveNonConformity(Map<String, dynamic> nonConformity) async {
+    try {
+      // Garantir que o banco está inicializado
+      await ensureInitialized();
+      
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Obter lista atual de não conformidades
+      final String? nonConformitiesJson = prefs.getString('local_non_conformities');
+      List<Map<String, dynamic>> nonConformities = [];
+      
+      if (nonConformitiesJson != null) {
+        try {
+          final List<dynamic> decodedList = jsonDecode(nonConformitiesJson);
+          nonConformities = decodedList.cast<Map<String, dynamic>>();
+        } catch (e) {
+          print('Erro ao decodificar JSON de não conformidades: $e');
+        }
+      }
+      
+      // Verificar se esta não conformidade já existe (por ID)
+      bool exists = false;
+      int existingIndex = -1;
+      
+      if (nonConformity.containsKey('id')) {
+        for (int i = 0; i < nonConformities.length; i++) {
+          if (nonConformities[i]['id'] == nonConformity['id']) {
+            exists = true;
+            existingIndex = i;
+            break;
+          }
+        }
+      }
+      
+      // Adicionar ID local se não existir
+      if (!nonConformity.containsKey('id') || nonConformity['id'] == null) {
+        nonConformity['id'] = DateTime.now().millisecondsSinceEpoch % 1000; // ID positivo pequeno
+      }
+      
+      // Adicionar timestamp se não existir
+      if (!nonConformity.containsKey('created_at') || nonConformity['created_at'] == null) {
+        nonConformity['created_at'] = DateTime.now().toIso8601String();
+      }
+      
+      if (exists) {
+        // Atualizar existente
+        nonConformities[existingIndex] = nonConformity;
+        print('Não conformidade ${nonConformity['id']} atualizada');
+      } else {
+        // Adicionar nova
+        nonConformities.add(nonConformity);
+        print('Nova não conformidade ${nonConformity['id']} adicionada');
+      }
+      
+      // Salvar de volta
+      await prefs.setString('local_non_conformities', jsonEncode(nonConformities));
+      
+      // Marcar inspeção como não sincronizada, se tiver o ID da inspeção
+      if (nonConformity.containsKey('inspection_id')) {
+        final inspectionId = nonConformity['inspection_id'];
+        await setSyncStatus(inspectionId, false);
+        print('Inspeção $inspectionId marcada para sincronização');
+      }
+    } catch (e) {
+      print('Erro ao salvar não conformidade: $e');
+    }
+  }
+  
+  // Salvar uma não conformidade no banco de dados local
+  static Future<void> saveNonConformityMedia(int nonConformityId, String mediaPath, String mediaType) async {
+    try {
+      print('Salvando mídia para NC $nonConformityId: $mediaPath (tipo: $mediaType)');
+      
+      // Garantir que o banco está inicializado
+      await ensureInitialized();
+      
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Obter mapa de mídia atual
+      final String? nonConformityMediaJson = prefs.getString('non_conformity_media');
+      Map<String, List<Map<String, dynamic>>> mediaMap = {};
+      
+      if (nonConformityMediaJson != null) {
+        try {
+          final Map<String, dynamic> decodedMap = jsonDecode(nonConformityMediaJson);
+          
+          // Converter para o formato correto
+          decodedMap.forEach((key, value) {
+            if (value is List) {
+              final List<dynamic> mediaList = value;
+              mediaMap[key] = mediaList.cast<Map<String, dynamic>>();
+            }
+          });
+        } catch (e) {
+          print('Erro ao decodificar JSON de mídia: $e');
+        }
+      }
+      
+      // Converter o ID para string para usar como chave
+      final String ncIdKey = nonConformityId.toString();
+      
+      // Inicializar a lista se não existir
+      if (!mediaMap.containsKey(ncIdKey)) {
+        mediaMap[ncIdKey] = [];
+      }
+      
+      // Verificar duplicatas
+      bool isDuplicate = false;
+      for (var item in mediaMap[ncIdKey]!) {
+        if (item['path'] == mediaPath) {
+          isDuplicate = true;
+          break;
+        }
+      }
+      
+      if (!isDuplicate) {
+        // Adicionar nova mídia
+        mediaMap[ncIdKey]!.add({
+          'path': mediaPath,
+          'type': mediaType,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        
+        // Converter para JSON
+        final jsonString = jsonEncode(mediaMap);
+        
+        // Verificar tamanho do JSON
+        print('Tamanho do JSON da mídia: ${jsonString.length} bytes');
+        
+        // Salvar de volta
+        await prefs.setString('non_conformity_media', jsonString);
+        print('Mídia salva com sucesso para NC $nonConformityId');
+      } else {
+        print('Mídia já existe para esta NC, ignorando duplicata');
+      }
+    } catch (e) {
+      print('Erro ao salvar mídia da não conformidade: $e');
+    }
+  }
+  
+  // Obter todas as não conformidades para uma inspeção
+  static Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(int inspectionId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Obter lista atual de não conformidades
+      final String? nonConformitiesJson = prefs.getString('local_non_conformities');
+      
+      if (nonConformitiesJson != null) {
+        final List<dynamic> decodedList = jsonDecode(nonConformitiesJson);
+        final List<Map<String, dynamic>> nonConformities = decodedList.cast<Map<String, dynamic>>();
+        
+        // Filtrar por inspectionId
+        return nonConformities.where((nc) => nc['inspection_id'] == inspectionId).toList();
+      }
+      
+      return [];
+    } catch (e) {
+      print('Erro ao obter não conformidades: $e');
+      return [];
+    }
+  }
+  
+  // Atualizar status de uma não conformidade
+  static Future<void> updateNonConformityStatus(int nonConformityId, String newStatus) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Obter lista atual de não conformidades
+      final String? nonConformitiesJson = prefs.getString('local_non_conformities');
+      
+      if (nonConformitiesJson != null) {
+        final List<dynamic> decodedList = jsonDecode(nonConformitiesJson);
+        final List<Map<String, dynamic>> nonConformities = decodedList.cast<Map<String, dynamic>>();
+        
+        // Encontrar e atualizar
+        int inspectionId = -1;
+        for (int i = 0; i < nonConformities.length; i++) {
+          if (nonConformities[i]['id'] == nonConformityId) {
+            nonConformities[i]['status'] = newStatus;
+            nonConformities[i]['updated_at'] = DateTime.now().toIso8601String();
+            inspectionId = nonConformities[i]['inspection_id'];
+            break;
+          }
+        }
+        
+        // Salvar de volta
+        await prefs.setString('local_non_conformities', jsonEncode(nonConformities));
+        
+        // Marcar inspeção como não sincronizada, se encontrada
+        if (inspectionId != -1) {
+          await setSyncStatus(inspectionId, false);
+        }
+      }
+    } catch (e) {
+      print('Erro ao atualizar status da não conformidade: $e');
+    }
+  }
+  
+  // Obter mídias para uma não conformidade
+  static Future<List<Map<String, dynamic>>> getNonConformityMedia(int nonConformityId) async {
+    try {
+      // Garantir que o banco está inicializado
+      await ensureInitialized();
+      
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Obter mapa de mídia
+      final String? nonConformityMediaJson = prefs.getString('non_conformity_media');
+      
+      if (nonConformityMediaJson == null) {
+        print('Nenhum registro de mídia encontrado');
+        return [];
+      }
+      
+      try {
+        final Map<String, dynamic> decodedMap = jsonDecode(nonConformityMediaJson);
+        
+        // Obter lista para este ID de NC
+        final String ncIdKey = nonConformityId.toString();
+        if (decodedMap.containsKey(ncIdKey)) {
+          final List<dynamic> mediaList = decodedMap[ncIdKey] as List<dynamic>;
+          
+          // Verificar arquivos existentes
+          final List<Map<String, dynamic>> validMediaItems = [];
+          
+          for (var item in mediaList.cast<Map<String, dynamic>>()) {
+            if (item.containsKey('path')) {
+              // Verificar se o arquivo existe
+              final file = File(item['path']);
+              if (await file.exists()) {
+                validMediaItems.add(item);
+              } else {
+                print('Arquivo não encontrado: ${item['path']}');
+              }
+            }
+          }
+          
+          print('Encontradas ${validMediaItems.length} mídias válidas para NC $nonConformityId');
+          return validMediaItems;
+        } else {
+          print('Nenhuma mídia encontrada para NC $nonConformityId');
+        }
+      } catch (e) {
+        print('Erro ao decodificar JSON de mídia: $e');
+      }
+      
+      return [];
+    } catch (e) {
+      print('Erro ao obter mídia da não conformidade: $e');
+      return [];
+    }
+  }
+  
+  // Deletar mídia de uma não conformidade
+  static Future<void> deleteNonConformityMedia(int nonConformityId, String mediaPath) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Obter mapa de mídia
+      final String? nonConformityMediaJson = prefs.getString('non_conformity_media');
+      
+      if (nonConformityMediaJson != null) {
+        final Map<String, dynamic> decodedMap = jsonDecode(nonConformityMediaJson);
+        
+        // Obter e modificar lista para este ID de NC
+        final String ncIdKey = nonConformityId.toString();
+        if (decodedMap.containsKey(ncIdKey)) {
+          final List<dynamic> mediaList = decodedMap[ncIdKey] as List<dynamic>;
+          final List<Map<String, dynamic>> typedMediaList = mediaList.cast<Map<String, dynamic>>();
+          
+          // Remover a mídia com este caminho
+          typedMediaList.removeWhere((media) => media['path'] == mediaPath);
+          
+          // Atualizar a lista no mapa
+          decodedMap[ncIdKey] = typedMediaList;
+          
+          // Salvar de volta
+          await prefs.setString('non_conformity_media', jsonEncode(decodedMap));
+          
+          // Tentar deletar o arquivo
+          try {
+            final file = File(mediaPath);
+            if (await file.exists()) {
+              await file.delete();
+            }
+          } catch (fileError) {
+            print('Erro ao deletar arquivo: $fileError');
+          }
+        }
+      }
+    } catch (e) {
+      print('Erro ao deletar mídia da não conformidade: $e');
+    }
+  }
+
   // Inspection Methods
   static Future<void> saveInspection(Inspection inspection) async {
     final box = Hive.box<Inspection>(inspectionsBoxName);
@@ -46,9 +508,16 @@ class LocalDatabaseService {
     return box.get(id.toString());
   }
 
-  static Future<List<Inspection>> getAllInspections() async {
-    final box = Hive.box<Inspection>(inspectionsBoxName);
-    return box.values.toList();
+    static Future<List<Inspection>> getAllInspections() async {
+    await ensureInitialized(); // Garantir que o banco está inicializado
+    
+    try {
+      final box = Hive.box<Inspection>(inspectionsBoxName);
+      return box.values.toList();
+    } catch (e) {
+      print('Erro ao obter todas as inspeções: $e');
+      return [];
+    }
   }
 
   static Future<List<Inspection>> getPendingSyncInspections() async {
@@ -94,10 +563,17 @@ class LocalDatabaseService {
   }
 
   static Future<List<Room>> getRoomsByInspection(int inspectionId) async {
-    final box = Hive.box<Room>(roomsBoxName);
-    return box.values
-        .where((room) => room.inspectionId == inspectionId)
-        .toList();
+    await ensureInitialized(); // Garantir que o banco está inicializado
+    
+    try {
+      final box = Hive.box<Room>(roomsBoxName);
+      return box.values
+          .where((room) => room.inspectionId == inspectionId)
+          .toList();
+    } catch (e) {
+      print('Erro ao obter ambientes para inspeção: $e');
+      return [];
+    }
   }
 
   static Future<void> deleteRoom(int inspectionId, int roomId) async {

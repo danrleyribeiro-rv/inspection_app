@@ -44,9 +44,9 @@ class InspectionService {
   
   // Add a new room to an inspection
   Future<Room> addRoom(int inspectionId, String name, {String? label, int? position}) async {
-    // Generate a temporary negative ID to identify it locally
-    // This will be replaced with a server ID after sync
-    final tempId = -DateTime.now().millisecondsSinceEpoch;
+    // Generate a temporary ID between 1-1000 instead of negative values
+    // This avoids PostgreSQL integer range issues
+    final tempId = 1 + (DateTime.now().millisecondsSinceEpoch % 999);
     
     // Create the room
     final room = Room(
@@ -89,8 +89,8 @@ class InspectionService {
   
   // Add a new item to a room
   Future<Item> addItem(int inspectionId, int roomId, String name, {String? label, int? position}) async {
-    // Generate a temporary negative ID to identify it locally
-    final tempId = -DateTime.now().millisecondsSinceEpoch;
+    // Generate a temporary positive ID instead of negative
+    final tempId = 1 + (DateTime.now().millisecondsSinceEpoch % 999);
     
     // Create the item
     final item = Item(
@@ -133,9 +133,9 @@ class InspectionService {
   }
   
   // Add a new detail to an item
-  Future<Detail> addDetail(int inspectionId, int roomId, int itemId, String name, {String? value, int? position}) async {
-    // Generate a temporary negative ID to identify it locally
-    final tempId = -DateTime.now().millisecondsSinceEpoch;
+Future<Detail> addDetail(int inspectionId, int roomId, int itemId, String name, {String? value, int? position}) async {
+    // Generate a temporary positive ID
+    final tempId = 1 + (DateTime.now().millisecondsSinceEpoch % 999);
     
     // Create the detail
     final detail = Detail(
