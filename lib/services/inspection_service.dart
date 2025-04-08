@@ -6,10 +6,13 @@ import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/local_database_service.dart';
 import 'package:inspection_app/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class InspectionService {
   final SyncService _syncService = SyncService();
   final _uuid = Uuid();
+  final _supabase = Supabase.instance.client;
   
   // Get all locally stored inspections
   Future<List<Inspection>> getAllInspections() async {
@@ -37,15 +40,52 @@ class InspectionService {
     }
   }
   
-  // Get rooms for an inspection
+  // Get rooms for an inspection - IMPROVED
   Future<List<Room>> getRooms(int inspectionId) async {
-    return await LocalDatabaseService.getRoomsByInspection(inspectionId);
+    try {
+      // First check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final bool isOffline = connectivityResult == ConnectivityResult.none;
+      
+      // If we have local rooms stored, use them first
+      final localRooms = await LocalDatabaseService.getRoomsByInspection(inspectionId);
+      if (localRooms.isNotEmpty || isOffline) {
+        return localRooms;
+      }
+      
+      // If online with no local rooms, try to fetch from Supabase
+      try {
+        final roomsData = await _supabase
+            .from('rooms')
+            .select('*')
+            .eq('inspection_id', inspectionId)
+            .order('position', ascending: true);
+            
+        print('Fetched ${roomsData.length} rooms from server');
+        
+        // Convert and save each room locally
+        List<Room> rooms = [];
+        for (var data in roomsData) {
+          final room = Room.fromJson(data);
+          await LocalDatabaseService.saveRoom(room);
+          rooms.add(room);
+        }
+        
+        return rooms;
+      } catch (e) {
+        print('Error fetching rooms from Supabase: $e');
+        // If fetch fails, return whatever is in local storage
+        return localRooms;
+      }
+    } catch (e) {
+      print('Error in getRooms: $e');
+      return [];
+    }
   }
   
   // Add a new room to an inspection
   Future<Room> addRoom(int inspectionId, String name, {String? label, int? position}) async {
-    // Generate a temporary ID between 1-1000 instead of negative values
-    // This avoids PostgreSQL integer range issues
+    // Generate a temporary ID
     final tempId = 1 + (DateTime.now().millisecondsSinceEpoch % 999);
     
     // Create the room
@@ -82,14 +122,53 @@ class InspectionService {
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
   }
   
-  // Get items for a room
+  // Get items for a room - IMPROVED
   Future<List<Item>> getItems(int inspectionId, int roomId) async {
-    return await LocalDatabaseService.getItemsByRoom(inspectionId, roomId);
+    try {
+      // First check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final bool isOffline = connectivityResult == ConnectivityResult.none;
+      
+      // If we have local items stored, use them first
+      final localItems = await LocalDatabaseService.getItemsByRoom(inspectionId, roomId);
+      if (localItems.isNotEmpty || isOffline) {
+        return localItems;
+      }
+      
+      // If online with no local items, try to fetch from Supabase
+      try {
+        final itemsData = await _supabase
+            .from('room_items')
+            .select('*')
+            .eq('inspection_id', inspectionId)
+            .eq('room_id', roomId)
+            .order('position', ascending: true);
+            
+        print('Fetched ${itemsData.length} items from server for room $roomId');
+        
+        // Convert and save each item locally
+        List<Item> items = [];
+        for (var data in itemsData) {
+          final item = Item.fromJson(data);
+          await LocalDatabaseService.saveItem(item);
+          items.add(item);
+        }
+        
+        return items;
+      } catch (e) {
+        print('Error fetching items from Supabase: $e');
+        // If fetch fails, return whatever is in local storage
+        return localItems;
+      }
+    } catch (e) {
+      print('Error in getItems: $e');
+      return [];
+    }
   }
   
   // Add a new item to a room
   Future<Item> addItem(int inspectionId, int roomId, String name, {String? label, int? position}) async {
-    // Generate a temporary positive ID instead of negative
+    // Generate a temporary positive ID
     final tempId = 1 + (DateTime.now().millisecondsSinceEpoch % 999);
     
     // Create the item
@@ -127,13 +206,53 @@ class InspectionService {
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
   }
   
-  // Get details for an item
+  // Get details for an item - IMPROVED
   Future<List<Detail>> getDetails(int inspectionId, int roomId, int itemId) async {
-    return await LocalDatabaseService.getDetailsByItem(inspectionId, roomId, itemId);
+    try {
+      // First check connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final bool isOffline = connectivityResult == ConnectivityResult.none;
+      
+      // If we have local details stored, use them first
+      final localDetails = await LocalDatabaseService.getDetailsByItem(inspectionId, roomId, itemId);
+      if (localDetails.isNotEmpty || isOffline) {
+        return localDetails;
+      }
+      
+      // If online with no local details, try to fetch from Supabase
+      try {
+        final detailsData = await _supabase
+            .from('item_details')
+            .select('*')
+            .eq('inspection_id', inspectionId)
+            .eq('room_id', roomId)
+            .eq('room_item_id', itemId)
+            .order('position', ascending: true);
+            
+        print('Fetched ${detailsData.length} details from server for item $itemId');
+        
+        // Convert and save each detail locally
+        List<Detail> details = [];
+        for (var data in detailsData) {
+          final detail = Detail.fromJson(data);
+          await LocalDatabaseService.saveDetail(detail);
+          details.add(detail);
+        }
+        
+        return details;
+      } catch (e) {
+        print('Error fetching details from Supabase: $e');
+        // If fetch fails, return whatever is in local storage
+        return localDetails;
+      }
+    } catch (e) {
+      print('Error in getDetails: $e');
+      return [];
+    }
   }
   
   // Add a new detail to an item
-Future<Detail> addDetail(int inspectionId, int roomId, int itemId, String name, {String? value, int? position}) async {
+  Future<Detail> addDetail(int inspectionId, int roomId, int itemId, String name, {String? value, int? position}) async {
     // Generate a temporary positive ID
     final tempId = 1 + (DateTime.now().millisecondsSinceEpoch % 999);
     

@@ -7,6 +7,7 @@ import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
 import 'package:inspection_app/services/inspection_service.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final int inspectionId;
@@ -25,11 +26,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final _inspectionService = InspectionService();
   
   bool _isLoading = true;
+  bool _isDownloading = false;
+  bool _isOnline = true;
   Map<String, dynamic>? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
   
-  // Para o modo paisagem
+  // For the landscape mode
   int _selectedRoomIndex = -1;
   int _selectedItemIndex = -1;
   List<Item> _selectedRoomItems = [];
@@ -38,51 +41,202 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _checkConnectivity();
     _loadInspection();
+  }
+  
+  Future<void> _checkConnectivity() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOnline = connectivityResult != ConnectivityResult.none;
+    });
+    
+    // Listen for connectivity changes
+    Connectivity().onConnectivityChanged.listen((result) {
+      setState(() {
+        _isOnline = result != ConnectivityResult.none;
+      });
+    });
   }
 
   Future<void> _loadInspection() async {
     setState(() => _isLoading = true);
 
     try {
-      // Carregar dados da inspeção
-      final inspectionData = await _supabase
-          .from('inspections')
-          .select('*')
-          .eq('id', widget.inspectionId)
-          .single();
+      // First, try to get local inspection data
+      final localInspection = await _inspectionService.getInspection(widget.inspectionId);
       
-      _inspection = inspectionData;
-      
-      // Carregar rooms
-      await _loadRooms();
-      
-      setState(() => _isLoading = false);
+      if (localInspection != null) {
+        // We have local data, use it
+        setState(() {
+          _inspection = localInspection.toJson();
+        });
+        
+        // Load rooms
+        await _loadRooms();
+        
+        setState(() => _isLoading = false);
+      } else {
+        // No local data, try to download if online
+        if (_isOnline) {
+          await _downloadInspection();
+        } else {
+          // Offline with no local data
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No local data and offline. Cannot load inspection.')),
+            );
+            setState(() => _isLoading = false);
+          }
+        }
+      }
     } catch (e) {
-      print('Erro ao carregar inspeção: $e');
+      print('Error in _loadInspection: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar inspeção: $e')),
+          SnackBar(content: Text('Error loading inspection: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _downloadInspection() async {
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot download while offline')),
+      );
+      return;
+    }
+    
+    setState(() => _isDownloading = true);
+    
+    try {
+      // Show download message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Downloading inspection data...')),
+      );
+      
+      // Try to download from server using the improved SyncService
+      final success = await _inspectionService.downloadInspection(widget.inspectionId);
+      
+      if (success) {
+        // Get the local inspection
+        final inspection = await _inspectionService.getInspection(widget.inspectionId);
+        
+        if (inspection != null) {
+          setState(() {
+            _inspection = inspection.toJson();
+          });
+          
+          // Load rooms
+          await _loadRooms();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Inspection downloaded successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load downloaded inspection')),
+          );
+        }
+      } else {
+        // If download fails, try to get basic info from Supabase
+        try {
+          final inspectionData = await _supabase
+              .from('inspections')
+              .select('*')
+              .eq('id', widget.inspectionId)
+              .single();
+          
+          setState(() {
+            _inspection = inspectionData;
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Only basic inspection data was loaded. Try again later for complete data.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to download inspection')),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error downloading inspection: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading inspection: $e')),
         );
       }
-      setState(() => _isLoading = false);
+    } finally {
+      setState(() {
+        _isDownloading = false;
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _loadRooms() async {
+    setState(() => _isLoading = true);
+
     try {
+      // Use the improved getRooms method which now checks both local and server
       final rooms = await _inspectionService.getRooms(widget.inspectionId);
+      
       setState(() {
         _rooms = rooms;
+        _isLoading = false;
       });
+      
+      // If no rooms and we're online, try to download complete data
+      if (_rooms.isEmpty && _isOnline) {
+        _promptForDownload();
+      }
     } catch (e) {
-      print('Erro ao carregar ambientes: $e');
+      print('Error loading rooms: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar ambientes: $e')),
+          SnackBar(content: Text('Error loading rooms: $e')),
         );
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _promptForDownload() {
+    // Only show if online
+    if (!_isOnline) return;
+    
+    // Show dialog asking to download complete data
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('No rooms found'),
+        content: const Text(
+          'Would you like to download the complete inspection data from the server?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _downloadInspection();
+            },
+            child: const Text('Download'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadItemsForRoom(int roomIndex) async {
@@ -92,15 +246,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     if (roomId == null) return;
     
     try {
+      // Use the improved getItems method
       final items = await _inspectionService.getItems(widget.inspectionId, roomId);
       setState(() {
         _selectedRoomItems = items;
         _selectedRoomIndex = roomIndex;
-        _selectedItemIndex = -1; // Resetar seleção de item
+        _selectedItemIndex = -1; // Reset item selection
         _selectedItemDetails = [];
       });
     } catch (e) {
-      print('Erro ao carregar itens: $e');
+      print('Error loading items: $e');
     }
   }
 
@@ -111,6 +266,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     if (item.id == null || item.roomId == null) return;
     
     try {
+      // Use the improved getDetails method
       final details = await _inspectionService.getDetails(
         widget.inspectionId,
         item.roomId!,
@@ -122,13 +278,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         _selectedItemIndex = itemIndex;
       });
     } catch (e) {
-      print('Erro ao carregar detalhes: $e');
+      print('Error loading details: $e');
     }
   }
 
-  // Adicionar um novo ambiente
+  // Add a new room
   Future<void> _addRoom() async {
-    final name = await _showTextInputDialog('Adicionar Ambiente', 'Nome do ambiente');
+    final name = await _showTextInputDialog('Add Room', 'Room name');
     if (name == null || name.isEmpty) return;
     
     setState(() => _isLoading = true);
@@ -140,29 +296,29 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       
       await _loadRooms();
       
-      // Expandir o novo ambiente
+      // Expand the new room
       setState(() {
         _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
         _isLoading = false;
       });
     } catch (e) {
-      print('Erro ao adicionar ambiente: $e');
+      print('Error adding room: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao adicionar ambiente: $e')),
+          SnackBar(content: Text('Error adding room: $e')),
         );
         setState(() => _isLoading = false);
       }
     }
   }
 
-  // Método para duplicar um ambiente
+  // Method to duplicate a room
   Future<void> _duplicateRoom(Room room) async {
     setState(() => _isLoading = true);
     
     try {
       // Create a copy of the room with a new name
-      final copyName = "${room.roomName} (cópia)";
+      final copyName = "${room.roomName} (copy)";
       
       // Add the new room
       final newRoom = await _inspectionService.addRoom(
@@ -235,34 +391,34 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ambiente duplicado com sucesso!'))
+        const SnackBar(content: Text('Room duplicated successfully!'))
       );
     } catch (e) {
-      print('Erro ao duplicar ambiente: $e');
+      print('Error duplicating room: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao duplicar ambiente: $e')),
+          SnackBar(content: Text('Error duplicating room: $e')),
         );
         setState(() => _isLoading = false);
       }
     }
   }
 
-  // Método para salvar alterações na inspeção
+  // Method to save changes to the inspection
   Future<void> _saveInspection() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Salvar Alterações'),
-        content: const Text('Deseja salvar as alterações feitas na inspeção?'),
+        title: const Text('Save Changes'),
+        content: const Text('Do you want to save the changes made to the inspection?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Salvar'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -273,7 +429,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Atualizar status da inspeção para "in_progress" se estiver "pending"
+      // Update inspection status to "in_progress" if it's "pending"
       if (_inspection?['status'] == 'pending') {
         await _supabase
             .from('inspections')
@@ -283,39 +439,44 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         _inspection?['status'] = 'in_progress';
       }
       
+      // Try to sync if online
+      if (_isOnline) {
+        await _inspectionService.syncInspection(widget.inspectionId);
+      }
+      
       setState(() => _isLoading = false);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inspeção salva com sucesso!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Inspection saved successfully!'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar inspeção: $e')),
+          SnackBar(content: Text('Error saving inspection: $e')),
         );
       }
     }
   }
 
-  // Método para finalizar a inspeção
+  // Method to complete the inspection
   Future<void> _completeInspection() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Finalizar Inspeção'),
-        content: const Text('Tem certeza que deseja finalizar esta inspeção?\n\nApós finalizada, não será possível realizar mais alterações.'),
+        title: const Text('Complete Inspection'),
+        content: const Text('Are you sure you want to complete this inspection?\n\nOnce completed, you won\'t be able to make further changes.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Finalizar', style: TextStyle(color: Colors.white)),
+            child: const Text('Complete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -337,30 +498,35 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       
       _inspection?['status'] = 'completed';
       
+      // Try to sync if online
+      if (_isOnline) {
+        await _inspectionService.syncInspection(widget.inspectionId);
+      }
+      
       setState(() => _isLoading = false);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Inspeção finalizada com sucesso!'),
+            content: Text('Inspection completed successfully!'),
             backgroundColor: Colors.green,
           ),
         );
         
-        // Voltar para a tela anterior
+        // Go back to previous screen
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao finalizar inspeção: $e')),
+          SnackBar(content: Text('Error completing inspection: $e')),
         );
       }
     }
   }
 
-  // Helper para mostrar input dialog
+  // Helper to show an input dialog
   Future<String?> _showTextInputDialog(String title, String label) async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
@@ -375,11 +541,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Adicionar'),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -389,7 +555,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     return result;
   }
 
-  // Ir para tela de não conformidades
+  // Go to non-conformities screen
   void _navigateToNonConformities() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -417,44 +583,102 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ambiente removido com sucesso')),
+          const SnackBar(content: Text('Room removed successfully')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao remover ambiente: $e')),
+          SnackBar(content: Text('Error removing room: $e')),
         );
       }
     }
   }
 
+  // Manually sync the inspection
+  Future<void> _syncInspection() async {
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot sync while offline')),
+      );
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final success = await _inspectionService.syncInspection(widget.inspectionId);
+      
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inspection synced successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Reload rooms after sync in case server had updates
+        await _loadRooms();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sync partially failed, check logs for details')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error syncing: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Verificar se a inspeção está completa
+    // Check if inspection is completed
     final bool isCompleted = _inspection?['status'] == 'completed';
     
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Slate background color
       appBar: AppBar(
-        title: Text(_inspection?['title'] ?? 'Inspeção'),
+        title: Text(_inspection?['title'] ?? 'Inspection'),
         backgroundColor: const Color(0xFF1E293B), // Slate app bar color
         actions: [
-          if (!isCompleted) // Apenas mostrar botão se não estiver completa
+          if (!isCompleted) // Only show if not completed
             IconButton(
               icon: const Icon(Icons.report_problem),
-              tooltip: 'Não Conformidades',
+              tooltip: 'Non-Conformities',
               onPressed: _navigateToNonConformities,
+            ),
+          if (_isOnline && !isCompleted) // Only show sync button if online and not completed
+            IconButton(
+              icon: const Icon(Icons.sync),
+              tooltip: 'Sync',
+              onPressed: _syncInspection,
             ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _isLoading || isCompleted ? null : _saveInspection,
-            tooltip: 'Salvar',
+            tooltip: 'Save',
           ),
         ],
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
+      body: _isLoading || _isDownloading
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    _isDownloading 
+                        ? 'Downloading inspection data...' 
+                        : 'Loading...',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            )
           : OrientationBuilder(
               builder: (context, orientation) {
                 if (orientation == Orientation.landscape) {
@@ -465,7 +689,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               },
             ),
       floatingActionButton: isCompleted 
-          ? null // Sem FAB para inspeções completas
+          ? null // No FAB for completed inspections
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -481,7 +705,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   heroTag: 'complete',
                   backgroundColor: Colors.green,
                   icon: const Icon(Icons.check),
-                  label: const Text('Finalizar'),
+                  label: const Text('Complete'),
                 ),
               ],
             ),
@@ -497,12 +721,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             const Icon(Icons.home_work_outlined, size: 80, color: Colors.grey),
             const SizedBox(height: 16),
             const Text(
-              'Nenhum ambiente adicionado',
+              'No rooms added',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Clique no botão + para adicionar ambientes',
+              'Click the + button to add rooms',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70),
             ),
@@ -510,7 +734,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             ElevatedButton.icon(
               onPressed: _addRoom,
               icon: const Icon(Icons.add),
-              label: const Text('Adicionar Ambiente'),
+              label: const Text('Add Room'),
             ),
           ],
         ),
@@ -542,7 +766,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Widget _buildLandscapeLayout() {
     return Row(
       children: [
-        // Coluna de ambientes
+        // Rooms column
         Expanded(
           flex: 2,
           child: _rooms.isEmpty
@@ -552,12 +776,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     children: [
                       const Icon(Icons.home_work_outlined, size: 50, color: Colors.grey),
                       const SizedBox(height: 8),
-                      const Text('Nenhum ambiente', style: TextStyle(color: Colors.white)),
+                      const Text('No rooms', style: TextStyle(color: Colors.white)),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: _addRoom,
                         icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Adicionar'),
+                        label: const Text('Add'),
                       ),
                     ],
                   ),
@@ -593,33 +817,33 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 ),
         ),
 
-        // Divisor vertical
+        // Vertical divider
         VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
 
-        // Coluna de itens
+        // Items column
         Expanded(
           flex: 3,
           child: _selectedRoomIndex < 0
-              ? const Center(child: Text('Selecione um ambiente', style: TextStyle(color: Colors.white)))
+              ? const Center(child: Text('Select a room', style: TextStyle(color: Colors.white)))
               : Column(
                   children: [
-                    // Cabeçalho com botão de adicionar item
+                    // Header with add item button
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Row(
                         children: [
                           Expanded(
                             child: Text(
-                              'Itens - ${_rooms[_selectedRoomIndex].roomName}',
+                              'Items - ${_rooms[_selectedRoomIndex].roomName}',
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle, color: Colors.white),
                             onPressed: () async {
-                              // Lógica para adicionar item
+                              // Logic to add item
                               if (_selectedRoomIndex >= 0 && _rooms[_selectedRoomIndex].id != null) {
-                                final name = await _showTextInputDialog('Adicionar Item', 'Nome do item');
+                                final name = await _showTextInputDialog('Add Item', 'Item name');
                                 if (name != null && name.isNotEmpty) {
                                   await _inspectionService.addItem(
                                     widget.inspectionId,
@@ -635,10 +859,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       ),
                     ),
                     
-                    // Lista de itens
+                    // Items list
                     Expanded(
                       child: _selectedRoomItems.isEmpty
-                          ? const Center(child: Text('Nenhum item neste ambiente', style: TextStyle(color: Colors.white)))
+                          ? const Center(child: Text('No items in this room', style: TextStyle(color: Colors.white)))
                           : ListView.builder(
                               itemCount: _selectedRoomItems.length,
                               itemBuilder: (context, index) {
@@ -651,7 +875,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                   trailing: IconButton(
                                     icon: const Icon(Icons.delete, color: Colors.white),
                                     onPressed: () async {
-                                      // Lógica para excluir item
+                                      // Logic to delete item
                                       if (item.id != null && item.roomId != null) {
                                         await _inspectionService.deleteItem(
                                           widget.inspectionId,
@@ -670,35 +894,35 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 ),
         ),
 
-        // Divisor vertical
+        // Vertical divider
         VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
 
-        // Coluna de detalhes
+        // Details column
         Expanded(
           flex: 5,
           child: _selectedItemIndex < 0
-              ? const Center(child: Text('Selecione um item', style: TextStyle(color: Colors.white)))
+              ? const Center(child: Text('Select an item', style: TextStyle(color: Colors.white)))
               : Column(
                   children: [
-                    // Cabeçalho com botão de adicionar detalhe
+                    // Header with add detail button
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Row(
                         children: [
                           Expanded(
                             child: Text(
-                              'Detalhes - ${_selectedRoomItems[_selectedItemIndex].itemName}',
+                              'Details - ${_selectedRoomItems[_selectedItemIndex].itemName}',
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle, color: Colors.white),
                             onPressed: () async {
-                              // Lógica para adicionar detalhe
+                              // Logic to add detail
                               if (_selectedItemIndex >= 0) {
                                 final item = _selectedRoomItems[_selectedItemIndex];
                                 if (item.id != null && item.roomId != null) {
-                                  final name = await _showTextInputDialog('Adicionar Detalhe', 'Nome do detalhe');
+                                  final name = await _showTextInputDialog('Add Detail', 'Detail name');
                                   if (name != null && name.isNotEmpty) {
                                     await _inspectionService.addDetail(
                                       widget.inspectionId,
@@ -716,10 +940,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       ),
                     ),
                     
-                    // Lista de detalhes
+                    // Details list
                     Expanded(
                       child: _selectedItemDetails.isEmpty
-                          ? const Center(child: Text('Nenhum detalhe neste item', style: TextStyle(color: Colors.white)))
+                          ? const Center(child: Text('No details in this item', style: TextStyle(color: Colors.white)))
                           : ListView.builder(
                               itemCount: _selectedItemDetails.length,
                               itemBuilder: (context, index) {
@@ -743,7 +967,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                             IconButton(
                                               icon: const Icon(Icons.delete, color: Colors.white),
                                               onPressed: () async {
-                                                // Lógica para excluir detalhe
+                                                // Logic to delete detail
                                                 if (detail.id != null && detail.roomId != null && detail.itemId != null) {
                                                   await _inspectionService.deleteDetail(
                                                     widget.inspectionId,
@@ -759,13 +983,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                         ),
                                         const SizedBox(height: 8),
                                         
-                                        // Checkbox para "Danificado"
+                                        // "Damaged" checkbox
                                         Row(
                                           children: [
                                             Checkbox(
                                               value: detail.isDamaged ?? false,
                                               onChanged: (value) async {
-                                                // Atualizar o detalhe
+                                                // Update the detail
                                                 final updatedDetail = detail.copyWith(
                                                   isDamaged: value,
                                                   updatedAt: DateTime.now(),
@@ -774,24 +998,24 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                                 await _loadDetailsForItem(_selectedItemIndex);
                                               },
                                             ),
-                                            const Text('Danificado', style: TextStyle(color: Colors.white)),
+                                            const Text('Damaged', style: TextStyle(color: Colors.white)),
                                           ],
                                         ),
                                         
-                                        // Campo de valor
+                                        // Value field
                                         const SizedBox(height: 8),
                                         TextFormField(
                                           initialValue: detail.detailValue,
                                           style: const TextStyle(color: Colors.white),
                                           decoration: const InputDecoration(
-                                            labelText: 'Valor',
+                                            labelText: 'Value',
                                             border: OutlineInputBorder(),
                                             labelStyle: TextStyle(color: Colors.white70),
                                             fillColor: Colors.white10,
                                             filled: true,
                                           ),
                                           onChanged: (value) async {
-                                            // Atualizar o detalhe após um delay
+                                            // Update the detail after a delay
                                             final updatedDetail = detail.copyWith(
                                               detailValue: value,
                                               updatedAt: DateTime.now(),
@@ -800,13 +1024,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                           },
                                         ),
                                         
-                                        // Campo de observação
+                                        // Observation field
                                         const SizedBox(height: 16),
                                         TextFormField(
                                           initialValue: detail.observation,
                                           style: const TextStyle(color: Colors.white),
                                           decoration: const InputDecoration(
-                                            labelText: 'Observação',
+                                            labelText: 'Observation',
                                             border: OutlineInputBorder(),
                                             labelStyle: TextStyle(color: Colors.white70),
                                             fillColor: Colors.white10,
@@ -814,7 +1038,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                           ),
                                           maxLines: 3,
                                           onChanged: (value) async {
-                                            // Atualizar o detalhe após um delay
+                                            // Update the detail after a delay
                                             final updatedDetail = detail.copyWith(
                                               observation: value,
                                               updatedAt: DateTime.now(),
@@ -823,11 +1047,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                           },
                                         ),
                                         
-                                        // Botão para adicionar não conformidade
+                                        // Add non-conformity button
                                         const SizedBox(height: 16),
                                         ElevatedButton.icon(
                                           onPressed: () {
-                                            // Navegar para tela de não conformidade com este detalhe pré-selecionado
+                                            // Navigate to non-conformity screen with this detail pre-selected
                                             Navigator.of(context).push(
                                               MaterialPageRoute(
                                                 builder: (context) => NonConformityScreen(
@@ -840,7 +1064,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                             );
                                           },
                                           icon: const Icon(Icons.report_problem),
-                                          label: const Text('Adicionar Não Conformidade'),
+                                          label: const Text('Add Non-Conformity'),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.orange,
                                             foregroundColor: Colors.white,
