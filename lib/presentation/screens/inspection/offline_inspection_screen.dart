@@ -55,6 +55,98 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     });
   }
 
+
+  Future<void> _duplicateRoom(Room room) async {
+  setState(() => _isLoading = true);
+  
+  try {
+    // Create a copy of the room with a new name
+    final copyName = "${room.roomName} (cópia)";
+    
+    // Add the new room
+    final newRoom = await _inspectionService.addRoom(
+      widget.inspectionId,
+      copyName,
+      label: room.roomLabel,
+    );
+    
+    // Duplicate all items if original room has an ID
+    if (room.id != null) {
+      // Get items from the original room
+      final items = await _inspectionService.getItems(
+        widget.inspectionId,
+        room.id!
+      );
+      
+      // Add each item to the new room
+      for (final item in items) {
+        final newItem = await _inspectionService.addItem(
+          widget.inspectionId,
+          newRoom.id!,
+          item.itemName,
+          label: item.itemLabel,
+        );
+        
+        // Update item with the same observation as original
+        if (item.observation != null) {
+          await _inspectionService.updateItem(
+            newItem.copyWith(observation: item.observation)
+          );
+        }
+        
+        // If the original item has an ID, duplicate its details
+        if (item.id != null) {
+          // Get details from the original item
+          final details = await _inspectionService.getDetails(
+            widget.inspectionId,
+            room.id!,
+            item.id!
+          );
+          
+          // Add each detail to the new item
+          for (final detail in details) {
+            final newDetail = await _inspectionService.addDetail(
+              widget.inspectionId,
+              newRoom.id!,
+              newItem.id!,
+              detail.detailName,
+              value: detail.detailValue,
+            );
+            
+            // Update detail with the same observation as original
+            if (detail.observation != null) {
+              await _inspectionService.updateDetail(
+                newDetail.copyWith(observation: detail.observation)
+              );
+            }
+          }
+        }
+      }
+    }
+    
+    // Reload rooms
+    await _loadRooms();
+    
+    // Expand the new room
+    setState(() {
+      _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
+      _isLoading = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ambiente duplicado com sucesso!'))
+    );
+  } catch (e) {
+    print('Erro ao duplicar ambiente: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao duplicar ambiente: $e')),
+      );
+      setState(() => _isLoading = false);
+    }
+  }
+}
+
   Future<void> _checkConnectivity() async {
     final result = await Connectivity().checkConnectivity();
     setState(() {
@@ -682,7 +774,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
 
                           return RoomWidget(
                             room: room,
-                            onRoomDuplicated: _duplicateRoom(room),
+                            onRoomDuplicated: (room) => _duplicateRoom(room),
                             onRoomUpdated: _handleRoomUpdate,
                             onRoomDeleted: _handleRoomDelete,
                             isExpanded: index == _expandedRoomIndex,
