@@ -156,6 +156,98 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Método para duplicar um ambiente
+  Future<void> _duplicateRoom(Room room) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      // Create a copy of the room with a new name
+      final copyName = "${room.roomName} (cópia)";
+      
+      // Add the new room
+      final newRoom = await _inspectionService.addRoom(
+        widget.inspectionId,
+        copyName,
+        label: room.roomLabel,
+      );
+      
+      // Duplicate all items if original room has an ID
+      if (room.id != null) {
+        // Get items from the original room
+        final items = await _inspectionService.getItems(
+          widget.inspectionId,
+          room.id!
+        );
+        
+        // Add each item to the new room
+        for (final item in items) {
+          final newItem = await _inspectionService.addItem(
+            widget.inspectionId,
+            newRoom.id!,
+            item.itemName,
+            label: item.itemLabel,
+          );
+          
+          // Update item with the same observation as original
+          if (item.observation != null) {
+            await _inspectionService.updateItem(
+              newItem.copyWith(observation: item.observation)
+            );
+          }
+          
+          // If the original item has an ID, duplicate its details
+          if (item.id != null) {
+            // Get details from the original item
+            final details = await _inspectionService.getDetails(
+              widget.inspectionId,
+              room.id!,
+              item.id!
+            );
+            
+            // Add each detail to the new item
+            for (final detail in details) {
+              final newDetail = await _inspectionService.addDetail(
+                widget.inspectionId,
+                newRoom.id!,
+                newItem.id!,
+                detail.detailName,
+                value: detail.detailValue,
+              );
+              
+              // Update detail with the same observation as original
+              if (detail.observation != null) {
+                await _inspectionService.updateDetail(
+                  newDetail.copyWith(observation: detail.observation)
+                );
+              }
+            }
+          }
+        }
+      }
+      
+      // Reload rooms
+      await _loadRooms();
+      
+      // Expand the new room
+      setState(() {
+        _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ambiente duplicado com sucesso!'))
+      );
+    } catch (e) {
+      print('Erro ao duplicar ambiente: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao duplicar ambiente: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   // Método para salvar alterações na inspeção
   Future<void> _saveInspection() async {
     final confirmed = await showDialog<bool>(
@@ -343,8 +435,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     final bool isCompleted = _inspection?['status'] == 'completed';
     
     return Scaffold(
+      backgroundColor: const Color(0xFF1E293B), // Slate background color
       appBar: AppBar(
         title: Text(_inspection?['title'] ?? 'Inspeção'),
+        backgroundColor: const Color(0xFF1E293B), // Slate app bar color
         actions: [
           if (!isCompleted) // Apenas mostrar botão se não estiver completa
             IconButton(
@@ -404,12 +498,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             const SizedBox(height: 16),
             const Text(
               'Nenhum ambiente adicionado',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 8),
             const Text(
               'Clique no botão + para adicionar ambientes',
               textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -432,6 +527,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           room: room,
           onRoomUpdated: _handleRoomUpdate,
           onRoomDeleted: _handleRoomDelete,
+          onRoomDuplicated: _duplicateRoom,
           isExpanded: index == _expandedRoomIndex,
           onExpansionChanged: () {
             setState(() {
@@ -456,7 +552,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     children: [
                       const Icon(Icons.home_work_outlined, size: 50, color: Colors.grey),
                       const SizedBox(height: 8),
-                      const Text('Nenhum ambiente'),
+                      const Text('Nenhum ambiente', style: TextStyle(color: Colors.white)),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: _addRoom,
@@ -471,17 +567,26 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   itemBuilder: (context, index) {
                     final room = _rooms[index];
                     return ListTile(
-                      title: Text(room.roomName),
+                      title: Text(room.roomName, style: const TextStyle(color: Colors.white)),
                       selected: _selectedRoomIndex == index,
                       selectedTileColor: Colors.blue.withOpacity(0.1),
                       onTap: () => _loadItemsForRoom(index),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete),
-                        onPressed: () async {
-                          if (room.id != null) {
-                            await _handleRoomDelete(room.id!);
-                          }
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.white),
+                            onPressed: () => _duplicateRoom(room),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.white),
+                            onPressed: () async {
+                              if (room.id != null) {
+                                await _handleRoomDelete(room.id!);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -489,13 +594,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ),
 
         // Divisor vertical
-        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[300]),
+        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
 
         // Coluna de itens
         Expanded(
           flex: 3,
           child: _selectedRoomIndex < 0
-              ? const Center(child: Text('Selecione um ambiente'))
+              ? const Center(child: Text('Selecione um ambiente', style: TextStyle(color: Colors.white)))
               : Column(
                   children: [
                     // Cabeçalho com botão de adicionar item
@@ -506,11 +611,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                           Expanded(
                             child: Text(
                               'Itens - ${_rooms[_selectedRoomIndex].roomName}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.add_circle),
+                            icon: const Icon(Icons.add_circle, color: Colors.white),
                             onPressed: () async {
                               // Lógica para adicionar item
                               if (_selectedRoomIndex >= 0 && _rooms[_selectedRoomIndex].id != null) {
@@ -533,18 +638,18 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     // Lista de itens
                     Expanded(
                       child: _selectedRoomItems.isEmpty
-                          ? const Center(child: Text('Nenhum item neste ambiente'))
+                          ? const Center(child: Text('Nenhum item neste ambiente', style: TextStyle(color: Colors.white)))
                           : ListView.builder(
                               itemCount: _selectedRoomItems.length,
                               itemBuilder: (context, index) {
                                 final item = _selectedRoomItems[index];
                                 return ListTile(
-                                  title: Text(item.itemName),
+                                  title: Text(item.itemName, style: const TextStyle(color: Colors.white)),
                                   selected: _selectedItemIndex == index,
                                   selectedTileColor: Colors.blue.withOpacity(0.1),
                                   onTap: () => _loadDetailsForItem(index),
                                   trailing: IconButton(
-                                    icon: const Icon(Icons.delete),
+                                    icon: const Icon(Icons.delete, color: Colors.white),
                                     onPressed: () async {
                                       // Lógica para excluir item
                                       if (item.id != null && item.roomId != null) {
@@ -566,13 +671,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ),
 
         // Divisor vertical
-        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[300]),
+        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
 
         // Coluna de detalhes
         Expanded(
           flex: 5,
           child: _selectedItemIndex < 0
-              ? const Center(child: Text('Selecione um item'))
+              ? const Center(child: Text('Selecione um item', style: TextStyle(color: Colors.white)))
               : Column(
                   children: [
                     // Cabeçalho com botão de adicionar detalhe
@@ -583,11 +688,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                           Expanded(
                             child: Text(
                               'Detalhes - ${_selectedRoomItems[_selectedItemIndex].itemName}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.add_circle),
+                            icon: const Icon(Icons.add_circle, color: Colors.white),
                             onPressed: () async {
                               // Lógica para adicionar detalhe
                               if (_selectedItemIndex >= 0) {
@@ -614,13 +719,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     // Lista de detalhes
                     Expanded(
                       child: _selectedItemDetails.isEmpty
-                          ? const Center(child: Text('Nenhum detalhe neste item'))
+                          ? const Center(child: Text('Nenhum detalhe neste item', style: TextStyle(color: Colors.white)))
                           : ListView.builder(
                               itemCount: _selectedItemDetails.length,
                               itemBuilder: (context, index) {
                                 final detail = _selectedItemDetails[index];
                                 return Card(
                                   margin: const EdgeInsets.all(8),
+                                  color: Colors.grey[800],
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),
                                     child: Column(
@@ -631,11 +737,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                             Expanded(
                                               child: Text(
                                                 detail.detailName,
-                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                                               ),
                                             ),
                                             IconButton(
-                                              icon: const Icon(Icons.delete),
+                                              icon: const Icon(Icons.delete, color: Colors.white),
                                               onPressed: () async {
                                                 // Lógica para excluir detalhe
                                                 if (detail.id != null && detail.roomId != null && detail.itemId != null) {
@@ -668,7 +774,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                                 await _loadDetailsForItem(_selectedItemIndex);
                                               },
                                             ),
-                                            const Text('Danificado'),
+                                            const Text('Danificado', style: TextStyle(color: Colors.white)),
                                           ],
                                         ),
                                         
@@ -676,9 +782,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                         const SizedBox(height: 8),
                                         TextFormField(
                                           initialValue: detail.detailValue,
+                                          style: const TextStyle(color: Colors.white),
                                           decoration: const InputDecoration(
                                             labelText: 'Valor',
                                             border: OutlineInputBorder(),
+                                            labelStyle: TextStyle(color: Colors.white70),
+                                            fillColor: Colors.white10,
+                                            filled: true,
                                           ),
                                           onChanged: (value) async {
                                             // Atualizar o detalhe após um delay
@@ -694,9 +804,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                                         const SizedBox(height: 16),
                                         TextFormField(
                                           initialValue: detail.observation,
+                                          style: const TextStyle(color: Colors.white),
                                           decoration: const InputDecoration(
                                             labelText: 'Observação',
                                             border: OutlineInputBorder(),
+                                            labelStyle: TextStyle(color: Colors.white70),
+                                            fillColor: Colors.white10,
+                                            filled: true,
                                           ),
                                           maxLines: 3,
                                           onChanged: (value) async {

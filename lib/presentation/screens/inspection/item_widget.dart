@@ -6,7 +6,6 @@ import 'package:inspection_app/presentation/screens/inspection/detail_widget.dar
 import 'package:inspection_app/services/inspection_service.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 
-
 class ItemWidget extends StatefulWidget {
   final Item item;
   final Function(Item) onItemUpdated;
@@ -92,69 +91,69 @@ class _ItemWidgetState extends State<ItemWidget> {
     widget.onItemUpdated(updatedItem);
   }
 
-Future<void> _addDetail() async {
-  // Verificar se o item.id e room.id não são null
-  if (widget.item.id == null || widget.item.roomId == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Erro: ID do item ou ambiente não encontrado')),
-    );
-    return;
-  }
-
-  // Mostrar dialog de seleção de templates
-  final template = await showDialog<Map<String, dynamic>>(
-    context: context,
-    builder: (context) => TemplateSelectorDialog(
-      title: 'Adicionar Detalhe',
-      type: 'detail',
-      parentName: widget.item.itemName,
-    ),
-  );
-  
-  if (template == null) return;
-  
-  setState(() => _isLoading = true);
-
-  try {
-    // Nome do detalhe vem do template selecionado ou de um nome personalizado
-    final detailName = template['name'] as String;
-    String? detailValue = template['value'] as String?;
-    
-    // Adicionar o detalhe no banco de dados local
-    final newDetail = await _inspectionService.addDetail(
-      widget.item.inspectionId,
-      widget.item.roomId!,
-      widget.item.id!,
-      detailName,
-      value: detailValue,
-    );
-
-    // Atualizar o detalhe com campos adicionais do template, se não for personalizado
-    if (template['isCustom'] != true && template['observation'] != null) {
-      final updatedDetail = newDetail.copyWith(
-        detailValue: detailValue,
-        observation: template['observation'] as String?,
-      );
-      await _inspectionService.updateDetail(updatedDetail);
-    }
-
-    // Recarregar lista de detalhes
-    await _loadDetails();
-
-    // Expandir o novo detalhe
-    setState(() {
-      _expandedDetailIndex = _details.indexWhere((d) => d.id == newDetail.id);
-      _isLoading = false;
-    });
-  } catch (e) {
-    setState(() => _isLoading = false);
-    if (mounted) {
+  Future<void> _addDetail() async {
+    // Verificar se o item.id e room.id não são null
+    if (widget.item.id == null || widget.item.roomId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao adicionar detalhe: $e')),
+        const SnackBar(content: Text('Erro: ID do item ou ambiente não encontrado')),
       );
+      return;
+    }
+
+    // Mostrar dialog de seleção de templates
+    final template = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => TemplateSelectorDialog(
+        title: 'Adicionar Detalhe',
+        type: 'detail',
+        parentName: widget.item.itemName,
+      ),
+    );
+    
+    if (template == null) return;
+    
+    setState(() => _isLoading = true);
+
+    try {
+      // Nome do detalhe vem do template selecionado ou de um nome personalizado
+      final detailName = template['name'] as String;
+      String? detailValue = template['value'] as String?;
+      
+      // Adicionar o detalhe no banco de dados local
+      final newDetail = await _inspectionService.addDetail(
+        widget.item.inspectionId,
+        widget.item.roomId!,
+        widget.item.id!,
+        detailName,
+        value: detailValue,
+      );
+
+      // Atualizar o detalhe com campos adicionais do template, se não for personalizado
+      if (template['isCustom'] != true && template['observation'] != null) {
+        final updatedDetail = newDetail.copyWith(
+          detailValue: detailValue,
+          observation: template['observation'] as String?,
+        );
+        await _inspectionService.updateDetail(updatedDetail);
+      }
+
+      // Recarregar lista de detalhes
+      await _loadDetails();
+
+      // Expandir o novo detalhe
+      setState(() {
+        _expandedDetailIndex = _details.indexWhere((d) => d.id == newDetail.id);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao adicionar detalhe: $e')),
+        );
+      }
     }
   }
-}
 
   void _handleDetailUpdate(Detail updatedDetail) {
     setState(() {
@@ -210,10 +209,6 @@ Future<void> _addDetail() async {
             'Tem certeza que deseja excluir "${widget.item.itemName}"?\n\nTodos os detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Excluir'),
@@ -227,42 +222,13 @@ Future<void> _addDetail() async {
     }
   }
 
-  // Helper para mostrar input dialog
-  Future<String?> _showTextInputDialog(String title, String label) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(labelText: label),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Adicionar'),
-          ),
-        ],
-      ),
-    );
-    
-    controller.dispose();
-    return result;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: EdgeInsets.zero, // Remove margin
       elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(0), // Remove rounded corners
         side: BorderSide(
           color: _isDamaged ? Colors.red : Colors.grey.shade300,
           width: _isDamaged ? 2 : 1,
@@ -274,7 +240,7 @@ Future<void> _addDetail() async {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
                   Expanded(
@@ -318,7 +284,7 @@ Future<void> _addDetail() async {
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -338,7 +304,7 @@ Future<void> _addDetail() async {
                     ],
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Campo de observação
                   TextFormField(
@@ -352,7 +318,7 @@ Future<void> _addDetail() async {
                     onChanged: (value) => _updateItem(),
                   ),
                   
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   
                   // Seção de detalhes
                   Row(
@@ -415,3 +381,4 @@ Future<void> _addDetail() async {
     );
   }
 }
+ 

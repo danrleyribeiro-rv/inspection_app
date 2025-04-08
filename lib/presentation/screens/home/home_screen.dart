@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _supabase = Supabase.instance.client;
 
   final List<Widget> _tabs = [
-    const InspectionTab(),
+    const InspectionsTab(),
     const ScheduleTab(),
     const ProfileTab(),
   ];

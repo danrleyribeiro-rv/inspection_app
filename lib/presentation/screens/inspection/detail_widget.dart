@@ -84,10 +84,10 @@ class _DetailWidgetState extends State<DetailWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: EdgeInsets.zero, // Remove margin
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(0), // Remove rounded corners
         side: BorderSide(
           color: _isDamaged ? Colors.red : Colors.grey.shade300,
           width: _isDamaged ? 2 : 1,
@@ -99,7 +99,7 @@ class _DetailWidgetState extends State<DetailWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
                   if (_isDamaged)
@@ -156,7 +156,7 @@ class _DetailWidgetState extends State<DetailWidget> {
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -176,7 +176,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     ],
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Campo de valor
                   TextFormField(
@@ -188,7 +188,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     onChanged: (value) => _updateDetail(),
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Campo de observação
                   TextFormField(
@@ -202,7 +202,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     onChanged: (value) => _updateDetail(),
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Media Handling Widget
                   if (widget.detail.id != null && 
@@ -227,7 +227,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                       },
                     ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Botão de adicionar não conformidade
                   ElevatedButton.icon(

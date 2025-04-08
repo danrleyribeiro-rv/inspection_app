@@ -6,8 +6,6 @@ import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/inspection_service.dart';
 import 'package:inspection_app/services/local_database_service.dart';
-import 'package:intl/intl.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/widgets/non_conformity_media_widget.dart';
 
 class NonConformityScreen extends StatefulWidget {
@@ -34,14 +32,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   final _supabase = Supabase.instance.client;
   final _inspectionService = InspectionService();
   final _descriptionController = TextEditingController();
-  final _correctiveActionController = TextEditingController();
 
   late TabController _tabController;
 
   bool _isLoading = true;
   bool _isCreating = false;
-  bool _isOffline = false;
-  DateTime? _deadline;
   String _severity = 'Média'; // Default value
 
   List<Room> _rooms = [];
@@ -57,22 +52,13 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _checkConnectivity();
     _loadData();
-  }
-
-  Future<void> _checkConnectivity() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    setState(() {
-      _isOffline = connectivityResult == ConnectivityResult.none;
-    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _descriptionController.dispose();
-    _correctiveActionController.dispose();
     super.dispose();
   }
 
@@ -126,45 +112,45 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   Future<void> _loadNonConformities() async {
     try {
-      if (_isOffline) {
-        // Carregar não conformidades do armazenamento local
-        final localNCs =
-            await LocalDatabaseService.getNonConformitiesByInspection(
-                widget.inspectionId);
+      // Carregar não conformidades do armazenamento local
+      final localNCs =
+          await LocalDatabaseService.getNonConformitiesByInspection(
+              widget.inspectionId);
 
-        // Converter para o formato esperado
-        List<Map<String, dynamic>> formattedNCs = [];
-        for (var nc in localNCs) {
-          // Buscar dados de ambiente, item e detalhe
-          Room? room = await LocalDatabaseService.getRoomById(nc['room_id']);
-          Item? item = await LocalDatabaseService.getItemById(nc['item_id']);
-          Detail? detail =
-              await LocalDatabaseService.getDetailById(nc['detail_id']);
+      // Converter para o formato esperado
+      List<Map<String, dynamic>> formattedNCs = [];
+      for (var nc in localNCs) {
+        // Buscar dados de ambiente, item e detalhe
+        Room? room = await LocalDatabaseService.getRoomById(nc['room_id']);
+        Item? item = await LocalDatabaseService.getItemById(nc['item_id']);
+        Detail? detail =
+            await LocalDatabaseService.getDetailById(nc['detail_id']);
 
-          if (room != null && item != null && detail != null) {
-            formattedNCs.add({
-              ...nc,
-              'rooms': {
-                'room_name': room.roomName,
-                'id': room.id,
-              },
-              'room_items': {
-                'item_name': item.itemName,
-                'id': item.id,
-              },
-              'item_details': {
-                'detail_name': detail.detailName,
-                'id': detail.id,
-              },
-            });
-          }
+        if (room != null && item != null && detail != null) {
+          formattedNCs.add({
+            ...nc,
+            'rooms': {
+              'room_name': room.roomName,
+              'id': room.id,
+            },
+            'room_items': {
+              'item_name': item.itemName,
+              'id': item.id,
+            },
+            'item_details': {
+              'detail_name': detail.detailName,
+              'id': detail.id,
+            },
+          });
         }
+      }
 
-        setState(() {
-          _nonConformities = formattedNCs;
-        });
-      } else {
-        // Carregar do Supabase
+      setState(() {
+        _nonConformities = formattedNCs;
+      });
+      
+      // Try to fetch from Supabase if available
+      try {
         final data = await _supabase
             .from('non_conformities')
             .select(
@@ -172,23 +158,15 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             .eq('inspection_id', widget.inspectionId)
             .order('created_at', ascending: false);
 
+        // Merge with local if needed
         setState(() {
           _nonConformities = List<Map<String, dynamic>>.from(data);
         });
+      } catch (e) {
+        print('Error fetching from Supabase, using local data: $e');
       }
     } catch (e) {
       print('Erro ao carregar não conformidades: $e');
-      // Tentar carregar do local em caso de erro
-      try {
-        final localNCs =
-            await LocalDatabaseService.getNonConformitiesByInspection(
-                widget.inspectionId);
-        setState(() {
-          _nonConformities = localNCs;
-        });
-      } catch (localError) {
-        print('Erro ao carregar não conformidades locais: $localError');
-      }
     }
   }
 
@@ -256,56 +234,37 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         'detail_id': _selectedDetail!.id,
         'description': _descriptionController.text,
         'severity': _severity,
-        'corrective_action': _correctiveActionController.text.isEmpty
-            ? null
-            : _correctiveActionController.text,
-        'deadline': _deadline?.toIso8601String(),
         'status': 'pendente',
         'created_at': DateTime.now().toIso8601String(),
       };
 
       int ncId;
 
-      if (!_isOffline) {
-        // Salvar online no Supabase
-        try {
-          final result = await _supabase
-              .from('non_conformities')
-              .insert(nonConformityData)
-              .select('id')
-              .single();
+      // Try to save to Supabase
+      try {
+        final result = await _supabase
+            .from('non_conformities')
+            .insert(nonConformityData)
+            .select('id')
+            .single();
 
-          ncId = result['id'];
-
-          // Atualizar a lista
-          await _loadNonConformities();
-        } catch (e) {
-          print('Erro ao salvar não conformidade no Supabase: $e');
-          // Continuar para salvamento local
-          ncId = -DateTime.now().millisecondsSinceEpoch;
-          nonConformityData['id'] = ncId;
-
-          // Salvar localmente
-          await LocalDatabaseService.saveNonConformity(nonConformityData);
-        }
-      } else {
-        // Salvar apenas localmente
+        ncId = result['id'];
+      } catch (e) {
+        print('Erro ao salvar não conformidade no Supabase: $e');
+        // Save locally as fallback
         ncId = -DateTime.now().millisecondsSinceEpoch;
         nonConformityData['id'] = ncId;
-
         await LocalDatabaseService.saveNonConformity(nonConformityData);
-
-        // Atualizar a lista
-        await _loadNonConformities();
       }
 
       // Limpar formulário
       _descriptionController.clear();
-      _correctiveActionController.clear();
       setState(() {
-        _deadline = null;
         _severity = 'Média';
       });
+
+      // Recarregar a lista de não conformidades
+      await _loadNonConformities();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -331,17 +290,13 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   Future<void> _updateNonConformityStatus(int id, String newStatus) async {
     try {
-      if (!_isOffline) {
-        // Atualizar no Supabase
-        try {
-          await _supabase.from('non_conformities').update({
-            'status': newStatus,
-            'updated_at': DateTime.now().toIso8601String(),
-          }).eq('id', id);
-        } catch (e) {
-          print('Erro ao atualizar status no Supabase: $e');
-          // Continuar para atualização local
-        }
+      try {
+        await _supabase.from('non_conformities').update({
+          'status': newStatus,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', id);
+      } catch (e) {
+        print('Erro ao atualizar status no Supabase: $e');
       }
 
       // Atualizar localmente
@@ -367,23 +322,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     }
   }
 
-  Future<void> _pickDeadlineDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _deadline ?? DateTime.now().add(const Duration(days: 7)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-
-    if (date != null) {
-      setState(() => _deadline = date);
-    }
-  }
-
   void _handleMediaAdded(String path) {
-    // Callback para quando uma mídia é adicionada
-    // Pode ser usado para atualizar a UI ou fazer operações adicionais
-    print('Mídia adicionada: $path');
+    // Reload non-conformities after media added
+    _loadNonConformities();
   }
 
   Color _getSeverityColor(String? severity) {
@@ -402,13 +343,15 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1E293B), // Slate background color
       appBar: AppBar(
         title: const Text('Não Conformidades'),
+        backgroundColor: const Color(0xFF1E293B), // Slate color for app bar
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
             Tab(text: 'Registrar Nova'),
-            Tab(text: 'Não Conformidades Existentes'),
+            Tab(text: 'Existentes'),
           ],
         ),
       ),
@@ -432,32 +375,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status de conexão
-            if (_isOffline)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.wifi_off, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Você está offline. As não conformidades serão sincronizadas quando você estiver online novamente.',
-                        style: TextStyle(color: Colors.orange),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
             // Seção de seleção
             Card(
+              color: Colors.grey[800],
               margin: const EdgeInsets.only(bottom: 16),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -466,8 +386,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                   children: [
                     const Text(
                       'Localização da Não Conformidade',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -476,58 +399,16 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                       decoration: const InputDecoration(
                         labelText: 'Ambiente',
                         border: OutlineInputBorder(),
+                        labelStyle: TextStyle(color: Colors.white70),
+                        fillColor: Colors.white10,
+                        filled: true,
                       ),
-                      value: _selectedRoom,
-                      items: _rooms.map((room) {
-                        return DropdownMenuItem<Room>(
-                          value: room,
-                          child: Text(room.roomName),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          _roomSelected(value);
-                        }
-                      },
-                      validator: (value) =>
-                          value == null ? 'Selecione um ambiente' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Dropdown de Item
-                    DropdownButtonFormField<Item>(
-                      decoration: const InputDecoration(
-                        labelText: 'Item',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: _selectedItem,
-                      items: _items.map((item) {
-                        return DropdownMenuItem<Item>(
-                          value: item,
-                          child: Text(item.itemName),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          _itemSelected(value);
-                        }
-                      },
-                      validator: (value) =>
-                          value == null ? 'Selecione um item' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Dropdown de Detalhe
-                    DropdownButtonFormField<Detail>(
-                      decoration: const InputDecoration(
-                        labelText: 'Detalhe',
-                        border: OutlineInputBorder(),
-                      ),
+                      dropdownColor: Colors.grey[800],
                       value: _selectedDetail,
                       items: _details.map((detail) {
                         return DropdownMenuItem<Detail>(
                           value: detail,
-                          child: Text(detail.detailName),
+                          child: Text(detail.detailName, style: const TextStyle(color: Colors.white)),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -545,6 +426,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
             // Seção de detalhes da não conformidade
             Card(
+              color: Colors.grey[800],
               margin: const EdgeInsets.only(bottom: 16),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -553,8 +435,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                   children: [
                     const Text(
                       'Detalhes da Não Conformidade',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -564,7 +449,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                       decoration: const InputDecoration(
                         labelText: 'Descrição da Não Conformidade',
                         border: OutlineInputBorder(),
+                        labelStyle: TextStyle(color: Colors.white70),
+                        fillColor: Colors.white10,
+                        filled: true,
                       ),
+                      style: const TextStyle(color: Colors.white),
                       maxLines: 3,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -580,12 +469,16 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                       decoration: const InputDecoration(
                         labelText: 'Severidade',
                         border: OutlineInputBorder(),
+                        labelStyle: TextStyle(color: Colors.white70),
+                        fillColor: Colors.white10,
+                        filled: true,
                       ),
+                      dropdownColor: Colors.grey[800],
                       value: _severity,
                       items: const [
-                        DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
-                        DropdownMenuItem(value: 'Média', child: Text('Média')),
-                        DropdownMenuItem(value: 'Alta', child: Text('Alta')),
+                        DropdownMenuItem(value: 'Baixa', child: Text('Baixa', style: TextStyle(color: Colors.white))),
+                        DropdownMenuItem(value: 'Média', child: Text('Média', style: TextStyle(color: Colors.white))),
+                        DropdownMenuItem(value: 'Alta', child: Text('Alta', style: TextStyle(color: Colors.white))),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -593,35 +486,16 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                         }
                       },
                     ),
-                    const SizedBox(height: 16),
-
-                    // Data Limite
-                    InkWell(
-                      onTap: _pickDeadlineDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Data Limite para Correção',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today),
-                        ),
-                        child: Text(
-                          _deadline == null
-                              ? 'Selecione uma data'
-                              : DateFormat('dd/MM/yyyy').format(_deadline!),
-                        ),
+                    
+                    // Add NonConformityMediaWidget for media upload capability
+                    const SizedBox(height: 24),
+                    if (_selectedDetail != null && _selectedDetail!.id != null)
+                      NonConformityMediaWidget(
+                        nonConformityId: DateTime.now().millisecondsSinceEpoch,
+                        inspectionId: widget.inspectionId,
+                        isReadOnly: false,
+                        onMediaAdded: _handleMediaAdded,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Ação Corretiva
-                    TextFormField(
-                      controller: _correctiveActionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Ação Corretiva Sugerida (opcional)',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
                   ],
                 ),
               ),
@@ -655,17 +529,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     if (_nonConformities.isEmpty) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.warning_amber_rounded, size: 64, color: Colors.orange),
-            SizedBox(height: 16),
-            Text('Nenhuma não conformidade registrada',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text('Registre uma nova não conformidade na outra aba'),
-          ],
-        ),
+        child: Text('Nenhuma não conformidade registrada',
+                style: TextStyle(color: Colors.white))
       );
     }
 
@@ -690,16 +555,16 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         Color cardColor;
         switch (item['severity']) {
           case 'Alta':
-            cardColor = Colors.red.shade50;
+            cardColor = Colors.red.shade900;
             break;
           case 'Média':
-            cardColor = Colors.orange.shade50;
+            cardColor = Colors.orange.shade900;
             break;
           case 'Baixa':
-            cardColor = Colors.blue.shade50;
+            cardColor = Colors.blue.shade900;
             break;
           default:
-            cardColor = Colors.grey.shade50;
+            cardColor = Colors.grey.shade900;
         }
 
         // Obter cor do status
@@ -733,16 +598,6 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             statusText = item['status'] ?? 'Desconhecido';
         }
 
-        // Verificar se a data de criação é válida
-        DateTime? createdAt;
-        try {
-          createdAt = item['created_at'] != null
-              ? DateTime.parse(item['created_at'])
-              : null;
-        } catch (e) {
-          print('Erro ao converter data: ${item['created_at']}');
-        }
-
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           color: cardColor,
@@ -765,7 +620,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                       child: Text(
                         statusText,
                         style: TextStyle(
-                            color: statusColor, fontWeight: FontWeight.bold),
+                            color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -781,16 +636,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                       ),
                       child: Text(
                         item['severity'] ?? 'Média',
-                        style: TextStyle(
-                          color: _getSeverityColor(item['severity']),
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'ID: ${item['id']}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
                   ],
                 ),
@@ -800,46 +650,26 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                 Text(
                   'Localização:',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                      fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                    '${room['room_name'] ?? "Sem nome"} > ${roomItem['item_name'] ?? "Sem nome"} > ${detail['detail_name'] ?? "Sem nome"}'),
+                  '${room['room_name'] ?? "Sem nome"} > ${roomItem['item_name'] ?? "Sem nome"} > ${detail['detail_name'] ?? "Sem nome"}',
+                  style: TextStyle(color: Colors.white70),
+                ),
                 const SizedBox(height: 16),
 
                 // Descrição
                 Text(
                   'Descrição:',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                      fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 const SizedBox(height: 4),
-                Text(item['description'] ?? "Sem descrição"),
-
-                // Ação corretiva se houver
-                if (item['corrective_action'] != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Ação Corretiva:',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.grey[800]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(item['corrective_action']),
-                ],
-
-                // Data limite se houver
-                if (item['deadline'] != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Data Limite:',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.grey[800]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(DateFormat('dd/MM/yyyy')
-                      .format(DateTime.parse(item['deadline']))),
-                ],
+                Text(
+                  item['description'] ?? "Sem descrição",
+                  style: TextStyle(color: Colors.white70),
+                ),
 
                 const SizedBox(height: 16),
 
@@ -850,14 +680,6 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                   isReadOnly: item['status'] == 'resolvido',
                   onMediaAdded: _handleMediaAdded,
                 ),
-
-                const SizedBox(height: 8),
-
-                if (createdAt != null)
-                  Text(
-                    'Criado em: ${DateFormat('dd/MM/yyyy').format(createdAt)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
 
                 // Botões de ação
                 if (item['status'] != 'resolvido') ...[
@@ -896,4 +718,58 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       },
     );
   }
-}
+}.white10,
+                        filled: true,
+                      ),
+                      dropdownColor: Colors.grey[800],
+                      value: _selectedRoom,
+                      items: _rooms.map((room) {
+                        return DropdownMenuItem<Room>(
+                          value: room,
+                          child: Text(room.roomName, style: const TextStyle(color: Colors.white)),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          _roomSelected(value);
+                        }
+                      },
+                      validator: (value) =>
+                          value == null ? 'Selecione um ambiente' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Dropdown de Item
+                    DropdownButtonFormField<Item>(
+                      decoration: const InputDecoration(
+                        labelText: 'Item',
+                        border: OutlineInputBorder(),
+                        labelStyle: TextStyle(color: Colors.white70),
+                        fillColor: Colors.white10,
+                        filled: true,
+                      ),
+                      dropdownColor: Colors.grey[800],
+                      value: _selectedItem,
+                      items: _items.map((item) {
+                        return DropdownMenuItem<Item>(
+                          value: item,
+                          child: Text(item.itemName, style: const TextStyle(color: Colors.white)),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          _itemSelected(value);
+                        }
+                      },
+                      validator: (value) =>
+                          value == null ? 'Selecione um item' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Dropdown de Detalhe
+                    DropdownButtonFormField<Detail>(
+                      decoration: const InputDecoration(
+                        labelText: 'Detalhe',
+                        border: OutlineInputBorder(),
+                        labelStyle: TextStyle(color: Colors.white70),
+                        fillColor: Colors

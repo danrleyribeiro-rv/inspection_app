@@ -1,8 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
 import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
@@ -13,57 +11,28 @@ import 'package:inspection_app/presentation/screens/auth/reset_password_screen.d
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/services/local_database_service.dart';
-import 'package:inspection_app/services/template_cache_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Remover a restrição de orientação para permitir modo paisagem
-  // OBS: Anteriormente estava limitado apenas a portrait
-  // await SystemChrome.setPreferredOrientations([
-  //   DeviceOrientation.portraitUp,
-  //   DeviceOrientation.portraitDown,
-  // ]);
 
   await dotenv.load(fileName: ".env");
   
-  // Inicializar o banco de dados local para funcionalidade offline
+  // Initialize the local database
   await LocalDatabaseService.initialize();
 
   try {
-    // Verificar conectividade antes de inicializar Supabase
-    final connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult != ConnectivityResult.none) {
-      // Inicializar o Supabase somente se estiver online
-      await Supabase.initialize(
-        url: dotenv.env['SUPABASE_URL']!,
-        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-        debug: false, // Desabilitar modo debug em produção
-      );
-      
-      // Verificar necessidade de atualização do cache de templates
-      final cacheManager = TemplateCacheManager();
-      if (await cacheManager.needsCacheUpdate()) {
-        // Não esperar pela conclusão para não atrasar a inicialização do app
-        cacheManager.cacheBasicTemplates();
-      }
-    } else {
-      print('Iniciando em modo OFFLINE - Supabase não inicializado');
-    }
+    // Initialize Supabase
+    await Supabase.initialize(
+      url: dotenv.env['SUPABASE_URL']!,
+      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+      debug: false,
+    );
   } catch (e) {
-    print('Erro ao inicializar Supabase: $e');
-    // Continuar mesmo com erro, o app funcionará em modo offline
+    print('Error initializing Supabase: $e');
+    // Continue anyway as we'll handle errors in the app
   }
 
   runApp(const MyApp());
-}
-
-bool isOfflineMode() {
-  try {
-    return Supabase.instance.client.auth.currentSession == null;
-  } catch (e) {
-    return true; // Se houver erro ao acessar Supabase, considerar offline
-  }
 }
 
 class MyApp extends StatelessWidget {
@@ -75,21 +44,23 @@ class MyApp extends StatelessWidget {
       title: 'Inspection App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: const Color(0xFF1a237e),
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1a237e),
-          brightness: Brightness.light,
+        primaryColor: Colors.blue,
+        scaffoldBackgroundColor: const Color(0xFF1E293B), // Slate background color
+        colorScheme: const ColorScheme.dark(
+          primary: Colors.blue,
+          secondary: Colors.orange,
+          surface: Color(0xFF1E293B),
+          background: Color(0xFF1E293B),
+          error: Colors.red,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1a237e),
+          backgroundColor: Color(0xFF1E293B),
           foregroundColor: Colors.white,
-          centerTitle: true,
           elevation: 0,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1a237e),
+            backgroundColor: Colors.blue,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -98,7 +69,7 @@ class MyApp extends StatelessWidget {
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF1a237e),
+            foregroundColor: Colors.blue,
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
@@ -107,50 +78,23 @@ class MyApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF1a237e), width: 2),
+            borderSide: const BorderSide(color: Colors.blue, width: 2),
+          ),
+          fillColor: Colors.white10,
+          filled: true,
+          labelStyle: const TextStyle(color: Colors.white70),
+        ),
+        cardTheme: CardTheme(
+          color: Colors.grey[800],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
         fontFamily: 'Roboto',
+        dividerTheme: DividerThemeData(
+          color: Colors.grey[700],
+        ),
       ),
-      darkTheme: ThemeData(
-        primaryColor: const Color(0xFF1a237e),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1a237e),
-          brightness: Brightness.dark,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1a237e),
-          foregroundColor: Colors.white,
-          centerTitle: true,
-          elevation: 0,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1a237e),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.lightBlueAccent,
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.lightBlueAccent, width: 2),
-          ),
-        ),
-        fontFamily: 'Roboto',
-      ),
-      themeMode: ThemeMode.system,
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),

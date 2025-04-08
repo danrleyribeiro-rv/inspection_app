@@ -7,11 +7,11 @@ import 'package:inspection_app/services/inspection_service.dart';
 import 'dart:async'; // Para debounce
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 
-
 class RoomWidget extends StatefulWidget {
   final Room room;
   final Function(Room) onRoomUpdated;
   final Function(int) onRoomDeleted;
+  final Function(Room) onRoomDuplicated; // Add duplicate functionality
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
 
@@ -20,6 +20,7 @@ class RoomWidget extends StatefulWidget {
     required this.room,
     required this.onRoomUpdated,
     required this.onRoomDeleted,
+    required this.onRoomDuplicated, // Add this parameter
     required this.isExpanded,
     required this.onExpansionChanged,
   }) : super(key: key);
@@ -97,103 +98,72 @@ class _RoomWidgetState extends State<RoomWidget> {
   }
 
   Future<void> _addItem() async {
-  // Verificar se o room.id não é null
-  if (widget.room.id == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Erro: ID do ambiente não encontrado')),
-    );
-    return;
-  }
-
-  // Mostrar dialog de seleção de templates
-  final template = await showDialog<Map<String, dynamic>>(
-    context: context,
-    builder: (context) => TemplateSelectorDialog(
-      title: 'Adicionar Item',
-      type: 'item',
-      parentName: widget.room.roomName,
-    ),
-  );
-  
-  if (template == null) return;
-  
-  setState(() => _isLoading = true);
-
-  try {
-    // Nome do item vem do template selecionado ou de um nome personalizado
-    final itemName = template['name'] as String;
-    String? itemLabel = template['label'] as String?;
-    
-    // Adicionar o item no banco de dados local
-    final newItem = await _inspectionService.addItem(
-      widget.room.inspectionId,
-      widget.room.id!,
-      itemName,
-      label: itemLabel,
-    );
-
-    // Atualizar o item com campos adicionais do template, se não for personalizado
-    if (template['isCustom'] != true && template['description'] != null) {
-      final updatedItem = newItem.copyWith(
-        itemLabel: itemLabel,
-        observation: template['description'] as String?,
-      );
-      await _inspectionService.updateItem(updatedItem);
-    }
-
-    // Recarregar lista de itens
-    await _loadItems();
-
-    // Expandir o novo item
-    if (mounted) {
-      setState(() {
-        _expandedItemIndex = _items.indexWhere((i) => i.id == newItem.id);
-        _isLoading = false;
-      });
-    }
-  } catch (e) {
-    if (mounted) {
-      setState(() => _isLoading = false);
+    // Verificar se o room.id não é null
+    if (widget.room.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao adicionar item: $e')),
+        const SnackBar(content: Text('Erro: ID do ambiente não encontrado')),
       );
+      return;
     }
-  }
-}
 
-  Future<String?> _showItemDialog() async {
-    final controller = TextEditingController();
-    String? result;
-    
-    // Exibir diálogo em um contexto separado para evitar problemas com o descarte do estado
-    await showDialog<void>(
+    // Mostrar dialog de seleção de templates
+    final template = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Adicionar Item'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: 'Nome do item'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              result = controller.text;
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('Adicionar'),
-          ),
-        ],
+      builder: (context) => TemplateSelectorDialog(
+        title: 'Adicionar Item',
+        type: 'item',
+        parentName: widget.room.roomName,
       ),
     );
     
-    return result;
+    if (template == null) return;
+    
+    setState(() => _isLoading = true);
+
+    try {
+      // Nome do item vem do template selecionado ou de um nome personalizado
+      final itemName = template['name'] as String;
+      String? itemLabel = template['label'] as String?;
+      
+      // Adicionar o item no banco de dados local
+      final newItem = await _inspectionService.addItem(
+        widget.room.inspectionId,
+        widget.room.id!,
+        itemName,
+        label: itemLabel,
+      );
+
+      // Atualizar o item com campos adicionais do template, se não for personalizado
+      if (template['isCustom'] != true && template['description'] != null) {
+        final updatedItem = newItem.copyWith(
+          itemLabel: itemLabel,
+          observation: template['description'] as String?,
+        );
+        await _inspectionService.updateItem(updatedItem);
+      }
+
+      // Recarregar lista de itens
+      await _loadItems();
+
+      // Expandir o novo item
+      if (mounted) {
+        setState(() {
+          _expandedItemIndex = _items.indexWhere((i) => i.id == newItem.id);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao adicionar item: $e')),
+        );
+      }
+    }
+  }
+
+  void _duplicateRoom() {
+    widget.onRoomDuplicated(widget.room);
   }
 
   void _handleItemUpdate(Item updatedItem) {
@@ -269,10 +239,10 @@ class _RoomWidgetState extends State<RoomWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: EdgeInsets.zero, // Remove margin
       elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(0), // Remove rounded corners
         side: BorderSide(
           color: _isDamaged ? Colors.red : Colors.grey.shade300,
           width: _isDamaged ? 2 : 1,
@@ -284,7 +254,7 @@ class _RoomWidgetState extends State<RoomWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
                   Expanded(
@@ -309,6 +279,11 @@ class _RoomWidgetState extends State<RoomWidget> {
                     ),
                   ),
                   IconButton(
+                    icon: const Icon(Icons.copy),
+                    onPressed: _duplicateRoom,
+                    tooltip: 'Duplicar Ambiente',
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.delete),
                     onPressed: _showDeleteConfirmation,
                     tooltip: 'Excluir Ambiente',
@@ -328,7 +303,7 @@ class _RoomWidgetState extends State<RoomWidget> {
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -348,7 +323,7 @@ class _RoomWidgetState extends State<RoomWidget> {
                     ],
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Campo de observação
                   TextFormField(
@@ -368,7 +343,7 @@ class _RoomWidgetState extends State<RoomWidget> {
                     },
                   ),
                   
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   
                   // Seção de itens
                   Row(

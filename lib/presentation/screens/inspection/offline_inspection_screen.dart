@@ -682,6 +682,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
 
                           return RoomWidget(
                             room: room,
+                            onRoomDuplicated: _duplicateRoom(room),
                             onRoomUpdated: _handleRoomUpdate,
                             onRoomDeleted: _handleRoomDelete,
                             isExpanded: index == _expandedRoomIndex,

@@ -12,7 +12,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _supabase = Supabase.instance.client;
-  bool _darkMode = false;
   bool _notificationsEnabled = true;
   bool _locationPermission = true;
   bool _cameraPermission = true;
@@ -27,7 +26,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _darkMode = prefs.getBool('darkMode') ?? false;
       _notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
       _locationPermission = prefs.getBool('locationPermission') ?? true;
       _cameraPermission = prefs.getBool('cameraPermission') ?? true;
@@ -36,7 +34,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('darkMode', _darkMode);
     await prefs.setBool('notificationsEnabled', _notificationsEnabled);
     await prefs.setBool('locationPermission', _locationPermission);
     await prefs.setBool('cameraPermission', _cameraPermission);
@@ -131,35 +128,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1E293B), // Slate color for background
       appBar: AppBar(
         title: const Text('Configurações'),
+        backgroundColor: const Color(0xFF1E293B), // Slate color for appbar
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
-                _buildSectionHeader('Aparência'),
-                SwitchListTile(
-                  title: const Text('Modo Escuro'),
-                  subtitle: const Text('Alternar entre tema claro e escuro'),
-                  value: _darkMode,
-                  onChanged: (value) {
-                    setState(() => _darkMode = value);
-                    _saveSettings();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Reinicie o aplicativo para aplicar o tema'),
-                      ),
-                    );
-                  },
-                ),
-
                 _buildSectionHeader('Notificações'),
                 SwitchListTile(
-                  title: const Text('Notificações'),
+                  title: const Text('Notificações', style: TextStyle(color: Colors.white)),
                   subtitle:
-                      const Text('Receber alertas sobre novas vistorias e mensagens'),
+                      const Text('Receber alertas sobre novas vistorias e mensagens', style: TextStyle(color: Colors.white70)),
                   value: _notificationsEnabled,
+                  activeColor: Colors.blue,
                   onChanged: (value) {
                     setState(() => _notificationsEnabled = value);
                     _saveSettings();
@@ -168,20 +152,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 _buildSectionHeader('Permissões'),
                 SwitchListTile(
-                  title: const Text('Localização'),
+                  title: const Text('Localização', style: TextStyle(color: Colors.white)),
                   subtitle: const Text(
-                      'Permissão para acessar a localização do dispositivo'),
+                      'Permissão para acessar a localização do dispositivo', style: TextStyle(color: Colors.white70)),
                   value: _locationPermission,
+                  activeColor: Colors.blue,
                   onChanged: (value) {
                     setState(() => _locationPermission = value);
                     _saveSettings();
                   },
                 ),
                 SwitchListTile(
-                  title: const Text('Câmera'),
+                  title: const Text('Câmera', style: TextStyle(color: Colors.white)),
                   subtitle: const Text(
-                      'Permissão para acessar a câmera do dispositivo'),
+                      'Permissão para acessar a câmera do dispositivo', style: TextStyle(color: Colors.white70)),
                   value: _cameraPermission,
+                  activeColor: Colors.blue,
                   onChanged: (value) {
                     setState(() => _cameraPermission = value);
                     _saveSettings();
@@ -190,9 +176,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 _buildSectionHeader('Armazenamento'),
                 ListTile(
-                  title: const Text('Limpar Cache'),
-                  subtitle: const Text('Remover arquivos temporários'),
-                  leading: const Icon(Icons.cleaning_services),
+                  title: const Text('Limpar Cache', style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Remover arquivos temporários', style: TextStyle(color: Colors.white70)),
+                  leading: const Icon(Icons.cleaning_services, color: Colors.white),
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -204,14 +190,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 _buildSectionHeader('Conta'),
                 ListTile(
-                  title: const Text('Sair'),
-                  subtitle: const Text('Encerrar a sessão atual'),
-                  leading: const Icon(Icons.logout),
+                  title: const Text('Sair', style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Encerrar a sessão atual', style: TextStyle(color: Colors.white70)),
+                  leading: const Icon(Icons.logout, color: Colors.white),
                   onTap: _signOut,
                 ),
                 ListTile(
-                  title: const Text('Excluir Conta'),
-                  subtitle: const Text('Remover permanentemente sua conta'),
+                  title: const Text('Excluir Conta', style: TextStyle(color: Colors.red)),
+                  subtitle: const Text('Remover permanentemente sua conta', style: TextStyle(color: Colors.white70)),
                   leading: const Icon(Icons.delete_forever, color: Colors.red),
                   textColor: Colors.red,
                   onTap: _deleteAccount,
@@ -219,17 +205,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 _buildSectionHeader('Sobre'),
                 ListTile(
-                  title: const Text('Versão do Aplicativo'),
-                  subtitle: const Text('1.0.0'),
-                  leading: const Icon(Icons.info),
+                  title: const Text('Versão do Aplicativo', style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('1.0.0', style: TextStyle(color: Colors.white70)),
+                  leading: const Icon(Icons.info, color: Colors.white),
                 ),
-                const ListTile(
-                  title: Text('Política de Privacidade'),
-                  leading: Icon(Icons.privacy_tip),
+                ListTile(
+                  title: const Text('Política de Privacidade', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.privacy_tip, color: Colors.white),
                 ),
-                const ListTile(
-                  title: Text('Termos de Uso'),
-                  leading: Icon(Icons.gavel),
+                ListTile(
+                  title: const Text('Termos de Uso', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.gavel, color: Colors.white),
                 ),
               ],
             ),
@@ -241,13 +227,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: Theme.of(context).primaryColor,
+          color: Colors.blue,
         ),
       ),
     );
   }
 }
-
