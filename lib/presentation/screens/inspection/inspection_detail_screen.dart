@@ -4,10 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
+import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/services/inspection_service.dart';
-import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/rooms_list.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/landscape_view.dart';
+import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/empty_room_state.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final int inspectionId;
@@ -28,6 +32,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   bool _isLoading = true;
   bool _isDownloading = false;
   bool _isOnline = true;
+  bool _isOffline = false;
   Map<String, dynamic>? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
@@ -404,62 +409,73 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Method to save changes to the inspection
-  Future<void> _saveInspection() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save Changes'),
-        content: const Text('Do you want to save the changes made to the inspection?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+Future<void> _saveInspection() async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Save Changes'),
+      content: const Text('Do you want to save the changes made to the inspection?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
 
-    if (confirmed != true) return;
+  if (confirmed != true) return;
 
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
-    try {
-      // Update inspection status to "in_progress" if it's "pending"
-      if (_inspection?['status'] == 'pending') {
-        await _supabase
-            .from('inspections')
-            .update({'status': 'in_progress', 'updated_at': DateTime.now().toIso8601String()})
-            .eq('id', widget.inspectionId);
-        
-        _inspection?['status'] = 'in_progress';
-      }
+  try {
+    // Update inspection status to "in_progress" if it's "pending"
+    if (_inspection?['status'] == 'pending') {
+      await _supabase
+          .from('inspections')
+          .update({'status': 'in_progress', 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', widget.inspectionId);
       
-      // Try to sync if online
-      if (_isOnline) {
-        await _inspectionService.syncInspection(widget.inspectionId);
-      }
-      
-      setState(() => _isLoading = false);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inspection saved successfully!'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving inspection: $e')),
-        );
+      // Update local map
+      if (_inspection != null) {
+        setState(() {
+          _inspection!['status'] = 'in_progress';
+        });
       }
     }
+    
+    // For the map object that can't use copyWith, use a proper Inspection object
+    if (_inspection != null) {
+      // Create an Inspection object if needed for syncing
+      final inspectionObj = Inspection.fromJson(_inspection!);
+      await _inspectionService.saveInspection(inspectionObj, syncNow: !_isOffline);
+    }
+    
+    // Try to sync if online
+    if (!_isOffline) {
+      await _syncInspection(showSuccess: false);
+    }
+    
+    setState(() => _isLoading = false);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inspection saved successfully!'), backgroundColor: Colors.green),
+      );
+    }
+  } catch (e) {
+    setState(() => _isLoading = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving inspection: $e')),
+      );
+    }
   }
+}
 
   // Method to complete the inspection
   Future<void> _completeInspection() async {
@@ -596,42 +612,44 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   // Manually sync the inspection
-  Future<void> _syncInspection() async {
-    if (!_isOnline) {
+  Future<void> _syncInspection({bool showSuccess = true}) async {
+  if (_isOffline) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cannot sync while offline')),
+    );
+    return;
+  }
+  
+  setState(() => _isLoading = true);
+  
+  try {
+    final success = await _inspectionService.syncInspection(widget.inspectionId);
+    
+    if (success && showSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot sync while offline')),
+        const SnackBar(
+          content: Text('Inspection synced successfully'),
+          backgroundColor: Colors.green,
+        ),
       );
-      return;
-    }
-    
-    setState(() => _isLoading = true);
-    
-    try {
-      final success = await _inspectionService.syncInspection(widget.inspectionId);
       
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Inspection synced successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Reload rooms after sync in case server had updates
-        await _loadRooms();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sync partially failed, check logs for details')),
-        );
-      }
-    } catch (e) {
+      // Reload rooms after sync in case server had updates
+      await _loadRooms();
+    } else if (!success && showSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sync partially failed, check logs for details')),
+      );
+    }
+  } catch (e) {
+    if (showSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error syncing: $e')),
       );
-    } finally {
-      setState(() => _isLoading = false);
     }
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -664,25 +682,24 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ],
       ),
       body: _isLoading || _isDownloading
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    _isDownloading 
-                        ? 'Downloading inspection data...' 
-                        : 'Loading...',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            )
+          ? LoadingState(isDownloading: _isDownloading)
           : OrientationBuilder(
               builder: (context, orientation) {
                 if (orientation == Orientation.landscape) {
-                  return _buildLandscapeLayout();
+                  return LandscapeView(
+                    rooms: _rooms,
+                    selectedRoomIndex: _selectedRoomIndex,
+                    selectedItemIndex: _selectedItemIndex,
+                    selectedRoomItems: _selectedRoomItems,
+                    selectedItemDetails: _selectedItemDetails,
+                    inspectionId: widget.inspectionId,
+                    onRoomSelected: _loadItemsForRoom,
+                    onItemSelected: _loadDetailsForItem,
+                    onRoomDuplicate: _duplicateRoom,
+                    onRoomDelete: _handleRoomDelete,
+                    inspectionService: _inspectionService,
+                    onAddRoom: _addRoom,
+                  );
                 } else {
                   return _buildPortraitLayout();
                 }
@@ -714,373 +731,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   Widget _buildPortraitLayout() {
     if (_rooms.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.home_work_outlined, size: 80, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'No rooms added',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Click the + button to add rooms',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _addRoom,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Room'),
-            ),
-          ],
-        ),
-      );
+      return EmptyRoomState(onAddRoom: _addRoom);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _rooms.length,
-      itemBuilder: (context, index) {
-        final room = _rooms[index];
-        
-        return RoomWidget(
-          room: room,
-          onRoomUpdated: _handleRoomUpdate,
-          onRoomDeleted: _handleRoomDelete,
-          onRoomDuplicated: _duplicateRoom,
-          isExpanded: index == _expandedRoomIndex,
-          onExpansionChanged: () {
-            setState(() {
-              _expandedRoomIndex = _expandedRoomIndex == index ? -1 : index;
-            });
-          },
-        );
+    return RoomsList(
+      rooms: _rooms,
+      expandedRoomIndex: _expandedRoomIndex,
+      onRoomUpdated: _handleRoomUpdate,
+      onRoomDeleted: _handleRoomDelete,
+      onRoomDuplicated: _duplicateRoom,
+      onExpansionChanged: (index) {
+        setState(() {
+          _expandedRoomIndex = _expandedRoomIndex == index ? -1 : index;
+        });
       },
-    );
-  }
-
-  Widget _buildLandscapeLayout() {
-    return Row(
-      children: [
-        // Rooms column
-        Expanded(
-          flex: 2,
-          child: _rooms.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.home_work_outlined, size: 50, color: Colors.grey),
-                      const SizedBox(height: 8),
-                      const Text('No rooms', style: TextStyle(color: Colors.white)),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: _addRoom,
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add'),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _rooms.length,
-                  itemBuilder: (context, index) {
-                    final room = _rooms[index];
-                    return ListTile(
-                      title: Text(room.roomName, style: const TextStyle(color: Colors.white)),
-                      selected: _selectedRoomIndex == index,
-                      selectedTileColor: Colors.blue.withOpacity(0.1),
-                      onTap: () => _loadItemsForRoom(index),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.copy, color: Colors.white),
-                            onPressed: () => _duplicateRoom(room),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.white),
-                            onPressed: () async {
-                              if (room.id != null) {
-                                await _handleRoomDelete(room.id!);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-
-        // Vertical divider
-        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
-
-        // Items column
-        Expanded(
-          flex: 3,
-          child: _selectedRoomIndex < 0
-              ? const Center(child: Text('Select a room', style: TextStyle(color: Colors.white)))
-              : Column(
-                  children: [
-                    // Header with add item button
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Items - ${_rooms[_selectedRoomIndex].roomName}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle, color: Colors.white),
-                            onPressed: () async {
-                              // Logic to add item
-                              if (_selectedRoomIndex >= 0 && _rooms[_selectedRoomIndex].id != null) {
-                                final name = await _showTextInputDialog('Add Item', 'Item name');
-                                if (name != null && name.isNotEmpty) {
-                                  await _inspectionService.addItem(
-                                    widget.inspectionId,
-                                    _rooms[_selectedRoomIndex].id!,
-                                    name,
-                                  );
-                                  await _loadItemsForRoom(_selectedRoomIndex);
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Items list
-                    Expanded(
-                      child: _selectedRoomItems.isEmpty
-                          ? const Center(child: Text('No items in this room', style: TextStyle(color: Colors.white)))
-                          : ListView.builder(
-                              itemCount: _selectedRoomItems.length,
-                              itemBuilder: (context, index) {
-                                final item = _selectedRoomItems[index];
-                                return ListTile(
-                                  title: Text(item.itemName, style: const TextStyle(color: Colors.white)),
-                                  selected: _selectedItemIndex == index,
-                                  selectedTileColor: Colors.blue.withOpacity(0.1),
-                                  onTap: () => _loadDetailsForItem(index),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.white),
-                                    onPressed: () async {
-                                      // Logic to delete item
-                                      if (item.id != null && item.roomId != null) {
-                                        await _inspectionService.deleteItem(
-                                          widget.inspectionId,
-                                          item.roomId!,
-                                          item.id!,
-                                        );
-                                        await _loadItemsForRoom(_selectedRoomIndex);
-                                      }
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-        ),
-
-        // Vertical divider
-        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
-
-        // Details column
-        Expanded(
-          flex: 5,
-          child: _selectedItemIndex < 0
-              ? const Center(child: Text('Select an item', style: TextStyle(color: Colors.white)))
-              : Column(
-                  children: [
-                    // Header with add detail button
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Details - ${_selectedRoomItems[_selectedItemIndex].itemName}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle, color: Colors.white),
-                            onPressed: () async {
-                              // Logic to add detail
-                              if (_selectedItemIndex >= 0) {
-                                final item = _selectedRoomItems[_selectedItemIndex];
-                                if (item.id != null && item.roomId != null) {
-                                  final name = await _showTextInputDialog('Add Detail', 'Detail name');
-                                  if (name != null && name.isNotEmpty) {
-                                    await _inspectionService.addDetail(
-                                      widget.inspectionId,
-                                      item.roomId!,
-                                      item.id!,
-                                      name,
-                                    );
-                                    await _loadDetailsForItem(_selectedItemIndex);
-                                  }
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Details list
-                    Expanded(
-                      child: _selectedItemDetails.isEmpty
-                          ? const Center(child: Text('No details in this item', style: TextStyle(color: Colors.white)))
-                          : ListView.builder(
-                              itemCount: _selectedItemDetails.length,
-                              itemBuilder: (context, index) {
-                                final detail = _selectedItemDetails[index];
-                                return Card(
-                                  margin: const EdgeInsets.all(8),
-                                  color: Colors.grey[800],
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                detail.detailName,
-                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                                              ),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.delete, color: Colors.white),
-                                              onPressed: () async {
-                                                // Logic to delete detail
-                                                if (detail.id != null && detail.roomId != null && detail.itemId != null) {
-                                                  await _inspectionService.deleteDetail(
-                                                    widget.inspectionId,
-                                                    detail.roomId!,
-                                                    detail.itemId!,
-                                                    detail.id!,
-                                                  );
-                                                  await _loadDetailsForItem(_selectedItemIndex);
-                                                }
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        
-                                        // "Damaged" checkbox
-                                        Row(
-                                          children: [
-                                            Checkbox(
-                                              value: detail.isDamaged ?? false,
-                                              onChanged: (value) async {
-                                                // Update the detail
-                                                final updatedDetail = detail.copyWith(
-                                                  isDamaged: value,
-                                                  updatedAt: DateTime.now(),
-                                                );
-                                                await _inspectionService.updateDetail(updatedDetail);
-                                                await _loadDetailsForItem(_selectedItemIndex);
-                                              },
-                                            ),
-                                            const Text('Damaged', style: TextStyle(color: Colors.white)),
-                                          ],
-                                        ),
-                                        
-                                        // Value field
-                                        const SizedBox(height: 8),
-                                        TextFormField(
-                                          initialValue: detail.detailValue,
-                                          style: const TextStyle(color: Colors.white),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Value',
-                                            border: OutlineInputBorder(),
-                                            labelStyle: TextStyle(color: Colors.white70),
-                                            fillColor: Colors.white10,
-                                            filled: true,
-                                          ),
-                                          onChanged: (value) async {
-                                            // Update the detail after a delay
-                                            final updatedDetail = detail.copyWith(
-                                              detailValue: value,
-                                              updatedAt: DateTime.now(),
-                                            );
-                                            await _inspectionService.updateDetail(updatedDetail);
-                                          },
-                                        ),
-                                        
-                                        // Observation field
-                                        const SizedBox(height: 16),
-                                        TextFormField(
-                                          initialValue: detail.observation,
-                                          style: const TextStyle(color: Colors.white),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Observation',
-                                            border: OutlineInputBorder(),
-                                            labelStyle: TextStyle(color: Colors.white70),
-                                            fillColor: Colors.white10,
-                                            filled: true,
-                                          ),
-                                          maxLines: 3,
-                                          onChanged: (value) async {
-                                            // Update the detail after a delay
-                                            final updatedDetail = detail.copyWith(
-                                              observation: value,
-                                              updatedAt: DateTime.now(),
-                                            );
-                                            await _inspectionService.updateDetail(updatedDetail);
-                                          },
-                                        ),
-                                        
-                                        // Add non-conformity button
-                                        const SizedBox(height: 16),
-                                        ElevatedButton.icon(
-                                          onPressed: () {
-                                            // Navigate to non-conformity screen with this detail pre-selected
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (context) => NonConformityScreen(
-                                                  inspectionId: widget.inspectionId,
-                                                  preSelectedRoom: detail.roomId,
-                                                  preSelectedItem: detail.itemId,
-                                                  preSelectedDetail: detail.id,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          icon: const Icon(Icons.report_problem),
-                                          label: const Text('Add Non-Conformity'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.orange,
-                                            foregroundColor: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-        ),
-      ],
     );
   }
 }

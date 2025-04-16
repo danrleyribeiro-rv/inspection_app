@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/room.dart';
-import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
 import 'package:inspection_app/services/inspection_service.dart';
 import 'package:inspection_app/services/sync_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
-
+import 'package:inspection_app/presentation/screens/inspection/components/empty_room_state.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/offline_inspection_header.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/rooms_list.dart';
 
 class OfflineInspectionScreen extends StatefulWidget {
   final int inspectionId;
@@ -55,102 +55,10 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     });
   }
 
-
-  Future<void> _duplicateRoom(Room room) async {
-  setState(() => _isLoading = true);
-  
-  try {
-    // Create a copy of the room with a new name
-    final copyName = "${room.roomName} (cópia)";
-    
-    // Add the new room
-    final newRoom = await _inspectionService.addRoom(
-      widget.inspectionId,
-      copyName,
-      label: room.roomLabel,
-    );
-    
-    // Duplicate all items if original room has an ID
-    if (room.id != null) {
-      // Get items from the original room
-      final items = await _inspectionService.getItems(
-        widget.inspectionId,
-        room.id!
-      );
-      
-      // Add each item to the new room
-      for (final item in items) {
-        final newItem = await _inspectionService.addItem(
-          widget.inspectionId,
-          newRoom.id!,
-          item.itemName,
-          label: item.itemLabel,
-        );
-        
-        // Update item with the same observation as original
-        if (item.observation != null) {
-          await _inspectionService.updateItem(
-            newItem.copyWith(observation: item.observation)
-          );
-        }
-        
-        // If the original item has an ID, duplicate its details
-        if (item.id != null) {
-          // Get details from the original item
-          final details = await _inspectionService.getDetails(
-            widget.inspectionId,
-            room.id!,
-            item.id!
-          );
-          
-          // Add each detail to the new item
-          for (final detail in details) {
-            final newDetail = await _inspectionService.addDetail(
-              widget.inspectionId,
-              newRoom.id!,
-              newItem.id!,
-              detail.detailName,
-              value: detail.detailValue,
-            );
-            
-            // Update detail with the same observation as original
-            if (detail.observation != null) {
-              await _inspectionService.updateDetail(
-                newDetail.copyWith(observation: detail.observation)
-              );
-            }
-          }
-        }
-      }
-    }
-    
-    // Reload rooms
-    await _loadRooms();
-    
-    // Expand the new room
-    setState(() {
-      _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
-      _isLoading = false;
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ambiente duplicado com sucesso!'))
-    );
-  } catch (e) {
-    print('Erro ao duplicar ambiente: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao duplicar ambiente: $e')),
-      );
-      setState(() => _isLoading = false);
-    }
-  }
-}
-
   Future<void> _checkConnectivity() async {
-    final result = await Connectivity().checkConnectivity();
+    final connectivityResult = await Connectivity().checkConnectivity();
     setState(() {
-      _isOffline = result == ConnectivityResult.none;
+      _isOffline = connectivityResult == ConnectivityResult.none;
     });
   }
 
@@ -314,146 +222,128 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     }
   }
 
-  Future<void> _addRoom() async {
-  // Mostrar dialog de seleção de templates
-  final template = await showDialog<Map<String, dynamic>>(
-    context: context,
-    builder: (context) => const TemplateSelectorDialog(
-      title: 'Adicionar Ambiente',
-      type: 'room',
-    ),
-  );
-  
-  if (template == null) return;
-  
-  setState(() => _isLoading = true);
-
-  try {
-    // Nome do ambiente vem do template selecionado ou de um nome personalizado
-    final roomName = template['name'] as String;
-    String? roomLabel = template['label'] as String?;
-    
-    // Adicionar o ambiente no banco de dados local
-    final newRoom = await _inspectionService.addRoom(
-      widget.inspectionId,
-      roomName,
-      label: roomLabel,
-    );
-
-    // Atualizar o ambiente com campos adicionais do template, se não for personalizado
-    if (template['isCustom'] != true && template['description'] != null) {
-      final updatedRoom = newRoom.copyWith(
-        roomLabel: roomLabel,
-        observation: template['description'] as String?,
-      );
-      await _inspectionService.updateRoom(updatedRoom);
-    }
-
-    // Recarregar lista de ambientes
-    await _loadRooms();
-
-    // Expandir o novo ambiente
-    setState(() {
-      _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
-    });
-
-    // Marcar inspeção como modificada
-    await _inspectionService.saveInspection(
-      _inspection!.copyWith(updatedAt: DateTime.now()),
-      syncNow: false,
-    );
-
-    // Tentar sincronizar se estiver online
-    if (!_isOffline) {
-      _syncInspection(showSuccess: false);
-    }
-
-    // Atualizar percentual de conclusão
-    await _updateCompletionPercentage();
-  } catch (e) {
-    print('Erro ao adicionar ambiente: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao adicionar ambiente: $e')),
-      );
-    }
-  } finally {
-    setState(() => _isLoading = false);
-  }
-}
-
-
-    Future<void> _saveInspection() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Salvar Alterações'),
-        content: const Text('Deseja salvar as alterações feitas na inspeção?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
+  Future<void> _duplicateRoom(Room room) async {
     setState(() => _isLoading = true);
-
+    
     try {
-      // Atualizar status da inspeção para "in_progress" se estiver "pending"
-      if (_inspection?.status == 'pending') {
-        final updatedInspection = _inspection!.copyWith(
-          status: 'in_progress', 
-          updatedAt: DateTime.now()
+      // Create a copy of the room with a new name
+      final copyName = "${room.roomName} (cópia)";
+      
+      // Add the new room
+      final newRoom = await _inspectionService.addRoom(
+        widget.inspectionId,
+        copyName,
+        label: room.roomLabel,
+      );
+      
+      // Duplicate all items if original room has an ID
+      if (room.id != null) {
+        // Get items from the original room
+        final items = await _inspectionService.getItems(
+          widget.inspectionId,
+          room.id!
         );
         
-        await _inspectionService.saveInspection(updatedInspection, syncNow: !_isOffline);
-        
-        setState(() {
-          _inspection = updatedInspection;
-        });
-      } else {
-        // Apenas marcar como atualizado
-        final updatedInspection = _inspection!.copyWith(
-          updatedAt: DateTime.now()
-        );
-        
-        await _inspectionService.saveInspection(updatedInspection, syncNow: !_isOffline);
+        // Add each item to the new room
+        for (final item in items) {
+          final newItem = await _inspectionService.addItem(
+            widget.inspectionId,
+            newRoom.id!,
+            item.itemName,
+            label: item.itemLabel,
+          );
+          
+          // Update item with the same observation as original
+          if (item.observation != null) {
+            await _inspectionService.updateItem(
+              newItem.copyWith(observation: item.observation)
+            );
+          }
+          
+          // If the original item has an ID, duplicate its details
+          if (item.id != null) {
+            // Get details from the original item
+            final details = await _inspectionService.getDetails(
+              widget.inspectionId,
+              room.id!,
+              item.id!
+            );
+            
+            // Add each detail to the new item
+            for (final detail in details) {
+              final newDetail = await _inspectionService.addDetail(
+                widget.inspectionId,
+                newRoom.id!,
+                newItem.id!,
+                detail.detailName,
+                value: detail.detailValue,
+              );
+              
+              // Update detail with the same observation as original
+              if (detail.observation != null) {
+                await _inspectionService.updateDetail(
+                  newDetail.copyWith(observation: detail.observation)
+                );
+              }
+            }
+          }
+        }
       }
       
-      // Tentar sincronizar se estiver online
-      if (!_isOffline) {
-        await _syncInspection(showSuccess: false);
-      }
+      // Reload rooms
+      await _loadRooms();
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Inspeção salva com sucesso!'), 
-            backgroundColor: Colors.green
-          ),
-        );
-      }
+      // Expand the new room
+      setState(() {
+        _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ambiente duplicado com sucesso!'))
+      );
     } catch (e) {
-      print('Erro ao salvar inspeção: $e');
+      print('Erro ao duplicar ambiente: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar inspeção: $e')),
+          SnackBar(content: Text('Erro ao duplicar ambiente: $e')),
         );
+        setState(() => _isLoading = false);
       }
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 
-  Future<String?> _showInputDialog(String title, String hint) async {
+  Future<void> _addRoom() async {
+    final name = await _showTextInputDialog('Add Room', 'Room name');
+    if (name == null || name.isEmpty) return;
+    
+    setState(() => _isLoading = true);
+    try {
+      final newRoom = await _inspectionService.addRoom(
+        widget.inspectionId,
+        name,
+      );
+      
+      await _loadRooms();
+      
+      // Expand the new room
+      setState(() {
+        _expandedRoomIndex = _rooms.indexWhere((r) => r.id == newRoom.id);
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error adding room: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding room: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+  
+  // Helper to show an input dialog
+  Future<String?> _showTextInputDialog(String title, String label) async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
@@ -461,7 +351,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
         title: Text(title),
         content: TextField(
           controller: controller,
-          decoration: InputDecoration(hintText: hint),
+          decoration: InputDecoration(labelText: label),
           autofocus: true,
         ),
         actions: [
@@ -481,7 +371,77 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
     return result;
   }
 
-  void _handleRoomUpdate(Room updatedRoom) async {
+  Future<void> _saveInspection() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Save Changes'),
+        content: const Text('Do you want to save the changes made to the inspection?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Update inspection status to "in_progress" if it's "pending"
+      if (_inspection?.status == 'pending') {
+        final updatedInspection = _inspection!.copyWith(
+          status: 'in_progress', 
+          updatedAt: DateTime.now()
+        );
+        
+        await _inspectionService.saveInspection(updatedInspection, syncNow: !_isOffline);
+        
+        setState(() {
+          _inspection = updatedInspection;
+        });
+      } else {
+        // Just mark as updated
+        final updatedInspection = _inspection!.copyWith(
+          updatedAt: DateTime.now()
+        );
+        
+        await _inspectionService.saveInspection(updatedInspection, syncNow: !_isOffline);
+      }
+      
+      // Try to sync if online
+      if (!_isOffline) {
+        await _syncInspection(showSuccess: false);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inspection saved successfully!'), 
+            backgroundColor: Colors.green
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error saving inspection: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving inspection: $e')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleRoomUpdate(Room updatedRoom) {
     setState(() {
       final index = _rooms.indexWhere((r) => r.id == updatedRoom.id);
       if (index >= 0) {
@@ -489,21 +449,23 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
       }
     });
 
-    await _inspectionService.updateRoom(updatedRoom);
+    _inspectionService.updateRoom(updatedRoom);
 
     // Mark inspection as modified
-    await _inspectionService.saveInspection(
-      _inspection!.copyWith(updatedAt: DateTime.now()),
-      syncNow: false,
-    );
+    if (_inspection != null) {
+      _inspectionService.saveInspection(
+        _inspection!.copyWith(updatedAt: DateTime.now()),
+        syncNow: false,
+      );
 
-    // Try to sync if online
-    if (!_isOffline) {
-      _syncInspection(showSuccess: false);
+      // Try to sync if online
+      if (!_isOffline) {
+        _syncInspection(showSuccess: false);
+      }
+
+      // Update completion percentage
+      _updateCompletionPercentage();
     }
-
-    // Update completion percentage
-    await _updateCompletionPercentage();
   }
 
   Future<void> _handleRoomDelete(int roomId) async {
@@ -515,18 +477,20 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
       });
 
       // Mark inspection as modified
-      await _inspectionService.saveInspection(
-        _inspection!.copyWith(updatedAt: DateTime.now()),
-        syncNow: false,
-      );
+      if (_inspection != null) {
+        await _inspectionService.saveInspection(
+          _inspection!.copyWith(updatedAt: DateTime.now()),
+          syncNow: false,
+        );
 
-      // Try to sync if online
-      if (!_isOffline) {
-        _syncInspection(showSuccess: false);
+        // Try to sync if online
+        if (!_isOffline) {
+          _syncInspection(showSuccess: false);
+        }
+
+        // Update completion percentage
+        _updateCompletionPercentage();
       }
-
-      // Update completion percentage
-      await _updateCompletionPercentage();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -607,42 +571,22 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _inspection == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Carregando Inspeção...'),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_inspection == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Erro'),
-        ),
-        body: const Center(
-          child: Text('Erro ao carregar inspeção. Tente novamente.'),
-        ),
-      );
-    }
-
-    // Get status for completed inspections
-    final bool isCompleted = _inspection!.status == 'completed';
-
+    // Check if inspection is completed
+    final bool isCompleted = _inspection?.status == 'completed';
+    
     return Scaffold(
       appBar: AppBar(
-        title: Text(_inspection!.title),
+        title: Text(_inspection?.title ?? 'Inspection'),
         actions: [
-          // Botão de adicionar ambiente
+          // Add room button
           if (!isCompleted)
             IconButton(
               icon: const Icon(Icons.add_circle),
               onPressed: _addRoom,
-              tooltip: 'Adicionar Ambiente',
+              tooltip: 'Add Room',
             ),
           
-          // Botão de sincronização
+          // Sync button
           if (!isCompleted)
             Stack(
               alignment: Alignment.center,
@@ -651,7 +595,7 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
                   icon: const Icon(Icons.sync),
                   onPressed:
                       _isSyncing || _isOffline ? null : () => _syncInspection(),
-                  tooltip: _isOffline ? 'Offline' : 'Sincronizar',
+                  tooltip: _isOffline ? 'Offline' : 'Sync',
                 ),
                 if (_isSyncing)
                   const SizedBox(
@@ -665,208 +609,73 @@ class _OfflineInspectionScreenState extends State<OfflineInspectionScreen> {
               ],
             ),
             
-          // Botão de salvar
+          // Save button
           if (!isCompleted)
             IconButton(
               icon: const Icon(Icons.save),
               onPressed: _isLoading ? null : _saveInspection,
-              tooltip: 'Salvar',
+              tooltip: 'Save',
             ),
         ],
       ),
-      body: Column(
-        children: [
-          // Status indicator and progress bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey[100],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                // Status and sync indicators
-                Row(
-                  children: [
-                    // Status chip
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(_inspection!.status),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        _getStatusText(_inspection!.status),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Sync status
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _isOffline ? Colors.red : Colors.green,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        _isOffline ? 'Offline' : 'Online',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    if (_inspection!.scheduledDate != null)
-                      Text(
-                        'Data: ${_formatDate(_inspection!.scheduledDate!)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Progress bar
-                LinearProgressIndicator(
-                  value: _completionPercentage,
-                  backgroundColor: Colors.grey[300],
-                  minHeight: 10,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Progresso: ${(_completionPercentage * 100).toInt()}%',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                // Status indicator and progress bar
+                if (_inspection != null)
+                  OfflineInspectionHeader(
+                    inspection: _inspection!,
+                    completionPercentage: _completionPercentage,
+                    isOffline: _isOffline,
                   ),
+                
+                // Rooms list
+                Expanded(
+                  child: _buildMainContent(),
                 ),
-                // Address if available
-                if (_inspection!.street != null &&
-                    _inspection!.street!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      '${_inspection!.street}, ${_inspection!.city ?? ''} ${_inspection!.state ?? ''}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
               ],
             ),
-          ),
-
-          // Rooms list
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Stack(
-                    children: [
-                      // List of rooms
-                      ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _rooms.length,
-                        itemBuilder: (context, index) {
-                          final room = _rooms[index];
-
-                          return RoomWidget(
-                            room: room,
-                            onRoomDuplicated: (room) => _duplicateRoom(room),
-                            onRoomUpdated: _handleRoomUpdate,
-                            onRoomDeleted: _handleRoomDelete,
-                            isExpanded: index == _expandedRoomIndex,
-                            onExpansionChanged: () {
-                              setState(() {
-                                _expandedRoomIndex =
-                                    _expandedRoomIndex == index ? -1 : index;
-                              });
-                            },
-                          );
-                        },
-                      ),
-
-                      // Empty state
-                      if (_rooms.isEmpty)
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.home_work_outlined,
-                                size: 80,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Nenhum ambiente adicionado',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Clique no botão + na barra superior para adicionar ambientes',
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: isCompleted ? null : _addRoom,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Adicionar Ambiente'),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-
-      // Remover FAB, já que agora temos botões na AppBar
       floatingActionButton: isCompleted 
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _completeInspection,
-              heroTag: 'complete',
-              backgroundColor: Colors.green,
-              icon: const Icon(Icons.check),
-              label: const Text('Finalizar'),
+          ? null // No FAB for completed inspections
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton(
+                  onPressed: _addRoom,
+                  heroTag: 'addRoom',
+                  backgroundColor: Colors.blue,
+                  child: const Icon(Icons.add),
+                ),
+                const SizedBox(width: 16),
+                FloatingActionButton.extended(
+                  onPressed: _completeInspection,
+                  heroTag: 'complete',
+                  backgroundColor: Colors.green,
+                  icon: const Icon(Icons.check),
+                  label: const Text('Complete'),
+                ),
+              ],
             ),
     );
   }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'in_progress':
-        return Colors.blue;
-      case 'completed':
-        return Colors.green;
-      default:
-        return Colors.grey;
+  
+  Widget _buildMainContent() {
+    if (_rooms.isEmpty) {
+      return EmptyRoomState(onAddRoom: _addRoom);
     }
-  }
 
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      default:
-        return 'Unknown';
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    return RoomsList(
+      rooms: _rooms,
+      expandedRoomIndex: _expandedRoomIndex,
+      onRoomUpdated: _handleRoomUpdate,
+      onRoomDeleted: _handleRoomDelete,
+      onRoomDuplicated: _duplicateRoom,
+      onExpansionChanged: (index) {
+        setState(() {
+          _expandedRoomIndex = _expandedRoomIndex == index ? -1 : index;
+        });
+      },
+    );
   }
 }
