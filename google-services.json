@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "688335169547",
+    "project_id": "inspection-app-2025",
+    "storage_bucket": "inspection-app-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:688335169547:android:3784f402404aa53d7dbf0e",
+        "android_client_info": {
+          "package_name": "com.corp.inspection_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7PBaF7FSNy_Bm_13fV_VDmxX6yMg4LhY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

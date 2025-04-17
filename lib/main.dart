@@ -1,7 +1,8 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:inspection_app/firebase_options.dart';
 import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
 import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
 import 'package:inspection_app/presentation/screens/auth/login_screen.dart';
@@ -21,14 +22,13 @@ Future<void> main() async {
   await LocalDatabaseService.initialize();
 
   try {
-    // Initialize Supabase
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-      debug: false,
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
+    print('Firebase initialized successfully');
   } catch (e) {
-    print('Error initializing Supabase: $e');
+    print('Error initializing Firebase: $e');
     // Continue anyway as we'll handle errors in the app
   }
 

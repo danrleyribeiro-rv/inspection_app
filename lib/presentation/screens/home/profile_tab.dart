@@ -1,8 +1,10 @@
 // lib/presentation/screens/home/profile_tab.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/screens/profile/edit_profile_screen.dart';
+import 'package:inspection_app/services/auth_service.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -12,7 +14,10 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  final _supabase = Supabase.instance.client;
+  final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+  final _authService = AuthService();
+  
   bool _isLoading = true;
   Map<String, dynamic>? _profile;
   String? _profileImageBase64;
@@ -27,21 +32,22 @@ class _ProfileTabState extends State<ProfileTab> {
     try {
       setState(() => _isLoading = true);
 
-      final userId = _supabase.auth.currentUser?.id;
+      final userId = _auth.currentUser?.uid;
       if (userId == null) return;
 
-      final data = await _supabase
-          .from('inspectors')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
+      final doc = await _firestore
+          .collection('inspectors')
+          .doc(userId)
+          .get();
 
-      setState(() {
-        _profile = data;
-      });
+      if (doc.exists) {
+        setState(() {
+          _profile = doc.data();
+        });
 
-      // Carregar a imagem de perfil
-      await _loadProfileImage();
+        // Load profile image
+        await _loadProfileImage();
+      }
 
       setState(() => _isLoading = false);
     } catch (e) {
@@ -58,16 +64,29 @@ class _ProfileTabState extends State<ProfileTab> {
     if (_profile == null) return;
 
     try {
-      final inspectorId = _profile!['id']; // This is now a UUID string.
-      final imagesList = await _supabase
-          .from('profile_images')
-          .select('image_data')
-          .eq('inspector_id', inspectorId) // Pass the UUID directly
-          .limit(1);
-
-      if (imagesList.isNotEmpty && imagesList[0]['image_data'] != null) {
+      // Check if profile contains a direct imageUrl
+      if (_profile!.containsKey('profileImageUrl') && _profile!['profileImageUrl'] != null) {
+        // Use the URL directly - no need to convert to base64
         setState(() {
-          _profileImageBase64 = imagesList[0]['image_data'];
+          // Just store the URL reference, will use CachedNetworkImage to display
+          _profileImageBase64 = _profile!['profileImageUrl'];
+        });
+        return;
+      }
+
+      // For backward compatibility - check if we have base64 data in a separate collection
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) return;
+
+      final imagesCollection = await _firestore
+          .collection('profile_images')
+          .where('inspector_id', isEqualTo: userId)
+          .limit(1)
+          .get();
+
+      if (imagesCollection.docs.isNotEmpty && imagesCollection.docs[0].data()['image_data'] != null) {
+        setState(() {
+          _profileImageBase64 = imagesCollection.docs[0].data()['image_data'];
         });
       }
     } catch (e) {
@@ -86,7 +105,7 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
     );
 
-    // Se retornou true, recarregar o perfil
+    // Reload profile if updated
     if (updated == true) {
       _loadProfile();
     }
@@ -196,18 +215,32 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Widget _buildProfileImage() {
     if (_profileImageBase64 != null) {
-      try {
-        final imageBytes = base64Decode(_profileImageBase64!);
+      // Check if it's a URL or base64 data
+      if (_profileImageBase64!.startsWith('http')) {
+        // It's a URL
         return CircleAvatar(
           radius: 50,
-          backgroundImage: MemoryImage(imageBytes),
+          backgroundImage: NetworkImage(_profileImageBase64!),
+          onBackgroundImageError: (e, stackTrace) {
+            print('Error loading profile image: $e');
+          },
         );
-      } catch (e) {
-        print('Erro ao decodificar imagem: $e');
-        // Em caso de erro, cair no fallback com iniciais
+      } else {
+        // It's base64 data
+        try {
+          final imageBytes = base64Decode(_profileImageBase64!);
+          return CircleAvatar(
+            radius: 50,
+            backgroundImage: MemoryImage(imageBytes),
+          );
+        } catch (e) {
+          print('Erro ao decodificar imagem: $e');
+          // Fall back to initials
+        }
       }
     }
 
+    // Fallback to initials avatar
     return CircleAvatar(
       radius: 50,
       backgroundColor: Theme.of(context).primaryColor,
@@ -296,6 +329,3 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 }
-
-
-

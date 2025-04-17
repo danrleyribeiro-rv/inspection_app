@@ -1,6 +1,7 @@
 // lib/presentation/screens/auth/reset_password_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:inspection_app/services/auth_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -13,6 +14,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
@@ -37,9 +39,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     try {
       // Update the user's password
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(password: _passwordController.text),
-      );
+      await _authService.updatePassword(_passwordController.text);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -52,11 +52,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         // Navigate to login screen after successful password reset
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       }
-    } on AuthException catch (e) {
+    } on FirebaseAuthException catch (e) {
+      String message = 'Failed to reset password.';
+      
+      switch (e.code) {
+        case 'weak-password':
+          message = 'The password is too weak.';
+          break;
+        case 'requires-recent-login':
+          message = 'This operation is sensitive and requires recent authentication. Please log in again before resetting your password.';
+          break;
+        default:
+          message = e.message ?? 'An unknown error occurred.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.message),
+            content: Text(message),
             backgroundColor: Colors.red,
           ),
         );
@@ -190,6 +203,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    super.dispose();
+      super.dispose();
+    }
   }
-}

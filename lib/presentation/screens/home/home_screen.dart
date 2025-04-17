@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
 import 'package:inspection_app/presentation/screens/home/schedule_tab.dart';
 import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async'; // Import Timer
 import 'package:connectivity_plus/connectivity_plus.dart'; // Import Connectivity
 import 'package:inspection_app/services/inspection_service.dart'; // Assuming this import is correct for your project
@@ -17,7 +17,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final _supabase = Supabase.instance.client;
+  final _auth = FirebaseAuth.instance;
+  final _inspectionService = InspectionService();
 
   final List<Widget> _tabs = [
     const InspectionsTab(),
@@ -43,8 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
       if (connectivityResult != ConnectivityResult.none) {
-        final inspectionService = InspectionService();
-        await inspectionService.syncAllPending();
+        await _inspectionService.syncAllPending();
       }
     } catch (e) {
       print('Error during background sync: $e');
@@ -52,8 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _checkAuth() {
-    final session = _supabase.auth.currentSession;
-    if (session == null) {
+    final user = _auth.currentUser;
+    if (user == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushReplacementNamed('/login');
       });

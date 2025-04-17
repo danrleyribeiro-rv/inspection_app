@@ -1,11 +1,12 @@
 // lib/presentation/screens/auth/register_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:brasil_fields/brasil_fields.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:inspection_app/utils/constants.dart'; // Import constants
+import 'package:inspection_app/utils/constants.dart';
+import 'package:inspection_app/services/user_registration_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -30,7 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _stateController = TextEditingController();
 
   String? _selectedProfession; // For profession dropdown
-
+  final _userRegistrationService = UserRegistrationService();
   bool _isLoading = false;
 
   Future<void> _fetchCepData(String cep) async {
@@ -97,80 +98,90 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Sign up the user with Supabase Auth
-      final authResponse = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      if (authResponse.user != null) {
-        final userId = authResponse.user!.id;
-
-        // 2. Insert inspector data into the 'inspectors' table
-        final inspectorResponse =
-            await Supabase.instance.client.from('inspectors').insert([
-          {
-            'user_id': userId,
-            'name': _nameController.text.trim(),
-            'last_name': _lastNameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'profession': _selectedProfession, // From dropdown
-            'document': _documentController.text.trim(),
-            'cep': _cepController.text.trim(),
-            'street': _streetController.text.trim(),
-            'neighborhood': _neighborhoodController.text.trim(),
-            'city': _cityController.text.trim(),
-            'state': _stateController.text.trim(),
-            'phonenumber': _phoneController.text.trim(),
-          }
-        ]).select('id'); // Select the ID of the newly inserted row
-
-        final inspectorId = inspectorResponse[0]['id'];
-
-        // 3. Assign the 'inspector' role to the new user.
-        await Supabase.instance.client.from('role_users').insert([
-          {'user_id': userId, 'role_id': 11} // 11 is the ID of the 'inspector' role
-        ]);
-
+      // Verificar se o email já está em uso
+      final isEmailInUse = await _userRegistrationService.isEmailInUse(_emailController.text.trim());
+      if (isEmailInUse) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                  'Registration successful!  Please check your email to confirm your account.'),
-              backgroundColor: Colors.green,
+              content: Text('Este email já está em uso. Por favor, use outro email ou faça login.'),
+              backgroundColor: Colors.red,
             ),
           );
-          Navigator.of(context).pushReplacementNamed('/login');
+          setState(() => _isLoading = false);
         }
-      } else {
-        // Handle authResponse.error (if any)
-        if (mounted && authResponse.user == null) {
-          // Check for null user here
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Registration failed: User is null.'),
-                backgroundColor: Colors.red),
-          );
-        }
+        return;
       }
-    } on AuthException catch (e) {
+
+      // Registrar o usuário e inspetor em uma única operação
+      await _userRegistrationService.registerInspectorWithUserAccount(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        name: _nameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        profession: _selectedProfession,
+        document: _documentController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        cep: _cepController.text.trim(),
+        street: _streetController.text.trim(),
+        neighborhood: _neighborhoodController.text.trim(),
+        city: _cityController.text.trim(),
+        state: _stateController.text.trim(),
+      );
+
+      // Enviar email de verificação
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.sendEmailVerification();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Registro concluído com sucesso! Verifique seu email para confirmar sua conta.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'Falha no registro.';
+      
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'Este email já está em uso.';
+          break;
+        case 'weak-password':
+          message = 'A senha é muito fraca.';
+          break;
+        case 'invalid-email':
+          message = 'O email fornecido não é válido.';
+          break;
+        default:
+          message = e.message ?? 'Ocorreu um erro desconhecido.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Registration failed: ${e.message}'),
+              content: Text('Falha no registro: $message'),
               backgroundColor: Colors.red),
         );
       }
     } catch (e) {
+      // Handle other exceptions
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('An unexpected error occurred: $e'),
+              content: Text('Ocorreu um erro inesperado: $e'),
               backgroundColor: Colors.red),
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -259,6 +270,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   CpfOuCnpjFormatter(),
                 ],
               ),
+
               const SizedBox(height: 24),
 
               // Endereço

@@ -1,6 +1,7 @@
 // lib/presentation/screens/auth/forgot_password_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:inspection_app/services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -12,6 +13,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _authService = AuthService();
   bool _isLoading = false;
   bool _emailSent = false;
 
@@ -21,19 +23,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      String redirectUrl = 'io.supabase.flutter://reset-callback/';
-      
-      // Use redirectTo for mobile apps to handle deep linking
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        _emailController.text.trim(),
-        redirectTo: redirectUrl,
-      );
+      // Send password reset email using Firebase Auth
+      await _authService.resetPassword(_emailController.text.trim());
       
       setState(() => _emailSent = true); // Indicate success
-    } on AuthException catch (e) {
+    } on FirebaseAuthException catch (e) {
       if (mounted) {
+        String message = 'An error occurred while sending the reset link.';
+        
+        switch (e.code) {
+          case 'user-not-found':
+            message = 'No user found with this email address.';
+            break;
+          case 'invalid-email':
+            message = 'Please enter a valid email address.';
+            break;
+          default:
+            message = e.message ?? 'Unknown error occurred';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
         );
       }
     } catch (e) {

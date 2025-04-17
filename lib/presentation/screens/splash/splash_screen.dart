@@ -2,9 +2,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/local_database_service.dart';
+import 'package:inspection_app/services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,6 +15,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final _authService = AuthService();
   bool _isCheckingAuth = true;
 
   @override
@@ -49,34 +51,19 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       // Check for deep links from password reset flow
-      final uri = Uri.base;
-      if (uri.toString().contains('type=recovery')) {
-        // Handle password reset flow
+      final auth = FirebaseAuth.instance;
+      
+      // Verificando se o usuário está logado
+      if (auth.currentUser != null) {
+        // Se session existe, vá para home
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/reset-password');
+          Navigator.pushReplacementNamed(context, '/home');
         }
-        return;
-      }
-
-      // Se online, tenta verificar a sessão
-      try {
-        final session = Supabase.instance.client.auth.currentSession;
-
-        if (session != null) {
-          // Se session existe, vá para home
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/home');
-          }
-        } else {
-          // Sem sessão ativa, ir para login
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/login');
-          }
+      } else {
+        // Sem sessão ativa, ir para login
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/login');
         }
-      } catch (e) {
-        // Se houver erro de conexão, trate como offline
-        print('Erro de autenticação: $e');
-        _handleOfflineNavigation();
       }
     } catch (e) {
       // Em caso de erro, verifique se é um problema de rede

@@ -1,6 +1,7 @@
 // lib/presentation/screens/auth/login_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:inspection_app/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
 
@@ -25,17 +27,19 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkDeepLink() async {
-    // Check if we're returning from a password reset flow
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      if (mounted) {
-        // If session exists and we're on login screen, we might be in a password reset flow
-        final type = Uri.base.queryParameters['type'];
-        if (type == 'recovery') {
-          // Navigate to reset password screen
-          Navigator.of(context).pushReplacementNamed('/reset-password');
+    try {
+      // Check if we're returning from a password reset flow
+      final user = _authService.currentUser;
+      if (user != null) {
+        if (mounted) {
+          // Firebase handles deep links differently
+          // We can check if we came from password reset by checking URL parameters
+          // or using dedicated methods for handling password reset state
+          Navigator.of(context).pushReplacementNamed('/home');
         }
       }
+    } catch (e) {
+      print('Error checking deep link: $e');
     }
   }
 
@@ -45,34 +49,41 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      // Sign in with Firebase Auth
+      final userCredential = await _authService.signInWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
 
-      if (response.user != null) {
+      if (userCredential.user != null) {
         // Successful login. Now check if the user is an inspector.
-        final userId = response.user!.id;
+        final userId = userCredential.user!.uid;
         try {
-          final inspectorData = await Supabase.instance.client
-              .from('inspectors')
-              .select('id')
-              .eq('user_id', userId)
-              .single();
+          final isInspector = await _authService.isUserInspector(userId);
 
           // If inspector data is found, navigate to home.
           if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/home');
+            if (isInspector) {
+              Navigator.of(context).pushReplacementNamed('/home');
+            } else {
+              // Handle the case where the user is not an inspector.
+              await _authService.signOut();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'This account is not associated with an inspector profile.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           }
         } catch (e) {
-          // Handle the case where the user is not an inspector.
-          // You might want to sign them out and show an error.
-          await Supabase.instance.client.auth.signOut();
+          // Handle error checking inspector status
+          await _authService.signOut();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'This account is not associated with an inspector profile.'),
+              SnackBar(
+                content: Text('Error verifying account: $e'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -89,11 +100,30 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       }
-    } on AuthException catch (e) {
-      // Handle Supabase Auth Exceptions (e.g., invalid credentials)
+    } on FirebaseAuthException catch (e) {
+      // Handle Firebase Auth Exceptions
+      String message = 'An error occurred during sign in.';
+      
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No user found with this email.';
+          break;
+        case 'wrong-password':
+          message = 'Wrong password provided.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is not valid.';
+          break;
+        case 'user-disabled':
+          message = 'This user has been disabled.';
+          break;
+        default:
+          message = e.message ?? 'An unknown error occurred.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
         );
       }
     } catch (e) {

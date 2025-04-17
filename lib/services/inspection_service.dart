@@ -4,15 +4,14 @@ import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/local_database_service.dart';
-import 'package:inspection_app/services/sync_service.dart';
+import 'package:inspection_app/services/firestore_service.dart';
 import 'package:uuid/uuid.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:io';
 
 class InspectionService {
-  final SyncService _syncService = SyncService();
+  final FirestoreService _firestoreService = FirestoreService();
   final _uuid = Uuid();
-  final _supabase = Supabase.instance.client;
   
   // Get all locally stored inspections
   Future<List<Inspection>> getAllInspections() async {
@@ -21,12 +20,85 @@ class InspectionService {
   
   // Get a specific inspection with complete details
   Future<Inspection?> getInspection(int id) async {
-    return await LocalDatabaseService.getInspection(id);
+    // First try to get from local storage
+    final localInspection = await LocalDatabaseService.getInspection(id);
+    
+    // If found locally, return it
+    if (localInspection != null) {
+      return localInspection;
+    }
+    
+    // If not found locally and online, try to get from Firestore
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        final data = await _firestoreService.getInspection(id);
+        if (data != null) {
+          final inspection = Inspection.fromJson(data);
+          
+          // Save to local storage for offline access
+          await LocalDatabaseService.saveInspection(inspection);
+          
+          return inspection;
+        }
+      } catch (e) {
+        print('Error fetching inspection from Firestore: $e');
+      }
+    }
+    
+    // Not found anywhere
+    return null;
   }
   
   // Download an inspection from the server
   Future<bool> downloadInspection(int id) async {
-    return await _syncService.downloadInspection(id);
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      return false;
+    }
+    
+    try {
+      // Get inspection data
+      final inspectionData = await _firestoreService.getInspection(id);
+      if (inspectionData == null) return false;
+      
+      // Convert to model and save locally
+      final inspection = Inspection.fromJson(inspectionData);
+      await LocalDatabaseService.saveInspection(inspection);
+      
+      // Get rooms
+      final roomsData = await _firestoreService.getRoomsByInspection(id);
+      for (final roomData in roomsData) {
+        final room = Room.fromJson(roomData);
+        await LocalDatabaseService.saveRoom(room);
+        
+        // Get items for this room
+        if (room.id != null) {
+          final itemsData = await _firestoreService.getItemsByRoom(id, room.id!);
+          for (final itemData in itemsData) {
+            final item = Item.fromJson(itemData);
+            await LocalDatabaseService.saveItem(item);
+            
+            // Get details for this item
+            if (item.id != null) {
+              final detailsData = await _firestoreService.getDetailsByItem(id, room.id!, item.id!);
+              for (final detailData in detailsData) {
+                final detail = Detail.fromJson(detailData);
+                await LocalDatabaseService.saveDetail(detail);
+              }
+            }
+          }
+        }
+      }
+      
+      // Mark as synced
+      await LocalDatabaseService.setSyncStatus(id, true);
+      
+      return true;
+    } catch (e) {
+      print('Error downloading inspection: $e');
+      return false;
+    }
   }
   
   // Save an inspection locally and attempt to sync
@@ -34,35 +106,41 @@ class InspectionService {
     // Save locally
     await LocalDatabaseService.saveInspection(inspection);
     
-    // Try to sync if requested
+    // Try to sync if requested and online
     if (syncNow) {
-      await _syncService.uploadInspection(inspection);
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult != ConnectivityResult.none) {
+        try {
+          await _firestoreService.saveInspection(inspection);
+          await LocalDatabaseService.setSyncStatus(inspection.id, true);
+        } catch (e) {
+          print('Error syncing inspection: $e');
+          await LocalDatabaseService.setSyncStatus(inspection.id, false);
+        }
+      } else {
+        await LocalDatabaseService.setSyncStatus(inspection.id, false);
+      }
+    } else {
+      await LocalDatabaseService.setSyncStatus(inspection.id, false);
     }
   }
   
-  // Get rooms for an inspection - IMPROVED
+  // Get rooms for an inspection
   Future<List<Room>> getRooms(int inspectionId) async {
-    try {
-      // First check connectivity
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final bool isOffline = connectivityResult == ConnectivityResult.none;
-      
-      // If we have local rooms stored, use them first
-      final localRooms = await LocalDatabaseService.getRoomsByInspection(inspectionId);
-      if (localRooms.isNotEmpty || isOffline) {
-        return localRooms;
-      }
-      
-      // If online with no local rooms, try to fetch from Supabase
+    // First try to get from local storage
+    final localRooms = await LocalDatabaseService.getRoomsByInspection(inspectionId);
+    
+    // If we have rooms locally, return them
+    if (localRooms.isNotEmpty) {
+      return localRooms;
+    }
+    
+    // If online with no local rooms, try to fetch from Firestore
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
       try {
-        final roomsData = await _supabase
-            .from('rooms')
-            .select('*')
-            .eq('inspection_id', inspectionId)
-            .order('position', ascending: true);
+        final roomsData = await _firestoreService.getRoomsByInspection(inspectionId);
             
-        print('Fetched ${roomsData.length} rooms from server');
-        
         // Convert and save each room locally
         List<Room> rooms = [];
         for (var data in roomsData) {
@@ -73,14 +151,12 @@ class InspectionService {
         
         return rooms;
       } catch (e) {
-        print('Error fetching rooms from Supabase: $e');
-        // If fetch fails, return whatever is in local storage
-        return localRooms;
+        print('Error fetching rooms from Firestore: $e');
       }
-    } catch (e) {
-      print('Error in getRooms: $e');
-      return [];
     }
+    
+    // Return whatever we have (might be empty)
+    return localRooms;
   }
   
   // Add a new room to an inspection
@@ -104,6 +180,16 @@ class InspectionService {
     // Save locally
     await LocalDatabaseService.saveRoom(room);
     
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveRoom(room);
+      } catch (e) {
+        print('Error saving room to Firestore: $e');
+      }
+    }
+    
     // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
     
@@ -112,40 +198,58 @@ class InspectionService {
   
   // Update a room
   Future<void> updateRoom(Room room) async {
+    // Save locally
     await LocalDatabaseService.saveRoom(room);
+    
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveRoom(room);
+      } catch (e) {
+        print('Error updating room in Firestore: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(room.inspectionId, false);
   }
   
   // Delete a room
   Future<void> deleteRoom(int inspectionId, int roomId) async {
+    // Delete locally
     await LocalDatabaseService.deleteRoom(inspectionId, roomId);
+    
+    // Try to delete from Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.getRoomsCollection(inspectionId).doc(roomId.toString()).delete();
+      } catch (e) {
+        print('Error deleting room from Firestore: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
   }
   
-  // Get items for a room - IMPROVED
+  // Get items for a room
   Future<List<Item>> getItems(int inspectionId, int roomId) async {
-    try {
-      // First check connectivity
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final bool isOffline = connectivityResult == ConnectivityResult.none;
-      
-      // If we have local items stored, use them first
-      final localItems = await LocalDatabaseService.getItemsByRoom(inspectionId, roomId);
-      if (localItems.isNotEmpty || isOffline) {
-        return localItems;
-      }
-      
-      // If online with no local items, try to fetch from Supabase
+    // First try to get from local storage
+    final localItems = await LocalDatabaseService.getItemsByRoom(inspectionId, roomId);
+    
+    // If we have items locally, return them
+    if (localItems.isNotEmpty) {
+      return localItems;
+    }
+    
+    // If online with no local items, try to fetch from Firestore
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
       try {
-        final itemsData = await _supabase
-            .from('room_items')
-            .select('*')
-            .eq('inspection_id', inspectionId)
-            .eq('room_id', roomId)
-            .order('position', ascending: true);
+        final itemsData = await _firestoreService.getItemsByRoom(inspectionId, roomId);
             
-        print('Fetched ${itemsData.length} items from server for room $roomId');
-        
         // Convert and save each item locally
         List<Item> items = [];
         for (var data in itemsData) {
@@ -156,14 +260,12 @@ class InspectionService {
         
         return items;
       } catch (e) {
-        print('Error fetching items from Supabase: $e');
-        // If fetch fails, return whatever is in local storage
-        return localItems;
+        print('Error fetching items from Firestore: $e');
       }
-    } catch (e) {
-      print('Error in getItems: $e');
-      return [];
     }
+    
+    // Return whatever we have (might be empty)
+    return localItems;
   }
   
   // Add a new item to a room
@@ -188,6 +290,16 @@ class InspectionService {
     // Save locally
     await LocalDatabaseService.saveItem(item);
     
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveItem(item);
+      } catch (e) {
+        print('Error saving item to Firestore: $e');
+      }
+    }
+    
     // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
     
@@ -196,41 +308,58 @@ class InspectionService {
   
   // Update an item
   Future<void> updateItem(Item item) async {
+    // Save locally
     await LocalDatabaseService.saveItem(item);
+    
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveItem(item);
+      } catch (e) {
+        print('Error updating item in Firestore: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(item.inspectionId, false);
   }
   
   // Delete an item
   Future<void> deleteItem(int inspectionId, int roomId, int itemId) async {
+    // Delete locally
     await LocalDatabaseService.deleteItem(inspectionId, roomId, itemId);
+    
+    // Try to delete from Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.getItemsCollection(inspectionId, roomId).doc(itemId.toString()).delete();
+      } catch (e) {
+        print('Error deleting item from Firestore: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
   }
   
-  // Get details for an item - IMPROVED
+  // Get details for an item
   Future<List<Detail>> getDetails(int inspectionId, int roomId, int itemId) async {
-    try {
-      // First check connectivity
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final bool isOffline = connectivityResult == ConnectivityResult.none;
-      
-      // If we have local details stored, use them first
-      final localDetails = await LocalDatabaseService.getDetailsByItem(inspectionId, roomId, itemId);
-      if (localDetails.isNotEmpty || isOffline) {
-        return localDetails;
-      }
-      
-      // If online with no local details, try to fetch from Supabase
+    // First try to get from local storage
+    final localDetails = await LocalDatabaseService.getDetailsByItem(inspectionId, roomId, itemId);
+    
+    // If we have details locally, return them
+    if (localDetails.isNotEmpty) {
+      return localDetails;
+    }
+    
+    // If online with no local details, try to fetch from Firestore
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
       try {
-        final detailsData = await _supabase
-            .from('item_details')
-            .select('*')
-            .eq('inspection_id', inspectionId)
-            .eq('room_id', roomId)
-            .eq('room_item_id', itemId)
-            .order('position', ascending: true);
+        final detailsData = await _firestoreService.getDetailsByItem(inspectionId, roomId, itemId);
             
-        print('Fetched ${detailsData.length} details from server for item $itemId');
-        
         // Convert and save each detail locally
         List<Detail> details = [];
         for (var data in detailsData) {
@@ -241,14 +370,12 @@ class InspectionService {
         
         return details;
       } catch (e) {
-        print('Error fetching details from Supabase: $e');
-        // If fetch fails, return whatever is in local storage
-        return localDetails;
+        print('Error fetching details from Firestore: $e');
       }
-    } catch (e) {
-      print('Error in getDetails: $e');
-      return [];
     }
+    
+    // Return whatever we have (might be empty)
+    return localDetails;
   }
   
   // Add a new detail to an item
@@ -274,6 +401,16 @@ class InspectionService {
     // Save locally
     await LocalDatabaseService.saveDetail(detail);
     
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveDetail(detail);
+      } catch (e) {
+        print('Error saving detail to Firestore: $e');
+      }
+    }
+    
     // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
     
@@ -282,14 +419,78 @@ class InspectionService {
   
   // Update a detail
   Future<void> updateDetail(Detail detail) async {
+    // Save locally
     await LocalDatabaseService.saveDetail(detail);
+    
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveDetail(detail);
+      } catch (e) {
+        print('Error updating detail in Firestore: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(detail.inspectionId, false);
   }
   
   // Delete a detail
   Future<void> deleteDetail(int inspectionId, int roomId, int itemId, int detailId) async {
+    // Delete locally
     await LocalDatabaseService.deleteDetail(inspectionId, roomId, itemId, detailId);
+    
+    // Try to delete from Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.getDetailsCollection(inspectionId, roomId, itemId).doc(detailId.toString()).delete();
+      } catch (e) {
+        await _firestoreService.getDetailsCollection(inspectionId, roomId, itemId).doc(detailId.toString()).delete();
+      }
+    }
+    
+    // Mark inspection as needing sync
     await LocalDatabaseService.setSyncStatus(inspectionId, false);
+  }
+  
+  // Upload media file to an inspection detail
+  Future<String?> uploadMedia(
+    int inspectionId, 
+    int roomId, 
+    int itemId, 
+    int detailId,
+    String localFilePath,
+    String mediaType,
+  ) async {
+    // Save locally first
+    await LocalDatabaseService.saveMedia(inspectionId, roomId, itemId, detailId, localFilePath);
+    
+    // Try to upload to Firebase Storage if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        final file = File(localFilePath);
+        if (await file.exists()) {
+          final downloadUrl = await _firestoreService.uploadMediaFile(
+            file, 
+            inspectionId, 
+            roomId, 
+            itemId, 
+            detailId, 
+            mediaType,
+          );
+          return downloadUrl;
+        }
+      } catch (e) {
+        print('Error uploading media to Firebase Storage: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
+    await LocalDatabaseService.setSyncStatus(inspectionId, false);
+    return null;
   }
   
   // Get media for a detail
@@ -297,20 +498,108 @@ class InspectionService {
     return await LocalDatabaseService.getMediaByDetail(inspectionId, roomId, itemId, detailId);
   }
   
-  // Add media to a detail
-  Future<void> addMedia(int inspectionId, int roomId, int itemId, int detailId, String mediaPath) async {
-    await LocalDatabaseService.saveMedia(inspectionId, roomId, itemId, detailId, mediaPath);
-    await LocalDatabaseService.setSyncStatus(inspectionId, false);
-  }
-  
   // Delete media
   Future<void> deleteMedia(String mediaKey) async {
+    // Delete locally
     await LocalDatabaseService.deleteMedia(mediaKey);
+    
+    // Extract the inspection ID from the key
+    final parts = mediaKey.split('_');
+    if (parts.length > 0) {
+      final inspectionId = int.tryParse(parts[0]);
+      if (inspectionId != null) {
+        // Mark inspection as needing sync
+        await LocalDatabaseService.setSyncStatus(inspectionId, false);
+      }
+    }
   }
   
   // Move media to another detail
   Future<void> moveMedia(String mediaKey, int newRoomId, int newItemId, int newDetailId) async {
+    // Move locally
     await LocalDatabaseService.moveMedia(mediaKey, newRoomId, newItemId, newDetailId);
+    
+    // Extract the inspection ID from the key
+    final parts = mediaKey.split('_');
+    if (parts.length > 0) {
+      final inspectionId = int.tryParse(parts[0]);
+      if (inspectionId != null) {
+        // Mark inspection as needing sync
+        await LocalDatabaseService.setSyncStatus(inspectionId, false);
+      }
+    }
+  }
+  
+  // Save non-conformity
+  Future<void> saveNonConformity(Map<String, dynamic> nonConformity) async {
+    // Save locally
+    await LocalDatabaseService.saveNonConformity(nonConformity);
+    
+    // Try to save to Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.saveNonConformity(nonConformity);
+      } catch (e) {
+        print('Error saving non-conformity to Firestore: $e');
+      }
+    }
+    
+    // Mark inspection as needing sync
+    if (nonConformity.containsKey('inspectionId')) {
+      final inspectionId = nonConformity['inspectionId'];
+      await LocalDatabaseService.setSyncStatus(inspectionId, false);
+    }
+  }
+  
+  // Get non-conformities for an inspection
+  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(int inspectionId) async {
+    // First try to get from local storage
+    final localNCs = await LocalDatabaseService.getNonConformitiesByInspection(inspectionId);
+    
+    // If we have non-conformities locally, return them
+    if (localNCs.isNotEmpty) {
+      return localNCs;
+    }
+    
+    // If online with no local non-conformities, try to fetch from Firestore
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        final nonConformitiesData = await _firestoreService.getNonConformitiesByInspection(inspectionId);
+        
+        // Save each to local storage
+        for (final nc in nonConformitiesData) {
+          await LocalDatabaseService.saveNonConformity(nc);
+        }
+        
+        return nonConformitiesData;
+      } catch (e) {
+        print('Error fetching non-conformities from Firestore: $e');
+      }
+    }
+    
+    // Return whatever we have (might be empty)
+    return localNCs;
+  }
+  
+  // Update non-conformity status
+  Future<void> updateNonConformityStatus(int nonConformityId, String newStatus) async {
+    // Update locally
+    await LocalDatabaseService.updateNonConformityStatus(nonConformityId, newStatus);
+    
+    // Try to update in Firestore if online
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+        await _firestoreService.nonConformitiesCollection.doc(nonConformityId.toString()).update({
+          'status': newStatus,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        print('Error updating non-conformity status in Firestore: $e');
+      }
+    }
   }
   
   // Check if an inspection is synced
@@ -320,15 +609,76 @@ class InspectionService {
   
   // Force sync an inspection
   Future<bool> syncInspection(int inspectionId) async {
-    final inspection = await LocalDatabaseService.getInspection(inspectionId);
-    if (inspection == null) return false;
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      return false;
+    }
     
-    return await _syncService.uploadInspection(inspection);
+    try {
+      // Get inspection from local storage
+      final inspection = await LocalDatabaseService.getInspection(inspectionId);
+      if (inspection == null) return false;
+      
+      // Upload inspection to Firestore
+      await _firestoreService.saveInspection(inspection);
+      
+      // Get all rooms for this inspection
+      final rooms = await LocalDatabaseService.getRoomsByInspection(inspectionId);
+      
+      // Upload each room and its items/details
+      for (final room in rooms) {
+        if (room.id == null) continue;
+        
+        await _firestoreService.saveRoom(room);
+        
+        // Get all items for this room
+        final items = await LocalDatabaseService.getItemsByRoom(inspectionId, room.id!);
+        
+        for (final item in items) {
+          if (item.id == null) continue;
+          
+          await _firestoreService.saveItem(item);
+          
+          // Get all details for this item
+          final details = await LocalDatabaseService.getDetailsByItem(inspectionId, room.id!, item.id!);
+          
+          for (final detail in details) {
+            if (detail.id == null) continue;
+            
+            await _firestoreService.saveDetail(detail);
+            
+            // TODO: Add media sync when needed
+          }
+        }
+      }
+      
+      // Mark inspection as synced
+      await LocalDatabaseService.setSyncStatus(inspectionId, true);
+      
+      return true;
+    } catch (e) {
+      print('Error syncing inspection: $e');
+      return false;
+    }
   }
   
   // Force sync all pending inspections
   Future<void> syncAllPending() async {
-    await _syncService.syncAllPendingInspections();
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      return;
+    }
+    
+    try {
+      // Get all inspections that need to be synced
+      final pendingInspections = await LocalDatabaseService.getPendingSyncInspections();
+      
+      for (final inspection in pendingInspections) {
+        await syncInspection(inspection.id);
+      }
+    } catch (e) {
+      print('Error syncing pending inspections: $e');
+    }
   }
   
   // Calculate completion percentage for an inspection
@@ -341,10 +691,16 @@ class InspectionService {
       int filledDetails = 0;
       
       for (var room in rooms) {
+        // Skip rooms with no ID
+        if (room.id == null) continue;
+        
         // Get all items for this room
         final items = await LocalDatabaseService.getItemsByRoom(inspectionId, room.id!);
         
         for (var item in items) {
+          // Skip items with no ID
+          if (item.id == null) continue;
+          
           // Get all details for this item
           final details = await LocalDatabaseService.getDetailsByItem(inspectionId, room.id!, item.id!);
           
