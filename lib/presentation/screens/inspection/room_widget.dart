@@ -1,0 +1,430 @@
+// lib/presentation/widgets/room_widget.dart
+import 'package:flutter/material.dart';
+import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/item.dart';
+import 'package:inspection_app/presentation/screens/inspection/item_widget.dart';
+import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'dart:async';
+import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
+
+class RoomWidget extends StatefulWidget {
+  final Room room;
+  final Function(Room) onRoomUpdated;
+  final Function(int) onRoomDeleted;
+  final Function(Room) onRoomDuplicated; // Add duplicate functionality
+  final bool isExpanded;
+  final VoidCallback onExpansionChanged;
+
+  const RoomWidget({
+    super.key,
+    required this.room,
+    required this.onRoomUpdated,
+    required this.onRoomDeleted,
+    required this.onRoomDuplicated, 
+    required this.isExpanded,
+    required this.onExpansionChanged,
+  });
+
+  @override
+  State<RoomWidget> createState() => _RoomWidgetState();
+}
+
+class _RoomWidgetState extends State<RoomWidget> {
+  final FirebaseInspectionService _inspectionService = FirebaseInspectionService();
+  List<Item> _items = [];
+  bool _isLoading = true;
+  int _expandedItemIndex = -1;
+  final TextEditingController _observationController = TextEditingController();
+  late bool _isDamaged;
+  Timer? _debounce;
+  ScrollController? _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadItems();
+    _observationController.text = widget.room.observation ?? '';
+    _isDamaged = widget.room.isDamaged ?? false;
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _observationController.dispose();
+    _debounce?.cancel();
+    _scrollController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadItems() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      if (widget.room.id == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final items = await _inspectionService.getItems(
+        widget.room.inspectionId,
+        widget.room.id!,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _isLoading = false;
+      });
+
+      // If the list was scrolled before, restore scroll position
+      if (_scrollController?.hasClients ?? false) {
+        _scrollController?.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error loading items: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading items: $e')),
+      );
+    }
+  }
+
+  void _updateRoom() {
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    if (!mounted) return;
+
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      final updatedRoom = widget.room.copyWith(
+        observation: _observationController.text.isEmpty
+            ? null
+            : _observationController.text,
+        isDamaged: _isDamaged,
+        updatedAt: DateTime.now(),
+      );
+widget.onRoomUpdated(updatedRoom);
+    });
+  }
+
+  Future<void> _addItem() async {
+    if (widget.room.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Room ID not found')),
+      );
+      return;
+    }
+
+    final template = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => TemplateSelectorDialog(
+        title: 'Add Item',
+        type: 'item',
+        parentName: widget.room.roomName,
+      ),
+    );
+
+    if (template == null || !mounted) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final itemName = template['name'] as String;
+      String? itemLabel = template['value'] as String?;
+
+      final newItem = await _inspectionService.addItem(
+        widget.room.inspectionId,
+        widget.room.id!,
+        itemName,
+        label: itemLabel,
+      );
+
+      if (template['isCustom'] != true && template['observation'] != null) {
+        final updatedItem = newItem.copyWith(
+          itemLabel: itemLabel,
+          observation: template['observation'] as String?,
+        );
+        await _inspectionService.updateItem(updatedItem);
+      }
+
+      await _loadItems();
+
+      if (!mounted) return;
+      setState(() {
+        _expandedItemIndex = _items.indexWhere((i) => i.id == newItem.id);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding item: $e')),
+      );
+    }
+  }
+
+  void _duplicateRoom() {
+    widget.onRoomDuplicated(widget.room);
+  }
+
+  Future<void> _duplicateItem(Item item) async {
+    if (widget.room.id == null || item.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Cannot duplicate item with missing IDs')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final newItem = await _inspectionService.isItemDuplicate(
+        widget.room.inspectionId,
+        widget.room.id!,
+        item.itemName,
+      );
+
+      await _loadItems();
+
+      if (!mounted) return;
+      setState(() {
+        _expandedItemIndex = _items.indexWhere((i) => i.itemName == item.itemName);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Item "${item.itemName}" duplicated successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error duplicating item: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _handleItemUpdate(Item updatedItem) {
+    final index = _items.indexWhere((i) => i.id == updatedItem.id);
+    if (index >= 0) {
+      setState(() => _items[index] = updatedItem);
+      _inspectionService.updateItem(updatedItem);
+    }
+  }
+
+  Future<void> _handleItemDelete(dynamic itemId) async {
+    try {
+      if (widget.room.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Room ID not found')),
+        );
+        return;
+      }
+
+      await _inspectionService.deleteItem(
+        widget.room.inspectionId,
+        widget.room.id!,
+        itemId,
+      );
+
+      await _loadItems();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item removed successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error removing item: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showDeleteConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Room'),
+        content: Text(
+            'Are you sure you want to delete "${widget.room.roomName}"?\n\nAll associated items, details, and media will be permanently deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && widget.room.id != null) {
+      widget.onRoomDeleted(widget.room.id!);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(0),
+        side: BorderSide(
+          color: _isDamaged ? Colors.red : Colors.grey.shade300,
+          width: _isDamaged ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.room.roomName,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        if (widget.room.roomLabel != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.room.roomLabel!,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy),
+                    onPressed: _duplicateRoom,
+                    tooltip: 'Duplicate Room',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: _showDeleteConfirmation,
+                    tooltip: 'Delete Room',
+                  ),
+                  Icon(
+                    widget.isExpanded ? Icons.expand_less : Icons.expand_more,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _isDamaged,
+                        onChanged: (value) {
+                          setState(() {
+                            _isDamaged = value ?? false;
+                          });
+                          _updateRoom();
+                        },
+                      ),
+                      const Text('Damaged room'),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  TextFormField(
+                    controller: _observationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Observations',
+                      border: OutlineInputBorder(),
+                      hintText: 'Add observations about this room...',
+                    ),
+                    maxLines: 3,
+                    onChanged: (_) => _updateRoom(),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Item list
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Items',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Item'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_isLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_items.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No items added yet'),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      controller: _scrollController,
+                      itemCount: _items.length,
+                      itemBuilder: (context, index) {
+                        return ItemWidget(
+                          item: _items[index],
+                          onItemUpdated: _handleItemUpdate,
+                          onItemDeleted: _handleItemDelete,
+                          onItemDuplicated: _duplicateItem,
+                          isExpanded: index == _expandedItemIndex,
+                          onExpansionChanged: () {
+                            setState(() {
+                              _expandedItemIndex =
+                                  _expandedItemIndex == index ? -1 : index;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
