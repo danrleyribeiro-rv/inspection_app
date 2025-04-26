@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     
-    // Setup animation
+    // Configurar animação
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     _animationController.forward();
     
-    // Check connectivity
+    // Verificar conectividade
     _checkConnectivityAndProceed();
   }
   
@@ -49,24 +49,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _checkConnectivityAndProceed() async {
     _isOnline = await _connectivityService.checkConnectivity();
     
-    // Slight delay to show animation
+    // Pequeno atraso para mostrar animação
     await Future.delayed(const Duration(seconds: 2));
     
-    // Check if user is already logged in
+    // Verificar se o usuário já está logado
     final currentUser = _auth.currentUser;
     
     if (!mounted) return;
     
     if (currentUser != null) {
-      // Check if any pending inspections need sync
+      // Verificar se há inspeções pendentes que precisam de sincronização
       if (_isOnline) {
         _tryToSyncPendingData();
       }
       
-      // User already logged in, navigate to home
+      // Usuário já está logado, navegar para a home
       Navigator.of(context).pushReplacementNamed('/home');
     } else {
-      // User not logged in, navigate to get started page
+      // Usuário não está logado, navegar para a tela de início
       Navigator.of(context).pushReplacementNamed('/get-started');
     }
   }
@@ -75,25 +75,25 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     try {
       final inspectionService = FirebaseInspectionService();
       
-      // No need to explicitly call sync functions as Firebase will 
-      // handle this automatically when reconnected
+      // Não é necessário chamar funções de sincronização explicitamente, pois o Firebase
+      // fará isso automaticamente ao reconectar
       
-      // Just log the attempt
-      print('Online connection detected. Firebase will automatically sync pending changes.');
+      // Apenas registrar a tentativa
+      print('Conexão online detectada. O Firebase irá sincronizar automaticamente as alterações pendentes.');
     } catch (e) {
-      print('Error attempting to sync: $e');
+      print('Erro ao tentar sincronizar: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B), // Slate background color
+      backgroundColor: const Color(0xFF1E293B), // Cor de fundo Slate
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo animation
+            // Animação do logo
             FadeTransition(
               opacity: _animation,
               child: Image.asset(
@@ -104,7 +104,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             ),
             const SizedBox(height: 24),
             
-            // App name
+            // Nome do aplicativo
             FadeTransition(
               opacity: _animation,
               child: const Text(
@@ -119,14 +119,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             
             const SizedBox(height: 48),
             
-            // Loading indicator
+            // Indicador de carregamento
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
             
             const SizedBox(height: 24),
             
-            // Network status indicator
+            // Indicador de status de rede
             FadeTransition(
               opacity: _animation,
               child: StreamBuilder<bool>(

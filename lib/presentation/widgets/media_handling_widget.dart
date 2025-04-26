@@ -1,5 +1,6 @@
 // lib/presentation/widgets/media_handling_widget.dart (simplified)
 import 'dart:io';
+// import 'dart:developer'; // Import for log or use debugPrint
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
@@ -15,12 +16,12 @@ import 'package:inspection_app/models/detail.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
-  final int roomId;
-  final int itemId;
-  final int detailId;
+  final String roomId;
+  final String itemId;
+  final String detailId;
   final Function(String) onMediaAdded;
   final Function(String) onMediaDeleted;
-  final Function(String, int, int, int) onMediaMoved;
+  final Function(String, String, String, String) onMediaMoved;
 
   const MediaHandlingWidget({
     super.key,
@@ -41,7 +42,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   final _firestore = FirebaseService().firestore;
   final _storage = FirebaseService().storage;
   final _uuid = Uuid();
-  
+
   List<Map<String, dynamic>> _mediaItems = [];
   bool _isLoading = true;
 
@@ -94,7 +95,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading media: $e');
+      // Consider using a logger here instead of print
+      debugPrint('Error loading media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -125,7 +127,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       await file.copy(localPath);
 
       // Prepare media data
-      final mediaData = {
+      final mediaData = <String, dynamic>{ // Explicitly type the map
         'inspection_id': widget.inspectionId,
         'room_id': widget.roomId,
         'room_item_id': widget.itemId,
@@ -142,16 +144,18 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               file,
               SettableMetadata(contentType: 'image/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
             );
-            
+
         final downloadUrl = await uploadTask.ref.getDownloadURL();
         mediaData['url'] = downloadUrl;
       } catch (e) {
-        print('Error uploading to Firebase Storage: $e');
+        // Consider using a logger here instead of print
+        debugPrint('Error uploading to Firebase Storage: $e');
         // Continue anyway, as we'll save the local path
       }
 
       // Save reference to Firestore (works offline)
-      final docRef = await _firestore.collection('media').add(mediaData);
+      // No need to store the docRef if it's not used
+      await _firestore.collection('media').add(mediaData);
 
       // Call callback
       widget.onMediaAdded(localPath);
@@ -204,7 +208,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       await file.copy(localPath);
 
       // Prepare media data
-      final mediaData = {
+      final mediaData = <String, dynamic>{ // Explicitly type the map
         'inspection_id': widget.inspectionId,
         'room_id': widget.roomId,
         'room_item_id': widget.itemId,
@@ -221,16 +225,18 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               file,
               SettableMetadata(contentType: 'video/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
             );
-            
+
         final downloadUrl = await uploadTask.ref.getDownloadURL();
         mediaData['url'] = downloadUrl;
       } catch (e) {
-        print('Error uploading to Firebase Storage: $e');
+        // Consider using a logger here instead of print
+        debugPrint('Error uploading to Firebase Storage: $e');
         // Continue anyway, as we'll save the local path
       }
 
       // Save reference to Firestore (works offline)
-      final docRef = await _firestore.collection('media').add(mediaData);
+      // No need to store the docRef if it's not used
+      await _firestore.collection('media').add(mediaData);
 
       // Call callback
       widget.onMediaAdded(localPath);
@@ -287,29 +293,28 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     try {
       // Get the media document
       final docSnapshot = await _firestore.collection('media').doc(mediaId).get();
-      
+
       if (!docSnapshot.exists) {
         throw Exception('Media not found');
       }
-      
+
       final data = docSnapshot.data()!;
       final localPath = data['localPath'] as String?;
       final url = data['url'] as String?;
-      
+
       // Try to delete from storage if URL exists
       if (url != null) {
         try {
-          // Extract path from URL
-          final uri = Uri.parse(url);
-          final pathSegments = uri.pathSegments;
-          final storagePath = pathSegments.skip(1).join('/');
-          
-          await _storage.ref(storagePath).delete();
+          // Get reference from URL is more robust than trying to parse the path
+          final storageRef = FirebaseStorage.instance.refFromURL(url);
+          await storageRef.delete();
         } catch (e) {
-          print('Error deleting from storage: $e');
+          // Consider using a logger here instead of print
+          debugPrint('Error deleting from storage: $e');
+          // It might fail if the file doesn't exist (e.g., already deleted), log but continue
         }
       }
-      
+
       // Try to delete local file
       if (localPath != null) {
         try {
@@ -318,13 +323,15 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
             await file.delete();
           }
         } catch (e) {
-          print('Error deleting local file: $e');
+          // Consider using a logger here instead of print
+          debugPrint('Error deleting local file: $e');
+          // Log but continue, Firestore deletion is more critical
         }
       }
-      
+
       // Delete from Firestore
       await _firestore.collection('media').doc(mediaId).delete();
-      
+
       // Call callback
       if (localPath != null) {
         widget.onMediaDeleted(localPath);
@@ -368,9 +375,10 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
     if (result == null) return;
 
-    final newRoomId = result['roomId'];
-    final newItemId = result['itemId'];
-    final newDetailId = result['detailId'];
+    // The dialog now returns IDs as Strings, matching Firestore usage
+    final newRoomId = result['roomId'] as String?;
+    final newItemId = result['itemId'] as String?;
+    final newDetailId = result['detailId'] as String?;
 
     if (newRoomId == null || newItemId == null || newDetailId == null) {
       return;
@@ -388,14 +396,14 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     try {
       // Get the media document
       final docSnapshot = await _firestore.collection('media').doc(mediaId).get();
-      
+
       if (!docSnapshot.exists) {
         throw Exception('Media not found');
       }
-      
+
       final data = docSnapshot.data()!;
       final localPath = data['localPath'] as String?;
-      
+
       // Update document
       await _firestore.collection('media').doc(mediaId).update({
         'room_id': newRoomId,
@@ -403,13 +411,13 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         'detail_id': newDetailId,
         'updated_at': FieldValue.serverTimestamp(),
       });
-      
+
       // Call callback
       if (localPath != null) {
         widget.onMediaMoved(localPath, newRoomId, newItemId, newDetailId);
       }
 
-      // Refresh the list
+      // Refresh the list (media items for the *current* location)
       await _loadMedia();
 
       if (mounted) {
@@ -432,7 +440,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       }
     }
   }
-  
+
   // Get the application's media directory
   Future<Directory> getMediaDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -447,6 +455,9 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
 @override
   Widget build(BuildContext context) {
+    // Use withAlpha for transparency to avoid deprecated member warning
+    final overlayColor = Colors.black.withAlpha((255 * 0.6).round());
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -455,7 +466,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => _pickImage(ImageSource.camera),
+                onPressed: _isLoading ? null : () => _pickImage(ImageSource.camera), // Disable while loading
                 icon: const Icon(Icons.camera_alt),
                 label: const Text('Take Photo'),
               ),
@@ -463,7 +474,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
             const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => _pickVideo(ImageSource.camera),
+                onPressed: _isLoading ? null : () => _pickVideo(ImageSource.camera), // Disable while loading
                 icon: const Icon(Icons.videocam),
                 label: const Text('Record Video'),
               ),
@@ -475,7 +486,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => _pickImage(ImageSource.gallery),
+                onPressed: _isLoading ? null : () => _pickImage(ImageSource.gallery), // Disable while loading
                 icon: const Icon(Icons.photo_library),
                 label: const Text('From Gallery'),
                 style: ElevatedButton.styleFrom(
@@ -489,7 +500,10 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
         // Media display
         if (_isLoading)
-          const Center(child: CircularProgressIndicator())
+          const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 30.0),
+            child: CircularProgressIndicator(),
+          ))
         else if (_mediaItems.isEmpty)
           const Center(
             child: Padding(
@@ -502,7 +516,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Media Files:',
+                'Attached Media:',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
@@ -514,41 +528,76 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                   itemBuilder: (context, index) {
                     final media = _mediaItems[index];
                     final isImage = media['type'] == 'image';
-                    final hasUrl = media['url'] != null;
-                    final hasLocalPath = media['localPath'] != null;
+                    final hasUrl = media['url'] != null && (media['url'] as String).isNotEmpty;
+                    final hasLocalPath = media['localPath'] != null && (media['localPath'] as String).isNotEmpty;
+                    final mediaId = media['id'] as String; // Assume id is always present and a String
 
                     // Determine what to display
                     Widget displayWidget;
                     if (isImage) {
                       if (hasLocalPath) {
                         // Local image file
-                        displayWidget = Image.file(
-                          File(media['localPath']),
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, error, _) => Container(
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.broken_image),
-                          ),
-                        );
+                        final file = File(media['localPath']);
+                        // Check existence synchronously for UI build (async check might be better)
+                        if (file.existsSync()) {
+                            displayWidget = Image.file(
+                              file,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, error, _) => Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.broken_image, color: Colors.red),
+                              ),
+                            );
+                        } else if (hasUrl) {
+                            // Local path invalid, try URL
+                            displayWidget = Image.network(
+                              media['url'],
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(child: CircularProgressIndicator());
+                              },
+                              errorBuilder: (ctx, error, _) => Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.error_outline, color: Colors.red),
+                              ),
+                            );
+                        } else {
+                             displayWidget = Container(
+                                color: Colors.grey[300],
+                                child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [Icon(Icons.image_not_supported), SizedBox(height: 4), Text('No Image', style: TextStyle(fontSize: 10))]
+                                ),
+                              );
+                        }
+
                       } else if (hasUrl) {
-                        // Remote image URL
+                        // Remote image URL only
                         displayWidget = Image.network(
                           media['url'],
                           fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(child: CircularProgressIndicator());
+                          },
                           errorBuilder: (ctx, error, _) => Container(
                             color: Colors.grey[300],
-                            child: const Icon(Icons.broken_image),
+                            child: const Icon(Icons.cloud_off, color: Colors.orange),
                           ),
                         );
                       } else {
-                        // Fallback
+                        // Fallback: No local path or URL
                         displayWidget = Container(
                           color: Colors.grey[300],
-                          child: const Icon(Icons.image),
+                           child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [Icon(Icons.image), SizedBox(height: 4), Text('No Source', style: TextStyle(fontSize: 10))]
+                          ),
                         );
                       }
-                    } else {
-                      // Video icon
+                    } else { // isVideo
+                      // Video icon - maybe show thumbnail if available later
                       displayWidget = Container(
                         color: Colors.grey[800],
                         child: const Center(
@@ -559,6 +608,16 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                           ),
                         ),
                       );
+                      // Add placeholder if video has no local/remote path?
+                      if (!hasLocalPath && !hasUrl) {
+                         displayWidget = Container(
+                          color: Colors.grey[300],
+                           child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [Icon(Icons.videocam_off), SizedBox(height: 4), Text('No Source', style: TextStyle(fontSize: 10))]
+                          ),
+                        );
+                      }
                     }
 
                     return Padding(
@@ -588,13 +647,14 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                                 // Delete button
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.6),
+                                    color: overlayColor,
                                     shape: BoxShape.circle,
                                   ),
                                   child: IconButton(
                                     icon: const Icon(Icons.delete,
                                         color: Colors.white, size: 20),
-                                    onPressed: () => _deleteMedia(media['id']),
+                                    onPressed: () => _deleteMedia(mediaId),
+                                    tooltip: 'Delete Media',
                                     constraints: const BoxConstraints.tightFor(
                                         width: 30, height: 30),
                                     padding: EdgeInsets.zero,
@@ -605,13 +665,14 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                                 // Move button
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.6),
+                                    color: overlayColor,
                                     shape: BoxShape.circle,
                                   ),
                                   child: IconButton(
                                     icon: const Icon(Icons.drive_file_move,
                                         color: Colors.white, size: 20),
-                                    onPressed: () => _moveMedia(media['id']),
+                                    onPressed: () => _moveMedia(mediaId),
+                                    tooltip: 'Move Media',
                                     constraints: const BoxConstraints.tightFor(
                                         width: 30, height: 30),
                                     padding: EdgeInsets.zero,
@@ -629,7 +690,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
+                                color: overlayColor,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -652,12 +713,14 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   }
 }
 
-// Keep the MoveMediaDialog class with Firebase adaptations
+
+// ----- MoveMediaDialog -----
+
 class MoveMediaDialog extends StatefulWidget {
   final String inspectionId;
-  final int currentRoomId;
-  final int currentItemId;
-  final int currentDetailId;
+  final String currentRoomId;
+  final String currentItemId;
+  final String currentDetailId;
 
   const MoveMediaDialog({
     super.key,
@@ -672,16 +735,18 @@ class MoveMediaDialog extends StatefulWidget {
 }
 
 class _MoveMediaDialogState extends State<MoveMediaDialog> {
-  final _firestore = FirebaseService().firestore;
+  // Remove unused _firestore field
+  // final _firestore = FirebaseService().firestore;
   final _inspectionService = FirebaseInspectionService();
-  
+
   List<Room> _rooms = [];
   List<Item> _items = [];
   List<Detail> _details = [];
 
-  int? _selectedRoomId;
-  int? _selectedItemId;
-  int? _selectedDetailId;
+  // Change types from String? to String? to match Firestore document IDs
+  String? _selectedRoomId;
+  String? _selectedItemId;
+  String? _selectedDetailId;
 
   bool _isLoading = true;
 
@@ -696,33 +761,33 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     try {
       final rooms = await _inspectionService.getRooms(widget.inspectionId);
 
+      if (!mounted) return;
+
       setState(() {
         _rooms = rooms;
         _isLoading = false;
+        _items = []; // Clear items when rooms reload
+        _details = []; // Clear details when rooms reload
+        _selectedItemId = null;
+        _selectedDetailId = null;
 
         // Pre-select current room
-        if (_rooms.isNotEmpty) {
-          for (var room in _rooms) {
-            if (room.id == widget.currentRoomId) {
-              _selectedRoomId = room.id;
-              break;
-            }
-          }
+        if (_rooms.any((room) => room.id == widget.currentRoomId)) {
+          _selectedRoomId = widget.currentRoomId;
+        } else if (_rooms.isNotEmpty) {
+          _selectedRoomId = _rooms.first.id; // Select first if current not found or not available
+        } else {
+          _selectedRoomId = null; // No rooms available
+        }
 
-          // If current room wasn't found, select first room
-          if (_selectedRoomId == null && _rooms.isNotEmpty) {
-            _selectedRoomId = _rooms.first.id;
-          }
-
-          // Load items for selected room
-          if (_selectedRoomId != null) {
-            _loadItems(_selectedRoomId!);
-          }
+        // Load items for selected room
+        if (_selectedRoomId != null) {
+          _loadItems(_selectedRoomId!);
         }
       });
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading rooms: $e')),
         );
@@ -730,28 +795,30 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     }
   }
 
-  Future<void> _loadItems(dynamic roomId) async {
-    setState(() => _isLoading = true);
+  Future<void> _loadItems(String roomId) async {
+    // Only show loading if we are actually fetching new data
+    if (_items.isEmpty || _selectedRoomId != roomId) {
+       setState(() => _isLoading = true);
+    }
+
     try {
       final items = await _inspectionService.getItems(widget.inspectionId, roomId);
+
+      if (!mounted) return;
 
       setState(() {
         _items = items;
         _isLoading = false;
+        _details = []; // Clear details when items reload
+        _selectedDetailId = null;
 
         // Pre-select current item if in the same room
-        if (widget.currentRoomId == roomId) {
-          for (var item in _items) {
-            if (item.id == widget.currentItemId) {
-              _selectedItemId = item.id;
-              break;
-            }
-          }
-        }
-
-        // If no item was selected and items exist, select first item
-        if (_selectedItemId == null && _items.isNotEmpty) {
-          _selectedItemId = _items.first.id;
+        if (widget.currentRoomId == roomId && _items.any((item) => item.id == widget.currentItemId)) {
+          _selectedItemId = widget.currentItemId;
+        } else if (_items.isNotEmpty) {
+           _selectedItemId = _items.first.id; // Select first if current not found or not available
+        } else {
+          _selectedItemId = null; // No items available
         }
 
         // Load details for selected item
@@ -760,8 +827,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         }
       });
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading items: $e')),
         );
@@ -769,34 +836,33 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     }
   }
 
-  Future<void> _loadDetails(dynamic roomId, dynamic itemId) async {
-    setState(() => _isLoading = true);
+  Future<void> _loadDetails(String roomId, String itemId) async {
+    // Only show loading if we are actually fetching new data
+     if (_details.isEmpty || _selectedItemId != itemId) {
+       setState(() => _isLoading = true);
+    }
     try {
       final details = await _inspectionService.getDetails(
           widget.inspectionId, roomId, itemId);
+
+      if (!mounted) return;
 
       setState(() {
         _details = details;
         _isLoading = false;
 
-        // Pre-select current detail if in the same item
-        if (widget.currentRoomId == roomId && widget.currentItemId == itemId) {
-          for (var detail in _details) {
-            if (detail.id == widget.currentDetailId) {
-              _selectedDetailId = detail.id;
-              break;
-            }
-          }
-        }
-
-        // If no detail was selected and details exist, select first detail
-        if (_selectedDetailId == null && _details.isNotEmpty) {
-          _selectedDetailId = _details.first.id;
+        // Pre-select current detail if in the same room and item
+        if (widget.currentRoomId == roomId && widget.currentItemId == itemId && _details.any((detail) => detail.id == widget.currentDetailId)) {
+            _selectedDetailId = widget.currentDetailId;
+        } else if (_details.isNotEmpty) {
+          _selectedDetailId = _details.first.id; // Select first if current not found or not available
+        } else {
+          _selectedDetailId = null; // No details available
         }
       });
     } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
+       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading details: $e')),
         );
@@ -807,98 +873,125 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Move Media To'),
+      title: const Text('Mover Mídia Para'),
       content: SizedBox(
-        width: double.maxFinite,
-        child: _isLoading
+        width: double.maxFinite, // Use constraints for better sizing
+        // height: 300, // Or fixed height if needed
+        child: _isLoading && (_rooms.isEmpty || _items.isEmpty || _details.isEmpty) // Show loader primarily on initial load or full data change
             ? const Center(child: CircularProgressIndicator())
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Room:'),
-                  DropdownButtonFormField<int>(
-                    value: _selectedRoomId,
-                    isExpanded: true,
-                    items: _rooms.map((room) {
-                      return DropdownMenuItem<int>(
-                        value: room.id,
-                        child: Text(room.roomName),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedRoomId = value;
-                          _selectedItemId = null;
-                          _selectedDetailId = null;
-                          _items = [];
-                          _details = [];
-                        });
-                        _loadItems(value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Item:'),
-                  DropdownButtonFormField<int>(
-                    value: _selectedItemId,
-                    isExpanded: true,
-                    items: _items.map((item) {
-                      return DropdownMenuItem<int>(
-                        value: item.id,
-                        child: Text(item.itemName),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null && _selectedRoomId != null) {
-                        setState(() {
-                          _selectedItemId = value;
-                          _selectedDetailId = null;
-                          _details = [];
-                        });
-                        _loadDetails(_selectedRoomId!, value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Detail:'),
-                  DropdownButtonFormField<int>(
-                    value: _selectedDetailId,
-                    isExpanded: true,
-                    items: _details.map((detail) {
-                      return DropdownMenuItem<int>(
-                        value: detail.id,
-                        child: Text(detail.detailName),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedDetailId = value;
-                        });
-                      }
-                    },
-                  ),
-                ],
+            : SingleChildScrollView( // Allow scrolling if content overflows
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Cômodo:'),
+                    // Use String as the type for Dropdown and values
+                    DropdownButtonFormField<String>(
+                      value: _selectedRoomId,
+                      isExpanded: true,
+                      hint: const Text('Selecione o cômodo'),
+                      items: _rooms.map((room) {
+                        return DropdownMenuItem<String>(
+                          value: room.id, // ID is String
+                          child: Text(room.roomName, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null && value != _selectedRoomId) { // Check if value actually changed
+                          setState(() {
+                            _selectedRoomId = value; // Assign String
+                            // Reset subsequent selections
+                            _selectedItemId = null;
+                            _selectedDetailId = null;
+                            _items = [];
+                            _details = [];
+                             _isLoading = true; // Indicate loading for items
+                          });
+                          _loadItems(value);
+                        }
+                      },
+                      validator: (value) => value == null ? 'Por favor, selecione um cômodo' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text('Item:'),
+                     // Use String as the type for Dropdown and values
+                    DropdownButtonFormField<String>(
+                      value: _selectedItemId,
+                      isExpanded: true,
+                      hint: const Text('Selecione o item'),
+                      items: _items.map((item) {
+                        return DropdownMenuItem<String>(
+                          value: item.id, // ID is String
+                          child: Text(item.itemName, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null && _selectedRoomId != null && value != _selectedItemId) { // Check if value changed
+                          setState(() {
+                            _selectedItemId = value; // Assign String
+                            // Reset subsequent selection
+                            _selectedDetailId = null;
+                            _details = [];
+                             _isLoading = true; // Indicate loading for details
+                          });
+                          _loadDetails(_selectedRoomId!, value);
+                        }
+                      },
+                       validator: (value) => value == null ? 'Por favor, selecione um item' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text('Detalhe:'),
+                    // Use String as the type for Dropdown and values
+                    DropdownButtonFormField<String>(
+                      value: _selectedDetailId,
+                      isExpanded: true,
+                      hint: const Text('Selecione o detalhe'),
+                      items: _details.map((detail) {
+                        return DropdownMenuItem<String>(
+                          value: detail.id, // ID is String
+                          child: Text(detail.detailName, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null && value != _selectedDetailId) { // Check if value changed
+                          setState(() {
+                            _selectedDetailId = value; // Assign String
+                          });
+                        }
+                      },
+                       validator: (value) => value == null ? 'Por favor, selecione um detalhe' : null,
+                    ),
+
+                    // Show loading indicator more subtly if just refreshing part of the list
+                    if (_isLoading && !(_rooms.isEmpty || _items.isEmpty || _details.isEmpty))
+                       const Padding(
+                         padding: EdgeInsets.only(top: 16.0),
+                         child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3))),
+                       ),
+                  ],
+                ),
               ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Cancelar'),
         ),
         ElevatedButton(
+          // Enable button only if all selections are made and not currently loading
           onPressed: _selectedRoomId != null &&
                   _selectedItemId != null &&
-                  _selectedDetailId != null
+                  _selectedDetailId != null &&
+                  !_isLoading
               ? () => Navigator.of(context).pop({
-                    'roomId': _selectedRoomId,
+                    'roomId': _selectedRoomId, // Return String IDs
                     'itemId': _selectedItemId,
                     'detailId': _selectedDetailId,
                   })
-              : null,
-          child: const Text('Move'),
+              : null, // Disable button if selections incomplete or loading
+          child: const Text('Mover'),
         ),
       ],
     );

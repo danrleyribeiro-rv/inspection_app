@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/screens/profile/edit_profile_screen.dart';
-import 'package:inspection_app/services/firebase_auth_service.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -16,7 +15,6 @@ class ProfileTab extends StatefulWidget {
 class _ProfileTabState extends State<ProfileTab> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _authService = FirebaseAuthService();
   
   bool _isLoading = true;
   Map<String, dynamic>? _profile;
@@ -89,7 +87,7 @@ class _ProfileTabState extends State<ProfileTab> {
         });
       }
     } catch (e) {
-      print('Error loading image: $e');
+      print('Erro ao carregar imagem: $e');
     }
   }
 
@@ -114,7 +112,7 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Perfil'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -156,7 +154,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Personal Information',
+                      'Informações Pessoais',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -166,11 +164,11 @@ class _ProfileTabState extends State<ProfileTab> {
                   const Divider(),
 
                   _buildInfoItem(Icons.email, 'Email',
-                      _profile?['email'] ?? 'Not provided'),
-                  _buildInfoItem(Icons.phone, 'Phone',
-                      _profile?['phonenumber'] ?? 'Not provided'),
+                      _profile?['email'] ?? 'Não fornecido'),
+                  _buildInfoItem(Icons.phone, 'Telefone',
+                      _profile?['phonenumber'] ?? 'Não fornecido'),
                   _buildInfoItem(Icons.business, 'CNPJ/CPF',
-                      _profile?['document'] ?? 'Not provided'),
+                      _profile?['document'] ?? 'Não fornecido'),
 
                   const SizedBox(height: 24),
 
@@ -187,13 +185,13 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                   const Divider(),
 
-                  _buildInfoItem(Icons.location_on, 'Street', _formatAddress()),
+                  _buildInfoItem(Icons.location_on, 'Rua', _formatAddress()),
                   _buildInfoItem(
                       Icons.location_city,
-                      'City/State',
-                      '${_profile?['city'] ?? 'Not provided'} - ${_profile?['state'] ?? ''}'),
-                  _buildInfoItem(Icons.markunread_mailbox, 'ZIP Code',
-                      _profile?['cep'] ?? 'Not provided'),
+                      'Cidade/Estado',
+                      '${_profile?['city'] ?? 'Não fornecido'} - ${_profile?['state'] ?? 'Não fornecido'}'),
+                  _buildInfoItem(Icons.markunread_mailbox, 'CEP',
+                      _profile?['cep'] ?? 'Não fornecido'),
 
                   const SizedBox(height: 32),
 
@@ -203,7 +201,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: ElevatedButton.icon(
                       onPressed: _navigateToEditProfile,
                       icon: const Icon(Icons.edit),
-                      label: const Text('Edit Profile'),
+                      label: const Text('Editar Perfil'),
                     ),
                   ),
                 ],
@@ -221,7 +219,7 @@ class _ProfileTabState extends State<ProfileTab> {
           radius: 50,
           backgroundImage: NetworkImage(_profileImageBase64!),
           onBackgroundImageError: (e, stackTrace) {
-            print('Error loading profile image: $e');
+            print('Erro ao carregar imagem de perfil: $e');
           },
         );
       } else {
@@ -233,7 +231,7 @@ class _ProfileTabState extends State<ProfileTab> {
             backgroundImage: MemoryImage(imageBytes),
           );
         } catch (e) {
-          print('Error decoding image: $e');
+          print('Erro ao decodificar imagem: $e');
           // Fall back to initials
         }
       }

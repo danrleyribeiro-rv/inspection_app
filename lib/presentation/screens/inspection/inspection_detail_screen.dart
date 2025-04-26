@@ -149,100 +149,176 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  Future<void> _checkAndApplyTemplate() async {
-    if (_inspection == null) return;
+// Snippet para InspectionDetailScreen - método _checkAndApplyTemplate corrigido
+Future<void> _checkAndApplyTemplate() async {
+  if (_inspection == null) return;
 
-    // Verifica se a inspeção tem um template associado que ainda não foi aplicado
-    if (_inspection!.isTemplated != true && _inspection!.templateId != null) {
+  // Verifica se a inspeção tem um template associado que ainda não foi aplicado
+  if (_inspection!.isTemplated != true && _inspection!.templateId != null) {
+    if (mounted) {
+      setState(() => _isApplyingTemplate = true);
+    }
+
+    try {
+      // Mostrar mensagem de carregamento
       if (mounted) {
-        setState(() => _isApplyingTemplate = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aplicando template à inspeção...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
 
-      try {
-        // Mostrar mensagem de carregamento
+      // Log para diagnóstico
+      print('Iniciando aplicação do template para inspeção: ${_inspection!.id}');
+      print('Template ID: ${_inspection!.templateId}');
+      print('Status atual de aplicação: ${_inspection!.isTemplated}');
+
+      // Aplicar template
+      final success = await _inspectionService.applyTemplateToInspection(
+          _inspection!.id, _inspection!.templateId!);
+
+      print('Resultado da aplicação do template: ${success ? 'SUCESSO' : 'FALHA'}');
+
+      if (success) {
+        // Atualizar o status da inspeção localmente
+        final updatedInspection = _inspection!.copyWith(
+          isTemplated: true,
+          status: 'in_progress',
+          updatedAt: DateTime.now(),
+        );
+        
+        if (mounted) {
+          setState(() {
+            _inspection = updatedInspection;
+          });
+        }
+        
+        // Recarregar a inspeção com o template aplicado
+        await _loadInspection();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Aplicando template à inspeção...'),
+              content: Text('Template aplicado com sucesso!'),
+              backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
           );
         }
-
-        // Adicionando logs para diagnóstico
-        print('Iniciando aplicação do template para inspeção: ${_inspection!.id}');
-        print('Template ID: ${_inspection!.templateId}');
-        print('Status atual de aplicação: ${_inspection!.isTemplated}');
-
-        // Aplicar template
-        final success = await _inspectionService.applyTemplateToInspection(
-            _inspection!.id, _inspection!.templateId!);
-
-        print('Resultado da aplicação do template: ${success ? 'SUCESSO' : 'FALHA'}');
-
-        if (success) {
-          // Atualizar o status da inspeção localmente
-          final updatedInspection = _inspection!.copyWith(
-            isTemplated: true,
-            status: 'in_progress',
-            updatedAt: DateTime.now(),
-          );
-          
-          if (mounted) {
-            setState(() {
-              _inspection = updatedInspection;
-            });
-          }
-          
-          // Recarregar a inspeção com o template aplicado
-          await _loadInspection();
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Template aplicado com sucesso!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Falha ao aplicar template. Tente novamente.'),
-                backgroundColor: Colors.orange,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        print('Erro ao aplicar template: $e');
+      } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao aplicar template: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
+            const SnackBar(
+              content: Text('Falha ao aplicar template. Tente novamente.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
             ),
           );
         }
-      } finally {
-        if (mounted) {
-          setState(() => _isApplyingTemplate = false);
-        }
       }
-    } else {
-      print('Nenhum template para aplicar ou já aplicado');
-      if (_inspection!.isTemplated == true) {
-        print('A inspeção já tem um template aplicado');
+    } catch (e) {
+      print('Erro ao aplicar template: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao aplicar template: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
-      if (_inspection!.templateId == null) {
-        print('Nenhum ID de template associado a esta inspeção');
+    } finally {
+      if (mounted) {
+        setState(() => _isApplyingTemplate = false);
+      }
+    }
+  } else {
+    print('Nenhum template para aplicar ou já aplicado');
+    if (_inspection!.isTemplated == true) {
+      print('A inspeção já tem um template aplicado');
+    }
+    if (_inspection!.templateId == null) {
+      print('Nenhum ID de template associado a esta inspeção');
+    }
+  }
+}
+
+// Método para aplicação manual do template
+Future<void> _manuallyApplyTemplate() async {
+  if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
+  
+  // Show confirmation dialog
+  final shouldApply = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Aplicar Template'),
+      content: Text(_inspection!.isTemplated 
+        ? 'Esta inspeção já tem um template aplicado. Deseja reaplicá-lo?'
+        : 'Deseja aplicar o template a esta inspeção?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: TextButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+          child: const Text('Aplicar Template'),
+        ),
+      ],
+    ),
+  ) ?? false;
+  
+  if (shouldApply) {
+    setState(() => _isApplyingTemplate = true);
+    
+    try {
+      // Mostrar mensagem de carregamento
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aplicando template à inspeção...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      // Forçar a configuração de template para false para permitir uma nova aplicação
+      if (_inspection!.isTemplated) {
+        await _firestore.collection('inspections').doc(_inspection!.id).update({
+          'is_templated': false,
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+        
+        // Atualizar a instância local
+        setState(() {
+          _inspection = _inspection!.copyWith(
+            isTemplated: false,
+            updatedAt: DateTime.now(),
+          );
+        });
+      }
+      
+      // Aplicar o template
+      await _checkAndApplyTemplate();
+      
+    } catch (e) {
+      print('Erro na aplicação manual do template: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao aplicar template: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isApplyingTemplate = false);
       }
     }
   }
+}
 
   Future<void> _loadRooms() async {
     if (_inspection?.id == null) {
@@ -568,81 +644,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     } finally {
       if (mounted) {
         setState(() => _isSyncing = false);
-      }
-    }
-  }
-
-  // Manually apply template button function
-  Future<void> _manuallyApplyTemplate() async {
-    if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
-    
-    // Show confirmation dialog
-    final shouldApply = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Aplicar Template'),
-        content: Text(_inspection!.isTemplated 
-          ? 'Esta inspeção já tem um template aplicado. Deseja reaplicá-lo?'
-          : 'Deseja aplicar o template a esta inspeção?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-            child: const Text('Aplicar Template'),
-          ),
-        ],
-      ),
-    ) ?? false;
-    
-    if (shouldApply) {
-      setState(() => _isApplyingTemplate = true);
-      
-      try {
-        // Mostrar mensagem de carregamento
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Aplicando template à inspeção...'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-        
-        // Forçar a configuração de template para false para permitir uma nova aplicação
-        if (_inspection!.isTemplated) {
-          await _firestore.collection('inspections').doc(_inspection!.id).update({
-            'is_templated': false,
-            'updated_at': FieldValue.serverTimestamp(),
-          });
-          
-          // Atualizar a instância local
-          setState(() {
-            _inspection = _inspection!.copyWith(
-              isTemplated: false,
-              updatedAt: DateTime.now(),
-            );
-          });
-        }
-        
-        // Aplicar o template
-        await _checkAndApplyTemplate();
-        
-      } catch (e) {
-        print('Erro na aplicação manual do template: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao aplicar template: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isApplyingTemplate = false);
-        }
       }
     }
   }

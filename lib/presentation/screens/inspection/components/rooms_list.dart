@@ -7,7 +7,7 @@ class RoomsList extends StatelessWidget {
   final List<Room> rooms;
   final int expandedRoomIndex;
   final Function(Room) onRoomUpdated;
-  final Function(int) onRoomDeleted;
+  final Function(String) onRoomDeleted;
   final Function(Room) onRoomDuplicated;
   final Function(int) onExpansionChanged;
 

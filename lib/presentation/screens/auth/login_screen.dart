@@ -40,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
             await _authService.signOut();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Only inspectors can access this application.'),
+                content: Text('Apenas vistoriadores podem acessar este aplicativo.'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -48,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      print('Error checking deep link: $e');
+      print('Erro ao verificar o link profundo: $e');
     }
   }
 
@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // Sign in with Firebase Auth
-      final userCredential = await _authService.signInWithEmailAndPassword(
+      await _authService.signInWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
@@ -71,26 +71,26 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       // Handle Firebase Auth Exceptions
-      String message = 'An error occurred during login.';
+      String message = 'Ocorreu um erro durante o login.';
       
       switch (e.code) {
         case 'user-not-found':
-          message = 'No user found with this email address.';
+          message = 'Nenhum usuário encontrado com este endereço de e-mail.';
           break;
         case 'wrong-password':
-          message = 'Incorrect password.';
+          message = 'Senha incorreta.';
           break;
         case 'invalid-email':
-          message = 'The email address is not valid.';
+          message = 'O endereço de e-mail não é válido.';
           break;
         case 'user-disabled':
-          message = 'This user has been disabled.';
+          message = 'Este usuário foi desativado.';
           break;
         case 'unauthorized-role':
-          message = 'Only inspectors can access this application.';
+          message = 'Apenas vistoriadores podem acessar este aplicativo.';
           break;
         default:
-          message = e.message ?? 'An unknown error occurred.';
+          message = e.message ?? 'Ocorreu um erro desconhecido.';
       }
       
       if (mounted) {
@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('An unexpected error occurred: $e'),
+              content: Text('Ocorreu um erro inesperado: $e'),
               backgroundColor: Colors.red),
         );
       }
@@ -145,10 +145,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
+                              return 'Por favor, insira seu e-mail';
                             }
                             if (!value.contains('@')) {
-                              return 'Please enter a valid email';
+                              return 'Por favor, insira um e-mail válido';
                             }
                             return null;
                           },
@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: !_isPasswordVisible,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
+                              return 'Por favor, insira sua senha';
                             }
                             return null;
                           },
@@ -188,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: () {
                               Navigator.pushNamed(context, '/forgot-password');
                             },
-                            child: const Text('Forgot password?'),
+                            child: const Text('Esqueceu a senha?'),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -206,13 +206,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text("Don't have an account?"),
+                            const Text("Não tem uma conta?"),
                             TextButton(
                               onPressed: () {
                                 Navigator.pushReplacementNamed(
                                     context, '/register');
                               },
-                              child: const Text('Register'),
+                              child: const Text('Registrar'),
                             ),
                           ],
                         ),

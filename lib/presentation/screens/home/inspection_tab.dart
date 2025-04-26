@@ -87,7 +87,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading inspections: $e')),
+          SnackBar(content: Text('Erro ao carregar as vistorias: $e')),
         );
       }
     }
@@ -98,7 +98,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Slate background color
       appBar: AppBar(
-        title: const Text('My Inspections'),
+        title: const Text('Vistorias'),
         backgroundColor: const Color(0xFF1E293B), // Slate app bar color
         actions: [
           // Indicador de status online/offline
@@ -179,7 +179,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        inspection['title'] ?? 'Untitled',
+                                        inspection['title'] ?? 'Sem título',
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -266,8 +266,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                         },
                                         child: Text(
                                           inspection['status'] == 'pending'
-                                              ? 'Start'
-                                              : 'Continue',
+                                              ? 'Iniciar'
+                                              : 'Continuar',
                                         ),
                                       ),
                                     if (inspection['status'] == 'in_progress')
@@ -292,7 +292,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                                 ScaffoldMessenger.of(context)
                                                     .showSnackBar(const SnackBar(
                                                         content: Text(
-                                                            'Inspection completed successfully!')));
+                                                            'Vistoria concluída com sucesso!')));
                                                 _loadInspections();
                                               }
                                             } catch (e) {
@@ -300,7 +300,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                                 ScaffoldMessenger.of(context)
                                                     .showSnackBar(SnackBar(
                                                         content: Text(
-                                                            'Error completing inspection: $e')));
+                                                            'Erro ao concluir a vistoria: $e')));
                                               }
                                             }
                                           },
@@ -308,7 +308,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                             backgroundColor: Colors.green,
                                           ),
                                           child: const Text(
-                                              'Complete'), // Complete
+                                              'Completar'), // Complete
                                         ),
                                       ),
                                   ],
@@ -362,19 +362,19 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
     switch (status) {
       case 'pending':
-        label = 'Pending';
+        label = 'Pendente';
         color = Colors.orange;
         break;
       case 'in_progress':
-        label = 'In Progress';
+        label = 'Em Progresso';
         color = Colors.blue;
         break;
       case 'completed':
-        label = 'Completed';
+        label = 'Concluído';
         color = Colors.green;
         break;
       case 'cancelled':
-        label = 'Cancelled';
+        label = 'Cancelado';
         color = Colors.red;
         break;
       default:

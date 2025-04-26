@@ -16,7 +16,7 @@ class LandscapeView extends StatelessWidget {
   final Function(int) onRoomSelected;
   final Function(int) onItemSelected;
   final Function(Room) onRoomDuplicate;
-  final Function(int) onRoomDelete;
+  final Function(String) onRoomDelete;
   final FirebaseInspectionService inspectionService;
   final VoidCallback onAddRoom;
 

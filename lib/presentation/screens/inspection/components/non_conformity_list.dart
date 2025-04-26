@@ -37,10 +37,10 @@ class NonConformityList extends StatelessWidget {
           children: [
             Icon(Icons.warning_amber_rounded, size: 64, color: Colors.orange),
             SizedBox(height: 16),
-            Text('No non-conformities registered',
+            Text('Nenhuma não conformidade registrada',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
-            Text('Register a new non-conformity on the other tab'),
+            Text('Cadastre uma nova não conformidade na outra aba'),
           ],
         ),
       );

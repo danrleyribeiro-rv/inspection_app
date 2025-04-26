@@ -26,7 +26,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Passwords do not match'),
+            content: Text('Senhas não coincidem'),
             backgroundColor: Colors.red,
           ),
         );
@@ -43,7 +43,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Your password has been updated successfully'),
+            content: Text('Sua senha foi atualizada com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -54,7 +54,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } catch (e) {
       String message = e.toString();
 
-      if (e.toString().contains('FirebaseAuthException')) message = 'Failed to reset password.';
+      if (e.toString().contains('FirebaseAuthException')) message = 'Falha ao redefinir a senha.';
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -76,7 +76,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reset Password'),
+        title: const Text('Redefinir Senha'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -87,7 +87,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Create a new password',
+                'Crie uma nova senha',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -96,7 +96,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Your password must be at least 6 characters long',
+                'Sua senha deve ter pelo menos 6 caracteres',
                 style: TextStyle(
                   color: Colors.grey,
                 ),
@@ -106,7 +106,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               TextFormField(
                 controller: _passwordController,
                 decoration: InputDecoration(
-                  labelText: 'New Password',
+                  labelText: 'Nova Senha',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
@@ -125,10 +125,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 obscureText: !_isPasswordVisible,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter your new password';
+                    return 'Por favor, insira sua nova senha';
                   }
                   if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
+                    return 'A senha deve ter pelo menos 6 caracteres';
                   }
                   return null;
                 },
@@ -137,7 +137,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               TextFormField(
                 controller: _confirmPasswordController,
                 decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
+                  labelText: 'Confirmar Nova Senha',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
@@ -156,10 +156,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 obscureText: !_isConfirmPasswordVisible,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please confirm your password';
+                    return 'Por favor, confirme sua senha';
                   }
                   if (value != _passwordController.text) {
-                    return 'Passwords do not match';
+                    return 'As senhas não coincidem';
                   }
                   return null;
                 },
@@ -171,7 +171,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   onPressed: _isLoading ? null : _resetPassword,
                   child: _isLoading
                       ? const CircularProgressIndicator()
-                      : const Text('Reset Password'),
+                      : const Text('Redefinir Senha'),
                 ),
               ),
             ],

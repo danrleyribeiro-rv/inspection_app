@@ -9,7 +9,7 @@ import 'dart:async';
 class ItemWidget extends StatefulWidget {
   final Item item;
   final Function(Item) onItemUpdated;
-  final Function(int) onItemDeleted;
+  final Function(String) onItemDeleted;
   final Function(Item) onItemDuplicated;
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
@@ -106,18 +106,18 @@ class _ItemWidgetState extends State<ItemWidget> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Item'),
+        title: const Text('Excluir Item'),
         content: Text(
-            'Are you sure you want to delete "${widget.item.itemName}"?\n\nAll associated details and media will be permanently deleted.'),
+            'Tem certeza que deseja excluir "${widget.item.itemName}"?\n\nTodos os detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Excluir'),
           ),
         ],
       ),
@@ -127,7 +127,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       widget.onItemDeleted(widget.item.id!);
     }
   }
-  
+
   Future<void> _addDetail() async {
     if (widget.item.id == null || widget.item.roomId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -135,12 +135,12 @@ class _ItemWidgetState extends State<ItemWidget> {
       );
       return;
     }
-    
+
     final name = await _showTextInputDialog('Add Detail', 'Detail name');
     if (name == null || name.isEmpty) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final newDetail = await _inspectionService.addDetail(
         widget.item.inspectionId,
@@ -148,18 +148,18 @@ class _ItemWidgetState extends State<ItemWidget> {
         widget.item.id!,
         name,
       );
-      
+
       await _loadDetails();
-      
+
       if (!mounted) return;
-      
+
       final newIndex = _details.indexWhere((d) => d.id == newDetail.id);
       if (newIndex >= 0) {
         setState(() {
           _expandedDetailIndex = newIndex;
         });
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Detail "$name" added successfully')),
       );
@@ -174,17 +174,20 @@ class _ItemWidgetState extends State<ItemWidget> {
       }
     }
   }
-  
+
   Future<void> _duplicateDetail(Detail detail) async {
-    if (widget.item.id == null || widget.item.roomId == null || detail.id == null) {
+    if (widget.item.id == null ||
+        widget.item.roomId == null ||
+        detail.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Cannot duplicate detail with missing IDs')),
+        const SnackBar(
+            content: Text('Error: Cannot duplicate detail with missing IDs')),
       );
       return;
     }
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final newDetail = await _inspectionService.isDetailDuplicate(
         widget.item.inspectionId,
@@ -192,24 +195,27 @@ class _ItemWidgetState extends State<ItemWidget> {
         widget.item.id!,
         detail.detailName,
       );
-      
+
       if (newDetail == null) {
         throw Exception('Failed to duplicate detail');
       }
-      
+
       await _loadDetails();
-      
+
       if (!mounted) return;
-      
-      final newIndex = _details.indexWhere((d) => d.detailName == detail.detailName);
+
+      final newIndex =
+          _details.indexWhere((d) => d.detailName == detail.detailName);
       if (newIndex >= 0) {
         setState(() {
           _expandedDetailIndex = newIndex;
         });
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Detail "${detail.detailName}" duplicated successfully')),
+        SnackBar(
+            content:
+                Text('Detail "${detail.detailName}" duplicated successfully')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -222,7 +228,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       }
     }
   }
-  
+
   Future<String?> _showTextInputDialog(String title, String label) async {
     final controller = TextEditingController();
     return showDialog<String>(
@@ -352,9 +358,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                       const Text(
                         'Details',
                         style: TextStyle(
-                          fontSize: 16, 
-                          fontWeight: FontWeight.bold
-                        ),
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addDetail,
@@ -367,7 +371,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 8),
 
                   // List of details

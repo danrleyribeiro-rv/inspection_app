@@ -186,7 +186,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${type.substring(0, 1).toUpperCase()}${type.substring(1)} saved successfully'),
+              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
               backgroundColor: Colors.green,
             ),
           );
@@ -196,7 +196,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error processing $type: $e'),
+              content: Text('Erro ao processar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -207,7 +207,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error capturing $type: $e'),
+            content: Text('Erro ao capturar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -223,17 +223,17 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove media'),
-        content: const Text('Are you sure you want to remove this media?'),
+        title: const Text('Remover mídia'),
+        content: const Text('Tem certeza que deseja remover esta mídia?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Remove'),
+            child: const Text('Remover'),
           ),
         ],
       ),
@@ -280,7 +280,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Media removed successfully'),
+            content: Text('Mídia removida com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -290,7 +290,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error removing media: $e'),
+            content: Text('Erro ao remover mídia: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -324,7 +324,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           children: [
             const Expanded(
               child: Text(
-                'Media Files',
+                'Arquivos de Mídia',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -343,7 +343,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
               Expanded(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.camera_alt),
-                  label: const Text('Photo'),
+                  label: const Text('Foto'),
                   onPressed: () => _pickMedia(ImageSource.camera, 'image'),
                 ),
               ),
@@ -351,7 +351,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
               Expanded(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.videocam),
-                  label: const Text('Video'),
+                  label: const Text('Vídeo'),
                   onPressed: () => _pickMedia(ImageSource.camera, 'video'),
                 ),
               ),
@@ -363,7 +363,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         if (!widget.isReadOnly)
           ElevatedButton.icon(
             icon: const Icon(Icons.photo_library),
-            label: const Text('Gallery'),
+            label: const Text('Galeria'),
             onPressed: () => _pickMedia(ImageSource.gallery, 'image'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
@@ -382,14 +382,14 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('No media files added'),
+              child: Text('Nenhum arquivo de mídia adicionado'),
             ),
           )
         else
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Saved Media:',
+              const Text('Mídias Salvas:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               SizedBox(
@@ -505,7 +505,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                isImage ? 'Photo' : 'Video',
+                                isImage ? 'Foto' : 'Vídeo',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 10,

@@ -10,7 +10,7 @@ import 'package:inspection_app/presentation/widgets/template_selector_dialog.dar
 class RoomWidget extends StatefulWidget {
   final Room room;
   final Function(Room) onRoomUpdated;
-  final Function(int) onRoomDeleted;
+  final Function(String) onRoomDeleted;
   final Function(Room) onRoomDuplicated; // Add duplicate functionality
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
@@ -86,11 +86,11 @@ class _RoomWidgetState extends State<RoomWidget> {
         );
       }
     } catch (e) {
-      debugPrint('Error loading items: $e');
+      debugPrint('Erro ao carregar itens: $e');
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading items: $e')),
+        SnackBar(content: Text('Erro ao carregar itens: $e')),
       );
     }
   }
@@ -115,7 +115,7 @@ widget.onRoomUpdated(updatedRoom);
   Future<void> _addItem() async {
     if (widget.room.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Room ID not found')),
+        const SnackBar(content: Text('Erro: ID do cômodo não encontrado')),
       );
       return;
     }
@@ -123,7 +123,7 @@ widget.onRoomUpdated(updatedRoom);
     final template = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => TemplateSelectorDialog(
-        title: 'Add Item',
+        title: 'Adicionar Item',
         type: 'item',
         parentName: widget.room.roomName,
       ),
@@ -162,7 +162,7 @@ widget.onRoomUpdated(updatedRoom);
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding item: $e')),
+        SnackBar(content: Text('Erro ao adicionar item: $e')),
       );
     }
   }
@@ -174,7 +174,7 @@ widget.onRoomUpdated(updatedRoom);
   Future<void> _duplicateItem(Item item) async {
     if (widget.room.id == null || item.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Cannot duplicate item with missing IDs')),
+        const SnackBar(content: Text('Erro: Não é possível duplicar item com IDs ausentes')),
       );
       return;
     }
@@ -196,12 +196,12 @@ widget.onRoomUpdated(updatedRoom);
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Item "${item.itemName}" duplicated successfully')),
+        SnackBar(content: Text('Item "${item.itemName}" duplicado com sucesso')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error duplicating item: $e')),
+        SnackBar(content: Text('Erro ao duplicar item: $e')),
       );
     } finally {
       if (mounted) {
@@ -222,7 +222,7 @@ widget.onRoomUpdated(updatedRoom);
     try {
       if (widget.room.id == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: Room ID not found')),
+          const SnackBar(content: Text('Erro: ID do cômodo não encontrado')),
         );
         return;
       }
@@ -237,13 +237,13 @@ widget.onRoomUpdated(updatedRoom);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item removed successfully')),
+          const SnackBar(content: Text('Item removido com sucesso')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error removing item: $e')),
+          SnackBar(content: Text('Erro ao remover item: $e')),
         );
       }
     }
@@ -253,18 +253,18 @@ widget.onRoomUpdated(updatedRoom);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Room'),
+        title: const Text('Excluir Cômodo'),
         content: Text(
-            'Are you sure you want to delete "${widget.room.roomName}"?\n\nAll associated items, details, and media will be permanently deleted.'),
+            'Tem certeza de que deseja excluir "${widget.room.roomName}"?\n\nTodos os itens, detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Excluir'),
           ),
         ],
       ),
@@ -317,12 +317,12 @@ widget.onRoomUpdated(updatedRoom);
                   IconButton(
                     icon: const Icon(Icons.copy),
                     onPressed: _duplicateRoom,
-                    tooltip: 'Duplicate Room',
+                    tooltip: 'Duplicar Cômodo',
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete),
                     onPressed: _showDeleteConfirmation,
-                    tooltip: 'Delete Room',
+                    tooltip: 'Excluir Cômodo',
                   ),
                   Icon(
                     widget.isExpanded ? Icons.expand_less : Icons.expand_more,
@@ -349,7 +349,7 @@ widget.onRoomUpdated(updatedRoom);
                           _updateRoom();
                         },
                       ),
-                      const Text('Damaged room'),
+                      const Text('Cômodo danificado'),
                     ],
                   ),
 
@@ -358,9 +358,9 @@ widget.onRoomUpdated(updatedRoom);
                   TextFormField(
                     controller: _observationController,
                     decoration: const InputDecoration(
-                      labelText: 'Observations',
+                      labelText: 'Observações',
                       border: OutlineInputBorder(),
-                      hintText: 'Add observations about this room...',
+                      hintText: 'Adicione observações sobre este cômodo...',
                     ),
                     maxLines: 3,
                     onChanged: (_) => _updateRoom(),
@@ -373,14 +373,14 @@ widget.onRoomUpdated(updatedRoom);
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Items',
+                        'Itens',
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addItem,
                         icon: const Icon(Icons.add),
-                        label: const Text('Add Item'),
+                        label: const Text('Adicionar Item'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                         ),
@@ -394,7 +394,7 @@ widget.onRoomUpdated(updatedRoom);
                     const Center(
                       child: Padding(
                         padding: EdgeInsets.all(16),
-                        child: Text('No items added yet'),
+                        child: Text('Nenhum item adicionado ainda'),
                       ),
                     )
                   else

@@ -1,4 +1,4 @@
-// lib/presentation/screens/inspection/non_conformity_screen.dart (simplified)
+// lib/presentation/screens/inspection/non_conformity_screen.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
@@ -71,69 +71,75 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       final rooms = await _inspectionService.getRooms(widget.inspectionId);
       setState(() => _rooms = rooms);
 
-      // If there's a pre-selection, load items and details
-            if (widget.preSelectedRoom != null) {
-              // Encontrar a sala selecionada, tratando tanto String quanto int
-              Room? foundRoom;
-              for (var room in _rooms) {
-                // Compare tanto como string quanto como int
-                if (room.id.toString() == widget.preSelectedRoom.toString()) {
-                  foundRoom = room;
-                  break;
-                }
-              }
+      // Se houver pré-seleção, localizar a sala correspondente
+      if (widget.preSelectedRoom != null) {
+        // Procurar sala pelo ID usando toString() para comparação segura
+        Room? selectedRoom;
+        for (var room in _rooms) {
+          if (room.id != null && room.id.toString() == widget.preSelectedRoom.toString()) {
+            selectedRoom = room;
+            break;
+          }
+        }
 
-        // If room is found, use it; otherwise use first room if available
-        if (foundRoom != null) {
-          await _roomSelected(foundRoom);
+        // Se encontrou a sala pré-selecionada, carregá-la
+        if (selectedRoom != null) {
+          await _roomSelected(selectedRoom);
         } else if (_rooms.isNotEmpty) {
+          // Senão, carrega a primeira sala disponível
           await _roomSelected(_rooms.first);
         }
 
+        // Se tiver item pré-selecionado e tiver itens carregados
         if (widget.preSelectedItem != null && _items.isNotEmpty) {
-          // Similar approach for item
-          Item? foundItem;
+          // Procurar item pelo ID
+          Item? selectedItem;
           for (var item in _items) {
-            if (item.id == widget.preSelectedItem) {
-              foundItem = item;
+            if (item.id != null && item.id.toString() == widget.preSelectedItem.toString()) {
+              selectedItem = item;
               break;
             }
           }
 
-          if (foundItem != null) {
-            await _itemSelected(foundItem);
+          // Se encontrou o item pré-selecionado, carregá-lo
+          if (selectedItem != null) {
+            await _itemSelected(selectedItem);
           } else if (_items.isNotEmpty) {
+            // Senão, carrega o primeiro item disponível
             await _itemSelected(_items.first);
           }
 
+          // Se tiver detalhe pré-selecionado e tiver detalhes carregados
           if (widget.preSelectedDetail != null && _details.isNotEmpty) {
-            // And for detail
-            Detail? foundDetail;
+            // Procurar detalhe pelo ID
+            Detail? selectedDetail;
             for (var detail in _details) {
-              if (detail.id == widget.preSelectedDetail) {
-                foundDetail = detail;
+              if (detail.id != null && detail.id.toString() == widget.preSelectedDetail.toString()) {
+                selectedDetail = detail;
                 break;
               }
             }
 
-            if (foundDetail != null) {
-              _detailSelected(foundDetail);
+            // Se encontrou o detalhe pré-selecionado, selecioná-lo
+            if (selectedDetail != null) {
+              _detailSelected(selectedDetail);
             } else if (_details.isNotEmpty) {
+              // Senão, seleciona o primeiro detalhe disponível
               _detailSelected(_details.first);
             }
           }
         }
       }
 
-      // Load existing non-conformities
+      // Carregar não conformidades existentes
       await _loadNonConformities();
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Error loading data: $e');
+      print('Erro ao carregar dados: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
+          SnackBar(content: Text('Erro ao carregar dados: $e')),
         );
         setState(() => _isLoading = false);
       }
@@ -143,17 +149,17 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   Future<void> _loadNonConformities() async {
     try {
       final nonConformities = await _inspectionService.getNonConformitiesByInspection(widget.inspectionId);
-      
+
       if (mounted) {
         setState(() {
           _nonConformities = nonConformities;
         });
       }
     } catch (e) {
-      print('Error loading non-conformities: $e');
+      print('Erro ao carregar não conformidades: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading non-conformities: $e')),
+          SnackBar(content: Text('Erro ao carregar não conformidades: $e')),
         );
       }
     }
@@ -173,7 +179,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         final items = await _inspectionService.getItems(widget.inspectionId, room.id!);
         setState(() => _items = items);
       } catch (e) {
-        print('Error loading items: $e');
+        print('Erro ao carregar itens: $e');
       }
     }
   }
@@ -191,7 +197,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             widget.inspectionId, item.roomId!, item.id!);
         setState(() => _details = details);
       } catch (e) {
-        print('Error loading details: $e');
+        print('Erro ao carregar detalhes: $e');
       }
     }
   }
@@ -210,7 +216,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Status updated successfully!'),
+            content: Text('Status atualizado com sucesso!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -218,7 +224,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating status: $e')),
+          SnackBar(content: Text('Erro ao atualizar status: $e')),
         );
       }
     }
@@ -236,12 +242,12 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Non-Conformities'),
+        title: const Text('Não Conformidades'),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Register New'),
-            Tab(text: 'Existing Non-Conformities'),
+            Tab(text: 'Registrar Nova'),
+            Tab(text: 'Não Conformidades Existentes'),
           ],
         ),
       ),

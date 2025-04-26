@@ -1,12 +1,11 @@
 // lib/presentation/screens/home/home_screen.dart (simplified)
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
 import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
 import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/firebase_auth_service.dart';
 import 'package:inspection_app/services/connectivity_service.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,7 +17,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final _auth = FirebaseService().auth;
-  final _authService = FirebaseAuthService();
   final _connectivityService = ConnectivityService();
   bool _isOnline = false;
   StreamSubscription<bool>? _connectivitySubscription;
@@ -101,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(Icons.wifi_off, color: Colors.white, size: 18),
             SizedBox(width: 8),
-            Text('Offline mode - Changes will sync when online',
+            Text('Modo Offline - As mudanças serão sincronizadas quando estiver online',
                 style: TextStyle(color: Colors.white)),
           ],
         ),

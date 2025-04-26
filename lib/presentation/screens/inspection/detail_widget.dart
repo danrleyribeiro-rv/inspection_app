@@ -8,7 +8,7 @@ import 'package:inspection_app/presentation/screens/inspection/non_conformity_sc
 class DetailWidget extends StatefulWidget {
   final Detail detail;
   final Function(Detail) onDetailUpdated;
-  final Function(int) onDetailDeleted;
+  final Function(String) onDetailDeleted;
   final Function(Detail) onDetailDuplicated;
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
@@ -69,18 +69,18 @@ class _DetailWidgetState extends State<DetailWidget> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Detail'),
+        title: const Text('Excluir Detalhe'),
         content: Text(
-            'Are you sure you want to delete "${widget.detail.detailName}"?\n\nAll associated media will be permanently deleted.'),
+            'Tem certeza que deseja excluir "${widget.detail.detailName}"?\n\nTodas as mídias associadas serão excluídas permanentemente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Excluir'),
           ),
         ],
       ),
@@ -236,49 +236,41 @@ class _DetailWidgetState extends State<DetailWidget> {
                       onMediaMoved: (_, __, ___, ____) => setState(() {}),
                     ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
                   // Non-conformity button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // Converta explicitamente para o tipo esperado ou use verificação mais segura
-                            if (widget.detail.id != null &&
-                                widget.detail.roomId != null &&
-                                widget.detail.itemId != null) {
-                              
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => NonConformityScreen(
-                                    inspectionId: widget.detail.inspectionId,
-                                    // Usar diretamente sem tentar converter para int
-                                    preSelectedRoom: widget.detail.roomId,
-                                    preSelectedItem: widget.detail.itemId,
-                                    preSelectedDetail: widget.detail.id,
-                                  ),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Não foi possível abrir a tela de não-conformidade. IDs ausentes.'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.report_problem),
-                          label: const Text('Add Non-Conformity'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // Verificação de nulos mais segura
+                      if (widget.detail.id != null &&
+                          widget.detail.roomId != null &&
+                          widget.detail.itemId != null) {
+                        
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => NonConformityScreen(
+                              inspectionId: widget.detail.inspectionId,
+                              preSelectedRoom: widget.detail.roomId,
+                              preSelectedItem: widget.detail.itemId,
+                              preSelectedDetail: widget.detail.id,
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Não foi possível abrir a tela de não-conformidade. IDs ausentes.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.report_problem),
+                    label: const Text('Add Non-Conformity'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ],
               ),

@@ -1,9 +1,9 @@
 // lib/models/item.dart
 class Item {
-  final dynamic id; // pode ser String ou int
+  final String? id;
   final String inspectionId;
-  final dynamic roomId; // pode ser String ou int
-  final dynamic itemId; // pode ser String ou int
+  final String? roomId;
+  final String? itemId;
   final int position;
   final String itemName;
   final String? itemLabel;
@@ -32,10 +32,10 @@ class Item {
 
   factory Item.fromJson(Map<String, dynamic> json) {
     return Item(
-      id: json['id'],
+      id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
-      roomId: json['room_id'],
-      itemId: json['item_id'],
+      roomId: json['room_id']?.toString(),
+      itemId: json['item_id']?.toString(),
       position: json['position'] is int ? json['position'] : 0,
       itemName: json['item_name'],
       itemLabel: json['item_label'],
@@ -75,10 +75,10 @@ class Item {
   }
 
   Item copyWith({
-    dynamic id,
+    String? id,
     String? inspectionId,
-    dynamic roomId,
-    dynamic itemId,
+    String? roomId,
+    String? itemId,
     int? position,
     String? itemName,
     String? itemLabel,

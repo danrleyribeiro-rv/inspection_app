@@ -117,10 +117,10 @@ class Inspection {
       }
     }
     
-    String? templateId = json['template_id'];
+    String? templateId = json['template_id']?.toString();
     
     return Inspection(
-      id: json['id'],
+      id: json['id'].toString(),
       title: json['title'] ?? 'Untitled',
       street: json['street'],
       neighborhood: json['neighborhood'],
@@ -133,8 +133,8 @@ class Inspection {
       finishedAt: _parseDateTime(json['finished_at']),
       createdAt: _parseDateTime(json['created_at']) ?? DateTime.now(),
       updatedAt: _parseDateTime(json['updated_at']) ?? DateTime.now(),
-      projectId: json['project_id'],
-      inspectorId: json['inspector_id'],
+      projectId: json['project_id']?.toString(),
+      inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,
       templateId: templateId,
     );

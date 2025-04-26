@@ -1,10 +1,10 @@
 // lib/models/detail.dart
 class Detail {
-  final dynamic id; 
+  final String? id; 
   final String inspectionId;
-  final dynamic roomId; 
-  final dynamic itemId; 
-  final dynamic detailId; 
+  final String? roomId; 
+  final String? itemId; 
+  final String? detailId; 
   final int? position;
   final String detailName;
   final String? detailValue;
@@ -32,11 +32,11 @@ class Detail {
 
   factory Detail.fromJson(Map<String, dynamic> json) {
     return Detail(
-      id: json['id'],
+      id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
-      roomId: json['room_id'],
-      itemId: json['room_item_id'],
-      detailId: json['detail_id'],
+      roomId: json['room_id']?.toString(),
+      itemId: json['room_item_id']?.toString(),
+      detailId: json['detail_id']?.toString(),
       position: json['position'] is int ? json['position'] : null,
       detailName: json['detail_name'],
       detailValue: json['detail_value'],
@@ -75,11 +75,11 @@ class Detail {
   }
 
   Detail copyWith({
-    dynamic id,
+    String? id,
     String? inspectionId,
-    dynamic roomId,
-    dynamic itemId,
-    dynamic detailId,
+    String? roomId,
+    String? itemId,
+    String? detailId,
     int? position,
     String? detailName,
     String? detailValue,

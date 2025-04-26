@@ -29,17 +29,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _emailSent = true); // Indicate success
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        String message = 'An error occurred while sending the reset link.';
+        String message = 'Um erro ocorreu enquanto enviava o link de redefinição.';
         
         switch (e.code) {
           case 'user-not-found':
-            message = 'No user found with this email address.';
+            message = 'Nenhum usuário encontrado com esse e-mail.';
             break;
           case 'invalid-email':
-            message = 'Please enter a valid email address.';
+            message = 'Por favor, insira um endereço de e-mail válido.';
+            break;
+          case 'too-many-requests':
+            message = 'Muitas solicitações. Tente novamente mais tarde.';
             break;
           default:
-            message = e.message ?? 'Unknown error occurred';
+            message = e.message ?? 'Erro desconhecido ocorreu';
         }
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -50,7 +53,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('An unexpected error occurred: $e'),
+              content: Text('Ocorreu um erro inesperado: $e'),
               backgroundColor: Colors.red),
         );
       }
@@ -63,7 +66,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Forgot Password'),
+        title: const Text('Redefinir Senha'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -82,7 +85,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Please check your inbox (and spam folder) for further instructions.',
+                      'Por favor verifique sua caixa de email (e a pasta de Spam) para mais instruções.',
                       style: TextStyle(fontSize: 16),
                       textAlign: TextAlign.center,
                     ),
@@ -92,7 +95,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       height: 50,
                       child: ElevatedButton(
                         onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                        child: const Text('Return to Login'),
+                        child: const Text('Retornar ao Login'),
                       ),
                     ),
                   ],
@@ -102,7 +105,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'Reset Your Password',
+                      'Redefina sua Senha',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -111,7 +114,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Enter your email address below and we\'ll send you a link to reset your password',
+                      'Insira seu endereço de e-mail abaixo e nós enviaremos um link para redefinir sua senha',
                       style: TextStyle(
                         color: Colors.grey,
                       ),
@@ -128,10 +131,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
+                          return 'Insira seu endereço de e-mail';
                         }
                         if (!value.contains('@')) {
-                          return 'Please enter a valid email';
+                          return 'Por favor, insira um e-mail válido';
                         }
                         return null;
                       },
@@ -144,13 +147,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         onPressed: _isLoading ? null : _resetPassword,
                         child: _isLoading
                             ? const CircularProgressIndicator()
-                            : const Text('Send Reset Link'),
+                            : const Text('Enviar Link de Redefinição'),
                       ),
                     ),
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      child: const Text('Cancelar'),
                     ),
                   ],
                 ),

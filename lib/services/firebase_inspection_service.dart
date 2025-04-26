@@ -18,7 +18,7 @@ class FirebaseInspectionService {
   }
 
   FirebaseInspectionService._internal() {
-    // Habilitar persistência offline do Firestore
+    // Enable Firestore offline persistence
     _enableOfflinePersistence();
   }
 
@@ -27,26 +27,26 @@ class FirebaseInspectionService {
       await _firestore.enablePersistence(const PersistenceSettings(
         synchronizeTabs: true,
       ));
-      print('Persistência offline habilitada com sucesso');
+      print('Offline persistence enabled successfully');
     } catch (e) {
-      print('Erro ao habilitar persistência offline: $e');
-      // O erro pode ocorrer se a persistência já estiver habilitada ou em ambientes não suportados
+      print('Error enabling offline persistence: $e');
+      // The error may occur if persistence is already enabled or in unsupported environments
     }
   }
 
-  // SEÇÃO: GERENCIAMENTO DE CONECTIVIDADE
+  // SECTION: CONNECTIVITY MANAGEMENT
   // ===================================
   
-  // Verificar conectividade
+  // Check connectivity
   Future<bool> isOnline() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     return connectivityResult != ConnectivityResult.none;
   }
 
-  // SEÇÃO: OPERAÇÕES DE INSPEÇÃO
+  // SECTION: INSPECTION OPERATIONS
   // ===========================
 
-  // Obter inspeção
+  // Get inspection
   Future<Inspection?> getInspection(String inspectionId) async {
     try {
       final docSnapshot = await _firestore
@@ -55,14 +55,14 @@ class FirebaseInspectionService {
           .get();
 
       if (!docSnapshot.exists) {
-        print('Inspeção não encontrada: $inspectionId');
+        print('Inspection not found: $inspectionId');
         return null;
       }
 
       final data = docSnapshot.data();
       if (data == null) return null;
       
-      // Adicionar o ID no mapa de dados para ser incluído na conversão
+      // Add the ID to the data map to be included in the conversion
       final inspectionData = {
         ...data,
         'id': inspectionId,
@@ -70,12 +70,12 @@ class FirebaseInspectionService {
       
       return Inspection.fromJson(inspectionData);
     } catch (e) {
-      print('Erro ao obter inspeção: $e');
+      print('Error getting inspection: $e');
       rethrow;
     }
   }
 
-  // Salvar inspeção
+  // Save inspection
   Future<void> saveInspection(Inspection inspection) async {
     try {
       await _firestore
@@ -83,17 +83,17 @@ class FirebaseInspectionService {
           .doc(inspection.id)
           .set(inspection.toJson(), SetOptions(merge: true));
       
-      print('Inspeção ${inspection.id} salva com sucesso');
+      print('Inspection ${inspection.id} saved successfully');
     } catch (e) {
-      print('Erro ao salvar inspeção: $e');
+      print('Error saving inspection: $e');
       rethrow;
     }
   }
 
-  // SEÇÃO: OPERAÇÕES DE SALAS
+  // SECTION: ROOM OPERATIONS
   // ========================
 
-  // Obter salas de uma inspeção
+  // Get rooms of an inspection
   Future<List<Room>> getRooms(String inspectionId) async {
     try {
       final querySnapshot = await _firestore
@@ -106,16 +106,16 @@ class FirebaseInspectionService {
         final data = doc.data();
         return Room.fromJson({
           ...data,
-          'id': doc.id,  // Usa ID como string
+          'id': doc.id,
         });
       }).toList();
     } catch (e) {
-      print('Erro ao obter salas: $e');
+      print('Error getting rooms: $e');
       return [];
     }
   }
 
-  // Adicionar sala
+  // Add room
   Future<Room> addRoom(String inspectionId, String name, {String? label, int? position}) async {
     try {
       final roomRef = _firestore.collection('rooms').doc();
@@ -143,40 +143,40 @@ class FirebaseInspectionService {
         updatedAt: DateTime.now(),
       );
     } catch (e) {
-      print('Erro ao adicionar sala: $e');
+      print('Error adding room: $e');
       rethrow;
     }
   }
 
-  // Atualizar sala
+  // Update room
   Future<void> updateRoom(Room room) async {
     try {
       if (room.id == null) {
-        throw Exception('Room ID não pode ser nulo');
+        throw Exception('Room ID cannot be null');
       }
       
       await _firestore
           .collection('rooms')
-          .doc(room.id.toString())
+          .doc(room.id)
           .update(room.toJson());
       
-      print('Sala ${room.id} atualizada com sucesso');
+      print('Room ${room.id} updated successfully');
     } catch (e) {
-      print('Erro ao atualizar sala: $e');
+      print('Error updating room: $e');
       rethrow;
     }
   }
 
-  // Excluir sala
-  Future<void> deleteRoom(String inspectionId, dynamic roomId) async {
+  // Delete room
+  Future<void> deleteRoom(String inspectionId, String roomId) async {
     try {
-      // Excluir sala
+      // Delete room
       await _firestore
           .collection('rooms')
-          .doc(roomId.toString())
+          .doc(roomId)
           .delete();
       
-      // Excluir itens associados
+      // Delete associated items
       final itemsSnapshot = await _firestore
           .collection('room_items')
           .where('inspection_id', isEqualTo: inspectionId)
@@ -186,7 +186,7 @@ class FirebaseInspectionService {
       for (var doc in itemsSnapshot.docs) {
         await doc.reference.delete();
         
-        // Excluir detalhes do item
+        // Delete item details
         final detailsSnapshot = await _firestore
             .collection('item_details')
             .where('inspection_id', isEqualTo: inspectionId)
@@ -199,18 +199,18 @@ class FirebaseInspectionService {
         }
       }
       
-      print('Sala $roomId e todos seus itens e detalhes excluídos com sucesso');
+      print('Room $roomId and all its items and details deleted successfully');
     } catch (e) {
-      print('Erro ao excluir sala: $e');
+      print('Error deleting room: $e');
       rethrow;
     }
   }
 
-  // SEÇÃO: OPERAÇÕES DE ITENS
+  // SECTION: ITEM OPERATIONS
   // ========================
 
-  // Obter itens de uma sala
-  Future<List<Item>> getItems(String inspectionId, dynamic roomId) async {
+  // Get items of a room
+  Future<List<Item>> getItems(String inspectionId, String roomId) async {
     try {
       final querySnapshot = await _firestore
           .collection('room_items')
@@ -223,17 +223,17 @@ class FirebaseInspectionService {
         final data = doc.data();
         return Item.fromJson({
           ...data,
-          'id': doc.id,  // Usa ID como string
+          'id': doc.id,
         });
       }).toList();
     } catch (e) {
-      print('Erro ao obter itens: $e');
+      print('Error getting items: $e');
       return [];
     }
   }
 
-  // Adicionar item
-  Future<Item> addItem(String inspectionId, dynamic roomId, String name, {String? label, int? position}) async {
+  // Add item
+  Future<Item> addItem(String inspectionId, String roomId, String name, {String? label, int? position}) async {
     try {
       final itemRef = _firestore.collection('room_items').doc();
       
@@ -262,40 +262,40 @@ class FirebaseInspectionService {
         updatedAt: DateTime.now(),
       );
     } catch (e) {
-      print('Erro ao adicionar item: $e');
+      print('Error adding item: $e');
       rethrow;
     }
   }
 
-  // Atualizar item
+  // Update item
   Future<void> updateItem(Item item) async {
     try {
       if (item.id == null) {
-        throw Exception('Item ID não pode ser nulo');
+        throw Exception('Item ID cannot be null');
       }
       
       await _firestore
           .collection('room_items')
-          .doc(item.id.toString())
+          .doc(item.id)
           .update(item.toJson());
       
-      print('Item ${item.id} atualizado com sucesso');
+      print('Item ${item.id} updated successfully');
     } catch (e) {
-      print('Erro ao atualizar item: $e');
+      print('Error updating item: $e');
       rethrow;
     }
   }
 
-  // Excluir item
-  Future<void> deleteItem(String inspectionId, dynamic roomId, dynamic itemId) async {
+  // Delete item
+  Future<void> deleteItem(String inspectionId, String roomId, String itemId) async {
     try {
-      // Excluir item
+      // Delete item
       await _firestore
           .collection('room_items')
-          .doc(itemId.toString())
+          .doc(itemId)
           .delete();
       
-      // Excluir detalhes do item
+      // Delete item details
       final detailsSnapshot = await _firestore
           .collection('item_details')
           .where('inspection_id', isEqualTo: inspectionId)
@@ -307,18 +307,18 @@ class FirebaseInspectionService {
         await doc.reference.delete();
       }
       
-      print('Item $itemId e todos seus detalhes excluídos com sucesso');
+      print('Item $itemId and all its details deleted successfully');
     } catch (e) {
-      print('Erro ao excluir item: $e');
+      print('Error deleting item: $e');
       rethrow;
     }
   }
 
-  // SEÇÃO: OPERAÇÕES DE DETALHES
+  // SECTION: DETAIL OPERATIONS
   // ===========================
 
-  // Obter detalhes de um item
-  Future<List<Detail>> getDetails(String inspectionId, dynamic roomId, dynamic itemId) async {
+  // Get details of an item
+  Future<List<Detail>> getDetails(String inspectionId, String roomId, String itemId) async {
     try {
       final querySnapshot = await _firestore
           .collection('item_details')
@@ -332,17 +332,17 @@ class FirebaseInspectionService {
         final data = doc.data();
         return Detail.fromJson({
           ...data,
-          'id': doc.id,  // Usa ID como string
+          'id': doc.id,
         });
       }).toList();
     } catch (e) {
-      print('Erro ao obter detalhes: $e');
+      print('Error getting details: $e');
       return [];
     }
   }
 
-  // Adicionar detalhe
-  Future<Detail> addDetail(String inspectionId, dynamic roomId, dynamic itemId, String name, {String? value, int? position}) async {
+  // Add detail
+  Future<Detail> addDetail(String inspectionId, String roomId, String itemId, String name, {String? value, int? position}) async {
     try {
       final detailRef = _firestore.collection('item_details').doc();
       
@@ -373,99 +373,99 @@ class FirebaseInspectionService {
         updatedAt: DateTime.now(),
       );
     } catch (e) {
-      print('Erro ao adicionar detalhe: $e');
+      print('Error adding detail: $e');
       rethrow;
     }
   }
 
-  // Atualizar detalhe
+  // Update detail
   Future<void> updateDetail(Detail detail) async {
     try {
       if (detail.id == null) {
-        throw Exception('Detail ID não pode ser nulo');
+        throw Exception('Detail ID cannot be null');
       }
       
       await _firestore
           .collection('item_details')
-          .doc(detail.id.toString())
+          .doc(detail.id)
           .update(detail.toJson());
       
-      print('Detalhe ${detail.id} atualizado com sucesso');
+      print('Detail ${detail.id} updated successfully');
     } catch (e) {
-      print('Erro ao atualizar detalhe: $e');
+      print('Error updating detail: $e');
       rethrow;
     }
   }
 
-  // Excluir detalhe
-  Future<void> deleteDetail(String inspectionId, dynamic roomId, dynamic itemId, dynamic detailId) async {
+  // Delete detail
+  Future<void> deleteDetail(String inspectionId, String roomId, String itemId, String detailId) async {
     try {
       await _firestore
           .collection('item_details')
-          .doc(detailId.toString())
+          .doc(detailId)
           .delete();
       
-      print('Detalhe $detailId excluído com sucesso');
+      print('Detail $detailId deleted successfully');
     } catch (e) {
-      print('Erro ao excluir detalhe: $e');
+      print('Error deleting detail: $e');
       rethrow;
     }
   }
 
-  // SEÇÃO: OPERAÇÕES DE TEMPLATE
+  // SECTION: TEMPLATE OPERATIONS
   // ===========================
 
-  // Aplicar template a uma inspeção - MÉTODO MELHORADO
+  // Apply template to an inspection - IMPROVED METHOD
   Future<bool> applyTemplateToInspection(String inspectionId, String templateId) async {
     try {
-      print('Iniciando aplicação do template $templateId para a inspeção $inspectionId');
+      print('Starting template $templateId application to inspection $inspectionId');
       
-      // Verificar se a inspeção já tem template aplicado
+      // Check if the inspection already has a template applied
       final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
       final inspectionData = inspectionDoc.data();
       
       if (inspectionData != null && inspectionData['is_templated'] == true) {
-        print('Esta inspeção já tem um template aplicado.');
-        return true; // Já está aplicado, retorna sucesso
+        print('This inspection already has a template applied.');
+        return true; // Already applied, return success
       }
       
-      // Obter dados do template
+      // Get template data
       final templateDoc = await _firestore.collection('templates').doc(templateId).get();
       if (!templateDoc.exists) {
-        print('Template não encontrado: $templateId');
+        print('Template not found: $templateId');
         return false;
       }
 
       final templateData = templateDoc.data();
       if (templateData == null) {
-        print('Dados do template são nulos');
+        print('Template data is null');
         return false;
       }
 
-      print('Template encontrado: ${templateData['title']}');
+      print('Template found: ${templateData['title']}');
 
-      // Processar as salas do template
+      // Process template rooms
       final roomsData = templateData['rooms'];
       if (roomsData == null || roomsData is! List) {
-        print('Template não contém salas válidas');
+        print('Template does not contain valid rooms');
         return false;
       }
 
-      print('Processando ${roomsData.length} salas do template');
+      print('Processing ${roomsData.length} rooms from template');
       
-      // Variável para rastrear se pelo menos uma sala foi criada
+      // Variable to track if at least one room was created
       bool successfulCreation = false;
       
-      // Processamento das salas do template
+      // Process template rooms
       for (var roomData in roomsData) {
-        // Extrair nome da sala com tratamento adequado para diferentes formatos
-        String roomName = _extractStringValueFromTemplate(roomData, 'name', defaultValue: 'Sala sem nome');
+        // Extract room name with proper handling for different formats
+        String roomName = _extractStringValueFromTemplate(roomData, 'name', defaultValue: 'Unnamed room');
         String? roomDescription = _extractStringValueFromTemplate(roomData, 'description');
         
-        print('Criando sala: $roomName');
+        print('Creating room: $roomName');
         
         try {
-          // Criar sala
+          // Create room
           final roomDoc = await _firestore.collection('rooms').add({
             'inspection_id': inspectionId,
             'room_name': roomName,
@@ -477,26 +477,26 @@ class FirebaseInspectionService {
           });
           
           final roomId = roomDoc.id;
-          print('Sala criada com ID: $roomId');
+          print('Room created with ID: $roomId');
           successfulCreation = true;
           
-          // Processar itens da sala
+          // Process room items
           List<dynamic> items = _extractArrayFromTemplate(roomData, 'items');
-          print('Processando ${items.length} itens para a sala $roomName');
+          print('Processing ${items.length} items for room $roomName');
           
           int itemPosition = 0;
           for (var itemData in items) {
             var fields = _extractFieldsFromTemplate(itemData);
             if (fields == null) continue;
             
-            // Extrair nome e descrição do item
-            String itemName = _extractStringValueFromTemplate(fields, 'name', defaultValue: 'Item sem nome');
+            // Extract item name and description
+            String itemName = _extractStringValueFromTemplate(fields, 'name', defaultValue: 'Unnamed item');
             String? itemDescription = _extractStringValueFromTemplate(fields, 'description');
             
-            print('Criando item: $itemName');
+            print('Creating item: $itemName');
             
             try {
-              // Criar item
+              // Create item
               final itemDoc = await _firestore.collection('room_items').add({
                 'inspection_id': inspectionId,
                 'room_id': roomId,
@@ -509,21 +509,21 @@ class FirebaseInspectionService {
               });
               
               final itemId = itemDoc.id;
-              print('Item criado com ID: $itemId');
+              print('Item created with ID: $itemId');
               
-              // Processar detalhes do item
+              // Process item details
               List<dynamic> details = _extractArrayFromTemplate(fields, 'details');
-              print('Processando ${details.length} detalhes para o item $itemName');
+              print('Processing ${details.length} details for item $itemName');
               
               int detailPosition = 0;
               for (var detailData in details) {
                 var detailFields = _extractFieldsFromTemplate(detailData);
                 if (detailFields == null) continue;
                 
-                // Extrair nome do detalhe
-                String detailName = _extractStringValueFromTemplate(detailFields, 'name', defaultValue: 'Detalhe sem nome');
+                // Extract detail name
+                String detailName = _extractStringValueFromTemplate(detailFields, 'name', defaultValue: 'Unnamed detail');
                 
-                // Extrair opções do detalhe se existirem
+                // Extract detail options if they exist
                 List<String> options = [];
                 var optionsArray = _extractArrayFromTemplate(detailFields, 'options');
                 
@@ -535,10 +535,10 @@ class FirebaseInspectionService {
                   }
                 }
                 
-                // Usar a primeira opção como valor inicial, se disponível
+                // Use the first option as the initial value, if available
                 String? initialValue = options.isNotEmpty ? options[0] : null;
                 
-                print('Criando detalhe: $detailName');
+                print('Creating detail: $detailName');
                 
                 try {
                   await _firestore.collection('item_details').add({
@@ -553,19 +553,19 @@ class FirebaseInspectionService {
                     'updated_at': FieldValue.serverTimestamp(),
                   });
                 } catch (e) {
-                  print('Erro ao criar detalhe $detailName: $e');
+                  print('Error creating detail $detailName: $e');
                 }
               }
             } catch (e) {
-              print('Erro ao criar item $itemName: $e');
+              print('Error creating item $itemName: $e');
             }
           }
         } catch (e) {
-          print('Erro ao criar sala $roomName: $e');
+          print('Error creating room $roomName: $e');
         }
       }
       
-      // Marcar inspeção como templated apenas se pelo menos uma sala foi criada
+      // Mark inspection as templated only if at least one room was created
       if (successfulCreation) {
         await _firestore.collection('inspections').doc(inspectionId).update({
           'is_templated': true,
@@ -573,46 +573,46 @@ class FirebaseInspectionService {
           'updated_at': FieldValue.serverTimestamp(),
         });
         
-        print('Inspeção marcada como templated com sucesso');
+        print('Inspection marked as templated successfully');
         return true;
       } else {
-        print('Nenhuma sala foi criada. Template não aplicado.');
+        print('No room was created. Template not applied.');
         return false;
       }
     } catch (e) {
-      print('Erro ao aplicar template à inspeção: $e');
+      print('Error applying template to inspection: $e');
       return false;
     }
   }
 
-  // Métodos auxiliares para extração de dados do template
+  // Auxiliary methods for extracting template data
   
   String _extractStringValueFromTemplate(dynamic data, String key, {String defaultValue = ''}) {
     if (data == null) return defaultValue;
     
-    // Caso 1: Direto como string
+    // Case 1: Direct as string
     if (data[key] is String) {
       return data[key];
     }
     
-    // Caso 2: Formato Firestore (stringValue)
+    // Case 2: Firestore format (stringValue)
     if (data[key] is Map && data[key].containsKey('stringValue')) {
       return data[key]['stringValue'];
     }
     
-    // Caso 3: Valor não encontrado
+    // Case 3: Value not found
     return defaultValue;
   }
   
   List<dynamic> _extractArrayFromTemplate(dynamic data, String key) {
     if (data == null) return [];
     
-    // Caso 1: Já é uma lista
+    // Case 1: Already a list
     if (data[key] is List) {
       return data[key];
     }
     
-    // Caso 2: Formato Firestore (arrayValue)
+    // Case 2: Firestore format (arrayValue)
     if (data[key] is Map && 
         data[key].containsKey('arrayValue') && 
         data[key]['arrayValue'] is Map &&
@@ -620,39 +620,39 @@ class FirebaseInspectionService {
       return data[key]['arrayValue']['values'] ?? [];
     }
     
-    // Caso 3: Valor não encontrado
+    // Case 3: Value not found
     return [];
   }
   
-Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
-  if (data == null) return null;
-  
-  // Caso 1: Já é um mapa de campos
-  if (data is Map && data.containsKey('fields')) {
-    return Map<String, dynamic>.from(data['fields']);
+  Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
+    if (data == null) return null;
+    
+    // Case 1: Already a map of fields
+    if (data is Map && data.containsKey('fields')) {
+      return Map<String, dynamic>.from(data['fields']);
+    }
+    
+    // Case 2: Complex Firestore format
+    if (data is Map && 
+        data.containsKey('mapValue') && 
+        data['mapValue'] is Map &&
+        data['mapValue'].containsKey('fields')) {
+      return Map<String, dynamic>.from(data['mapValue']['fields']);
+    }
+    
+    // Case 3: Simple map
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    
+    // Case 4: Value is not a valid map
+    return null;
   }
-  
-  // Caso 2: Formato Firestore complexo
-  if (data is Map && 
-      data.containsKey('mapValue') && 
-      data['mapValue'] is Map &&
-      data['mapValue'].containsKey('fields')) {
-    return Map<String, dynamic>.from(data['mapValue']['fields']);
-  }
-  
-  // Caso 3: É um mapa simples
-  if (data is Map) {
-    return Map<String, dynamic>.from(data);
-  }
-  
-  // Caso 4: Valor não é um mapa válido
-  return null;
-}
 
-  // SEÇÃO: OPERAÇÕES DE NÃO CONFORMIDADES
+  // SECTION: NON-CONFORMITY OPERATIONS
   // ====================================
 
-  // Obter não conformidades de uma inspeção
+  // Get non-conformities of an inspection
   Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {
     try {
       final querySnapshot = await _firestore
@@ -669,22 +669,22 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
         };
       }).toList();
     } catch (e) {
-      print('Erro ao obter não conformidades: $e');
+      print('Error getting non-conformities: $e');
       return [];
     }
   }
 
-  // Salvar não conformidade
+  // Save non-conformity
   Future<void> saveNonConformity(Map<String, dynamic> nonConformity) async {
     try {
       if (nonConformity.containsKey('id') && nonConformity['id'] != null) {
-        // Atualizar existente
+        // Update existing
         await _firestore
             .collection('non_conformities')
             .doc(nonConformity['id'])
             .update(nonConformity);
       } else {
-        // Adicionar nova
+        // Add new
         final docRef = await _firestore
             .collection('non_conformities')
             .add(nonConformity);
@@ -692,14 +692,14 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
         nonConformity['id'] = docRef.id;
       }
       
-      print('Não conformidade salva com sucesso');
+      print('Non-conformity saved successfully');
     } catch (e) {
-      print('Erro ao salvar não conformidade: $e');
+      print('Error saving non-conformity: $e');
       rethrow;
     }
   }
 
-  // Atualizar status de não conformidade
+  // Update non-conformity status
   Future<void> updateNonConformityStatus(String nonConformityId, String newStatus) async {
     try {
       await _firestore
@@ -710,19 +710,20 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
         'updated_at': FieldValue.serverTimestamp(),
       });
       
-      print('Status da não conformidade atualizado para: $newStatus');
+      print('Non-conformity status updated to: $newStatus');
     } catch (e) {
-      print('Erro ao atualizar status de não conformidade: $e');
+      print('Error updating non-conformity status: $e');
       rethrow;
     }
   }
 
-  // SEÇÃO: OPERAÇÕES DE DUPLICAÇÃO E VERIFICAÇÃO
+  // SECTION: DUPLICATION AND VERIFICATION OPERATIONS
   // =========================================
 
-  // Verificar se já existe uma sala com este nome na inspeção
-  Future<bool> isRoomDuplicate(String inspectionId, String roomName) async {
+  // Check if a room with this name already exists in the inspection
+  Future<Detail?> isRoomDuplicate(String inspectionId, String roomName) async {
     try {
+      // Check if a room with this name exists
       final querySnapshot = await _firestore
           .collection('rooms')
           .where('inspection_id', isEqualTo: inspectionId)
@@ -730,16 +731,96 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
           .limit(1)
           .get();
       
-      return querySnapshot.docs.isNotEmpty;
+      if (querySnapshot.docs.isNotEmpty) {
+        // If found existing room, create a copy
+        final position = await _getNextRoomPosition(inspectionId);
+        final newRoomName = "$roomName (copy)";
+        
+        // Create new room
+        final room = await addRoom(
+          inspectionId,
+          newRoomName,
+          position: position,
+        );
+        
+        // Copy items and details
+        if (room.id != null) {
+          final existingRoomId = querySnapshot.docs.first.id;
+          await _duplicateRoomItems(inspectionId, existingRoomId, room.id!);
+        }
+        
+        return null;
+      }
+      
+      return null;
     } catch (e) {
-      print('Erro ao verificar sala duplicada: $e');
-      return false; // Em caso de erro, assumimos que não é duplicado
+      print('Error checking duplicate room: $e');
+      return null;
     }
   }
 
-  // Verificar se já existe um item com este nome nesta sala
-  Future<bool> isItemDuplicate(String inspectionId, dynamic roomId, String itemName) async {
+  // Duplicate items of a room to another
+  Future<void> _duplicateRoomItems(String inspectionId, String sourceRoomId, String targetRoomId) async {
     try {
+      // Get items of the original room
+      final itemsSnapshot = await _firestore
+          .collection('room_items')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: sourceRoomId)
+          .get();
+      
+      for (var itemDoc in itemsSnapshot.docs) {
+        final itemData = itemDoc.data();
+        
+        // Create new item in the target room
+        final newItemRef = await _firestore.collection('room_items').add({
+          ...itemData,
+          'room_id': targetRoomId,
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+        
+        // Copy item details
+        await _duplicateItemDetails(inspectionId, sourceRoomId, itemDoc.id, targetRoomId, newItemRef.id);
+      }
+    } catch (e) {
+      print('Error duplicating room items: $e');
+    }
+  }
+
+  // Duplicate details of an item to another
+  Future<void> _duplicateItemDetails(String inspectionId, String sourceRoomId, String sourceItemId, 
+                                    String targetRoomId, String targetItemId) async {
+    try {
+      // Get details of the original item
+      final detailsSnapshot = await _firestore
+          .collection('item_details')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: sourceRoomId)
+          .where('room_item_id', isEqualTo: sourceItemId)
+          .get();
+      
+      for (var detailDoc in detailsSnapshot.docs) {
+        final detailData = detailDoc.data();
+        
+        // Create new detail in the target item
+        await _firestore.collection('item_details').add({
+          ...detailData,
+          'room_id': targetRoomId,
+          'room_item_id': targetItemId,
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      print('Error duplicating item details: $e');
+    }
+  }
+
+  // Check if an item with this name already exists in this room
+  Future<Detail?> isItemDuplicate(String inspectionId, String roomId, String itemName) async {
+    try {
+      // Check if an item with this name exists
       final querySnapshot = await _firestore
           .collection('room_items')
           .where('inspection_id', isEqualTo: inspectionId)
@@ -748,15 +829,37 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
           .limit(1)
           .get();
       
-      return querySnapshot.docs.isNotEmpty;
+      if (querySnapshot.docs.isNotEmpty) {
+        // If found existing item, create a copy
+        final position = await _getNextItemPosition(inspectionId, roomId);
+        final newItemName = "$itemName (copy)";
+        
+        // Create new item
+        final item = await addItem(
+          inspectionId,
+          roomId,
+          newItemName,
+          position: position,
+        );
+        
+        // Copy details
+        if (item.id != null) {
+          final existingItemId = querySnapshot.docs.first.id;
+          await _duplicateItemDetails(inspectionId, roomId, existingItemId, roomId, item.id!);
+        }
+        
+        return null;
+      }
+      
+      return null;
     } catch (e) {
-      print('Erro ao verificar item duplicado: $e');
-      return false; // Em caso de erro, assumimos que não é duplicado
+      print('Error checking duplicate item: $e');
+      return null;
     }
   }
 
-  // Verificar se já existe um detalhe com este nome neste item
-  Future<Detail?> isDetailDuplicate(String inspectionId, dynamic roomId, dynamic itemId, String detailName) async {
+  // Check if a detail with this name already exists in this item
+  Future<Detail?> isDetailDuplicate(String inspectionId, String roomId, String itemId, String detailName) async {
     try {
       final querySnapshot = await _firestore
           .collection('item_details')
@@ -768,9 +871,9 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
           .get();
       
       if (querySnapshot.docs.isNotEmpty) {
-        // Se encontrou um detalhe existente, criar uma cópia
+        // If found existing detail, create a copy
         final position = await _getNextDetailPosition(inspectionId, roomId, itemId);
-        final newDetailName = "$detailName (cópia)";
+        final newDetailName = "$detailName (copy)";
         
         final detail = await addDetail(
           inspectionId,
@@ -785,13 +888,58 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
       
       return null;
     } catch (e) {
-      print('Erro ao verificar detalhe duplicado: $e');
+      print('Error checking duplicate detail: $e');
       return null;
     }
   }
   
-  // Obter a próxima posição para um detalhe
-  Future<int> _getNextDetailPosition(String inspectionId, dynamic roomId, dynamic itemId) async {
+  // Get next position for room
+  Future<int> _getNextRoomPosition(String inspectionId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('rooms')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        return 0;
+      }
+      
+      final lastPosition = querySnapshot.docs.first.data()['position'] ?? 0;
+      return lastPosition + 1;
+    } catch (e) {
+      print('Error getting next room position: $e');
+      return 0;
+    }
+  }
+  
+  // Get next position for item
+  Future<int> _getNextItemPosition(String inspectionId, String roomId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('room_items')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: roomId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        return 0;
+      }
+      
+      final lastPosition = querySnapshot.docs.first.data()['position'] ?? 0;
+      return lastPosition + 1;
+    } catch (e) {
+      print('Error getting next item position: $e');
+      return 0;
+    }
+  }
+  
+  // Get next position for detail
+  Future<int> _getNextDetailPosition(String inspectionId, String roomId, String itemId) async {
     try {
       final querySnapshot = await _firestore
           .collection('item_details')
@@ -809,18 +957,18 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
       final lastPosition = querySnapshot.docs.first.data()['position'] ?? 0;
       return lastPosition + 1;
     } catch (e) {
-      print('Erro ao obter próxima posição: $e');
+      print('Error getting next detail position: $e');
       return 0;
     }
   }
 
-  // SEÇÃO: CÁLCULOS E MÉTRICAS
+  // SECTION: CALCULATIONS AND METRICS
   // =========================
 
-  // Calcular percentual de conclusão de uma inspeção
+  // Calculate completion percentage of an inspection
   Future<double> calculateCompletionPercentage(String inspectionId) async {
     try {
-      // Obter todas as salas
+      // Get all rooms
       final rooms = await getRooms(inspectionId);
       
       int totalDetails = 0;
@@ -829,18 +977,18 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
       for (var room in rooms) {
         if (room.id == null) continue;
         
-        // Obter todos os itens para esta sala
-        final items = await getItems(inspectionId, room.id);
+        // Get all items for this room
+        final items = await getItems(inspectionId, room.id!);
         
         for (var item in items) {
           if (item.id == null) continue;
           
-          // Obter todos os detalhes para este item
-          final details = await getDetails(inspectionId, room.id, item.id);
+          // Get all details for this item
+          final details = await getDetails(inspectionId, room.id!, item.id!);
           
           totalDetails += details.length;
           
-          // Contar detalhes preenchidos
+          // Count filled details
           for (var detail in details) {
             if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
               filledDetails++;
@@ -849,12 +997,12 @@ Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
         }
       }
       
-      // Evitar divisão por zero
+      // Avoid division by zero
       if (totalDetails == 0) return 0.0;
       
       return filledDetails / totalDetails;
     } catch (e) {
-      print('Erro ao calcular percentual de conclusão: $e');
+      print('Error calculating completion percentage: $e');
       return 0.0;
     }
   }

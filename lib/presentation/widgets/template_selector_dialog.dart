@@ -38,10 +38,10 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Toggle between template and custom
+            // Alternar entre template e personalizado
             Row(
               children: [
-                const Text('Custom'),
+                const Text('Personalizado'),
                 Switch(
                   value: _isCustom,
                   onChanged: (value) => setState(() => _isCustom = value),
@@ -54,7 +54,7 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
                 controller: _nameController,
                 decoration: InputDecoration(
                   labelText:
-                      '${widget.type.substring(0, 1).toUpperCase()}${widget.type.substring(1)} Name',
+                      '${widget.type.substring(0, 1).toUpperCase()}${widget.type.substring(1)} Nome',
                   border: const OutlineInputBorder(),
                 ),
                 autofocus: true,
@@ -63,27 +63,27 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
               TextField(
                 controller: _valueController,
                 decoration: const InputDecoration(
-                  labelText: 'Label (Optional)',
+                  labelText: 'Rótulo (Opcional)',
                   border: OutlineInputBorder(),
                 ),
               ),
             ] else
-              // Template list would go here
-              const Text('Templates not implemented yet'),
+              // Lista de templates seria aqui
+              const Text('Templates ainda não implementados'),
           ],
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Cancelar'),
         ),
         if (_isCustom)
           TextButton(
             onPressed: () {
               if (_nameController.text.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Name is required')),
+                  const SnackBar(content: Text('Nome é obrigatório')),
                 );
                 return;
               }
@@ -95,7 +95,7 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
                 'isCustom': true,
               });
             },
-            child: const Text('Add'),
+            child: const Text('Adicionar'),
           ),
       ],
     );

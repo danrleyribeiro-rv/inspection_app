@@ -1,8 +1,8 @@
 // lib/models/room.dart
 class Room {
-  final dynamic id; // pode ser String ou int
+  final String? id;
   final String inspectionId;
-  final dynamic roomId; // pode ser String ou int
+  final String? roomId;
   final int position;
   final String roomName;
   final String? roomLabel;
@@ -28,9 +28,9 @@ class Room {
 
   factory Room.fromJson(Map<String, dynamic> json) {
     return Room(
-      id: json['id'], // aceitar qualquer tipo
+      id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
-      roomId: json['room_id'],
+      roomId: json['room_id']?.toString(),
       position: json['position'] is int ? json['position'] : 0,
       roomName: json['room_name'],
       roomLabel: json['room_label'],
@@ -67,9 +67,9 @@ class Room {
   }
 
   Room copyWith({
-    dynamic id,
+    String? id,
     String? inspectionId,
-    dynamic roomId,
+    String? roomId,
     int? position,
     String? roomName,
     String? roomLabel,

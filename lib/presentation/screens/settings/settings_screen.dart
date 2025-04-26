@@ -57,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing out: $e')),
+          SnackBar(content: Text('Erro ao sair: $e')),
         );
       }
     } finally {
@@ -69,21 +69,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Account'),
+        title: const Text('Excluir Conta'),
         content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
+          'Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
-            child: const Text('Delete'),
+            child: const Text('Excluir'),
           ),
         ],
       ),
@@ -137,19 +137,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Slate color for background
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text('Configurações'),
         backgroundColor: const Color(0xFF1E293B), // Slate color for appbar
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
-                _buildSectionHeader('Notifications'),
+                _buildSectionHeader('Notificações'),
                 SwitchListTile(
-                  title: const Text('Notifications',
+                  title: const Text('Notificações',
                       style: TextStyle(color: Colors.white)),
                   subtitle: const Text(
-                      'Receive alerts about new inspections and messages',
+                      'Receber alertas sobre novas vistorias e mensagens',
                       style: TextStyle(color: Colors.white70)),
                   value: _notificationsEnabled,
                   activeColor: Colors.blue,
@@ -158,11 +158,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _saveSettings();
                   },
                 ),
-                _buildSectionHeader('Permissions'),
+                _buildSectionHeader('Permissões'),
                 SwitchListTile(
-                  title: const Text('Location',
+                  title: const Text('Localização',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Allow access to device location',
+                  subtitle: const Text('Permitir acesso à localização do dispositivo',
                       style: TextStyle(color: Colors.white70)),
                   value: _locationPermission,
                   activeColor: Colors.blue,
@@ -172,9 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 SwitchListTile(
-                  title: const Text('Camera',
+                  title: const Text('Câmera',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Allow access to device camera',
+                  subtitle: const Text('Permitir acesso à câmera do dispositivo',
                       style: TextStyle(color: Colors.white70)),
                   value: _cameraPermission,
                   activeColor: Colors.blue,
@@ -183,55 +183,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _saveSettings();
                   },
                 ),
-                _buildSectionHeader('Storage'),
+                _buildSectionHeader('Armazenamento'),
                 ListTile(
-                  title: const Text('Clear Cache',
+                  title: const Text('Limpar Cache',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Remove temporary files',
+                  subtitle: const Text('Remover arquivos temporários',
                       style: TextStyle(color: Colors.white70)),
                   leading:
                       const Icon(Icons.cleaning_services, color: Colors.white),
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Cache cleared successfully'),
+                        content: Text('Cache limpo com sucesso'),
                       ),
                     );
                   },
                 ),
-                _buildSectionHeader('Account'),
+                _buildSectionHeader('Conta'),
                 ListTile(
-                  title: const Text('Sign Out',
+                  title: const Text('Sair',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('End current session',
+                  subtitle: const Text('Encerrar sessão atual',
                       style: TextStyle(color: Colors.white70)),
                   leading: const Icon(Icons.logout, color: Colors.white),
                   onTap: _signOut,
                 ),
                 ListTile(
-                  title: const Text('Delete Account',
+                  title: const Text('Excluir Conta',
                       style: TextStyle(color: Colors.red)),
-                  subtitle: const Text('Permanently remove your account',
+                  subtitle: const Text('Remover permanentemente sua conta',
                       style: TextStyle(color: Colors.white70)),
                   leading: const Icon(Icons.delete_forever, color: Colors.red),
                   textColor: Colors.red,
                   onTap: _deleteAccount,
                 ),
-                _buildSectionHeader('About'),
+                _buildSectionHeader('Sobre'),
                 ListTile(
-                  title: const Text('App Version',
+                  title: const Text('Versão do App',
                       style: TextStyle(color: Colors.white)),
                   subtitle: const Text('1.0.0',
                       style: TextStyle(color: Colors.white70)),
                   leading: const Icon(Icons.info, color: Colors.white),
                 ),
                 ListTile(
-                  title: const Text('Privacy Policy',
+                  title: const Text('Política de Privacidade',
                       style: TextStyle(color: Colors.white)),
                   leading: const Icon(Icons.privacy_tip, color: Colors.white),
                 ),
                 ListTile(
-                  title: const Text('Terms of Use',
+                  title: const Text('Termos de Uso',
                       style: TextStyle(color: Colors.white)),
                   leading: const Icon(Icons.gavel, color: Colors.white),
                 ),

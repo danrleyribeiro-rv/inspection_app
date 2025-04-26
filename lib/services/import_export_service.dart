@@ -125,7 +125,7 @@ class ImportExportService {
         // Check if room with this name exists
         final existingRooms = await _inspectionService.getRooms(inspectionId);
         bool roomExists = false;
-        int? existingRoomId;
+        String? existingRoomId;
         
         for (var existing in existingRooms) {
           if (existing.roomName == roomName) {
@@ -135,7 +135,7 @@ class ImportExportService {
           }
         }
         
-        late int roomId;
+        late String roomId;
         
         if (roomExists && existingRoomId != null) {
           // Update existing room
@@ -169,7 +169,7 @@ class ImportExportService {
           // Check if item with this name exists in this room
           final existingItems = await _inspectionService.getItems(inspectionId, roomId);
           bool itemExists = false;
-          int? existingItemId;
+          String? existingItemId;
           
           for (var existing in existingItems) {
             if (existing.itemName == itemName) {
@@ -179,7 +179,7 @@ class ImportExportService {
             }
           }
           
-          late int itemId;
+          late String itemId;
           
           if (itemExists && existingItemId != null) {
             // Use existing item
@@ -215,7 +215,7 @@ class ImportExportService {
             // Check if detail with this name exists in this item
             final existingDetails = await _inspectionService.getDetails(inspectionId, roomId, itemId);
             bool detailExists = false;
-            int? existingDetailId;
+            String? existingDetailId;
             
             for (var existing in existingDetails) {
               if (existing.detailName == detailName) {

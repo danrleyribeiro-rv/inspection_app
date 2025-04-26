@@ -105,7 +105,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Non-conformity registered successfully!'),
+            content: Text('Não conformidade registrada com sucesso!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -113,7 +113,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error registering non-conformity: $e')),
+          SnackBar(content: Text('Erro ao registrar não conformidade: $e')),
         );
       }
     } finally {
