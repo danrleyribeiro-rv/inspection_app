@@ -127,37 +127,6 @@ class InspectionHeader extends StatelessWidget {
               
               const SizedBox(width: 8),
               
-              // Sync status
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isOffline ? Colors.red.withOpacity(0.2) : Colors.green.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isOffline ? Colors.red : Colors.green,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isOffline ? Icons.wifi_off : Icons.wifi,
-                      size: 12,
-                      color: isOffline ? Colors.red : Colors.green,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isOffline ? 'Offline' : 'Online',
-                      style: TextStyle(
-                        color: isOffline ? Colors.red : Colors.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
               const Spacer(),
               
               // Scheduled date if available

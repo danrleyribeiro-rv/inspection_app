@@ -17,13 +17,15 @@ import 'package:inspection_app/presentation/screens/inspection/components/inspec
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/services/import_export_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
 
+
   const InspectionDetailScreen({
     super.key,
-    required this.inspectionId,
+    required this.inspectionId
   });
 
   @override
@@ -657,6 +659,27 @@ Future<void> _manuallyApplyTemplate() async {
       appBar: AppBar(
         title: Text(_inspection?.title ?? 'Inspeção'),
         actions: [
+          // Sync status
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _isOnline ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _isOnline ? Colors.green : Colors.red,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isOnline ? Icons.signal_wifi_4_bar: Icons.wifi,
+                  size: 12,
+                  color: _isOnline ? Colors.green : Colors.red,
+                ),
+              ],
+            ),
+          ),
           // Template apply button
           if (_isOnline && _inspection != null && _inspection!.templateId != null)
             IconButton(
