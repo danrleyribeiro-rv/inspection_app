@@ -28,7 +28,7 @@ class GetStartedScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Realize suas vistorias de forma simples e eficiente, mesmo offline',
+                'Realize suas vistorias de forma simples,\nrápida e eficiente.',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey,
@@ -65,7 +65,7 @@ class GetStartedScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'Criar Conta',
-                    style: TextStyle(fontSize: 16, color: Color(0xFF1a237e)),
+                    style: TextStyle(fontSize: 16, color: Color.fromARGB(255, 235, 235, 235)),
                   ),
                 ),
               ),

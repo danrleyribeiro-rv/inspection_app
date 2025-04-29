@@ -1,4 +1,4 @@
-// lib/presentation/screens/home/home_screen.dart (simplified)
+// lib/presentation/screens/home/home_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
@@ -78,30 +78,37 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Colors.grey,
-        items: [
-          const BottomNavigationBarItem(
+        items: const [
+          BottomNavigationBarItem(
             icon: Icon(Icons.check_box),
             label: 'Inspections',
           ),
-          const BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
       ),
       // Show an offline indicator when device is offline
-      bottomSheet: !_isOnline ? Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-        color: Colors.red,
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.wifi_off, color: Colors.white, size: 18),
-            SizedBox(width: 8),
-            Text('Modo Offline - As mudanças serão sincronizadas quando estiver online',
-                style: TextStyle(color: Colors.white)),
-          ],
+      bottomSheet: !_isOnline ? SafeArea(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          color: Colors.red,
+          child: Row(
+            mainAxisSize: MainAxisSize.min, // Evita overflow horizontal
+            children: const [
+              Icon(Icons.wifi_off, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Expanded( // Expanded para que o texto possa quebrar linhas
+                child: Text(
+                  'Modo Offline - As mudanças serão sincronizadas quando estiver online',
+                  style: TextStyle(color: Colors.white),
+                  overflow: TextOverflow.visible, // Permite quebra de texto
+                ),
+              ),
+            ],
+          ),
         ),
       ) : null,
     );
