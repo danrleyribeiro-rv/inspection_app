@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
 import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
 import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/connectivity_service.dart';
-
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,9 +16,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final _auth = FirebaseService().auth;
-  final _connectivityService = ConnectivityService();
+  final _connectivityService = Connectivity();
   bool _isOnline = false;
-  StreamSubscription<bool>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   final List<Widget> _tabs = [
     const InspectionsTab(),
@@ -40,16 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _setupConnectivityListener() {
-    _connectivityService.initialize();
-    _connectivitySubscription = _connectivityService.onConnectivityChanged.listen((isOnline) {
+    _connectivitySubscription = _connectivityService.onConnectivityChanged.listen((connectivityResult) {
       setState(() {
-        _isOnline = isOnline;
+        _isOnline = connectivityResult != ConnectivityResult.none;
       });
     });
     
-    _connectivityService.checkConnectivity().then((isOnline) {
+    _connectivityService.checkConnectivity().then((connectivityResult) {
       setState(() {
-        _isOnline = isOnline;
+        _isOnline = connectivityResult != ConnectivityResult.none;
       });
     });
   }
@@ -81,11 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.check_box),
-            label: 'Inspections',
+            label: 'Inspeções',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
-            label: 'Profile',
+            label: 'Vistorias',
           ),
         ],
       ),

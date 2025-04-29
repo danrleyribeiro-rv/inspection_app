@@ -7,7 +7,6 @@ import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/services/connectivity_service.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/rooms_list.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/landscape_view.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
@@ -34,7 +33,7 @@ class InspectionDetailScreen extends StatefulWidget {
 
 class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final _inspectionService = FirebaseInspectionService();
-  final _connectivityService = ConnectivityService();
+  final _connectivityService = Connectivity();
   final _importExportService = ImportExportService();
   final _firestore = FirebaseFirestore.instance;
 
@@ -45,7 +44,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Inspection? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
-  StreamSubscription<bool>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   double _completionPercentage = 0.0;
 
   int _selectedRoomIndex = -1;
@@ -67,16 +66,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   void _listenToConnectivity() {
-    _connectivityService.initialize();
     _connectivitySubscription =
-        _connectivityService.onConnectivityChanged.listen((isOnline) {
+        _connectivityService.onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
         setState(() {
-          _isOnline = isOnline;
+          _isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
+                      connectivityResult.contains(ConnectivityResult.mobile);
         });
 
         // Se voltamos a ficar online e temos um template pendente para aplicar
-        if (isOnline && _inspection != null && 
+        if (_isOnline && _inspection != null && 
             _inspection!.templateId != null && 
             _inspection!.isTemplated != true) {
           _checkAndApplyTemplate();
@@ -84,10 +83,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     });
 
-    _connectivityService.checkConnectivity().then((isOnline) {
+    _connectivityService.checkConnectivity().then((connectivityResult) {
       if (mounted) {
         setState(() {
-          _isOnline = isOnline;
+          _isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
+                      connectivityResult.contains(ConnectivityResult.mobile);
         });
       }
     });

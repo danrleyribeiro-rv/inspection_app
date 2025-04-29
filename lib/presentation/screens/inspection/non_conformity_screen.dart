@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/connectivity_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_form.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_list.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
@@ -29,7 +29,7 @@ class NonConformityScreen extends StatefulWidget {
 class _NonConformityScreenState extends State<NonConformityScreen>
     with SingleTickerProviderStateMixin {
   final _inspectionService = FirebaseInspectionService();
-  final _connectivityService = ConnectivityService();
+  final _connectivityService = Connectivity();
   late TabController _tabController;
 
   bool _isLoading = true;
@@ -47,10 +47,10 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _connectivityService.checkConnectivity().then((isOnline) {
+    _connectivityService.checkConnectivity().then((result) {
       if (mounted) {
         setState(() {
-          _isOffline = !isOnline;
+          _isOffline = result == ConnectivityResult.none;
         });
       }
     });

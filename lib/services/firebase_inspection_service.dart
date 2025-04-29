@@ -1,5 +1,6 @@
 // lib/services/firebase_inspection_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
@@ -22,16 +23,27 @@ class FirebaseInspectionService {
   }
 
   Future<void> _enableOfflinePersistence() async {
-    try {
+  try {
+    // Em plataformas móveis, persistência já está habilitada por padrão
+    // Portanto, apenas configuramos as Settings
+    if (!kIsWeb) {
+      _firestore.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+      print('Firestore configurado para persistência offline (mobile)');
+    } else {
+      // Em plataformas web, precisamos chamar enablePersistence explicitamente
       await _firestore.enablePersistence(const PersistenceSettings(
         synchronizeTabs: true,
       ));
-      print('Offline persistence enabled successfully');
-    } catch (e) {
-      print('Error enabling offline persistence: $e');
-      // The error may occur if persistence is already enabled or in unsupported environments
+      print('Firestore configurado para persistência offline (web)');
     }
+  } catch (e) {
+    print('Erro ao configurar persistência offline: $e');
+    // O erro pode ocorrer se a persistência já estiver habilitada ou em ambientes não suportados
   }
+}
 
   // SECTION: CONNECTIVITY MANAGEMENT
   // ===================================
@@ -114,60 +126,60 @@ class FirebaseInspectionService {
     }
   }
 
-// Método para reordenar ambientes
-Future<void> reorderRooms(String inspectionId, List<String> roomIds) async {
-  try {
-    // Usar uma batch para fazer múltiplas atualizações em uma transação
-    final batch = _firestore.batch();
-    
-    for (int i = 0; i < roomIds.length; i++) {
-      final roomRef = _firestore.collection('rooms').doc(roomIds[i]);
-      batch.update(roomRef, {'position': i});
+  // Método para reordenar ambientes
+  Future<void> reorderRooms(String inspectionId, List<String> roomIds) async {
+    try {
+      // Usar uma batch para fazer múltiplas atualizações em uma transação
+      final batch = _firestore.batch();
+      
+      for (int i = 0; i < roomIds.length; i++) {
+        final roomRef = _firestore.collection('rooms').doc(roomIds[i]);
+        batch.update(roomRef, {'position': i});
+      }
+      
+      await batch.commit();
+      print('Salas reordenadas com sucesso');
+    } catch (e) {
+      print('Erro ao reordenar salas: $e');
+      rethrow;
     }
-    
-    await batch.commit();
-    print('Salas reordenadas com sucesso');
-  } catch (e) {
-    print('Erro ao reordenar salas: $e');
-    rethrow;
   }
-}
 
   // Add room
-Future<Room> addRoom(String inspectionId, String name, {String? label, int? position}) async {
-  try {
-    // Obter próxima posição se não for fornecida
-    final nextPosition = position ?? await _getNextRoomPosition(inspectionId);
-    
-    final roomRef = _firestore.collection('rooms').doc();
-    
-    final roomData = {
-      'inspection_id': inspectionId,
-      'room_name': name,
-      'room_label': label,
-      'position': nextPosition,
-      'is_damaged': false,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    };
-    
-    await roomRef.set(roomData);
-    
-    return Room(
-      id: roomRef.id,
-      inspectionId: inspectionId,
-      position: nextPosition,
-      roomName: name,
-      roomLabel: label,
-      isDamaged: false,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-  } catch (e) {
-    print('Erro ao adicionar ambiente: $e');
-    rethrow;
+  Future<Room> addRoom(String inspectionId, String name, {String? label, int? position}) async {
+    try {
+      // Obter próxima posição se não for fornecida
+      final nextPosition = position ?? await _getNextRoomPosition(inspectionId);
+      
+      final roomRef = _firestore.collection('rooms').doc();
+      
+      final roomData = {
+        'inspection_id': inspectionId,
+        'room_name': name,
+        'room_label': label,
+        'position': nextPosition,
+        'is_damaged': false,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      
+      await roomRef.set(roomData);
+      
+      return Room(
+        id: roomRef.id,
+        inspectionId: inspectionId,
+        position: nextPosition,
+        roomName: name,
+        roomLabel: label,
+        isDamaged: false,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      print('Erro ao adicionar ambiente: $e');
+      rethrow;
+    }
   }
-}
 
   // Update room
   Future<void> updateRoom(Room room) async {
@@ -253,80 +265,80 @@ Future<Room> addRoom(String inspectionId, String name, {String? label, int? posi
     }
   }
 
-// Método para reordenar itens
-Future<void> reorderItems(String inspectionId, String roomId, List<String> itemIds) async {
-  try {
-    final batch = _firestore.batch();
-    
-    for (int i = 0; i < itemIds.length; i++) {
-      final itemRef = _firestore.collection('room_items').doc(itemIds[i]);
-      batch.update(itemRef, {'position': i});
+  // Método para reordenar itens
+  Future<void> reorderItems(String inspectionId, String roomId, List<String> itemIds) async {
+    try {
+      final batch = _firestore.batch();
+      
+      for (int i = 0; i < itemIds.length; i++) {
+        final itemRef = _firestore.collection('room_items').doc(itemIds[i]);
+        batch.update(itemRef, {'position': i});
+      }
+      
+      await batch.commit();
+      print('Itens reordenados com sucesso');
+    } catch (e) {
+      print('Erro ao reordenar itens: $e');
+      rethrow;
     }
-    
-    await batch.commit();
-    print('Itens reordenados com sucesso');
-  } catch (e) {
-    print('Erro ao reordenar itens: $e');
-    rethrow;
   }
-}
 
   // Add item
-Future<Item> addItem(String inspectionId, String roomId, String name, {String? label, int? position}) async {
-  try {
-    // Obter próxima posição se não for fornecida
-    int nextPosition;
-    if (position != null) {
-      nextPosition = position;
-    } else {
-      // Buscar a maior posição existente
-      final itemsSnapshot = await _firestore
-          .collection('room_items')
-          .where('inspection_id', isEqualTo: inspectionId)
-          .where('room_id', isEqualTo: roomId)
-          .orderBy('position', descending: true)
-          .limit(1)
-          .get();
-      
-      if (itemsSnapshot.docs.isEmpty) {
-        nextPosition = 0;
+  Future<Item> addItem(String inspectionId, String roomId, String name, {String? label, int? position}) async {
+    try {
+      // Obter próxima posição se não for fornecida
+      int nextPosition;
+      if (position != null) {
+        nextPosition = position;
       } else {
-        final lastPosition = itemsSnapshot.docs.first.data()['position'];
-        nextPosition = (lastPosition is int) ? lastPosition + 1 : 0;
+        // Buscar a maior posição existente
+        final itemsSnapshot = await _firestore
+            .collection('room_items')
+            .where('inspection_id', isEqualTo: inspectionId)
+            .where('room_id', isEqualTo: roomId)
+            .orderBy('position', descending: true)
+            .limit(1)
+            .get();
+        
+        if (itemsSnapshot.docs.isEmpty) {
+          nextPosition = 0;
+        } else {
+          final lastPosition = itemsSnapshot.docs.first.data()['position'];
+          nextPosition = (lastPosition is int) ? lastPosition + 1 : 0;
+        }
       }
+      
+      final itemRef = _firestore.collection('room_items').doc();
+      
+      final itemData = {
+        'inspection_id': inspectionId,
+        'room_id': roomId,
+        'item_name': name,
+        'item_label': label,
+        'position': nextPosition,
+        'is_damaged': false,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      
+      await itemRef.set(itemData);
+      
+      return Item(
+        id: itemRef.id,
+        inspectionId: inspectionId,
+        roomId: roomId,
+        position: nextPosition,
+        itemName: name,
+        itemLabel: label,
+        isDamaged: false,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      print('Erro ao adicionar item: $e');
+      rethrow;
     }
-    
-    final itemRef = _firestore.collection('room_items').doc();
-    
-    final itemData = {
-      'inspection_id': inspectionId,
-      'room_id': roomId,
-      'item_name': name,
-      'item_label': label,
-      'position': nextPosition,
-      'is_damaged': false,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    };
-    
-    await itemRef.set(itemData);
-    
-    return Item(
-      id: itemRef.id,
-      inspectionId: inspectionId,
-      roomId: roomId,
-      position: nextPosition,
-      itemName: name,
-      itemLabel: label,
-      isDamaged: false,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-  } catch (e) {
-    print('Erro ao adicionar item: $e');
-    rethrow;
   }
-}
 
   // Update item
   Future<void> updateItem(Item item) async {
@@ -402,96 +414,96 @@ Future<Item> addItem(String inspectionId, String roomId, String name, {String? l
     }
   }
 
-// Método para reordenar detalhes
-Future<void> reorderDetails(String inspectionId, String roomId, String itemId, List<String> detailIds) async {
-  try {
-    final batch = _firestore.batch();
-    
-    for (int i = 0; i < detailIds.length; i++) {
-      final detailRef = _firestore.collection('item_details').doc(detailIds[i]);
-      batch.update(detailRef, {'position': i});
+  // Método para reordenar detalhes
+  Future<void> reorderDetails(String inspectionId, String roomId, String itemId, List<String> detailIds) async {
+    try {
+      final batch = _firestore.batch();
+      
+      for (int i = 0; i < detailIds.length; i++) {
+        final detailRef = _firestore.collection('item_details').doc(detailIds[i]);
+        batch.update(detailRef, {'position': i});
+      }
+      
+      await batch.commit();
+      print('Detalhes reordenados com sucesso');
+    } catch (e) {
+      print('Erro ao reordenar detalhes: $e');
+      rethrow;
     }
-    
-    await batch.commit();
-    print('Detalhes reordenados com sucesso');
-  } catch (e) {
-    print('Erro ao reordenar detalhes: $e');
-    rethrow;
   }
-}
 
   // Add detail
-Future<Detail> addDetail(
-    String inspectionId,
-    String roomId,
-    String itemId,
-    String name, {
-    String? value,
-    String? type,
-    List<String>? options,
-    int? position
-}) async {
-  try {
-    // Obter próxima posição se não for fornecida
-    int nextPosition;
-    if (position != null) {
-      nextPosition = position;
-    } else {
-      // Buscar a maior posição existente
-      final detailsSnapshot = await _firestore
-          .collection('item_details')
-          .where('inspection_id', isEqualTo: inspectionId)
-          .where('room_id', isEqualTo: roomId)
-          .where('room_item_id', isEqualTo: itemId)
-          .orderBy('position', descending: true)
-          .limit(1)
-          .get();
-      
-      if (detailsSnapshot.docs.isEmpty) {
-        nextPosition = 0;
+  Future<Detail> addDetail(
+      String inspectionId,
+      String roomId,
+      String itemId,
+      String name, {
+      String? value,
+      String? type,
+      List<String>? options,
+      int? position
+  }) async {
+    try {
+      // Obter próxima posição se não for fornecida
+      int nextPosition;
+      if (position != null) {
+        nextPosition = position;
       } else {
-        final lastPosition = detailsSnapshot.docs.first.data()['position'];
-        nextPosition = (lastPosition is int) ? lastPosition + 1 : 0;
+        // Buscar a maior posição existente
+        final detailsSnapshot = await _firestore
+            .collection('item_details')
+            .where('inspection_id', isEqualTo: inspectionId)
+            .where('room_id', isEqualTo: roomId)
+            .where('room_item_id', isEqualTo: itemId)
+            .orderBy('position', descending: true)
+            .limit(1)
+            .get();
+        
+        if (detailsSnapshot.docs.isEmpty) {
+          nextPosition = 0;
+        } else {
+          final lastPosition = detailsSnapshot.docs.first.data()['position'];
+          nextPosition = (lastPosition is int) ? lastPosition + 1 : 0;
+        }
       }
+      
+      final detailRef = _firestore.collection('item_details').doc();
+      
+      final detailData = {
+        'inspection_id': inspectionId,
+        'room_id': roomId,
+        'room_item_id': itemId,
+        'detail_name': name,
+        'detail_value': value,
+        'position': nextPosition,
+        'is_damaged': false,
+        'type': type ?? 'text',  // Padrão para 'text' se não especificado
+        'options': options,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      
+      await detailRef.set(detailData);
+      
+      return Detail(
+        id: detailRef.id,
+        inspectionId: inspectionId,
+        roomId: roomId,
+        itemId: itemId,
+        position: nextPosition,
+        detailName: name,
+        detailValue: value,
+        isDamaged: false,
+        type: type ?? 'text',
+        options: options,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      print('Erro ao adicionar detalhe: $e');
+      rethrow;
     }
-    
-    final detailRef = _firestore.collection('item_details').doc();
-    
-    final detailData = {
-      'inspection_id': inspectionId,
-      'room_id': roomId,
-      'room_item_id': itemId,
-      'detail_name': name,
-      'detail_value': value,
-      'position': nextPosition,
-      'is_damaged': false,
-      'type': type ?? 'text',  // Padrão para 'text' se não especificado
-      'options': options,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    };
-    
-    await detailRef.set(detailData);
-    
-    return Detail(
-      id: detailRef.id,
-      inspectionId: inspectionId,
-      roomId: roomId,
-      itemId: itemId,
-      position: nextPosition,
-      detailName: name,
-      detailValue: value,
-      isDamaged: false,
-      type: type ?? 'text',
-      options: options,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-  } catch (e) {
-    print('Erro ao adicionar detalhe: $e');
-    rethrow;
   }
-}
 
   // Update detail
   Future<void> updateDetail(Detail detail) async {
@@ -530,7 +542,37 @@ Future<Detail> addDetail(
   // SECTION: TEMPLATE OPERATIONS
   // ===========================
 
-  // Apply template to an inspection - IMPROVED METHOD
+  // Verifica se o template já foi aplicado à inspeção
+  Future<bool> isTemplateApplied(String inspectionId) async {
+    try {
+      final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
+      
+      if (!inspectionDoc.exists) return false;
+      
+      final data = inspectionDoc.data();
+      return data != null && data['is_templated'] == true;
+    } catch (e) {
+      print('Error checking if template is applied: $e');
+      return false;
+    }
+  }
+
+  // Marca a inspeção como tendo template aplicado (sem aplicar o template)
+  Future<bool> markTemplateAsApplied(String inspectionId) async {
+    try {
+      await _firestore.collection('inspections').doc(inspectionId).update({
+        'is_templated': true,
+        'status': 'in_progress',
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      print('Error marking template as applied: $e');
+      return false;
+    }
+  }
+
+  // Aplica template a uma inspeção - MÉTODO MELHORADO
   Future<bool> applyTemplateToInspection(String inspectionId, String templateId) async {
     try {
       print('Starting template $templateId application to inspection $inspectionId');
@@ -543,8 +585,8 @@ Future<Detail> addDetail(
         print('This inspection already has a template applied.');
         return true; // Already applied, return success
       }
-      
-      // Get template data
+
+      // Get cached template data or fetch from server
       final templateDoc = await _firestore.collection('templates').doc(templateId).get();
       if (!templateDoc.exists) {
         print('Template not found: $templateId');
@@ -568,151 +610,184 @@ Future<Detail> addDetail(
 
       print('Processing ${roomsData.length} rooms from template');
       
+      // Batch para acelerar transações
+      final batch = _firestore.batch();
+      
       // Variable to track if at least one room was created
       bool successfulCreation = false;
+      List<Map<String, dynamic>> pendingRooms = [];
+      List<Map<String, dynamic>> pendingItems = [];
+      List<Map<String, dynamic>> pendingDetails = [];
       
-      // Process template rooms
+      // First prepare all data structures
+      int roomPosition = 0;
       for (var roomData in roomsData) {
         // Extract room name with proper handling for different formats
         String roomName = _extractStringValueFromTemplate(roomData, 'name', defaultValue: 'Unnamed room');
         String? roomDescription = _extractStringValueFromTemplate(roomData, 'description');
         
-        print('Creating room: $roomName');
+        print('Preparing room: $roomName');
         
-        try {
-          // Create room
-          final roomDoc = await _firestore.collection('rooms').add({
+        // Create room document ref
+        final roomRef = _firestore.collection('rooms').doc();
+        final roomId = roomRef.id;
+        
+        // Prepare room data
+        final newRoomData = {
+          'doc_ref': roomRef,
+          'data': {
             'inspection_id': inspectionId,
             'room_name': roomName,
             'room_label': roomDescription,
-            'position': 0,
+            'position': roomPosition++,
             'is_damaged': false,
             'created_at': FieldValue.serverTimestamp(),
             'updated_at': FieldValue.serverTimestamp(),
-          });
+          }
+        };
+        
+        pendingRooms.add(newRoomData);
+        successfulCreation = true;
+        
+        // Process room items
+        List<dynamic> items = _extractArrayFromTemplate(roomData, 'items');
+        print('Processing ${items.length} items for room $roomName');
+        
+        int itemPosition = 0;
+        for (var itemData in items) {
+          var fields = _extractFieldsFromTemplate(itemData);
+          if (fields == null) continue;
           
-          final roomId = roomDoc.id;
-          print('Room created with ID: $roomId');
-          successfulCreation = true;
+          // Extract item name and description
+          String itemName = _extractStringValueFromTemplate(fields, 'name', defaultValue: 'Unnamed item');
+          String? itemDescription = _extractStringValueFromTemplate(fields, 'description');
           
-          // Process room items
-          List<dynamic> items = _extractArrayFromTemplate(roomData, 'items');
-          print('Processing ${items.length} items for room $roomName');
+          print('Preparing item: $itemName');
           
-          int itemPosition = 0;
-          for (var itemData in items) {
-            var fields = _extractFieldsFromTemplate(itemData);
-            if (fields == null) continue;
+          // Create item document ref
+          final itemRef = _firestore.collection('room_items').doc();
+          final itemId = itemRef.id;
+          
+          // Prepare item data
+          final newItemData = {
+            'doc_ref': itemRef,
+            'room_id': roomId,
+            'data': {
+              'inspection_id': inspectionId,
+              'room_id': roomId,
+              'item_name': itemName,
+              'item_label': itemDescription ?? '',
+              'position': itemPosition++,
+              'is_damaged': false,
+              'created_at': FieldValue.serverTimestamp(),
+              'updated_at': FieldValue.serverTimestamp(),
+            }
+          };
+          
+          pendingItems.add(newItemData);
+          
+          // Process item details
+          List<dynamic> details = _extractArrayFromTemplate(fields, 'details');
+          print('Processing ${details.length} details for item $itemName');
+
+          int detailPosition = 0;
+          for (var detailData in details) {
+            var detailFields = _extractFieldsFromTemplate(detailData);
+            if (detailFields == null) continue;
             
-            // Extract item name and description
-            String itemName = _extractStringValueFromTemplate(fields, 'name', defaultValue: 'Unnamed item');
-            String? itemDescription = _extractStringValueFromTemplate(fields, 'description');
+            // Extract detail name
+            String detailName = _extractStringValueFromTemplate(detailFields, 'name', defaultValue: 'Unnamed detail');
             
-            print('Creating item: $itemName');
+            // Extract detail type and options
+            String detailType = 'text';  // Default type
+            List<String> options = [];
             
-            try {
-              // Create item
-              final itemDoc = await _firestore.collection('room_items').add({
+            if (detailFields.containsKey('type')) {
+              detailType = _extractStringValueFromTemplate(detailFields, 'type', defaultValue: 'text');
+            }
+            
+            if (detailType == 'select' && detailFields.containsKey('options')) {
+              // Extract options array
+              var optionsArray = _extractArrayFromTemplate(detailFields, 'options');
+              
+              for (var option in optionsArray) {
+                if (option is Map && option.containsKey('stringValue')) {
+                  options.add(option['stringValue']);
+                } else if (option is String) {
+                  options.add(option);
+                }
+              }
+              
+              // Check if there's an optionsText field as alternative
+              if (options.isEmpty && detailFields.containsKey('optionsText')) {
+                String optionsText = _extractStringValueFromTemplate(detailFields, 'optionsText', defaultValue: '');
+                if (optionsText.isNotEmpty) {
+                  options = optionsText.split(',').map((e) => e.trim()).toList();
+                }
+              }
+            }
+            
+            // Use the first option as the initial value, if available
+            String? initialValue = options.isNotEmpty ? options[0] : null;
+            
+            print('Preparing detail: $detailName with type: $detailType');
+            
+            // Create detail document ref
+            final detailRef = _firestore.collection('item_details').doc();
+            
+            // Prepare detail data
+            final newDetailData = {
+              'doc_ref': detailRef,
+              'data': {
                 'inspection_id': inspectionId,
                 'room_id': roomId,
-                'item_name': itemName,
-                'item_label': itemDescription ?? '',
-                'position': itemPosition++,
+                'room_item_id': itemId,
+                'detail_name': detailName,
+                'detail_value': initialValue,
+                'position': detailPosition++,
                 'is_damaged': false,
+                'type': detailType,
+                'options': options.isNotEmpty ? options : null,
                 'created_at': FieldValue.serverTimestamp(),
                 'updated_at': FieldValue.serverTimestamp(),
-              });
-              
-              final itemId = itemDoc.id;
-              print('Item created with ID: $itemId');
-              
-              // Process item details
-                List<dynamic> details = _extractArrayFromTemplate(fields, 'details');
-                print('Processing ${details.length} details for item $itemName');
-
-                int detailPosition = 0;
-                for (var detailData in details) {
-                  var detailFields = _extractFieldsFromTemplate(detailData);
-                  if (detailFields == null) continue;
-                  
-                  // Extract detail name
-                  String detailName = _extractStringValueFromTemplate(detailFields, 'name', defaultValue: 'Unnamed detail');
-                  
-                  // Extract detail type and options
-                  String detailType = 'text';  // Default type
-                  List<String> options = [];
-                  
-                  if (detailFields.containsKey('type')) {
-                    detailType = _extractStringValueFromTemplate(detailFields, 'type', defaultValue: 'text');
-                  }
-                  
-                  if (detailType == 'select' && detailFields.containsKey('options')) {
-                    // Extract options array
-                    var optionsArray = _extractArrayFromTemplate(detailFields, 'options');
-                    
-                    for (var option in optionsArray) {
-                      if (option is Map && option.containsKey('stringValue')) {
-                        options.add(option['stringValue']);
-                      } else if (option is String) {
-                        options.add(option);
-                      }
-                    }
-                    
-                    // Check if there's an optionsText field as alternative
-                    if (options.isEmpty && detailFields.containsKey('optionsText')) {
-                      String optionsText = _extractStringValueFromTemplate(detailFields, 'optionsText', defaultValue: '');
-                      if (optionsText.isNotEmpty) {
-                        options = optionsText.split(',').map((e) => e.trim()).toList();
-                      }
-                    }
-                  }
-                  
-                  // Use the first option as the initial value, if available
-                  String? initialValue = options.isNotEmpty ? options[0] : null;
-                  
-                  print('Creating detail: $detailName with type: $detailType');
-                  
-                  try {
-                    await _firestore.collection('item_details').add({
-                      'inspection_id': inspectionId,
-                      'room_id': roomId,
-                      'room_item_id': itemId,
-                      'detail_name': detailName,
-                      'detail_value': initialValue,
-                      'position': detailPosition++,
-                      'is_damaged': false,
-                      'type': detailType,
-                      'options': options.isNotEmpty ? options : null,
-                      'created_at': FieldValue.serverTimestamp(),
-                      'updated_at': FieldValue.serverTimestamp(),
-                    });
-                  } catch (e) {
-                    print('Error creating detail $detailName: $e');
-                  }
-                }
-            } catch (e) {
-              print('Error creating item $itemName: $e');
-            }
+              }
+            };
+            
+            pendingDetails.add(newDetailData);
           }
-        } catch (e) {
-          print('Error creating room $roomName: $e');
         }
       }
       
-      // Mark inspection as templated only if at least one room was created
+      // Now execute batches (Firebase Firestore has limit of 500 operations per batch)
+      // Process rooms
+      for (var roomData in pendingRooms) {
+        batch.set(roomData['doc_ref'], roomData['data']);
+      }
+      
+      // Process items
+      for (var itemData in pendingItems) {
+        batch.set(itemData['doc_ref'], itemData['data']);
+      }
+      
+      // Process details
+      for (var detailData in pendingDetails) {
+        batch.set(detailData['doc_ref'], detailData['data']);
+      }
+      
+      // Mark inspection as templated
       if (successfulCreation) {
-        await _firestore.collection('inspections').doc(inspectionId).update({
+        batch.update(_firestore.collection('inspections').doc(inspectionId), {
           'is_templated': true,
           'status': 'in_progress',
           'updated_at': FieldValue.serverTimestamp(),
         });
-        
-        print('Inspection marked as templated successfully');
-        return true;
-      } else {
-        print('No room was created. Template not applied.');
-        return false;
       }
+      
+      // Commit all operations
+      await batch.commit();
+      
+      print('Template applied successfully to inspection $inspectionId');
+      return true;
     } catch (e) {
       print('Error applying template to inspection: $e');
       return false;
@@ -795,13 +870,58 @@ Future<Detail> addDetail(
           .orderBy('created_at', descending: true)
           .get();
 
-      return querySnapshot.docs.map((doc) {
+      final nonConformities = querySnapshot.docs.map((doc) {
         final data = doc.data();
         return {
           ...data,
           'id': doc.id,
         };
       }).toList();
+      
+      // Adicionar informações dos itens relacionados
+      for (var nc in nonConformities) {
+        if (nc['room_id'] != null) {
+          try {
+            // Buscar informações da sala
+            final roomDoc = await _firestore.collection('rooms').doc(nc['room_id']).get();
+if (roomDoc.exists) {
+              nc['rooms'] = {
+                'id': roomDoc.id,
+                'room_name': roomDoc.data()?['room_name'],
+                ...roomDoc.data() ?? {}
+              };
+            }
+            
+            // Buscar informações do item
+            if (nc['item_id'] != null) {
+              final itemDoc = await _firestore.collection('room_items').doc(nc['item_id']).get();
+              if (itemDoc.exists) {
+                nc['room_items'] = {
+                  'id': itemDoc.id,
+                  'item_name': itemDoc.data()?['item_name'],
+                  ...itemDoc.data() ?? {}
+                };
+              }
+            }
+            
+            // Buscar informações do detalhe
+            if (nc['detail_id'] != null) {
+              final detailDoc = await _firestore.collection('item_details').doc(nc['detail_id']).get();
+              if (detailDoc.exists) {
+                nc['item_details'] = {
+                  'id': detailDoc.id,
+                  'detail_name': detailDoc.data()?['detail_name'],
+                  ...detailDoc.data() ?? {}
+                };
+              }
+            }
+          } catch (e) {
+            print('Erro ao buscar informações relacionadas à não conformidade: $e');
+          }
+        }
+      }
+      
+      return nonConformities;
     } catch (e) {
       print('Error getting non-conformities: $e');
       return [];
@@ -813,15 +933,31 @@ Future<Detail> addDetail(
     try {
       if (nonConformity.containsKey('id') && nonConformity['id'] != null) {
         // Update existing
+        final docId = nonConformity['id'];
+        
+        // Remove related objects that shouldn't be saved
+        Map<String, dynamic> dataToSave = Map.from(nonConformity);
+        dataToSave.remove('rooms');
+        dataToSave.remove('room_items');
+        dataToSave.remove('item_details');
+        dataToSave.remove('id');
+        
         await _firestore
             .collection('non_conformities')
-            .doc(nonConformity['id'])
-            .update(nonConformity);
+            .doc(docId)
+            .update(dataToSave);
       } else {
         // Add new
+        // Remove related objects that shouldn't be saved
+        Map<String, dynamic> dataToSave = Map.from(nonConformity);
+        dataToSave.remove('rooms');
+        dataToSave.remove('room_items');
+        dataToSave.remove('item_details');
+        dataToSave.remove('id');
+        
         final docRef = await _firestore
             .collection('non_conformities')
-            .add(nonConformity);
+            .add(dataToSave);
         
         nonConformity['id'] = docRef.id;
       }
@@ -1027,120 +1163,120 @@ Future<Detail> addDetail(
     }
   }
   
-Future<int> _getNextRoomPosition(String inspectionId) async {
-  try {
-    final querySnapshot = await _firestore
-        .collection('rooms')
-        .where('inspection_id', isEqualTo: inspectionId)
-        .orderBy('position', descending: true)
-        .limit(1)
-        .get();
-    
-    if (querySnapshot.docs.isEmpty) {
+  Future<int> _getNextRoomPosition(String inspectionId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('rooms')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        return 0;
+      }
+      
+      final lastPosition = querySnapshot.docs.first.data()['position'] is int
+          ? querySnapshot.docs.first.data()['position']
+          : 0;
+      
+      return lastPosition + 1;
+    } catch (e) {
+      print('Erro ao obter próxima posição de ambiente: $e');
       return 0;
     }
-    
-    final lastPosition = querySnapshot.docs.first.data()['position'] is int
-        ? querySnapshot.docs.first.data()['position']
-        : 0;
-    
-    return lastPosition + 1;
-  } catch (e) {
-    print('Erro ao obter próxima posição de ambiente: $e');
-    return 0;
   }
-}
 
-// Método para obter a próxima posição disponível para um item
-Future<int> _getNextItemPosition(String inspectionId, String roomId) async {
-  try {
-    final querySnapshot = await _firestore
-        .collection('room_items')
-        .where('inspection_id', isEqualTo: inspectionId)
-        .where('room_id', isEqualTo: roomId)
-        .orderBy('position', descending: true)
-        .limit(1)
-        .get();
-    
-    if (querySnapshot.docs.isEmpty) {
+  // Método para obter a próxima posição disponível para um item
+  Future<int> _getNextItemPosition(String inspectionId, String roomId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('room_items')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: roomId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        return 0;
+      }
+      
+      final lastPosition = querySnapshot.docs.first.data()['position'] is int
+          ? querySnapshot.docs.first.data()['position']
+          : 0;
+      
+      return lastPosition + 1;
+    } catch (e) {
+      print('Erro ao obter próxima posição de item: $e');
       return 0;
     }
-    
-    final lastPosition = querySnapshot.docs.first.data()['position'] is int
-        ? querySnapshot.docs.first.data()['position']
-        : 0;
-    
-    return lastPosition + 1;
-  } catch (e) {
-    print('Erro ao obter próxima posição de item: $e');
-    return 0;
   }
-}
 
-// Método para obter a próxima posição disponível para um detalhe
-Future<int> _getNextDetailPosition(String inspectionId, String roomId, String itemId) async {
-  try {
-    final querySnapshot = await _firestore
-        .collection('item_details')
-        .where('inspection_id', isEqualTo: inspectionId)
-        .where('room_id', isEqualTo: roomId)
-        .where('room_item_id', isEqualTo: itemId)
-        .orderBy('position', descending: true)
-        .limit(1)
-        .get();
-    
-    if (querySnapshot.docs.isEmpty) {
+  // Método para obter a próxima posição disponível para um detalhe
+  Future<int> _getNextDetailPosition(String inspectionId, String roomId, String itemId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('item_details')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: roomId)
+          .where('room_item_id', isEqualTo: itemId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        return 0;
+      }
+      
+      final lastPosition = querySnapshot.docs.first.data()['position'] is int
+          ? querySnapshot.docs.first.data()['position']
+          : 0;
+      
+      return lastPosition + 1;
+    } catch (e) {
+      print('Erro ao obter próxima posição de detalhe: $e');
       return 0;
     }
-    
-    final lastPosition = querySnapshot.docs.first.data()['position'] is int
-        ? querySnapshot.docs.first.data()['position']
-        : 0;
-    
-    return lastPosition + 1;
-  } catch (e) {
-    print('Erro ao obter próxima posição de detalhe: $e');
-    return 0;
   }
-}
 
   // SECTION: CALCULATIONS AND METRICS
   // =========================
 
   // Calculate completion percentage of an inspection
-Future<double> calculateCompletionPercentage(String inspectionId) async {
-  try {
-    // Contadores para total e preenchidos
-    int totalDetails = 0;
-    int filledDetails = 0;
-    
-    // Obter todos os detalhes da inspeção diretamente
-    final detailsSnapshot = await _firestore
-        .collection('item_details')
-        .where('inspection_id', isEqualTo: inspectionId)
-        .get();
-    
-    if (detailsSnapshot.docs.isEmpty) {
-      return 0.0; // Se não houver detalhes, progresso é 0
-    }
-    
-    totalDetails = detailsSnapshot.docs.length;
-    
-    // Contar quantos detalhes estão preenchidos
-    for (var doc in detailsSnapshot.docs) {
-      final data = doc.data();
-      if (data['detail_value'] != null && data['detail_value'].toString().isNotEmpty) {
-        filledDetails++;
+  Future<double> calculateCompletionPercentage(String inspectionId) async {
+    try {
+      // Contadores para total e preenchidos
+      int totalDetails = 0;
+      int filledDetails = 0;
+      
+      // Obter todos os detalhes da inspeção diretamente
+      final detailsSnapshot = await _firestore
+          .collection('item_details')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .get();
+      
+      if (detailsSnapshot.docs.isEmpty) {
+        return 0.0; // Se não houver detalhes, progresso é 0
       }
+      
+      totalDetails = detailsSnapshot.docs.length;
+      
+      // Contar quantos detalhes estão preenchidos
+      for (var doc in detailsSnapshot.docs) {
+        final data = doc.data();
+        if (data['detail_value'] != null && data['detail_value'].toString().isNotEmpty) {
+          filledDetails++;
+        }
+      }
+      
+      print('Total de detalhes: $totalDetails, Preenchidos: $filledDetails');
+      
+      // Calcular a porcentagem
+      return totalDetails > 0 ? filledDetails / totalDetails : 0.0;
+    } catch (e) {
+      print('Erro ao calcular porcentagem de conclusão: $e');
+      return 0.0;
     }
-    
-    print('Total de detalhes: $totalDetails, Preenchidos: $filledDetails');
-    
-    // Calcular a porcentagem
-    return totalDetails > 0 ? filledDetails / totalDetails : 0.0;
-  } catch (e) {
-    print('Erro ao calcular porcentagem de conclusão: $e');
-    return 0.0;
   }
-}
 }

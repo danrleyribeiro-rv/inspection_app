@@ -20,25 +20,19 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _inspections = [];
-  bool _isOnline = true;
+  bool _isOnline = false;
   double progress = 0.0;
+  final Connectivity _connectivity = Connectivity();
 
   @override
   void initState() {
     super.initState();
-    _checkConnectivity();
+    _initConnectivity();
     _loadInspections();
-    
-    // Monitorar mudanças de conectividade
-    Connectivity().onConnectivityChanged.listen((result) {
-      setState(() {
-        _isOnline = result != ConnectivityResult.none;
-      });
-    });
   }
-  
-  Future<void> _checkConnectivity() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
+
+  Future<void> _initConnectivity() async {
+    final connectivityResult = await _connectivity.checkConnectivity();
     setState(() {
       _isOnline = connectivityResult != ConnectivityResult.none;
     });
@@ -101,18 +95,39 @@ class _InspectionsTabState extends State<InspectionsTab> {
         title: const Text('Vistorias'),
         backgroundColor: const Color(0xFF1E293B), // Slate app bar color
         actions: [
-          // Indicador de status online/offline
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: _isOnline ? Colors.green : Colors.red,
-              borderRadius: BorderRadius.circular(12),
+          StreamBuilder<bool>(
+            stream: _connectivity.onConnectivityChanged.map(
+              (results) => results != ConnectivityResult.none,
             ),
-            child: Text(
-              _isOnline ? 'Online' : 'Offline',
-              style: const TextStyle(fontSize: 12),
-            ),
+            initialData: _isOnline,
+            builder: (context, snapshot) {
+              final isOnline = snapshot.data ?? false;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: isOnline ? Colors.green : Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isOnline ? Icons.wifi : Icons.wifi_off,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isOnline ? 'Online' : 'Offline',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -189,7 +204,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    _buildStatusChip(inspection['status']),
+                                    const SizedBox(width: 8), // Add spacing
+                                    Flexible(
+                                      child: _buildStatusChip(
+                                          inspection['status']),
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
@@ -212,7 +231,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                     ),
                                   ],
                                 ),
-
                                 const SizedBox(height: 12),
                                 const Text(
                                   'Progress:',
@@ -221,20 +239,25 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                 ),
                                 const SizedBox(height: 4),
                                 FutureBuilder<double>(
-                                  future: _inspectionService.calculateCompletionPercentage(inspection['id']),
+                                  future: _inspectionService
+                                      .calculateCompletionPercentage(
+                                          inspection['id']),
                                   builder: (context, snapshot) {
                                     final percentage = snapshot.data ?? 0.0;
                                     return Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         LinearProgressIndicator(
                                           value: percentage,
                                           backgroundColor: Colors.grey[300],
-                                          valueColor: AlwaysStoppedAnimation<Color>(
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
                                             Theme.of(context).primaryColor,
                                           ),
                                           minHeight: 8,
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
@@ -256,13 +279,17 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                         inspection['status'] == 'in_progress')
                                       ElevatedButton(
                                         onPressed: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) => InspectionDetailScreen(
-                                                inspectionId: inspection['id'],
-                                              ),
-                                            ),
-                                          ).then((_) => _loadInspections());
+                                          Navigator.of(context)
+                                              .push(
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      InspectionDetailScreen(
+                                                    inspectionId:
+                                                        inspection['id'],
+                                                  ),
+                                                ),
+                                              )
+                                              .then((_) => _loadInspections());
                                         },
                                         child: Text(
                                           inspection['status'] == 'pending'

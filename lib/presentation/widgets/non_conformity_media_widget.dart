@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:inspection_app/services/connectivity_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 
 class NonConformityMediaWidget extends StatefulWidget {
@@ -36,7 +36,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   bool _isOnline = false;
   final _storage = FirebaseService().storage;
   final _firestore = FirebaseService().firestore;
-  final _connectivityService = ConnectivityService();
+  final _connectivityService = Connectivity();
   final _uuid = Uuid();
 
   @override
@@ -52,10 +52,11 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   }
 
   Future<void> _checkConnectivity() async {
-    final isOnline = await _connectivityService.checkConnectivity();
+    final connectivityResult = await _connectivityService.checkConnectivity();
     if (mounted) {
       setState(() {
-        _isOnline = isOnline;
+        _isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
+                    connectivityResult.contains(ConnectivityResult.mobile);
       });
     }
   }

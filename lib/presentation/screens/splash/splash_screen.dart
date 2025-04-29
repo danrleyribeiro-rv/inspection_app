@@ -1,8 +1,8 @@
 // lib/presentation/screens/splash/splash_screen.dart
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/connectivity_service.dart';
 import 'dart:async';
 
 class SplashScreen extends StatefulWidget {
@@ -16,7 +16,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late AnimationController _animationController;
   late Animation<double> _animation;
   final _auth = FirebaseService().auth;
-  final _connectivityService = ConnectivityService();
+  final _connectivityService = Connectivity();
   bool _isOnline = false;
   
   @override
@@ -47,7 +47,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
   
   Future<void> _checkConnectivityAndProceed() async {
-    _isOnline = await _connectivityService.checkConnectivity();
+    final connectivityResult = await _connectivityService.checkConnectivity();
+    _isOnline = connectivityResult != ConnectivityResult.none;
     
     // Pequeno atraso para mostrar animação
     await Future.delayed(const Duration(seconds: 2));
@@ -130,7 +131,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             FadeTransition(
               opacity: _animation,
               child: StreamBuilder<bool>(
-                stream: _connectivityService.onConnectivityChanged,
+                stream: _connectivityService.onConnectivityChanged.map(
+                  (results) => results.any((result) => result != ConnectivityResult.none),
+                ),
                 initialData: _isOnline,
                 builder: (context, snapshot) {
                   final isOnline = snapshot.data ?? false;
