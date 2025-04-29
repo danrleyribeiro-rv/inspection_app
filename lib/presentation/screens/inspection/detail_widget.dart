@@ -94,10 +94,10 @@ class _DetailWidgetState extends State<DetailWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.zero,
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(0),
+        borderRadius: BorderRadius.zero,  // Remove o arredondamento das bordas laterais
         side: BorderSide(
           color: _isDamaged ? Colors.red : Colors.grey.shade300,
           width: _isDamaged ? 2 : 1,
@@ -109,7 +109,7 @@ class _DetailWidgetState extends State<DetailWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
                   if (_isDamaged)
@@ -123,6 +123,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     child: Text(
                       widget.detail.detailName,
                       style: TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: _isDamaged ? Colors.red : null,
                       ),
@@ -174,7 +175,7 @@ class _DetailWidgetState extends State<DetailWidget> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -194,19 +195,50 @@ class _DetailWidgetState extends State<DetailWidget> {
                     ],
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
-                  // Value field
-                  TextFormField(
-                    controller: _valueController,
-                    decoration: const InputDecoration(
-                      labelText: 'Value',
-                      border: OutlineInputBorder(),
+                  // Value field with conditional dropdown
+                  if (widget.detail.type == 'select' && 
+                      widget.detail.options != null && 
+                      widget.detail.options!.isNotEmpty) 
+                  ...[
+                    // Dropdown for select type
+                    DropdownButtonFormField<String>(
+                      value: _valueController.text.isNotEmpty ? _valueController.text : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Value',
+                        border: OutlineInputBorder(),
+                        hintText: 'Select a value',
+                      ),
+                      items: widget.detail.options!.map((option) {
+                        return DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(option),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _valueController.text = value;
+                          });
+                          _updateDetail();
+                        }
+                      },
                     ),
-                    onChanged: (_) => _updateDetail(),
-                  ),
+                  ] else ...[
+                    // Regular text field for other types
+                    TextFormField(
+                      controller: _valueController,
+                      decoration: const InputDecoration(
+                        labelText: 'Value',
+                        border: OutlineInputBorder(),
+                        hintText: 'Enter a value',
+                      ),
+                      onChanged: (_) => _updateDetail(),
+                    ),
+                  ],
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
                   // Observation field
                   TextFormField(
@@ -220,7 +252,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     onChanged: (_) => _updateDetail(),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
                   // Media handling
                   if (widget.detail.id != null &&

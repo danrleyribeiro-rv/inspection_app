@@ -1,4 +1,4 @@
-// lib/presentation/widgets/room_widget.dart
+// lib/presentation/screens/inspection/room_widget.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
@@ -11,7 +11,7 @@ class RoomWidget extends StatefulWidget {
   final Room room;
   final Function(Room) onRoomUpdated;
   final Function(String) onRoomDeleted;
-  final Function(Room) onRoomDuplicated; // Add duplicate functionality
+  final Function(Room) onRoomDuplicated; 
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
 
@@ -35,7 +35,6 @@ class _RoomWidgetState extends State<RoomWidget> {
   bool _isLoading = true;
   int _expandedItemIndex = -1;
   final TextEditingController _observationController = TextEditingController();
-  late bool _isDamaged;
   Timer? _debounce;
   ScrollController? _scrollController;
 
@@ -44,7 +43,6 @@ class _RoomWidgetState extends State<RoomWidget> {
     super.initState();
     _loadItems();
     _observationController.text = widget.room.observation ?? '';
-    _isDamaged = widget.room.isDamaged ?? false;
     _scrollController = ScrollController();
   }
 
@@ -105,10 +103,9 @@ class _RoomWidgetState extends State<RoomWidget> {
         observation: _observationController.text.isEmpty
             ? null
             : _observationController.text,
-        isDamaged: _isDamaged,
         updatedAt: DateTime.now(),
       );
-widget.onRoomUpdated(updatedRoom);
+      widget.onRoomUpdated(updatedRoom);
     });
   }
 
@@ -278,13 +275,15 @@ widget.onRoomUpdated(updatedRoom);
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.zero,
-      elevation: 1,
+      // Remova a margem horizontal, mantendo apenas a margem inferior
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      // Remova o arredondamento das bordas superior e inferior
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(0),
+        borderRadius: BorderRadius.zero,
         side: BorderSide(
-          color: _isDamaged ? Colors.red : Colors.grey.shade300,
-          width: _isDamaged ? 2 : 1,
+          color: Colors.grey.shade300,
+          width: 1,
         ),
       ),
       child: Column(
@@ -292,7 +291,7 @@ widget.onRoomUpdated(updatedRoom);
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
                   Expanded(
@@ -334,27 +333,10 @@ widget.onRoomUpdated(updatedRoom);
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _isDamaged,
-                        onChanged: (value) {
-                          setState(() {
-                            _isDamaged = value ?? false;
-                          });
-                          _updateRoom();
-                        },
-                      ),
-                      const Text('Cômodo danificado'),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
                   TextFormField(
                     controller: _observationController,
                     decoration: const InputDecoration(
@@ -366,7 +348,7 @@ widget.onRoomUpdated(updatedRoom);
                     onChanged: (_) => _updateRoom(),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
                   // Item list
                   Row(
@@ -375,7 +357,7 @@ widget.onRoomUpdated(updatedRoom);
                       const Text(
                         'Itens',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addItem,
@@ -387,7 +369,7 @@ widget.onRoomUpdated(updatedRoom);
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_items.isEmpty)

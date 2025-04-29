@@ -24,7 +24,8 @@ class RoomsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      // Remova o padding horizontal, mantendo apenas o vertical se necessário
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 0),
       itemCount: rooms.length,
       itemBuilder: (context, index) {
         final room = rooms[index];

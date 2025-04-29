@@ -1,4 +1,4 @@
-// lib/models/detail.dart
+// lib/models/detail.dart (modificado)
 class Detail {
   final String? id; 
   final String inspectionId;
@@ -13,6 +13,8 @@ class Detail {
   final List<String>? tags;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? type;  // Tipo do detalhe (text, select, number, boolean)
+  final List<String>? options;  // Opções para o tipo select
 
   Detail({
     this.id,
@@ -27,10 +29,25 @@ class Detail {
     this.isDamaged,
     this.tags,
     this.createdAt,
-    this.updatedAt
+    this.updatedAt,
+    this.type,
+    this.options
   });
 
   factory Detail.fromJson(Map<String, dynamic> json) {
+    List<String>? parseOptions(dynamic optionsData) {
+      if (optionsData == null) return null;
+      
+      if (optionsData is List) {
+        return List<String>.from(optionsData);
+      } else if (optionsData is String) {
+        // Se for uma string separada por vírgulas
+        return optionsData.split(',').map((e) => e.trim()).toList();
+      }
+      
+      return null;
+    }
+
     return Detail(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
@@ -53,6 +70,8 @@ class Detail {
               ? DateTime.parse(json['updated_at']) 
               : (json['updated_at']?.toDate?.call()))
           : null,
+      type: json['type']?.toString(),
+      options: parseOptions(json['options']),
     );
   }
   
@@ -71,6 +90,8 @@ class Detail {
       'tags': tags,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'type': type,
+      'options': options,
     };
   }
 
@@ -88,6 +109,8 @@ class Detail {
     List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? type,
+    List<String>? options,
   }) {
     return Detail(
       id: id ?? this.id,
@@ -103,6 +126,8 @@ class Detail {
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      type: type ?? this.type,
+      options: options ?? this.options,
     );
   }
 }

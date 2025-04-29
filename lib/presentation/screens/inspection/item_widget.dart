@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
+import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'dart:async';
 
@@ -34,7 +35,6 @@ class _ItemWidgetState extends State<ItemWidget> {
   bool _isLoading = true;
   int _expandedDetailIndex = -1;
   final TextEditingController _observationController = TextEditingController();
-  late bool _isDamaged;
   Timer? _debounce;
   ScrollController? _scrollController;
 
@@ -43,7 +43,6 @@ class _ItemWidgetState extends State<ItemWidget> {
     super.initState();
     _loadDetails();
     _observationController.text = widget.item.observation ?? '';
-    _isDamaged = widget.item.isDamaged ?? false;
     _scrollController = ScrollController();
   }
 
@@ -55,38 +54,35 @@ class _ItemWidgetState extends State<ItemWidget> {
     super.dispose();
   }
 
-  Future<void> _loadDetails() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
+Future<void> _loadDetails() async {
+  if (!mounted) return;
+  setState(() => _isLoading = true);
 
-    try {
-      if (widget.item.id == null || widget.item.roomId == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final details = await _inspectionService.getDetails(
-        widget.item.inspectionId,
-        widget.item.roomId!,
-        widget.item.id!,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _details = details;
-        _isLoading = false;
-      });
-    } catch (e) {
-      print('Error loading details: $e');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+  try {
+    if (widget.item.id == null || widget.item.roomId == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading details: $e')),
-        );
+        setState(() => _isLoading = false);
       }
+      return;
     }
+
+    final details = await _inspectionService.getDetails(
+      widget.item.inspectionId,
+      widget.item.roomId!,
+      widget.item.id!,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _details = details;
+      _isLoading = false;
+    });
+  } catch (e) {
+    print('Error loading details: $e');
+    if (!mounted) return;
+    setState(() => _isLoading = false);
   }
+}
 
   void _updateItem() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
@@ -95,7 +91,6 @@ class _ItemWidgetState extends State<ItemWidget> {
         observation: _observationController.text.isEmpty
             ? null
             : _observationController.text,
-        isDamaged: _isDamaged,
         updatedAt: DateTime.now(),
       );
       widget.onItemUpdated(updatedItem);
@@ -128,52 +123,94 @@ class _ItemWidgetState extends State<ItemWidget> {
     }
   }
 
-  Future<void> _addDetail() async {
-    if (widget.item.id == null || widget.item.roomId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Item or Room ID not found')),
-      );
-      return;
+
+Future<void> _addDetail() async {
+  if (widget.item.id == null || widget.item.roomId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Error: Item or Room ID not found')),
+    );
+    return;
+  }
+
+  // Primeiro, precisamos buscar o nome da sala usando o roomId
+  String roomName = "";
+  try {
+    final roomDoc = await _inspectionService.firestore
+        .collection('rooms')
+        .doc(widget.item.roomId)
+        .get();
+    
+    if (roomDoc.exists && roomDoc.data() != null) {
+      roomName = roomDoc.data()!['room_name'] ?? '';
+    }
+  } catch (e) {
+    print('Erro ao buscar nome da sala: $e');
+  }
+
+  final template = await showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (context) => TemplateSelectorDialog(
+      title: 'Add Detail',
+      type: 'detail',
+      parentName: roomName,  // Agora usando o nome da sala obtido
+      itemName: widget.item.itemName,
+    ),
+  );
+
+  if (template == null || !mounted) return;
+
+  setState(() => _isLoading = true);
+
+  try {
+    final detailName = template['name'] as String;
+    final isCustom = template['isCustom'] as bool? ?? false;
+    
+    // Determinar tipo e opções
+    String? detailType = 'text';  // Padrão
+    List<String>? options;
+    
+    if (!isCustom) {
+      // Se não for personalizado, obter informações do template
+      detailType = template['type'] as String?;
+      if (template['options'] is List) {
+        options = List<String>.from(template['options']);
+      }
     }
 
-    final name = await _showTextInputDialog('Add Detail', 'Detail name');
-    if (name == null || name.isEmpty) return;
+    final newDetail = await _inspectionService.addDetail(
+      widget.item.inspectionId,
+      widget.item.roomId!,
+      widget.item.id!,
+      detailName,
+      type: detailType,
+      options: options,
+    );
 
-    setState(() => _isLoading = true);
+    await _loadDetails();
 
-    try {
-      final newDetail = await _inspectionService.addDetail(
-        widget.item.inspectionId,
-        widget.item.roomId!,
-        widget.item.id!,
-        name,
-      );
+    if (!mounted) return;
 
-      await _loadDetails();
+    final newIndex = _details.indexWhere((d) => d.id == newDetail.id);
+    if (newIndex >= 0) {
+      setState(() {
+        _expandedDetailIndex = newIndex;
+      });
+    }
 
-      if (!mounted) return;
-
-      final newIndex = _details.indexWhere((d) => d.id == newDetail.id);
-      if (newIndex >= 0) {
-        setState(() {
-          _expandedDetailIndex = newIndex;
-        });
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Detail "$name" added successfully')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding detail: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Detail "$detailName" added successfully')),
+    );
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error adding detail: $e')),
+    );
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   Future<void> _duplicateDetail(Detail detail) async {
     if (widget.item.id == null ||
@@ -260,13 +297,15 @@ class _ItemWidgetState extends State<ItemWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.zero,
+      // Remova a margem horizontal, mantendo apenas a margem inferior
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 1,
+      // Defina o borderRadius como zero para os cantos laterais
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(0),
+        borderRadius: BorderRadius.zero,
         side: BorderSide(
-          color: _isDamaged ? Colors.red : Colors.grey.shade300,
-          width: _isDamaged ? 2 : 1,
+          color: Colors.grey.shade300,
+          width: 1,
         ),
       ),
       child: Column(
@@ -274,7 +313,7 @@ class _ItemWidgetState extends State<ItemWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
                   Expanded(
@@ -315,29 +354,12 @@ class _ItemWidgetState extends State<ItemWidget> {
             ),
           ),
           if (widget.isExpanded) ...[
-            const Divider(height: 1),
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _isDamaged,
-                        onChanged: (value) {
-                          setState(() {
-                            _isDamaged = value ?? false;
-                          });
-                          _updateItem();
-                        },
-                      ),
-                      const Text('Damaged item'),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
                   TextFormField(
                     controller: _observationController,
                     decoration: const InputDecoration(
@@ -349,7 +371,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                     onChanged: (_) => _updateItem(),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
                   // Details header and add button
                   Row(
@@ -358,7 +380,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                       const Text(
                         'Details',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addDetail,
@@ -372,7 +394,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                     ],
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
                   // List of details
                   if (_isLoading)
