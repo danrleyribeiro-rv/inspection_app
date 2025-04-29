@@ -196,7 +196,8 @@ class NonConformityList extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-                '${room['room_name'] ?? "N/A"} > ${roomItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}'),
+                '${room['room_name'] ?? "N/A"} > ${roomItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
             const SizedBox(height: 16),
 
             // Description
@@ -206,7 +207,9 @@ class NonConformityList extends StatelessWidget {
                   fontWeight: FontWeight.bold, color: Colors.grey[800]),
             ),
             const SizedBox(height: 4),
-            Text(item['description'] ?? "No description"),
+            Text(item['description'] ?? "No description", 
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            const SizedBox(height: 16),
 
             // Corrective action if available
             if (item['corrective_action'] != null) ...[

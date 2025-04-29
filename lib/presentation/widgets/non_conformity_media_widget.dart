@@ -326,7 +326,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
               child: Text(
                 'Arquivos de Mídia',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14, color: Colors.black, 
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -382,7 +382,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('Nenhum arquivo de mídia adicionado'),
+              child: Text('Nenhum arquivo de mídia adicionado', 
+                  style: TextStyle(color: Colors.grey)),
             ),
           )
         else

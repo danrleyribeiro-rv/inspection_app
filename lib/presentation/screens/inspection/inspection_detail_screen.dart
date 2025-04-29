@@ -855,6 +855,7 @@ Future<void> _manuallyApplyTemplate() async {
                               _expandedRoomIndex == index ? -1 : index;
                         });
                       },
+                        inspectionId: widget.inspectionId,  // Adicionar este parâmetro
                     ),
         ),
       ],

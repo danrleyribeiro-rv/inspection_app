@@ -98,7 +98,7 @@ class FirebaseInspectionService {
       final querySnapshot = await _firestore
           .collection('rooms')
           .where('inspection_id', isEqualTo: inspectionId)
-          .orderBy('position', descending: false)
+          .orderBy('position', descending: false)  // Ordenar por posição
           .get();
 
       return querySnapshot.docs.map((doc) {
@@ -109,27 +109,26 @@ class FirebaseInspectionService {
         });
       }).toList();
     } catch (e) {
-      print('Error getting rooms: $e');
+      print('Erro ao carregar salas: $e');
       return [];
     }
   }
 
 // Método para reordenar ambientes
-Future<void> reorderRooms(String inspectionId, List<Room> rooms) async {
+Future<void> reorderRooms(String inspectionId, List<String> roomIds) async {
   try {
+    // Usar uma batch para fazer múltiplas atualizações em uma transação
     final batch = _firestore.batch();
     
-    for (int i = 0; i < rooms.length; i++) {
-      final room = rooms[i];
-      if (room.id != null) {
-        final roomRef = _firestore.collection('rooms').doc(room.id);
-        batch.update(roomRef, {'position': i});
-      }
+    for (int i = 0; i < roomIds.length; i++) {
+      final roomRef = _firestore.collection('rooms').doc(roomIds[i]);
+      batch.update(roomRef, {'position': i});
     }
     
     await batch.commit();
+    print('Salas reordenadas com sucesso');
   } catch (e) {
-    print('Erro ao reordenar ambientes: $e');
+    print('Erro ao reordenar salas: $e');
     rethrow;
   }
 }
@@ -255,19 +254,17 @@ Future<Room> addRoom(String inspectionId, String name, {String? label, int? posi
   }
 
 // Método para reordenar itens
-Future<void> reorderItems(String inspectionId, String roomId, List<Item> items) async {
+Future<void> reorderItems(String inspectionId, String roomId, List<String> itemIds) async {
   try {
     final batch = _firestore.batch();
     
-    for (int i = 0; i < items.length; i++) {
-      final item = items[i];
-      if (item.id != null) {
-        final itemRef = _firestore.collection('room_items').doc(item.id);
-        batch.update(itemRef, {'position': i});
-      }
+    for (int i = 0; i < itemIds.length; i++) {
+      final itemRef = _firestore.collection('room_items').doc(itemIds[i]);
+      batch.update(itemRef, {'position': i});
     }
     
     await batch.commit();
+    print('Itens reordenados com sucesso');
   } catch (e) {
     print('Erro ao reordenar itens: $e');
     rethrow;
@@ -278,7 +275,26 @@ Future<void> reorderItems(String inspectionId, String roomId, List<Item> items) 
 Future<Item> addItem(String inspectionId, String roomId, String name, {String? label, int? position}) async {
   try {
     // Obter próxima posição se não for fornecida
-    final nextPosition = position ?? await _getNextItemPosition(inspectionId, roomId);
+    int nextPosition;
+    if (position != null) {
+      nextPosition = position;
+    } else {
+      // Buscar a maior posição existente
+      final itemsSnapshot = await _firestore
+          .collection('room_items')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: roomId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (itemsSnapshot.docs.isEmpty) {
+        nextPosition = 0;
+      } else {
+        final lastPosition = itemsSnapshot.docs.first.data()['position'];
+        nextPosition = (lastPosition is int) ? lastPosition + 1 : 0;
+      }
+    }
     
     final itemRef = _firestore.collection('room_items').doc();
     
@@ -387,19 +403,17 @@ Future<Item> addItem(String inspectionId, String roomId, String name, {String? l
   }
 
 // Método para reordenar detalhes
-Future<void> reorderDetails(String inspectionId, String roomId, String itemId, List<Detail> details) async {
+Future<void> reorderDetails(String inspectionId, String roomId, String itemId, List<String> detailIds) async {
   try {
     final batch = _firestore.batch();
     
-    for (int i = 0; i < details.length; i++) {
-      final detail = details[i];
-      if (detail.id != null) {
-        final detailRef = _firestore.collection('item_details').doc(detail.id);
-        batch.update(detailRef, {'position': i});
-      }
+    for (int i = 0; i < detailIds.length; i++) {
+      final detailRef = _firestore.collection('item_details').doc(detailIds[i]);
+      batch.update(detailRef, {'position': i});
     }
     
     await batch.commit();
+    print('Detalhes reordenados com sucesso');
   } catch (e) {
     print('Erro ao reordenar detalhes: $e');
     rethrow;
@@ -415,11 +429,31 @@ Future<Detail> addDetail(
     String? value,
     String? type,
     List<String>? options,
-    int? position,
+    int? position
 }) async {
   try {
     // Obter próxima posição se não for fornecida
-    final nextPosition = position ?? await _getNextDetailPosition(inspectionId, roomId, itemId);
+    int nextPosition;
+    if (position != null) {
+      nextPosition = position;
+    } else {
+      // Buscar a maior posição existente
+      final detailsSnapshot = await _firestore
+          .collection('item_details')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .where('room_id', isEqualTo: roomId)
+          .where('room_item_id', isEqualTo: itemId)
+          .orderBy('position', descending: true)
+          .limit(1)
+          .get();
+      
+      if (detailsSnapshot.docs.isEmpty) {
+        nextPosition = 0;
+      } else {
+        final lastPosition = detailsSnapshot.docs.first.data()['position'];
+        nextPosition = (lastPosition is int) ? lastPosition + 1 : 0;
+      }
+    }
     
     final detailRef = _firestore.collection('item_details').doc();
     
@@ -454,7 +488,7 @@ Future<Detail> addDetail(
       updatedAt: DateTime.now(),
     );
   } catch (e) {
-    print('Error adding detail: $e');
+    print('Erro ao adicionar detalhe: $e');
     rethrow;
   }
 }
@@ -1076,41 +1110,36 @@ Future<int> _getNextDetailPosition(String inspectionId, String roomId, String it
   // Calculate completion percentage of an inspection
 Future<double> calculateCompletionPercentage(String inspectionId) async {
   try {
-    // Get all rooms
-    final rooms = await getRooms(inspectionId);
-    
+    // Contadores para total e preenchidos
     int totalDetails = 0;
     int filledDetails = 0;
     
-    for (var room in rooms) {
-      if (room.id == null) continue;
-      
-      // Get all items for this room
-      final items = await getItems(inspectionId, room.id!);
-      
-      for (var item in items) {
-        if (item.id == null) continue;
-        
-        // Get all details for this item
-        final details = await getDetails(inspectionId, room.id!, item.id!);
-        
-        totalDetails += details.length;
-        
-        // Count filled details
-        for (var detail in details) {
-          if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-            filledDetails++;
-          }
-        }
+    // Obter todos os detalhes da inspeção diretamente
+    final detailsSnapshot = await _firestore
+        .collection('item_details')
+        .where('inspection_id', isEqualTo: inspectionId)
+        .get();
+    
+    if (detailsSnapshot.docs.isEmpty) {
+      return 0.0; // Se não houver detalhes, progresso é 0
+    }
+    
+    totalDetails = detailsSnapshot.docs.length;
+    
+    // Contar quantos detalhes estão preenchidos
+    for (var doc in detailsSnapshot.docs) {
+      final data = doc.data();
+      if (data['detail_value'] != null && data['detail_value'].toString().isNotEmpty) {
+        filledDetails++;
       }
     }
     
-    // Avoid division by zero
-    if (totalDetails == 0) return 0.0;
+    print('Total de detalhes: $totalDetails, Preenchidos: $filledDetails');
     
-    return filledDetails / totalDetails;
+    // Calcular a porcentagem
+    return totalDetails > 0 ? filledDetails / totalDetails : 0.0;
   } catch (e) {
-    print('Error calculating completion percentage: $e');
+    print('Erro ao calcular porcentagem de conclusão: $e');
     return 0.0;
   }
 }
