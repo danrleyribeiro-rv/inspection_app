@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/screens/inspection/inspection_detail_screen.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class InspectionsTab extends StatefulWidget {
@@ -16,12 +15,10 @@ class InspectionsTab extends StatefulWidget {
 class _InspectionsTabState extends State<InspectionsTab> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _inspectionService = FirebaseInspectionService();
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _inspections = [];
   bool _isOnline = false;
-  double progress = 0.0;
   final Connectivity _connectivity = Connectivity();
 
   @override
@@ -95,13 +92,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
         title: const Text('Vistorias'),
         backgroundColor: const Color(0xFF1E293B), // Slate app bar color
         actions: [
-          StreamBuilder<bool>(
-            stream: _connectivity.onConnectivityChanged.map(
-              (results) => results != ConnectivityResult.none,
-            ),
-            initialData: _isOnline,
+          StreamBuilder<List<ConnectivityResult>>(
+            stream: _connectivity.onConnectivityChanged,
+            initialData: _isOnline ? [ConnectivityResult.mobile] : [ConnectivityResult.none],
             builder: (context, snapshot) {
-              final isOnline = snapshot.data ?? false;
+              final results = snapshot.data ?? [];
+              final isOnline = results.any((result) => result != ConnectivityResult.none);
+              
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -110,6 +107,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       isOnline ? Icons.wifi : Icons.wifi_off,
@@ -188,9 +186,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Title and status row
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
                                       child: Text(
@@ -204,73 +202,35 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    const SizedBox(width: 8), // Add spacing
-                                    Flexible(
-                                      child: _buildStatusChip(
-                                          inspection['status']),
-                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildStatusChip(inspection['status']),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
+                                
+                                // Address and date with proper text overflow handling
                                 Text(
-                                  'Address: ${_formatAddress(inspection)}', // Address
+                                  'Address: ${_formatAddress(inspection)}',
                                   style: const TextStyle(
-                                      fontSize: 14, color: Colors.white70),
+                                    fontSize: 14, 
+                                    color: Colors.white70
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Date: ${_formatDate(inspection['scheduled_date'])}', // Date
-                                      style: const TextStyle(
-                                          fontSize: 14, color: Colors.white70),
-                                    ),
-                                  ],
+                                Text(
+                                  'Date: ${_formatDate(inspection['scheduled_date'])}',
+                                  style: const TextStyle(
+                                    fontSize: 14, 
+                                    color: Colors.white70
+                                  ),
                                 ),
+                                
+                                // Progress indicator
                                 const SizedBox(height: 12),
-                                const Text(
-                                  'Progress:',
-                                  style: TextStyle(
-                                      fontSize: 14, color: Colors.white70),
-                                ),
-                                const SizedBox(height: 4),
-                                FutureBuilder<double>(
-                                  future: _inspectionService
-                                      .calculateCompletionPercentage(
-                                          inspection['id']),
-                                  builder: (context, snapshot) {
-                                    final percentage = snapshot.data ?? 0.0;
-                                    return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        LinearProgressIndicator(
-                                          value: percentage,
-                                          backgroundColor: Colors.grey[300],
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                            Theme.of(context).primaryColor,
-                                          ),
-                                          minHeight: 8,
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${(percentage * 100).toInt()}%',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white70,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
+
+                                // Action buttons
                                 const SizedBox(height: 16),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
@@ -334,8 +294,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.green,
                                           ),
-                                          child: const Text(
-                                              'Completar'), // Complete
+                                          child: const Text('Completar'),
                                         ),
                                       ),
                                   ],
@@ -351,7 +310,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     );
   }
 
-  // Format the address
+  // Format the address with better handling of possible null values
   String _formatAddress(Map<String, dynamic> inspection) {
     final street = inspection['street'] ?? '';
     final number = inspection['number'] ?? '';
@@ -359,7 +318,26 @@ class _InspectionsTabState extends State<InspectionsTab> {
     final city = inspection['city'] ?? '';
     final state = inspection['state'] ?? '';
 
-    return '$street, $number - $neighborhood, $city - $state';
+    // Build address with minimal spacing if elements are missing
+    String address = street;
+    
+    if (number.isNotEmpty) {
+      address += address.isNotEmpty ? ', $number' : number;
+    }
+    
+    if (neighborhood.isNotEmpty) {
+      address += address.isNotEmpty ? ' - $neighborhood' : neighborhood;
+    }
+    
+    if (city.isNotEmpty) {
+      address += address.isNotEmpty ? ', $city' : city;
+    }
+    
+    if (state.isNotEmpty) {
+      address += address.isNotEmpty ? ' - $state' : state;
+    }
+
+    return address.isEmpty ? 'No address' : address;
   }
 
   // Format the date
@@ -409,13 +387,18 @@ class _InspectionsTabState extends State<InspectionsTab> {
         color = Colors.grey;
     }
 
-    return Chip(
-      backgroundColor: color.withOpacity(0.2),
-      side: BorderSide(color: color),
-      label: Text(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color),
+      ),
+      child: Text(
         label,
-        style: TextStyle(color: color),
+        style: TextStyle(color: color, fontSize: 12),
       ),
     );
   }
+  
 }

@@ -1,5 +1,6 @@
 // lib/services/firebase_inspection_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/room.dart';
@@ -10,6 +11,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 class FirebaseInspectionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   FirebaseFirestore get firestore => _firestore;
+  FirebaseStorage get storage => FirebaseStorage.instance;
 
   static final FirebaseInspectionService _instance = FirebaseInspectionService._internal();
 
@@ -986,6 +988,80 @@ if (roomDoc.exists) {
       rethrow;
     }
   }
+
+  // Método para atualizar uma não conformidade
+Future<void> updateNonConformity(String nonConformityId, Map<String, dynamic> updatedData) async {
+  try {
+    // Remover campos que não devem ser atualizados
+    final Map<String, dynamic> dataToUpdate = {...updatedData};
+    dataToUpdate.remove('id');
+    dataToUpdate.remove('rooms');
+    dataToUpdate.remove('room_items');
+    dataToUpdate.remove('item_details');
+    dataToUpdate.remove('created_at');
+    
+    // Adicionar timestamp de atualização
+    dataToUpdate['updated_at'] = FieldValue.serverTimestamp();
+    
+    // Atualizar o documento no Firestore
+    await _firestore
+        .collection('non_conformities')
+        .doc(nonConformityId)
+        .update(dataToUpdate);
+    
+    print('Non-conformity $nonConformityId updated successfully');
+  } catch (e) {
+    print('Error updating non-conformity: $e');
+    rethrow;
+  }
+}
+
+// Método para excluir uma não conformidade
+Future<void> deleteNonConformity(String nonConformityId, String inspectionId) async {
+  try {
+    // 1. Obter referência às mídias associadas
+    final mediaSnapshot = await _firestore
+        .collection('non_conformity_media')
+        .where('non_conformity_id', isEqualTo: nonConformityId)
+        .get();
+    
+    // 2. Excluir as mídias do Storage
+    final batch = _firestore.batch();
+    
+    for (var doc in mediaSnapshot.docs) {
+      final mediaData = doc.data();
+      
+      // Excluir do Storage se houver URL
+      if (mediaData['url'] != null) {
+        try {
+          final uri = Uri.parse(mediaData['url']);
+          final pathSegments = uri.pathSegments;
+          if (pathSegments.length > 1) {
+            final storagePath = pathSegments.skip(1).join('/');
+            await FirebaseStorage.instance.ref(storagePath).delete();
+          }
+        } catch (e) {
+          print('Error deleting media file from storage: $e');
+          // Continue mesmo se falhar ao excluir do Storage
+        }
+      }
+      
+      // Adicionar à batch para exclusão
+      batch.delete(doc.reference);
+    }
+    
+    // 3. Excluir a não conformidade
+    batch.delete(_firestore.collection('non_conformities').doc(nonConformityId));
+    
+    // 4. Executar a batch
+    await batch.commit();
+    
+    print('Non-conformity $nonConformityId and associated media deleted successfully');
+  } catch (e) {
+    print('Error deleting non-conformity: $e');
+    rethrow;
+  }
+}
 
   // SECTION: DUPLICATION AND VERIFICATION OPERATIONS
   // =========================================

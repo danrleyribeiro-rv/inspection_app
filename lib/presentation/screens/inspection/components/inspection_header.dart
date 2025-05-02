@@ -61,9 +61,12 @@ class InspectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool hasTemplate = inspection['template_id'] != null;
     final bool isTemplated = inspection['is_templated'] == true;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360; // Pixel 2 is 411, but handle smaller too
     
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: screenWidth,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.grey[900],
         border: Border(bottom: BorderSide(color: Colors.grey[800]!, width: 1)),
@@ -71,35 +74,36 @@ class InspectionHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status indicators row
-          Row(
+          // Status indicators row optimized for small screens
+          Wrap(
+            spacing: 6, // Smaller gap between chips 
+            runSpacing: 6, // Smaller gap between rows
+            alignment: WrapAlignment.spaceBetween,
             children: [
               // Status chip
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
                   color: _getStatusColor(inspection['status']),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   _getStatusText(inspection['status']),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                 ),
               ),
               
-              const SizedBox(width: 8),
-              
               // Template status
               if (hasTemplate)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   decoration: BoxDecoration(
                     color: isTemplated ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isTemplated ? Colors.green : Colors.orange,
                     ),
@@ -109,15 +113,15 @@ class InspectionHeader extends StatelessWidget {
                     children: [
                       Icon(
                         isTemplated ? Icons.check_circle_outline : Icons.architecture,
-                        size: 12,
+                        size: 10,
                         color: isTemplated ? Colors.green : Colors.orange,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       Text(
                         isTemplated ? 'Template Aplicado' : 'Template Pendente',
                         style: TextStyle(
                           color: isTemplated ? Colors.green : Colors.orange,
-                          fontSize: 12,
+                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -125,81 +129,44 @@ class InspectionHeader extends StatelessWidget {
                   ),
                 ),
               
-              const SizedBox(width: 8),
-              
-              const Spacer(),
-              
               // Scheduled date if available
               if (inspection['scheduled_date'] != null)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Data Agendada:',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey,
+                Container(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'Data Agendada:',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Colors.grey,
+                        ),
+                        textAlign: TextAlign.end,
                       ),
-                    ),
-                    Text(
-                      _formatDate(inspection['scheduled_date']),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
+                      Text(
+                        _formatDate(inspection['scheduled_date']),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                        textAlign: TextAlign.end,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
             ],
           ),
-          
-          const SizedBox(height: 16),
-          
-          // Progress label
-          Row(
-            children: [
-              const Text(
-                'Progresso:',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${(completionPercentage * 100).toInt()}%',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 4),
-          
-          // Progress bar
-          LinearProgressIndicator(
-            value: completionPercentage,
-            backgroundColor: Colors.grey[800],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              _getProgressColor(completionPercentage),
-            ),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          
           // Address if available
           if (_hasAddress())
             Padding(
-              padding: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.only(top: 12),
               child: Row(
                 children: [
                   const Icon(
                     Icons.location_on_outlined, 
                     color: Colors.grey,
-                    size: 14,
+                    size: 12,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -207,9 +174,10 @@ class InspectionHeader extends StatelessWidget {
                       _formatAddress(),
                       style: const TextStyle(
                         color: Colors.grey,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: isSmallScreen ? 1 : 2,
                     ),
                   ),
                 ],
@@ -240,16 +208,6 @@ class InspectionHeader extends StatelessWidget {
       address += ' - $state';
     }
     
-    return address;
-  }
-  
-  Color _getProgressColor(double percentage) {
-    if (percentage <= 0.3) {
-      return Colors.red;
-    } else if (percentage <= 0.7) {
-      return Colors.orange;
-    } else {
-      return Colors.green;
-    }
+    return address.isEmpty ? 'No address' : address;
   }
 }

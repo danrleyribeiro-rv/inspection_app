@@ -67,32 +67,43 @@ class LandscapeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // Rooms column
-        Expanded(
-          flex: 2,
-          child: _buildRoomsColumn(context),
-        ),
+    // Get screen size to make adaptive layouts
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 600;
+    
+    return Container(
+      // Add constraints to prevent overflow
+      constraints: BoxConstraints(
+        maxWidth: screenSize.width,
+        maxHeight: screenSize.height - kToolbarHeight - 80, // Subtract app bar + some padding
+      ),
+      child: Row(
+        children: [
+          // Rooms column - adjust flex based on screen size
+          Expanded(
+            flex: isSmallScreen ? 2 : 2,
+            child: _buildRoomsColumn(context),
+          ),
 
-        // Vertical divider
-        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
+          // Vertical divider
+          VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
 
-        // Items column
-        Expanded(
-          flex: 3,
-          child: _buildItemsColumn(context),
-        ),
+          // Items column
+          Expanded(
+            flex: isSmallScreen ? 3 : 3,
+            child: _buildItemsColumn(context),
+          ),
 
-        // Vertical divider
-        VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
+          // Vertical divider
+          VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
 
-        // Details column
-        Expanded(
-          flex: 5,
-          child: _buildDetailsColumn(context),
-        ),
-      ],
+          // Details column
+          Expanded(
+            flex: isSmallScreen ? 4 : 5,
+            child: _buildDetailsColumn(context),
+          ),
+        ],
+      ),
     );
   }
 
@@ -120,28 +131,72 @@ class LandscapeView extends StatelessWidget {
       itemCount: rooms.length,
       itemBuilder: (context, index) {
         final room = rooms[index];
-        return ListTile(
-          title:
-              Text(room.roomName, style: const TextStyle(color: Colors.white)),
-          selected: selectedRoomIndex == index,
-          selectedTileColor: Colors.blue.withOpacity(0.1),
-          onTap: () => onRoomSelected(index),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.copy, color: Colors.white),
-                onPressed: () => onRoomDuplicate(room),
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+          color: selectedRoomIndex == index 
+              ? Colors.blue.withOpacity(0.2) 
+              : Colors.grey.shade800,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: InkWell(
+            onTap: () => onRoomSelected(index),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  // Room name
+                  Expanded(
+                    child: Text(
+                      room.roomName, 
+                      style: const TextStyle(color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  // Action buttons
+                  SizedBox(
+                    width: 52, // Fixed width for buttons
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Duplicate button
+                        InkWell(
+                          onTap: () => onRoomDuplicate(room),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(
+                              Icons.copy, 
+                              color: Colors.white, 
+                              size: 18
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 8),
+                        
+                        // Delete button
+                        InkWell(
+                          onTap: () async {
+                            if (room.id != null) {
+                              await onRoomDelete(room.id!);
+                            }
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(
+                              Icons.delete, 
+                              color: Colors.white, 
+                              size: 18
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.white),
-                onPressed: () async {
-                  if (room.id != null) {
-                    await onRoomDelete(room.id!);
-                  }
-                },
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -166,11 +221,12 @@ class LandscapeView extends StatelessWidget {
                   'Items - ${selectedRoomIndex >= 0 && selectedRoomIndex < rooms.length ? rooms[selectedRoomIndex].roomName : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.white),
-                onPressed: () async {
+              // Add button
+              InkWell(
+                onTap: () async {
                   // Logic to add item
                   if (selectedRoomIndex >= 0 &&
                       rooms[selectedRoomIndex].id != null) {
@@ -186,6 +242,11 @@ class LandscapeView extends StatelessWidget {
                     }
                   }
                 },
+                borderRadius: BorderRadius.circular(16),
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Icon(Icons.add_circle, color: Colors.white, size: 24),
+                ),
               ),
             ],
           ),
@@ -201,25 +262,54 @@ class LandscapeView extends StatelessWidget {
                   itemCount: selectedRoomItems.length,
                   itemBuilder: (context, index) {
                     final item = selectedRoomItems[index];
-                    return ListTile(
-                      title: Text(item.itemName,
-                          style: const TextStyle(color: Colors.white)),
-                      selected: selectedItemIndex == index,
-                      selectedTileColor: Colors.blue.withOpacity(0.1),
-                      onTap: () => onItemSelected(index),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.white),
-                        onPressed: () async {
-                          // Logic to delete item
-                          if (item.id != null && item.roomId != null) {
-                            await inspectionService.deleteItem(
-                              inspectionId,
-                              item.roomId!,
-                              item.id!,
-                            );
-                            onRoomSelected(selectedRoomIndex);
-                          }
-                        },
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                      color: selectedItemIndex == index 
+                          ? Colors.blue.withOpacity(0.2) 
+                          : Colors.grey.shade800,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: InkWell(
+                        onTap: () => onItemSelected(index),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          child: Row(
+                            children: [
+                              // Item name
+                              Expanded(
+                                child: Text(
+                                  item.itemName,
+                                  style: const TextStyle(color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              
+                              // Delete button
+                              InkWell(
+                                onTap: () async {
+                                  // Logic to delete item
+                                  if (item.id != null && item.roomId != null) {
+                                    await inspectionService.deleteItem(
+                                      inspectionId,
+                                      item.roomId!,
+                                      item.id!,
+                                    );
+                                    onRoomSelected(selectedRoomIndex);
+                                  }
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4.0),
+                                  child: Icon(
+                                    Icons.delete, 
+                                    color: Colors.white, 
+                                    size: 18
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -247,11 +337,12 @@ class LandscapeView extends StatelessWidget {
                   'Details - ${selectedItemIndex >= 0 && selectedItemIndex < selectedRoomItems.length ? selectedRoomItems[selectedItemIndex].itemName : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.white),
-                onPressed: () async {
+              // Add button
+              InkWell(
+                onTap: () async {
                   // Logic to add detail
                   if (selectedItemIndex >= 0) {
                     final item = selectedRoomItems[selectedItemIndex];
@@ -270,6 +361,11 @@ class LandscapeView extends StatelessWidget {
                     }
                   }
                 },
+                borderRadius: BorderRadius.circular(16),
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Icon(Icons.add_circle, color: Colors.white, size: 24),
+                ),
               ),
             ],
           ),
@@ -302,6 +398,7 @@ class LandscapeView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Detail header row
             Row(
               children: [
                 Expanded(
@@ -311,11 +408,12 @@ class LandscapeView extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.white),
-                  onPressed: () async {
+                // Delete button
+                InkWell(
+                  onTap: () async {
                     // Logic to delete detail
                     if (detail.id != null &&
                         detail.roomId != null &&
@@ -329,6 +427,10 @@ class LandscapeView extends StatelessWidget {
                       onItemSelected(selectedItemIndex);
                     }
                   },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4.0),
+                    child: Icon(Icons.delete, color: Colors.white, size: 20),
+                  ),
                 ),
               ],
             ),
@@ -337,18 +439,24 @@ class LandscapeView extends StatelessWidget {
             // "Damaged" checkbox
             Row(
               children: [
-                Checkbox(
-                  value: detail.isDamaged ?? false,
-                  onChanged: (value) async {
-                    // Update the detail
-                    final updatedDetail = detail.copyWith(
-                      isDamaged: value,
-                      updatedAt: DateTime.now(),
-                    );
-                    await inspectionService.updateDetail(updatedDetail);
-                    onItemSelected(selectedItemIndex);
-                  },
+                SizedBox(
+                  width: 24, 
+                  height: 24,
+                  child: Checkbox(
+                    value: detail.isDamaged ?? false,
+                    visualDensity: VisualDensity.compact,
+                    onChanged: (value) async {
+                      // Update the detail
+                      final updatedDetail = detail.copyWith(
+                        isDamaged: value,
+                        updatedAt: DateTime.now(),
+                      );
+                      await inspectionService.updateDetail(updatedDetail);
+                      onItemSelected(selectedItemIndex);
+                    },
+                  ),
                 ),
+const SizedBox(width: 8),
                 const Text('Damaged', style: TextStyle(color: Colors.white)),
               ],
             ),
@@ -364,6 +472,7 @@ class LandscapeView extends StatelessWidget {
                 labelStyle: TextStyle(color: Colors.white70),
                 fillColor: Colors.white10,
                 filled: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               onChanged: (value) async {
                 // Update the detail after a delay
@@ -376,7 +485,7 @@ class LandscapeView extends StatelessWidget {
             ),
 
             // Observation field
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             TextFormField(
               initialValue: detail.observation,
               style: const TextStyle(color: Colors.white),
@@ -386,8 +495,10 @@ class LandscapeView extends StatelessWidget {
                 labelStyle: TextStyle(color: Colors.white70),
                 fillColor: Colors.white10,
                 filled: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               maxLines: 3,
+              minLines: 2,
               onChanged: (value) async {
                 // Update the detail after a delay
                 final updatedDetail = detail.copyWith(
@@ -400,25 +511,29 @@ class LandscapeView extends StatelessWidget {
 
             // Add non-conformity button
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                // Navigate to non-conformity screen with this detail pre-selected
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => NonConformityScreen(
-                      inspectionId: inspectionId,
-                      preSelectedRoom: detail.roomId,
-                      preSelectedItem: detail.itemId,
-                      preSelectedDetail: detail.id,
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Navigate to non-conformity screen with this detail pre-selected
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => NonConformityScreen(
+                        inspectionId: inspectionId,
+                        preSelectedRoom: detail.roomId,
+                        preSelectedItem: detail.itemId,
+                        preSelectedDetail: detail.id,
+                      ),
                     ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.report_problem),
-              label: const Text('Add Non-Conformity'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
+                  );
+                },
+                icon: const Icon(Icons.report_problem, size: 18),
+                label: const Text('Add Non-Conformity'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
               ),
             ),
           ],

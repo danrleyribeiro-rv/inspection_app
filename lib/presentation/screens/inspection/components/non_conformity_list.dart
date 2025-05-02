@@ -1,18 +1,26 @@
 // lib/presentation/screens/inspection/components/non_conformity_list.dart
+// Versão atualizada com opções de edição e exclusão de não conformidades
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/widgets/non_conformity_media_widget.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 
 class NonConformityList extends StatelessWidget {
   final List<Map<String, dynamic>> nonConformities;
   final String inspectionId;
   final Function(String, String) onStatusUpdate;
+  final Function(String) onDeleteNonConformity;
+  final Function(Map<String, dynamic>) onEditNonConformity;
 
   const NonConformityList({
     super.key,
     required this.nonConformities,
     required this.inspectionId,
     required this.onStatusUpdate,
+    required this.onDeleteNonConformity,
+    required this.onEditNonConformity,
   });
 
   Color _getSeverityColor(String? severity) {
@@ -139,7 +147,7 @@ class NonConformityList extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header with actions
             Row(
               children: [
                 // Status chip
@@ -177,12 +185,25 @@ class NonConformityList extends StatelessWidget {
                     ),
                   ),
                 ),
+                
                 const Spacer(),
-
-                // ID display
-                Text(
-                  'ID: ${item['id']}',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                
+                // Edit button
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20),
+                  color: Colors.blue,
+                  onPressed: () => _showEditDialog(context, item),
+                  tooltip: 'Editar não conformidade',
+                  visualDensity: VisualDensity.compact,
+                ),
+                
+                // Delete button
+                IconButton(
+                  icon: const Icon(Icons.delete, size: 20),
+                  color: Colors.red,
+                  onPressed: () => _confirmDelete(context, item),
+                  tooltip: 'Excluir não conformidade',
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
@@ -285,6 +306,49 @@ class NonConformityList extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+  
+  void _showEditDialog(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return NonConformityEditDialog(
+          nonConformity: item,
+          onSave: (updatedData) {
+            onEditNonConformity(updatedData);
+            Navigator.of(dialogContext).pop();
+          },
+        );
+      },
+    );
+  }
+  
+  void _confirmDelete(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Excluir Não Conformidade'),
+          content: const Text(
+            'Tem certeza que deseja excluir esta não conformidade? Esta ação não pode ser desfeita.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                onDeleteNonConformity(item['id']);
+                Navigator.of(dialogContext).pop();
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Excluir'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

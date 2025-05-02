@@ -1,7 +1,6 @@
 // lib/presentation/screens/inspection/inspection_detail_screen.dart
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
@@ -15,12 +14,10 @@ import 'package:inspection_app/presentation/screens/inspection/components/loadin
 import 'package:inspection_app/presentation/screens/inspection/components/inspection_header.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/services/import_export_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
-
 
   const InspectionDetailScreen({
     super.key,
@@ -44,7 +41,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Inspection? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   double _completionPercentage = 0.0;
 
   int _selectedRoomIndex = -1;
@@ -59,22 +55,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     _loadInspection();
   }
 
-  @override
-  void dispose() {
-    _connectivitySubscription?.cancel();
-    super.dispose();
-  }
-
   void _listenToConnectivity() {
-    _connectivitySubscription =
-        _connectivityService.onConnectivityChanged.listen((connectivityResult) {
+    _connectivityService.onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
         setState(() {
           _isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
-                      connectivityResult.contains(ConnectivityResult.mobile);
+                     connectivityResult.contains(ConnectivityResult.mobile);
         });
 
-        // Se voltamos a ficar online e temos um template pendente para aplicar
+        // If we're back online and have a pending template to apply
         if (_isOnline && _inspection != null && 
             _inspection!.templateId != null && 
             _inspection!.isTemplated != true) {
@@ -87,7 +76,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       if (mounted) {
         setState(() {
           _isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
-                      connectivityResult.contains(ConnectivityResult.mobile);
+                     connectivityResult.contains(ConnectivityResult.mobile);
         });
       }
     });
@@ -108,28 +97,28 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           _inspection = inspection;
         });
 
-        // Carregar as salas da inspeção
+        // Load inspection rooms
         await _loadRooms();
         
-        // Calcular o percentual de conclusão
+        // Calculate completion percentage
         await _calculateCompletionPercentage();
 
-        // Verificar se existe template para aplicar
+        // Check if there's a template to apply
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
-            // Template ainda não foi aplicado
+            // Template hasn't been applied yet
             await _checkAndApplyTemplate();
           } else {
-            print('Inspeção já tem template aplicado: ${inspection.templateId}');
+            print('Inspection already has template applied: ${inspection.templateId}');
           }
         }
       } else {
-        _showErrorSnackBar('Inspeção não encontrada.');
+        _showErrorSnackBar('Inspection not found.');
       }
     } catch (e) {
-      print("Erro em _loadInspection: $e");
+      print("Error in _loadInspection: $e");
       if (mounted) {
-        _showErrorSnackBar('Erro ao carregar inspeção: $e');
+        _showErrorSnackBar('Error loading inspection: $e');
       }
     } finally {
       if (mounted) {
@@ -147,180 +136,183 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao calcular porcentagem de conclusão: $e');
+      print('Error calculating completion percentage: $e');
     }
   }
 
-// Snippet para InspectionDetailScreen - método _checkAndApplyTemplate corrigido
-Future<void> _checkAndApplyTemplate() async {
-  if (_inspection == null) return;
+  Future<void> _checkAndApplyTemplate() async {
+    if (_inspection == null) return;
 
-  // Verifica se a inspeção tem um template associado que ainda não foi aplicado
-  if (_inspection!.isTemplated != true && _inspection!.templateId != null) {
-    if (mounted) {
+    // Only proceed if the inspection has a template ID and hasn't been applied yet
+    if (_inspection!.templateId != null && _inspection!.isTemplated != true) {
       setState(() => _isApplyingTemplate = true);
-    }
 
-    try {
-      // Mostrar mensagem de carregamento
-      if (mounted) {
+      try {
+        // Show loading message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Aplicando template à inspeção...'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Log for diagnostic purposes
+        print('Starting template application: ${_inspection!.templateId} for inspection: ${_inspection!.id}');
+        print('Current template application status: ${_inspection!.isTemplated}');
+
+        // Apply the template
+        final success = await _inspectionService.applyTemplateToInspection(
+          _inspection!.id, 
+          _inspection!.templateId!
+        );
+
+        print('Template application result: ${success ? 'SUCCESS' : 'FAILURE'}');
+
+        if (success) {
+          // Update inspection status locally AND on Firestore
+          await _firestore.collection('inspections').doc(_inspection!.id).update({
+            'is_templated': true,
+            'status': 'in_progress',
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+          
+          if (mounted) {
+            // Update state
+            final updatedInspection = _inspection!.copyWith(
+              isTemplated: true,
+              status: 'in_progress',
+              updatedAt: DateTime.now(),
+            );
+            
+            setState(() {
+              _inspection = updatedInspection;
+            });
+          }
+          
+          // Reload inspection data completely to get the updated structure
+          await _loadInspection();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Template aplicado com sucesso!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Falha ao aplicar template. Tente novamente.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('Error applying template: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao aplicar template: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isApplyingTemplate = false);
+        }
+      }
+    } else {
+      print('No template to apply or already applied');
+      if (_inspection!.isTemplated == true) {
+        print('The inspection already has an applied template');
+      }
+      if (_inspection!.templateId == null) {
+        print('No template ID associated with this inspection');
+      }
+    }
+  }
+
+  // Function for manual template application (for the UI button)
+  Future<void> _manuallyApplyTemplate() async {
+    if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
+    
+    // Show confirmation dialog
+    final shouldApply = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Aplicar Template'),
+        content: Text(_inspection!.isTemplated 
+          ? 'Esta inspeção já tem um template aplicado. Deseja reaplicá-lo?'
+          : 'Deseja aplicar o template a esta inspeção?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+            child: const Text('Aplicar Template'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    
+    if (shouldApply) {
+      setState(() => _isApplyingTemplate = true);
+      
+      try {
+        // Show loading message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Aplicando template à inspeção...'),
             duration: Duration(seconds: 2),
           ),
         );
-      }
-
-      // Log para diagnóstico
-      print('Iniciando aplicação do template para inspeção: ${_inspection!.id}');
-      print('Template ID: ${_inspection!.templateId}');
-      print('Status atual de aplicação: ${_inspection!.isTemplated}');
-
-      // Aplicar template
-      final success = await _inspectionService.applyTemplateToInspection(
-          _inspection!.id, _inspection!.templateId!);
-
-      print('Resultado da aplicação do template: ${success ? 'SUCESSO' : 'FALHA'}');
-
-      if (success) {
-        // Atualizar o status da inspeção localmente
-        final updatedInspection = _inspection!.copyWith(
-          isTemplated: true,
-          status: 'in_progress',
-          updatedAt: DateTime.now(),
-        );
         
-        if (mounted) {
-          setState(() {
-            _inspection = updatedInspection;
-          });
-        }
-        
-        // Recarregar a inspeção com o template aplicado
-        await _loadInspection();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Template aplicado com sucesso!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Falha ao aplicar template. Tente novamente.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('Erro ao aplicar template: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao aplicar template: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isApplyingTemplate = false);
-      }
-    }
-  } else {
-    print('Nenhum template para aplicar ou já aplicado');
-    if (_inspection!.isTemplated == true) {
-      print('A inspeção já tem um template aplicado');
-    }
-    if (_inspection!.templateId == null) {
-      print('Nenhum ID de template associado a esta inspeção');
-    }
-  }
-}
-
-// Método para aplicação manual do template
-Future<void> _manuallyApplyTemplate() async {
-  if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
-  
-  // Show confirmation dialog
-  final shouldApply = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Aplicar Template'),
-      content: Text(_inspection!.isTemplated 
-        ? 'Esta inspeção já tem um template aplicado. Deseja reaplicá-lo?'
-        : 'Deseja aplicar o template a esta inspeção?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-          child: const Text('Aplicar Template'),
-        ),
-      ],
-    ),
-  ) ?? false;
-  
-  if (shouldApply) {
-    setState(() => _isApplyingTemplate = true);
-    
-    try {
-      // Mostrar mensagem de carregamento
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Aplicando template à inspeção...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      
-      // Forçar a configuração de template para false para permitir uma nova aplicação
-      if (_inspection!.isTemplated) {
+        // Force reset of template flag in Firestore
         await _firestore.collection('inspections').doc(_inspection!.id).update({
           'is_templated': false,
           'updated_at': FieldValue.serverTimestamp(),
         });
         
-        // Atualizar a instância local
+        // Update local instance
         setState(() {
           _inspection = _inspection!.copyWith(
             isTemplated: false,
             updatedAt: DateTime.now(),
           );
         });
-      }
-      
-      // Aplicar o template
-      await _checkAndApplyTemplate();
-      
-    } catch (e) {
-      print('Erro na aplicação manual do template: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao aplicar template: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isApplyingTemplate = false);
+        
+        // Apply the template
+        await _checkAndApplyTemplate();
+        
+      } catch (e) {
+        print('Error in manual template application: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao aplicar template: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isApplyingTemplate = false);
+        }
       }
     }
   }
-}
 
   Future<void> _loadRooms() async {
     if (_inspection?.id == null) {
@@ -342,9 +334,9 @@ Future<void> _manuallyApplyTemplate() async {
         _selectedItemDetails = [];
       });
     } catch (e) {
-      print('Erro ao carregar salas: $e');
+      print('Error loading rooms: $e');
       if (mounted) {
-        _showErrorSnackBar('Erro ao carregar salas: $e');
+        _showErrorSnackBar('Error loading rooms: $e');
       }
     }
   }
@@ -425,7 +417,7 @@ Future<void> _manuallyApplyTemplate() async {
         }
       }
     } catch (e) {
-      print('Erro em _addRoom: $e');
+      print('Error in _addRoom: $e');
     }
   }
   
@@ -470,7 +462,7 @@ Future<void> _manuallyApplyTemplate() async {
       
       await _calculateCompletionPercentage();
     } catch (e) {
-      print('Erro ao atualizar sala: $e');
+      print('Error updating room: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao atualizar sala: $e')),
@@ -534,7 +526,7 @@ Future<void> _manuallyApplyTemplate() async {
         }
       }
     } catch (e) {
-      print('Erro ao carregar itens: $e');
+      print('Error loading items: $e');
     }
   }
   
@@ -563,7 +555,7 @@ Future<void> _manuallyApplyTemplate() async {
         }
       }
     } catch (e) {
-      print('Erro ao carregar detalhes: $e');
+      print('Error loading details: $e');
     }
   }
   
@@ -653,15 +645,17 @@ Future<void> _manuallyApplyTemplate() async {
   @override
   Widget build(BuildContext context) {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final screenSize = MediaQuery.of(context).size; // Get screen dimensions
     
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Slate background
       appBar: AppBar(
         title: Text(_inspection?.title ?? 'Inspeção'),
         actions: [
-          // Sync status
+          // Connectivity status indicator
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
             decoration: BoxDecoration(
               color: _isOnline ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
               borderRadius: BorderRadius.circular(16),
@@ -673,42 +667,45 @@ Future<void> _manuallyApplyTemplate() async {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _isOnline ? Icons.signal_wifi_4_bar: Icons.wifi,
+                  _isOnline ? Icons.signal_wifi_4_bar : Icons.wifi_off,
                   size: 12,
                   color: _isOnline ? Colors.green : Colors.red,
                 ),
               ],
             ),
           ),
-          // Template apply button
+          
+          // Template apply button - more compact for small screens
           if (_isOnline && _inspection != null && _inspection!.templateId != null)
             IconButton(
-              icon: const Icon(Icons.architecture),
+              icon: const Icon(Icons.architecture, size: 22),
               tooltip: _inspection!.isTemplated 
                   ? 'Reaplicar Template' 
                   : 'Aplicar Template',
               onPressed: _isApplyingTemplate ? null : _manuallyApplyTemplate,
+              padding: const EdgeInsets.all(8),
+              visualDensity: VisualDensity.compact,
             ),
             
           // Loading indicator
           if (_isSyncing || _isApplyingTemplate)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
                 ),
               ),
             ),
           
-          // Menu button
+          // Menu button with proper spacing
           if (!(_isSyncing || _isApplyingTemplate))
             PopupMenuButton<String>(
+              padding: const EdgeInsets.all(8),
+              icon: const Icon(Icons.more_vert, size: 22),
               onSelected: (value) async {
                 switch (value) {
                   case 'export':
@@ -776,7 +773,7 @@ Future<void> _manuallyApplyTemplate() async {
             ),
         ],
       ),
-      body: _buildBody(isLandscape),
+      body: _buildBody(isLandscape, screenSize),
       floatingActionButton: !_isLoading && _rooms.isNotEmpty
           ? FloatingActionButton(
               onPressed: _addRoom,
@@ -784,29 +781,11 @@ Future<void> _manuallyApplyTemplate() async {
               child: const Icon(Icons.add),
             )
           : null,
-      bottomSheet: !_isOnline
-          ? Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              color: Colors.red,
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.wifi_off, color: Colors.white, size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    'Modo offline - Alterações serão sincronizadas quando online',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            )
-          : null,
     );
   }
 
-  // Método para construir o corpo da tela
-  Widget _buildBody(bool isLandscape) {
+  // Improved body building method with proper constraints
+  Widget _buildBody(bool isLandscape, Size screenSize) {
     if (_isLoading) {
       return LoadingState(
         isDownloading: false, 
@@ -814,49 +793,66 @@ Future<void> _manuallyApplyTemplate() async {
       );
     }
     
+    // Calculate available height by subtracting app bar, status bar, etc.
+    final double availableHeight = screenSize.height - 
+                                kToolbarHeight - 
+                                MediaQuery.of(context).padding.top - 
+                                MediaQuery.of(context).padding.bottom;
+    
     return Column(
       children: [
         // Inspection header with status and progress
         if (_inspection != null)
-          InspectionHeader(
-            inspection: _inspection!.toJson(),
-            completionPercentage: _completionPercentage,
-            isOffline: !_isOnline,
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: screenSize.width,
+            ),
+            child: InspectionHeader(
+              inspection: _inspection!.toJson(),
+              completionPercentage: _completionPercentage,
+              isOffline: !_isOnline,
+            ),
           ),
 
         // Main content area
         Expanded(
-          child: _rooms.isEmpty
-              ? EmptyRoomState(onAddRoom: _addRoom)
-              : isLandscape
-                  ? LandscapeView(
-                      rooms: _rooms,
-                      selectedRoomIndex: _selectedRoomIndex,
-                      selectedItemIndex: _selectedItemIndex,
-                      selectedRoomItems: _selectedRoomItems,
-                      selectedItemDetails: _selectedItemDetails,
-                      inspectionId: widget.inspectionId,
-                      onRoomSelected: _handleRoomSelected,
-                      onItemSelected: _handleItemSelected,
-                      onRoomDuplicate: _duplicateRoom,
-                      onRoomDelete: _deleteRoom,
-                      inspectionService: _inspectionService,
-                      onAddRoom: _addRoom,
-                    )
-                  : RoomsList(
-                      rooms: _rooms,
-                      expandedRoomIndex: _expandedRoomIndex,
-                      onRoomUpdated: _updateRoom,
-                      onRoomDeleted: _deleteRoom,
-                      onRoomDuplicated: _duplicateRoom,
-                      onExpansionChanged: (index) {
-                        setState(() {
-                          _expandedRoomIndex =
-                              _expandedRoomIndex == index ? -1 : index;
-                        });
-                      },
-                        inspectionId: widget.inspectionId,  // Adicionar este parâmetro
-                    ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: screenSize.width,
+              maxHeight: availableHeight - (_inspection != null ? 110 : 0), // Adjust for header height
+            ),
+            child: _rooms.isEmpty
+                ? EmptyRoomState(onAddRoom: _addRoom)
+                : isLandscape
+                    ? LandscapeView(
+                        rooms: _rooms,
+                        selectedRoomIndex: _selectedRoomIndex,
+                        selectedItemIndex: _selectedItemIndex,
+                        selectedRoomItems: _selectedRoomItems,
+                        selectedItemDetails: _selectedItemDetails,
+                        inspectionId: widget.inspectionId,
+                        onRoomSelected: _handleRoomSelected,
+                        onItemSelected: _handleItemSelected,
+                        onRoomDuplicate: _duplicateRoom,
+                        onRoomDelete: _deleteRoom,
+                        inspectionService: _inspectionService,
+                        onAddRoom: _addRoom,
+                      )
+                    : RoomsList(
+                        rooms: _rooms,
+                        expandedRoomIndex: _expandedRoomIndex,
+                        onRoomUpdated: _updateRoom,
+                        onRoomDeleted: _deleteRoom,
+                        onRoomDuplicated: _duplicateRoom,
+                        onExpansionChanged: (index) {
+                          setState(() {
+                            _expandedRoomIndex =
+                                _expandedRoomIndex == index ? -1 : index;
+                          });
+                        },
+                        inspectionId: widget.inspectionId,
+                      ),
+          ),
         ),
       ],
     );

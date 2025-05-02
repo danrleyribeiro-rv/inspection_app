@@ -1,4 +1,6 @@
 // lib/presentation/screens/inspection/non_conformity_screen.dart
+// Atualize a classe NonConformityScreen para incluir as novas funções de edição e exclusão
+
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
@@ -42,6 +44,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   Room? _selectedRoom;
   Item? _selectedItem;
   Detail? _selectedDetail;
+  
+  // Flag para operações de edição/exclusão
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -206,7 +211,12 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     setState(() => _selectedDetail = detail);
   }
 
+  // Método para atualizar status de não conformidade
   Future<void> _updateNonConformityStatus(String id, String newStatus) async {
+    if (_isProcessing) return;
+    
+    setState(() => _isProcessing = true);
+    
     try {
       await _inspectionService.updateNonConformityStatus(id, newStatus);
 
@@ -226,6 +236,76 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao atualizar status: $e')),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        }
+    }
+  }
+  
+  // Método para editar uma não conformidade
+  Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
+    if (_isProcessing) return;
+    
+    setState(() => _isProcessing = true);
+    
+    try {
+      await _inspectionService.updateNonConformity(updatedData['id'], updatedData);
+      
+      // Atualizar a lista
+      await _loadNonConformities();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade atualizada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar não conformidade: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+  
+  // Método para excluir uma não conformidade
+  Future<void> _deleteNonConformity(String id) async {
+    if (_isProcessing) return;
+    
+    setState(() => _isProcessing = true);
+    
+    try {
+      await _inspectionService.deleteNonConformity(id, widget.inspectionId);
+      
+      // Atualizar a lista
+      await _loadNonConformities();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade excluída com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir não conformidade: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
       }
     }
   }
@@ -250,6 +330,21 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             Tab(text: 'Não Conformidades Existentes'),
           ],
         ),
+        actions: [
+          // Mostrar indicador de carregamento se estiver processando
+          if (_isProcessing)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -274,6 +369,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                   nonConformities: _nonConformities,
                   inspectionId: widget.inspectionId,
                   onStatusUpdate: _updateNonConformityStatus,
+                  onDeleteNonConformity: _deleteNonConformity,
+                  onEditNonConformity: _updateNonConformity,
                 ),
               ],
             ),

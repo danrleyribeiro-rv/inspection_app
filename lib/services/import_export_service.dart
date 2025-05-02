@@ -73,7 +73,19 @@ class ImportExportService {
         
         // Get non-conformities
         final nonConformities = await _inspectionService.getNonConformitiesByInspection(inspectionId);
-        exportData['non_conformities'] = nonConformities;
+        // Convert Firestore Timestamp objects to ISO strings
+        final processedNonConformities = nonConformities.map((item) {
+          final itemMap = Map<String, dynamic>.from(item);
+          // Convert Timestamp fields to ISO date strings
+          if (itemMap['created_at'] != null) {
+            itemMap['created_at'] = itemMap['created_at'].toDate().toIso8601String();
+          }
+          if (itemMap['updated_at'] != null) {
+            itemMap['updated_at'] = itemMap['updated_at'].toDate().toIso8601String();
+          }
+          return itemMap;
+        }).toList();
+        exportData['non_conformities'] = processedNonConformities;
         
         // Format filename with date and inspection ID
         final now = DateTime.now();
