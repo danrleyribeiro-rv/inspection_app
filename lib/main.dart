@@ -13,6 +13,7 @@ import 'package:inspection_app/presentation/screens/auth/reset_password_screen.d
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/services/firebase_service.dart';
+import 'package:inspection_app/services/gemini_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,8 @@ Future<void> main() async {
   }
 
   await dotenv.load(fileName: ".env");
+
+  await GeminiService.initialize();
 
   try {
     await FirebaseService.initialize(); 

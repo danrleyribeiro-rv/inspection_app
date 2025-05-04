@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
+import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/gemini_service.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -134,42 +136,102 @@ class _NonConformityFormState extends State<NonConformityForm> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Your existing UI code
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Offline status indicator
-            if (widget.isOffline) _buildOfflineIndicator(),
-
-            // Location selection card
-            _buildLocationCard(),
-
-            // Submit button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isCreating ? null : _saveNonConformity,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isCreating
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Register Non-Conformity'),
+@override
+Widget build(BuildContext context) {
+  return SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.isOffline) _buildOfflineIndicator(),
+          _buildLocationCard(),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    validator: (value) =>
+                        value == null || value.isEmpty ? 'Enter a description' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _correctiveActionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Corrective Action (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Deadline',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.calendar_today),
+                        onPressed: _pickDeadlineDate,
+                      ),
+                    ),
+                    controller: TextEditingController(
+                      text: _deadline != null
+                          ? DateFormat('dd/MM/yyyy').format(_deadline!)
+                          : '',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Severity',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: _severity,
+                    items: const [
+                      DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
+                      DropdownMenuItem(value: 'Média', child: Text('Média')),
+                      DropdownMenuItem(value: 'Alta', child: Text('Alta')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _severity = value);
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _isCreating ? null : _saveNonConformity,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: _isCreating
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Register Non-Conformity'),
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // Keep your existing UI building methods
   Widget _buildOfflineIndicator() {
@@ -294,6 +356,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
               ),
             ),
             const SizedBox(height: 16),
+
             // Severity dropdown
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(

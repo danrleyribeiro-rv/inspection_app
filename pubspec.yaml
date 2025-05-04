@@ -61,6 +61,7 @@ dependencies:
   firebase_storage: ^12.4.5
   flutter_lints: ^5.0.0
   cpf_cnpj_validator: ^2.0.0
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:

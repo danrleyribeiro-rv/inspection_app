@@ -272,141 +272,125 @@ class _RoomWidgetState extends State<RoomWidget> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      // Remova a margem horizontal, mantendo apenas a margem inferior
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      // Remova o arredondamento das bordas superior e inferior
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-        side: BorderSide(
-          color: Colors.grey.shade300,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: widget.onExpansionChanged,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.room.roomName,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        if (widget.room.roomLabel != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.room.roomLabel!,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: _duplicateRoom,
-                    tooltip: 'Duplicar Cômodo',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: _showDeleteConfirmation,
-                    tooltip: 'Excluir Cômodo',
-                  ),
-                  Icon(
-                    widget.isExpanded ? Icons.expand_less : Icons.expand_more,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (widget.isExpanded) ...[
-            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: _observationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observações',
-                      border: OutlineInputBorder(),
-                      hintText: 'Adicione observações sobre este cômodo...',
-                    ),
-                    maxLines: 3,
-                    onChanged: (_) => _updateRoom(),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Item list
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+@override
+Widget build(BuildContext context) {
+  return Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    elevation: 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.zero,
+      side: BorderSide(color: Colors.grey.shade300, width: 1),
+    ),
+    child: Column(
+      children: [
+        InkWell(
+          onTap: widget.onExpansionChanged,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Itens',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                      Text(
+                        widget.room.roomName,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _addItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Adicionar Item'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                        ),
-                      ),
+                      if (widget.room.roomLabel != null) ...[
+                        const SizedBox(height: 4),
+                        Text(widget.room.roomLabel!, style: TextStyle(color: Colors.grey[600])),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_items.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Nenhum item adicionado ainda'),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      controller: _scrollController,
-                      itemCount: _items.length,
-                      itemBuilder: (context, index) {
-                        return ItemWidget(
-                          item: _items[index],
-                          onItemUpdated: _handleItemUpdate,
-                          onItemDeleted: _handleItemDelete,
-                          onItemDuplicated: _duplicateItem,
-                          isExpanded: index == _expandedItemIndex,
-                          onExpansionChanged: () {
-                            setState(() {
-                              _expandedItemIndex =
-                                  _expandedItemIndex == index ? -1 : index;
-                            });
-                          },
-                        );
-                      },
-                    ),
-                ],
-              ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy),
+                  onPressed: _duplicateRoom,
+                  tooltip: 'Duplicar Cômodo',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: _showDeleteConfirmation,
+                  tooltip: 'Excluir Cômodo',
+                ),
+                Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more),
+              ],
             ),
-          ],
+          ),
+        ),
+        if (widget.isExpanded) ...[
+          Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _observationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Observações',
+                    border: OutlineInputBorder(),
+                    hintText: 'Adicione observações sobre este cômodo...',
+                  ),
+                  maxLines: 3,
+                  onChanged: (_) => _updateRoom(),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Itens',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _addItem,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Adicionar Item'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_isLoading)
+                  const Center(child: CircularProgressIndicator())
+                else if (_items.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Nenhum item adicionado ainda'),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    controller: _scrollController,
+                    itemCount: _items.length,
+                    itemBuilder: (context, index) {
+                      return ItemWidget(
+                        item: _items[index],
+                        onItemUpdated: _handleItemUpdate,
+                        onItemDeleted: _handleItemDelete,
+                        onItemDuplicated: _duplicateItem,
+                        isExpanded: index == _expandedItemIndex,
+                        onExpansionChanged: () {
+                          setState(() {
+                            _expandedItemIndex = _expandedItemIndex == index ? -1 : index;
+                          });
+                        },
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 }
