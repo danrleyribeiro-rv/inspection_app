@@ -1,4 +1,5 @@
-// lib/presentation/widgets/media_handling_widget.dart (updated with watermark)
+// lib/presentation/widgets/media_handling_widget.dart (atualizado com marca d'água de vídeo)
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
+import 'package:geolocator/geolocator.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -43,9 +45,10 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   final _storage = FirebaseService().storage;
   final _uuid = Uuid();
   final _watermarkService = ImageWatermarkService();
-
+  
   List<Map<String, dynamic>> _mediaItems = [];
   bool _isLoading = true;
+  bool _isProcessingVideo = false; // Novo estado para processamento de vídeo
 
   @override
   void initState() {
@@ -115,6 +118,15 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     setState(() => _isLoading = true);
 
     try {
+      // Obter a localização atual
+      final position = await _watermarkService.getCurrentLocation();
+      String? address;
+      
+      // Obter endereço legível se tivermos a posição
+      if (position != null) {
+        address = await _watermarkService.getAddressFromPosition(position);
+      }
+      
       // Create a unique local path for the file
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
@@ -130,6 +142,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         file,
         isFromGallery: source == ImageSource.gallery,
         timestamp: timestamp,
+        location: position,
+        locationAddress: address,
       );
       
       // Add metadata
@@ -137,6 +151,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         watermarkedFile,
         source == ImageSource.gallery,
         timestamp,
+        location: position,
+        locationAddress: address,
       );
       
       // Copy to local path
@@ -206,9 +222,31 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
     if (pickedFile == null) return;
 
-    setState(() => _isLoading = true);
+    // Mostra uma mensagem de processamento (pode demorar mais para vídeos)
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Processando vídeo com marca d\'água...'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    }
+
+    setState(() {
+      _isLoading = true;
+      _isProcessingVideo = true; // Marca que estamos processando vídeo
+    });
 
     try {
+      // Obter a localização atual
+      final position = await _watermarkService.getCurrentLocation();
+      String? address;
+      
+      // Obter endereço legível se tivermos a posição
+      if (position != null) {
+        address = await _watermarkService.getAddressFromPosition(position);
+      }
+      
       // Create a unique local path for the file
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
@@ -219,22 +257,19 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       // Get original file
       final file = File(pickedFile.path);
       
-      // Add watermark to video (if implemented)
+      // Add watermark to video
       final watermarkedFile = await _watermarkService.addWatermarkToVideo(
         file,
         isFromGallery: source == ImageSource.gallery,
         timestamp: timestamp,
+        location: position,
+        locationAddress: address,
       );
       
-      // Add metadata
-      final finalFile = await _watermarkService.addMetadataToImage(
-        watermarkedFile,
-        source == ImageSource.gallery,
-        timestamp,
-      );
-      
-      // Copy to local path
-      await finalFile.copy(localPath);
+      // Copy to local path if needed
+      if (watermarkedFile.path != localPath) {
+        await watermarkedFile.copy(localPath);
+      }
 
       // Prepare media data
       final mediaData = <String, dynamic>{
@@ -286,14 +321,16 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isProcessingVideo = false;
+        });
       }
     }
   }
 
   // Rest of the methods remain the same...
   Future<void> _deleteMedia(String mediaId) async {
-    // Keep existing implementation
     // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
@@ -386,7 +423,6 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   }
 
   Future<void> _moveMedia(String mediaId) async {
-    // Keep existing implementation
     // Show room selection dialog
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -518,16 +554,39 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                 ),
               ),
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isLoading ? null : () => _pickVideo(ImageSource.gallery),
+                icon: const Icon(Icons.video_library),
+                label: const Text('Video Gallery'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
 
         // Media display
         if (_isLoading)
-          const Center(child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 30.0),
-            child: CircularProgressIndicator(),
-          ))
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 12),
+                if (_isProcessingVideo)
+                  const Text(
+                    'Processando vídeo com marca d\'água...\nIsso pode levar alguns instantes.',
+                    textAlign: TextAlign.center,
+                  )
+                else
+                  const Text('Carregando...'),
+              ],
+            ),
+          )
         else if (_mediaItems.isEmpty)
           const Center(
             child: Padding(
@@ -763,7 +822,9 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   }
 
   Future<void> _loadRooms() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
+    
     try {
       final rooms = await _inspectionService.getRooms(widget.inspectionId);
 

@@ -9,6 +9,16 @@ plugins {
 }
 
 android {
+    packagingOptions {
+    pickFirst 'lib/x86/libc++_shared.so'
+    pickFirst 'lib/x86_64/libc++_shared.so'
+    pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+    pickFirst 'lib/arm64-v8a/libc++_shared.so'
+    exclude 'META-INF/licenses/**'
+    exclude 'META-INF/AL2.0'
+    exclude 'META-INF/LGPL2.1'
+    }
+
     namespace = "com.corp.inspection_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.2.12479018"

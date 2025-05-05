@@ -6,6 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter/return_code.dart';
 
 class ImageWatermarkService {
   static final ImageWatermarkService _instance = ImageWatermarkService._internal();
@@ -16,11 +20,64 @@ class ImageWatermarkService {
   
   ImageWatermarkService._internal();
 
+  // Get current location
+  Future<Position?> getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('Location services are disabled');
+        return null;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permissions are denied');
+          return null;
+        }
+      }
+      
+      if (permission == LocationPermission.deniedForever) {
+        print('Location permissions are permanently denied');
+        return null;
+      }
+
+      // Get position with high accuracy
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high
+      );
+    } catch (e) {
+      print('Error getting location: $e');
+      return null;
+    }
+  }
+  
+  // Get readable address from coordinates
+  Future<String?> getAddressFromPosition(Position position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude
+      );
+      
+      if (placemarks.isEmpty) return null;
+      
+      Placemark place = placemarks[0];
+      return '${place.street}, ${place.locality}, ${place.administrativeArea}';
+    } catch (e) {
+      print('Error getting address from position: $e');
+      return null;
+    }
+  }
+
   // Add watermark to image
   Future<File> addWatermarkToImage(
     File imageFile, {
     required bool isFromGallery,
     required DateTime timestamp,
+    Position? location,
+    String? locationAddress,
   }) async {
     try {
       // Read image bytes
@@ -29,7 +86,10 @@ class ImageWatermarkService {
       
       // Create recorder for drawing
       final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()));
+      final canvas = Canvas(
+        recorder, 
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble())
+      );
       
       // Draw original image
       canvas.drawImage(image, Offset.zero, Paint());
@@ -40,6 +100,8 @@ class ImageWatermarkService {
         Size(image.width.toDouble(), image.height.toDouble()),
         isFromGallery,
         timestamp,
+        location,
+        locationAddress,
       );
       
       // Convert to image
@@ -66,16 +128,71 @@ class ImageWatermarkService {
     File videoFile, {
     required bool isFromGallery,
     required DateTime timestamp,
+    Position? location,
+    String? locationAddress,
   }) async {
     try {
-      // Note: Video watermarking requires FFmpeg or similar video processing library
-      // For now, we'll return the original video
-      // TODO: Implement video watermarking
-      print('Video watermarking not implemented yet');
-      return videoFile;
+      // Create a temporary directory for processing
+      final tempDir = await getTemporaryDirectory();
+      final outputFileName = 'watermarked_${timestamp.millisecondsSinceEpoch}${path.extension(videoFile.path)}';
+      final outputPath = '${tempDir.path}/$outputFileName';
+      
+      // Format date and time with seconds
+      final dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm:ss');
+      final formattedDateTime = dateTimeFormat.format(timestamp);
+      
+      // Icon to use based on source (📁 for gallery, 📷 for camera)
+      final icon = isFromGallery ? '\u{1F4C1}' : '\u{1F4F7}';
+      
+      // Prepare watermark text
+      String watermarkText = '$icon $formattedDateTime';
+      
+      // Add location information if provided
+      if (location != null) {
+        watermarkText += ' | ${location.latitude.toStringAsFixed(4)},${location.longitude.toStringAsFixed(4)}';
+      }
+      
+      // Add address if provided
+      if (locationAddress != null && locationAddress.isNotEmpty) {
+        final shortenedAddress = locationAddress.length > 30 
+            ? '${locationAddress.substring(0, 27)}...' 
+            : locationAddress;
+        watermarkText += ' | $shortenedAddress';
+      }
+      
+      // Escape special characters for FFmpeg
+      watermarkText = watermarkText.replaceAll("'", "'\\''");
+      
+      // Get video duration to ensure watermark shows throughout the video
+      // Note: We use the ffmpeg -i option to extract duration, but for more robust apps,
+      // you might want to use a dedicated video metadata package
+      
+      // Build FFmpeg command
+      // This adds a text watermark to the bottom right corner with semi-transparent black background
+      final command = "-i '${videoFile.path}' -vf \"drawtext=fontfile=/system/fonts/Roboto-Regular.ttf:"
+          "text='$watermarkText':"
+          "fontcolor=white:fontsize=24:"
+          "box=1:boxcolor=black@0.5:boxborderw=5:"
+          "x=w-tw-10:y=h-th-10:"  // Position in bottom right with 10px padding
+          "\" -codec:a copy '${outputPath}'";
+
+      // Execute the FFmpeg command
+      final session = await FFmpegKit.execute(command);
+      final returnCode = await session.getReturnCode();
+      
+      if (ReturnCode.isSuccess(returnCode)) {
+        // Command completed successfully
+        return File(outputPath);
+      } else {
+        // Command failed - log the error and return original file
+        print('FFmpeg command failed with return code: $returnCode');
+        final logs = await session.getLogs();
+        print('FFmpeg logs: $logs');
+        return videoFile;
+      }
     } catch (e) {
       print('Error adding watermark to video: $e');
-      return videoFile;
+      return videoFile; // Return original if watermarking fails
     }
   }
 
@@ -84,79 +201,80 @@ class ImageWatermarkService {
     Size size,
     bool isFromGallery,
     DateTime timestamp,
+    Position? location,
+    String? locationAddress,
   ) async {
-    final textPainter = TextPainter(
-      textDirection: ui.TextDirection.ltr,
-    );
-
-    // Format date and time
-    final dateFormat = DateFormat('dd/MM/yyyy');
-    final timeFormat = DateFormat('HH:mm:ss');
-    final dateText = dateFormat.format(timestamp);
-    final timeText = timeFormat.format(timestamp);
-
-    // Draw semi-transparent background
-    final bgRect = Rect.fromLTWH(
-      size.width - 200,
-      size.height - 80,
-      180,
-      60,
+    // Format date and time with seconds
+    final dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm:ss');
+    final formattedDateTime = dateTimeFormat.format(timestamp);
+    
+    // Icon to use based on source
+    final iconText = isFromGallery ? '📁' : '📷';
+    
+    // Calculate position - bottom right corner with some padding
+    final bottomPadding = 10.0;
+    final rightPadding = 10.0;
+    
+    // Prepare text style
+    final textStyle = const TextStyle(
+      color: Colors.white,
+      fontSize: 11,
+      fontWeight: FontWeight.normal,
     );
     
+    // Create watermark text with location info if available
+    String watermarkText = ' $iconText $formattedDateTime';
+    
+    // Add location information if provided
+    if (location != null) {
+      // Add coordinates with 4 decimal precision
+      watermarkText += ' | ${location.latitude.toStringAsFixed(4)},${location.longitude.toStringAsFixed(4)}';
+    }
+    
+    // Add address if provided
+    if (locationAddress != null && locationAddress.isNotEmpty) {
+      // Using truncated address if too long
+      final shortenedAddress = locationAddress.length > 30 
+          ? '${locationAddress.substring(0, 27)}...' 
+          : locationAddress;
+      
+      // Append address with separator
+      watermarkText += ' | $shortenedAddress';
+    }
+    
+    // Prepare text for measurement
+    final textSpan = TextSpan(
+      text: watermarkText,
+      style: textStyle,
+    );
+    
+    // Create text painter to measure text dimensions
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: ui.TextDirection.ltr,
+    );
+    textPainter.layout();
+    
+    // Calculate watermark rectangle dimensions with padding
+    final double rectWidth = textPainter.width + 10; // add padding
+    final double rectHeight = textPainter.height + 4; // add padding
+    
+    // Calculate position (bottom right)
+    final rectLeft = size.width - rectWidth - rightPadding;
+    final rectTop = size.height - rectHeight - bottomPadding;
+    
+    // Draw semi-transparent black background (50% opacity)
+    final bgRect = Rect.fromLTWH(rectLeft, rectTop, rectWidth, rectHeight);
     final bgPaint = Paint()
       ..color = Colors.black.withOpacity(0.5)
       ..style = PaintingStyle.fill;
     
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bgRect, const Radius.circular(8)),
-      bgPaint,
-    );
-
-    // Draw icon (gallery or camera)
-    final iconPainter = TextPainter(
-      text: TextSpan(
-        text: isFromGallery ? '📁' : '📷',
-        style: const TextStyle(fontSize: 24),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    );
+    canvas.drawRect(bgRect, bgPaint);
     
-    iconPainter.layout();
-    iconPainter.paint(
-      canvas,
-      Offset(size.width - 190, size.height - 75),
-    );
-
-    // Draw date
-    textPainter.text = TextSpan(
-      text: dateText,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-    
-    textPainter.layout();
+    // Draw the text with icon
     textPainter.paint(
-      canvas,
-      Offset(size.width - 150, size.height - 70),
-    );
-
-    // Draw time
-    textPainter.text = TextSpan(
-      text: timeText,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-    
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(size.width - 150, size.height - 45),
+      canvas, 
+      Offset(rectLeft + 5, rectTop + 2) // apply inner padding
     );
   }
 
@@ -172,6 +290,7 @@ class ImageWatermarkService {
     File imageFile,
     bool isFromGallery,
     DateTime timestamp,
+    {Position? location, String? locationAddress}
   ) async {
     try {
       // Note: Adding EXIF metadata requires image_editor package

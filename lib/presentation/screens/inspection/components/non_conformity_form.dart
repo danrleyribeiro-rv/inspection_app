@@ -1,4 +1,4 @@
-// lib/presentation/screens/inspection/components/non_conformity_form.dart (simplified)
+// lib/presentation/screens/inspection/components/non_conformity_form.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
@@ -49,7 +49,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
 
   bool _isCreating = false;
   DateTime? _deadline;
-  String _severity = 'Média'; // Default value
+  String _severity = 'Média'; // Valor padrão
 
   @override
   void dispose() {
@@ -64,7 +64,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
         widget.selectedItem == null ||
         widget.selectedDetail == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a room, item and detail')),
+        const SnackBar(
+            content: Text('Selecione um ambiente, item e detalhe')), // Translated
       );
       return;
     }
@@ -72,7 +73,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
     setState(() => _isCreating = true);
 
     try {
-      // Prepare non-conformity data
+      // Prepara dados da não conformidade
       final nonConformityData = {
         'inspection_id': widget.inspectionId,
         'room_id': widget.selectedRoom!.id,
@@ -88,18 +89,18 @@ class _NonConformityFormState extends State<NonConformityForm> {
         'created_at': FieldValue.serverTimestamp(),
       };
 
-      // Save to Firestore (works offline thanks to persistence)
+      // Salva no Firestore (funciona offline graças à persistência)
       await _inspectionService.saveNonConformity(nonConformityData);
 
-      // Reset form
+      // Reseta o formulário
       _descriptionController.clear();
       _correctiveActionController.clear();
       setState(() {
         _deadline = null;
-        _severity = 'Média';
+        _severity = 'Média'; // Reset to default Portuguese value
       });
 
-      // Notify parent
+      // Notifica o widget pai
       widget.onNonConformitySaved();
 
       if (mounted) {
@@ -117,7 +118,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
         );
       }
     } finally {
-      setState(() => _isCreating = false);
+      if (mounted) { // Check mounted again before calling setState
+        setState(() => _isCreating = false);
+      }
     }
   }
 
@@ -127,6 +130,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
       initialDate: _deadline ?? DateTime.now().add(const Duration(days: 7)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
+      // You might want to localize the date picker too, if needed
+      // locale: const Locale('pt', 'BR'),
     );
 
     if (date != null) {
@@ -134,104 +139,107 @@ class _NonConformityFormState extends State<NonConformityForm> {
     }
   }
 
-@override
-Widget build(BuildContext context) {
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.isOffline) _buildOfflineIndicator(),
-          _buildLocationCard(),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descrição',
-                      border: OutlineInputBorder(),
+  @override
+  Widget build(BuildContext context) {
+    // Initialize DateFormat for Portuguese locale if not already done elsewhere
+    // Intl.defaultLocale = 'pt_BR'; // Uncomment if needed globally
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.isOffline) _buildOfflineIndicator(),
+            _buildLocationCard(), // Only Room, Item, Detail selection
+            const SizedBox(height: 16),
+            Card( // Card for non-conformity details
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField( // Description
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Descrição', // Translated
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'Informe uma descrição' // Translated
+                          : null,
                     ),
-                    maxLines: 3,
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Enter a description' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _correctiveActionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Corrective Action (optional)',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 16),
+                    TextFormField( // Corrective Action
+                      controller: _correctiveActionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Ação Corretiva (opcional)', // Translated
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
                     ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Deadline',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.calendar_today),
-                        onPressed: _pickDeadlineDate,
+                    const SizedBox(height: 16),
+                    TextFormField( // Deadline
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'Prazo', // Translated
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: _pickDeadlineDate,
+                        ),
+                      ),
+                      controller: TextEditingController(
+                        text: _deadline != null
+                            ? DateFormat('dd/MM/yyyy').format(_deadline!)
+                            : '',
                       ),
                     ),
-                    controller: TextEditingController(
-                      text: _deadline != null
-                          ? DateFormat('dd/MM/yyyy').format(_deadline!)
-                          : '',
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>( // Severity
+                      decoration: const InputDecoration(
+                        labelText: 'Severidade', // Translated
+                        border: OutlineInputBorder(),
+                      ),
+                      value: _severity,
+                      items: const [
+                        DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
+                        DropdownMenuItem(value: 'Média', child: Text('Média')),
+                        DropdownMenuItem(value: 'Alta', child: Text('Alta')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _severity = value);
+                        }
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Severity',
-                      border: OutlineInputBorder(),
-                    ),
-                    value: _severity,
-                    items: const [
-                      DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
-                      DropdownMenuItem(value: 'Média', child: Text('Média')),
-                      DropdownMenuItem(value: 'Alta', child: Text('Alta')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _severity = value);
-                      }
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: _isCreating ? null : _saveNonConformity,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
+            const SizedBox(height: 24),
+            SizedBox( // Save Button
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isCreating ? null : _saveNonConformity,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                child: _isCreating
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Registrar Não Conformidade'), // Translated
               ),
-              child: _isCreating
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Register Non-Conformity'),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  // Keep your existing UI building methods
   Widget _buildOfflineIndicator() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -247,7 +255,8 @@ Widget build(BuildContext context) {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'You are offline. Non-conformities will be synced when you are online again.',
+              // Translated
+              'Você está offline. As não conformidades serão sincronizadas quando você estiver online novamente.',
               style: TextStyle(color: Colors.orange),
             ),
           ),
@@ -257,16 +266,16 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildLocationCard() {
-    // Your existing UI code
+    // Now only contains Room, Item, and Detail dropdowns
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 0), // Adjusted margin
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Non-Conformity Location',
+              'Localização da Não Conformidade', // Translated
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -274,7 +283,7 @@ Widget build(BuildContext context) {
             // Room dropdown
             DropdownButtonFormField<Room>(
               decoration: const InputDecoration(
-                labelText: 'Room',
+                labelText: 'Ambiente', // Translated
                 border: OutlineInputBorder(),
               ),
               value: widget.selectedRoom,
@@ -289,14 +298,14 @@ Widget build(BuildContext context) {
                   widget.onRoomSelected(value);
                 }
               },
-              validator: (value) => value == null ? 'Select a room' : null,
+              validator: (value) => value == null ? 'Selecione um ambiente' : null, // Translated
             ),
             const SizedBox(height: 16),
 
             // Item dropdown
             DropdownButtonFormField<Item>(
               decoration: const InputDecoration(
-                labelText: 'Item',
+                labelText: 'Item', // Translated
                 border: OutlineInputBorder(),
               ),
               value: widget.selectedItem,
@@ -311,14 +320,14 @@ Widget build(BuildContext context) {
                   widget.onItemSelected(value);
                 }
               },
-              validator: (value) => value == null ? 'Select an item' : null,
+              validator: (value) => value == null ? 'Selecione um item' : null, // Translated
             ),
             const SizedBox(height: 16),
 
             // Detail dropdown
             DropdownButtonFormField<Detail>(
               decoration: const InputDecoration(
-                labelText: 'Detail',
+                labelText: 'Detalhe', // Translated
                 border: OutlineInputBorder(),
               ),
               value: widget.selectedDetail,
@@ -333,71 +342,12 @@ Widget build(BuildContext context) {
                   widget.onDetailSelected(value);
                 }
               },
-              validator: (value) => value == null ? 'Select a detail' : null,
+              validator: (value) => value == null ? 'Selecione um detalhe' : null, // Translated
             ),
-            const SizedBox(height: 16),
-            // Deadline date picker
-            TextFormField(
-              readOnly: true,
-              decoration: InputDecoration(
-                labelText: 'Deadline',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: _pickDeadlineDate,
-                ),
-              ),
-              controller: TextEditingController(
-                text: _deadline != null
-                    ? DateFormat('dd/MM/yyyy').format(_deadline!)
-                    : '',
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Severity dropdown
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Severity',
-                border: OutlineInputBorder(),
-              ),
-              value: _severity,
-              items: const [
-                DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
-                DropdownMenuItem(value: 'Média', child: Text('Média')),
-                DropdownMenuItem(value: 'Alta', child: Text('Alta')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _severity = value);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            // Description text field
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Descrição',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-              validator: (value) =>
-                  value == null || value.isEmpty ? 'Enter a description' : null,
-            ),
-            const SizedBox(height: 16),
-            // Corrective action text field
-            TextFormField(
-              controller: _correctiveActionController,
-              decoration: const InputDecoration(
-                labelText: 'Corrective Action (optional)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            ],
-          ),
+            // Removed duplicate fields from here
+          ],
         ),
-      );
-    }       
+      ),
+    );
   }
+}

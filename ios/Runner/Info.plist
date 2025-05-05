@@ -30,6 +30,12 @@
     <string>This app needs photo library access to add photos to inspections</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>This app needs photo library access to save photos from inspections</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+    <string>Precisamos do acesso à sua localização para adicionar informações de geolocalização às fotos capturadas.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Precisamos do acesso à sua localização para adicionar informações de geolocalização às fotos capturadas.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Precisamos do acesso à sua localização para adicionar informações de geolocalização às fotos capturadas.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
