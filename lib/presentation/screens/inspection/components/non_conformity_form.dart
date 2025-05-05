@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/services/gemini_service.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 

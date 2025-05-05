@@ -326,8 +326,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Registrar Nova'),
-            Tab(text: 'Não Conformidades Existentes'),
+            Tab(text: 'Nova Não Conformidade'),
+            Tab(text: 'Não Conformidades'),
           ],
         ),
         actions: [

@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/widgets/non_conformity_media_widget.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 

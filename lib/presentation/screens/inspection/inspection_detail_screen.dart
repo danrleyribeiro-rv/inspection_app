@@ -472,11 +472,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     }
   }
-
-    Future<void> _onRoomsReordered() async {
-    await _loadRooms();
-    await _calculateCompletionPercentage();
-  }
   
   Future<void> _deleteRoom(dynamic roomId) async {
     setState(() => _isLoading = true);
