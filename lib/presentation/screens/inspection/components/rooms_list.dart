@@ -12,6 +12,7 @@ class RoomsList extends StatefulWidget {
   final Function(Room) onRoomDuplicated;
   final Function(int) onExpansionChanged;
   final String inspectionId;
+  final VoidCallback? onRoomsReordered;
 
   const RoomsList({
     super.key,
@@ -22,6 +23,7 @@ class RoomsList extends StatefulWidget {
     required this.onRoomDuplicated,
     required this.onExpansionChanged,
     required this.inspectionId,
+    this.onRoomsReordered,
   });
 
   @override
@@ -31,15 +33,30 @@ class RoomsList extends StatefulWidget {
 class _RoomsListState extends State<RoomsList> {
   final _inspectionService = FirebaseInspectionService();
   bool _isReordering = false;
+  late List<Room> _localRooms;
+
+  @override
+  void initState() {
+    super.initState();
+    _localRooms = List.from(widget.rooms);
+  }
+
+  @override
+  void didUpdateWidget(RoomsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.rooms != oldWidget.rooms) {
+      _localRooms = List.from(widget.rooms);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-      itemCount: widget.rooms.length,
+      itemCount: _localRooms.length,
       onReorder: _onReorder,
       itemBuilder: (context, index) {
-        final room = widget.rooms[index];
+        final room = _localRooms[index];
         
         return RoomWidget(
           key: ValueKey(room.id),
@@ -64,15 +81,14 @@ class _RoomsListState extends State<RoomsList> {
     }
 
     try {
-      // Criar uma cópia da lista atual
-      final List<Room> updatedRooms = List.from(widget.rooms);
-      
-      // Reordenar a lista localmente
-      final Room item = updatedRooms.removeAt(oldIndex);
-      updatedRooms.insert(newIndex, item);
+      // Reordenar a lista local primeiro
+      setState(() {
+        final room = _localRooms.removeAt(oldIndex);
+        _localRooms.insert(newIndex, room);
+      });
       
       // Obter a lista de IDs na nova ordem
-      final List<String> roomIds = updatedRooms
+      final List<String> roomIds = _localRooms
           .where((room) => room.id != null)
           .map((room) => room.id!)
           .toList();
@@ -80,11 +96,28 @@ class _RoomsListState extends State<RoomsList> {
       // Atualizar no Firestore
       await _inspectionService.reorderRooms(widget.inspectionId, roomIds);
       
-      // A tela será atualizada pelo carregamento automático de dados
+      // Chamar o callback para atualizar os dados
+      widget.onRoomsReordered?.call();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ambientes reordenados com sucesso'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao reordenar: $e')),
-      );
+      // Em caso de erro, reverter para a ordem original
+      setState(() {
+        _localRooms = List.from(widget.rooms);
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao reordenar: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isReordering = false);

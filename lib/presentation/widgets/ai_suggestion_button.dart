@@ -88,7 +88,7 @@ class _AISuggestionButtonState extends State<AISuggestionButton> {
                   return ListTile(
                     leading: const Icon(Icons.meeting_room_outlined), // Add an icon
                     title: Text(roomName),
-                    subtitle: Text('$itemCount ${itemCount == 1 ? 'item' : 'itens'} sugeridos'), // Show item count
+                    subtitle: Text('$itemCount ${itemCount == 1 ? 'tópico' : 'tópicos'} sugeridos'), // Show item count
                     onTap: () {
                       Navigator.of(context).pop(); // Close dialog first
                       widget.onSuggestionSelected(suggestion); // Pass the selected suggestion map

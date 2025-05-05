@@ -1,9 +1,10 @@
-// lib/presentation/screens/inspection/detail_widget.dart
+// lib/presentation/screens/inspection/detail_widget.dart (updated with rename)
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/widgets/media_handling_widget.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
+import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
 
 class DetailWidget extends StatefulWidget {
   final Detail detail;
@@ -65,6 +66,25 @@ class _DetailWidgetState extends State<DetailWidget> {
     });
   }
 
+  Future<void> _renameDetail() async {
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => RenameDialog(
+        title: 'Renomear Detalhe',
+        label: 'Nome do Detalhe',
+        initialValue: widget.detail.detailName,
+      ),
+    );
+
+    if (newName != null && newName != widget.detail.detailName) {
+      final updatedDetail = widget.detail.copyWith(
+        detailName: newName,
+        updatedAt: DateTime.now(),
+      );
+      widget.onDetailUpdated(updatedDetail);
+    }
+  }
+
   Future<void> _showDeleteConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -91,183 +111,191 @@ class _DetailWidgetState extends State<DetailWidget> {
     }
   }
 
-@override
-Widget build(BuildContext context) {
-  return Card(
-    margin: const EdgeInsets.only(bottom: 10),
-    elevation: 0,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.zero,
-      side: BorderSide(color: _isDamaged ? Colors.red : Colors.grey.shade300, width: _isDamaged ? 2 : 1),
-    ),
-    child: Column(
-      children: [
-        InkWell(
-          onTap: widget.onExpansionChanged,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                if (_isDamaged)
-                  const Icon(Icons.warning, color: Colors.red, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    widget.detail.detailName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _isDamaged ? Colors.red : null,
-                    ),
-                  ),
-                ),
-                if (_valueController.text.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+        side: BorderSide(color: _isDamaged ? Colors.red : Colors.grey.shade300, width: _isDamaged ? 2 : 1),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  if (_isDamaged)
+                    const Icon(Icons.warning, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      _valueController.text,
-                      style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+                      widget.detail.detailName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _isDamaged ? Colors.red : null,
+                      ),
                     ),
                   ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 18),
-                  onPressed: () => widget.onDetailDuplicated(widget.detail),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Duplicate Detail',
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.delete, size: 18),
-                  onPressed: _showDeleteConfirmation,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Delete Detail',
-                ),
-                const SizedBox(width: 8),
-                Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, size: 18),
-              ],
+                  if (_valueController.text.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _valueController.text,
+                        style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18),
+                    onPressed: _renameDetail,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Renomear Detalhe',
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.copy, size: 18),
+                    onPressed: () => widget.onDetailDuplicated(widget.detail),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Duplicate Detail',
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 18),
+                    onPressed: _showDeleteConfirmation,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Delete Detail',
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, size: 18),
+                ],
+              ),
             ),
           ),
-        ),
-        if (widget.isExpanded) ...[
-          Divider(height: 1, thickness: 1, color: Colors.grey[300]),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isDamaged,
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _isDamaged,
+                        onChanged: (value) {
+                          setState(() {
+                            _isDamaged = value ?? false;
+                          });
+                          _updateDetail();
+                        },
+                      ),
+                      const Text('Damaged detail'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (widget.detail.type == 'select' && widget.detail.options != null && widget.detail.options!.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: _valueController.text.isNotEmpty ? _valueController.text : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Value',
+                        border: OutlineInputBorder(),
+                        hintText: 'Select a value',
+                      ),
+                      items: widget.detail.options!.map((option) {
+                        return DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(option),
+                        );
+                      }).toList(),
                       onChanged: (value) {
-                        setState(() {
-                          _isDamaged = value ?? false;
-                        });
-                        _updateDetail();
+                        if (value != null) {
+                          setState(() {
+                            _valueController.text = value;
+                          });
+                          _updateDetail();
+                        }
                       },
+                    )
+                  else
+                    TextFormField(
+                      controller: _valueController,
+                      decoration: const InputDecoration(
+                        labelText: 'Value',
+                        border: OutlineInputBorder(),
+                        hintText: 'Enter a value',
+                      ),
+                      onChanged: (_) => _updateDetail(),
                     ),
-                    const Text('Damaged detail'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (widget.detail.type == 'select' && widget.detail.options != null && widget.detail.options!.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    value: _valueController.text.isNotEmpty ? _valueController.text : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Value',
-                      border: OutlineInputBorder(),
-                      hintText: 'Select a value',
-                    ),
-                    items: widget.detail.options!.map((option) {
-                      return DropdownMenuItem<String>(
-                        value: option,
-                        child: Text(option),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _valueController.text = value;
-                        });
-                        _updateDetail();
-                      }
-                    },
-                  )
-                else
+                  const SizedBox(height: 16),
                   TextFormField(
-                    controller: _valueController,
+                    controller: _observationController,
                     decoration: const InputDecoration(
-                      labelText: 'Value',
+                      labelText: 'Observations',
                       border: OutlineInputBorder(),
-                      hintText: 'Enter a value',
+                      hintText: 'Add observations about this detail...',
                     ),
+                    maxLines: 3,
                     onChanged: (_) => _updateDetail(),
                   ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _observationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Observations',
-                    border: OutlineInputBorder(),
-                    hintText: 'Add observations about this detail...',
-                  ),
-                  maxLines: 3,
-                  onChanged: (_) => _updateDetail(),
-                ),
-                const SizedBox(height: 16),
-                if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null)
-                  MediaHandlingWidget(
-                    inspectionId: widget.detail.inspectionId,
-                    roomId: widget.detail.roomId!,
-                    itemId: widget.detail.itemId!,
-                    detailId: widget.detail.id!,
-                    onMediaAdded: (_) => setState(() {}),
-                    onMediaDeleted: (_) => setState(() {}),
-                    onMediaMoved: (_, __, ___, ____) => setState(() {}),
-                  ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => NonConformityScreen(
-                            inspectionId: widget.detail.inspectionId,
-                            preSelectedRoom: widget.detail.roomId,
-                            preSelectedItem: widget.detail.itemId,
-                            preSelectedDetail: widget.detail.id,
+                  const SizedBox(height: 16),
+                  if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null)
+                    MediaHandlingWidget(
+                      inspectionId: widget.detail.inspectionId,
+                      roomId: widget.detail.roomId!,
+                      itemId: widget.detail.itemId!,
+                      detailId: widget.detail.id!,
+                      onMediaAdded: (_) => setState(() {}),
+                      onMediaDeleted: (_) => setState(() {}),
+                      onMediaMoved: (_, __, ___, ____) => setState(() {}),
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => NonConformityScreen(
+                              inspectionId: widget.detail.inspectionId,
+                              preSelectedRoom: widget.detail.roomId,
+                              preSelectedItem: widget.detail.itemId,
+                              preSelectedDetail: widget.detail.id,
+                            ),
                           ),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Não foi possível abrir a tela de não-conformidade. IDs ausentes.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.report_problem),
-                  label: const Text('Add Non-Conformity'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Não foi possível abrir a tela de não-conformidade. IDs ausentes.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.report_problem),
+                    label: const Text('Add Non-Conformity'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 }

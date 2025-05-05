@@ -1,4 +1,4 @@
-// lib/presentation/screens/inspection/room_widget.dart
+// lib/presentation/screens/inspection/room_widget.dart (updated with rename)
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
@@ -6,6 +6,7 @@ import 'package:inspection_app/presentation/screens/inspection/item_widget.dart'
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'dart:async';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
+import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
 
 class RoomWidget extends StatefulWidget {
   final Room room;
@@ -75,7 +76,6 @@ class _RoomWidgetState extends State<RoomWidget> {
         _isLoading = false;
       });
 
-      // If the list was scrolled before, restore scroll position
       if (_scrollController?.hasClients ?? false) {
         _scrollController?.animateTo(
           0,
@@ -109,10 +109,29 @@ class _RoomWidgetState extends State<RoomWidget> {
     });
   }
 
+  Future<void> _renameRoom() async {
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => RenameDialog(
+        title: 'Renomear Tópico',
+        label: 'Nome do Tópico',
+        initialValue: widget.room.roomName,
+      ),
+    );
+
+    if (newName != null && newName != widget.room.roomName) {
+      final updatedRoom = widget.room.copyWith(
+        roomName: newName,
+        updatedAt: DateTime.now(),
+      );
+      widget.onRoomUpdated(updatedRoom);
+    }
+  }
+
   Future<void> _addItem() async {
     if (widget.room.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro: ID do cômodo não encontrado')),
+        const SnackBar(content: Text('Erro: ID do tópico não encontrado')),
       );
       return;
     }
@@ -219,7 +238,7 @@ class _RoomWidgetState extends State<RoomWidget> {
     try {
       if (widget.room.id == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro: ID do cômodo não encontrado')),
+          const SnackBar(content: Text('Erro: ID do tópico não encontrado')),
         );
         return;
       }
@@ -250,7 +269,7 @@ class _RoomWidgetState extends State<RoomWidget> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Excluir Cômodo'),
+        title: const Text('Excluir Tópico'),
         content: Text(
             'Tem certeza de que deseja excluir "${widget.room.roomName}"?\n\nTodos os itens, detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
@@ -272,125 +291,130 @@ class _RoomWidgetState extends State<RoomWidget> {
     }
   }
 
-@override
-Widget build(BuildContext context) {
-  return Card(
-    margin: const EdgeInsets.only(bottom: 10),
-    elevation: 2,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.zero,
-      side: BorderSide(color: Colors.grey.shade300, width: 1),
-    ),
-    child: Column(
-      children: [
-        InkWell(
-          onTap: widget.onExpansionChanged,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.room.roomName,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      if (widget.room.roomLabel != null) ...[
-                        const SizedBox(height: 4),
-                        Text(widget.room.roomLabel!, style: TextStyle(color: Colors.grey[600])),
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+        side: BorderSide(color: Colors.grey.shade300, width: 1),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.room.roomName,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        if (widget.room.roomLabel != null) ...[
+                          const SizedBox(height: 4),
+                          Text(widget.room.roomLabel!, style: TextStyle(color: Colors.grey[600])),
+                        ],
                       ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: _renameRoom,
+                    tooltip: 'Renomear Tópico',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy),
+                    onPressed: _duplicateRoom,
+                    tooltip: 'Duplicar Tópico',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: _showDeleteConfirmation,
+                    tooltip: 'Excluir Tópico',
+                  ),
+                  Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
+            ),
+          ),
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _observationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Observações',
+                      border: OutlineInputBorder(),
+                      hintText: 'Adicione observações sobre este tópico...',
+                    ),
+                    maxLines: 3,
+                    onChanged: (_) => _updateRoom(),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Itens',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar Item'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.copy),
-                  onPressed: _duplicateRoom,
-                  tooltip: 'Duplicar Cômodo',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: _showDeleteConfirmation,
-                  tooltip: 'Excluir Cômodo',
-                ),
-                Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more),
-              ],
-            ),
-          ),
-        ),
-        if (widget.isExpanded) ...[
-          Divider(height: 1, thickness: 1, color: Colors.grey[300]),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: _observationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Observações',
-                    border: OutlineInputBorder(),
-                    hintText: 'Adicione observações sobre este cômodo...',
-                  ),
-                  maxLines: 3,
-                  onChanged: (_) => _updateRoom(),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Itens',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _addItem,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar Item'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
+                  const SizedBox(height: 16),
+                  if (_isLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_items.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('Nenhum item adicionado ainda'),
                       ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      controller: _scrollController,
+                      itemCount: _items.length,
+                      itemBuilder: (context, index) {
+                        return ItemWidget(
+                          item: _items[index],
+                          onItemUpdated: _handleItemUpdate,
+                          onItemDeleted: _handleItemDelete,
+                          onItemDuplicated: _duplicateItem,
+                          isExpanded: index == _expandedItemIndex,
+                          onExpansionChanged: () {
+                            setState(() {
+                              _expandedItemIndex = _expandedItemIndex == index ? -1 : index;
+                            });
+                          },
+                        );
+                      },
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (_isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else if (_items.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('Nenhum item adicionado ainda'),
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    controller: _scrollController,
-                    itemCount: _items.length,
-                    itemBuilder: (context, index) {
-                      return ItemWidget(
-                        item: _items[index],
-                        onItemUpdated: _handleItemUpdate,
-                        onItemDeleted: _handleItemDelete,
-                        onItemDuplicated: _duplicateItem,
-                        isExpanded: index == _expandedItemIndex,
-                        onExpansionChanged: () {
-                          setState(() {
-                            _expandedItemIndex = _expandedItemIndex == index ? -1 : index;
-                          });
-                        },
-                      );
-                    },
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 }
