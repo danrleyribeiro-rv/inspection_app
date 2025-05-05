@@ -1,10 +1,11 @@
-// lib/presentation/screens/inspection/components/landscape_view.dart
+// lib/presentation/screens/inspection/components/landscape_view.dart (updated with rename)
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
 
 class LandscapeView extends StatelessWidget {
   final List<Room> rooms;
@@ -37,66 +38,41 @@ class LandscapeView extends StatelessWidget {
   });
 
   Future<String?> _showTextInputDialog(
-      BuildContext context, String title, String label) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+      BuildContext context, String title, String label, {String? initialValue}) async {
+    return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(labelText: label),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Add'),
-          ),
-        ],
+      builder: (context) => RenameDialog(
+        title: title,
+        label: label,
+        initialValue: initialValue ?? '',
       ),
     );
-
-    controller.dispose();
-    return result;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size to make adaptive layouts
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.width < 600;
     
     return Container(
-      // Add constraints to prevent overflow
       constraints: BoxConstraints(
         maxWidth: screenSize.width,
-        maxHeight: screenSize.height - kToolbarHeight - 80, // Subtract app bar + some padding
+        maxHeight: screenSize.height - kToolbarHeight - 80,
       ),
       child: Row(
         children: [
-          // Rooms column - adjust flex based on screen size
+          // Rooms column
           Expanded(
             flex: isSmallScreen ? 2 : 2,
             child: _buildRoomsColumn(context),
           ),
-
-          // Vertical divider
           VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
-
           // Items column
           Expanded(
             flex: isSmallScreen ? 3 : 3,
             child: _buildItemsColumn(context),
           ),
-
-          // Vertical divider
           VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
-
           // Details column
           Expanded(
             flex: isSmallScreen ? 4 : 5,
@@ -115,12 +91,12 @@ class LandscapeView extends StatelessWidget {
           children: [
             const Icon(Icons.home_work_outlined, size: 50, color: Colors.grey),
             const SizedBox(height: 8),
-            const Text('No rooms', style: TextStyle(color: Colors.white)),
+            const Text('Nenhum tópico', style: TextStyle(color: Colors.white)),
             const SizedBox(height: 8),
             ElevatedButton.icon(
               onPressed: onAddRoom,
               icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add'),
+              label: const Text('Adicionar'),
             ),
           ],
         ),
@@ -156,10 +132,42 @@ class LandscapeView extends StatelessWidget {
                   
                   // Action buttons
                   SizedBox(
-                    width: 52, // Fixed width for buttons
+                    width: 80, // Increased width for rename button
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Rename button
+                        InkWell(
+                          onTap: () async {
+                            final newName = await _showTextInputDialog(
+                              context,
+                              'Rename Room',
+                              'Room name',
+                              initialValue: room.roomName,
+                            );
+                            
+                            if (newName != null && newName.isNotEmpty && newName != room.roomName) {
+                              final updatedRoom = room.copyWith(
+                                roomName: newName,
+                                updatedAt: DateTime.now(),
+                              );
+                              await inspectionService.updateRoom(updatedRoom);
+                              // Trigger reload of rooms
+                              onRoomSelected(selectedRoomIndex);
+                            }
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(
+                              Icons.edit, 
+                              color: Colors.white, 
+                              size: 18
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 4),
+                        
                         // Duplicate button
                         InkWell(
                           onTap: () => onRoomDuplicate(room),
@@ -173,7 +181,7 @@ class LandscapeView extends StatelessWidget {
                           ),
                         ),
                         
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         
                         // Delete button
                         InkWell(
@@ -206,7 +214,7 @@ class LandscapeView extends StatelessWidget {
   Widget _buildItemsColumn(BuildContext context) {
     if (selectedRoomIndex < 0) {
       return const Center(
-          child: Text('Select a room', style: TextStyle(color: Colors.white)));
+          child: Text('Selecione um tópico', style: TextStyle(color: Colors.white)));
     }
 
     return Column(
@@ -218,7 +226,7 @@ class LandscapeView extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Items - ${selectedRoomIndex >= 0 && selectedRoomIndex < rooms.length ? rooms[selectedRoomIndex].roomName : ""}',
+                  'Itens - ${selectedRoomIndex >= 0 && selectedRoomIndex < rooms.length ? rooms[selectedRoomIndex].roomName : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.white),
                   overflow: TextOverflow.ellipsis,
@@ -256,7 +264,7 @@ class LandscapeView extends StatelessWidget {
         Expanded(
           child: selectedRoomItems.isEmpty
               ? const Center(
-                  child: Text('No items in this room',
+                  child: Text('Nenhum item neste tópico',
                       style: TextStyle(color: Colors.white)))
               : ListView.builder(
                   itemCount: selectedRoomItems.length,
@@ -285,26 +293,65 @@ class LandscapeView extends StatelessWidget {
                                 ),
                               ),
                               
-                              // Delete button
-                              InkWell(
-                                onTap: () async {
-                                  // Logic to delete item
-                                  if (item.id != null && item.roomId != null) {
-                                    await inspectionService.deleteItem(
-                                      inspectionId,
-                                      item.roomId!,
-                                      item.id!,
-                                    );
-                                    onRoomSelected(selectedRoomIndex);
-                                  }
-                                },
-                                child: const Padding(
-                                  padding: EdgeInsets.all(4.0),
-                                  child: Icon(
-                                    Icons.delete, 
-                                    color: Colors.white, 
-                                    size: 18
-                                  ),
+                              // Action buttons
+                              SizedBox(
+                                width: 60,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Rename button
+                                    InkWell(
+                                      onTap: () async {
+                                        final newName = await _showTextInputDialog(
+                                          context,
+                                          'Rename Item',
+                                          'Item name',
+                                          initialValue: item.itemName,
+                                        );
+                                        
+                                        if (newName != null && newName.isNotEmpty && newName != item.itemName) {
+                                          final updatedItem = item.copyWith(
+                                            itemName: newName,
+                                            updatedAt: DateTime.now(),
+                                          );
+                                          await inspectionService.updateItem(updatedItem);
+                                          onRoomSelected(selectedRoomIndex);
+                                        }
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(4.0),
+                                        child: Icon(
+                                          Icons.edit, 
+                                          color: Colors.white, 
+                                          size: 18
+                                        ),
+                                      ),
+                                    ),
+                                    
+                                    const SizedBox(width: 4),
+                                    
+                                    // Delete button
+                                    InkWell(
+                                      onTap: () async {
+                                        if (item.id != null && item.roomId != null) {
+                                          await inspectionService.deleteItem(
+                                            inspectionId,
+                                            item.roomId!,
+                                            item.id!,
+                                          );
+                                          onRoomSelected(selectedRoomIndex);
+                                        }
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(4.0),
+                                        child: Icon(
+                                          Icons.delete, 
+                                          color: Colors.white, 
+                                          size: 18
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -322,7 +369,7 @@ class LandscapeView extends StatelessWidget {
   Widget _buildDetailsColumn(BuildContext context) {
     if (selectedItemIndex < 0) {
       return const Center(
-          child: Text('Select an item', style: TextStyle(color: Colors.white)));
+          child: Text('Selecione um item', style: TextStyle(color: Colors.white)));
     }
 
     return Column(
@@ -334,7 +381,7 @@ class LandscapeView extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Details - ${selectedItemIndex >= 0 && selectedItemIndex < selectedRoomItems.length ? selectedRoomItems[selectedItemIndex].itemName : ""}',
+                  'Detalhes - ${selectedItemIndex >= 0 && selectedItemIndex < selectedRoomItems.length ? selectedRoomItems[selectedItemIndex].itemName : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.white),
                   overflow: TextOverflow.ellipsis,
@@ -375,7 +422,7 @@ class LandscapeView extends StatelessWidget {
         Expanded(
           child: selectedItemDetails.isEmpty
               ? const Center(
-                  child: Text('No details in this item',
+                  child: Text('Nenhum detalhe neste item',
                       style: TextStyle(color: Colors.white)))
               : ListView.builder(
                   itemCount: selectedItemDetails.length,
@@ -411,6 +458,31 @@ class LandscapeView extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // Rename button
+                InkWell(
+                  onTap: () async {
+                    final newName = await _showTextInputDialog(
+                      context,
+                      'Rename Detail',
+                      'Detail name',
+                      initialValue: detail.detailName,
+                    );
+                    
+                    if (newName != null && newName.isNotEmpty && newName != detail.detailName) {
+                      final updatedDetail = detail.copyWith(
+                        detailName: newName,
+                        updatedAt: DateTime.now(),
+                      );
+                      await inspectionService.updateDetail(updatedDetail);
+                      onItemSelected(selectedItemIndex);
+                    }
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4.0),
+                    child: Icon(Icons.edit, color: Colors.white, size: 20),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Delete button
                 InkWell(
                   onTap: () async {
@@ -456,7 +528,7 @@ class LandscapeView extends StatelessWidget {
                     },
                   ),
                 ),
-const SizedBox(width: 8),
+                const SizedBox(width: 8),
                 const Text('Damaged', style: TextStyle(color: Colors.white)),
               ],
             ),
@@ -528,7 +600,7 @@ const SizedBox(width: 8),
                   );
                 },
                 icon: const Icon(Icons.report_problem, size: 18),
-                label: const Text('Add Non-Conformity'),
+                label: const Text('Adicionar Não-Conformidade'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,

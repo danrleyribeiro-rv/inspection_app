@@ -210,7 +210,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Falha ao aplicar template. Tente novamente.'),
-                backgroundColor: Colors.orange,
+                backgroundColor: Colors.red,
                 duration: Duration(seconds: 3),
               ),
             );
@@ -471,6 +471,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         );
       }
     }
+  }
+
+    Future<void> _onRoomsReordered() async {
+    await _loadRooms();
+    await _calculateCompletionPercentage();
   }
   
   Future<void> _deleteRoom(dynamic roomId) async {
@@ -870,61 +875,63 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
-  // Improved body building method with proper constraints
-  Widget _buildBody(bool isLandscape, Size screenSize) {
-    if (_isLoading) {
-      return LoadingState(
-        isDownloading: false, 
-        isApplyingTemplate: _isApplyingTemplate
-      );
-    }
-    
-    // Calculate available height by subtracting app bar, status bar, etc.
-    final double availableHeight = screenSize.height - 
-                                kToolbarHeight - 
-                                MediaQuery.of(context).padding.top - 
-                                MediaQuery.of(context).padding.bottom;
-    
-    return Column(
-      children: [
-        // Inspection header with status and progress
-        if (_inspection != null)
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: screenSize.width,
-            ),
-            child: InspectionHeader(
-              inspection: _inspection!.toJson(),
-              completionPercentage: _completionPercentage,
-              isOffline: !_isOnline,
-            ),
+// Replace this section in _buildBody:
+Widget _buildBody(bool isLandscape, Size screenSize) {
+  if (_isLoading) {
+    return LoadingState(
+      isDownloading: false, 
+      isApplyingTemplate: _isApplyingTemplate
+    );
+  }
+  
+  // Calculate available height by subtracting app bar, status bar, etc.
+  final double availableHeight = screenSize.height - 
+                              kToolbarHeight - 
+                              MediaQuery.of(context).padding.top - 
+                              MediaQuery.of(context).padding.bottom;
+  
+  return Column(
+    children: [
+      // Inspection header with status and progress
+      if (_inspection != null)
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: screenSize.width,
           ),
+          child: InspectionHeader(
+            inspection: _inspection!.toJson(),
+            completionPercentage: _completionPercentage,
+            isOffline: !_isOnline,
+          ),
+        ),
 
-        // Main content area
-        Expanded(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: screenSize.width,
-              maxHeight: availableHeight - (_inspection != null ? 110 : 0), // Adjust for header height
-            ),
-            child: _rooms.isEmpty
-                ? EmptyRoomState(onAddRoom: _addRoom)
-                : isLandscape
-                    ? LandscapeView(
-                        rooms: _rooms,
-                        selectedRoomIndex: _selectedRoomIndex,
-                        selectedItemIndex: _selectedItemIndex,
-                        selectedRoomItems: _selectedRoomItems,
-                        selectedItemDetails: _selectedItemDetails,
-                        inspectionId: widget.inspectionId,
-                        onRoomSelected: _handleRoomSelected,
-                        onItemSelected: _handleItemSelected,
-                        onRoomDuplicate: _duplicateRoom,
-                        onRoomDelete: _deleteRoom,
-                        inspectionService: _inspectionService,
-                        onAddRoom: _addRoom,
-                      )
-                    : RoomsList(
+      // Main content area
+      Expanded(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: screenSize.width,
+            maxHeight: availableHeight - (_inspection != null ? 110 : 0),
+          ),
+          child: _rooms.isEmpty
+              ? EmptyRoomState(onAddRoom: _addRoom)
+              : isLandscape
+                  ? LandscapeView(
+                      rooms: _rooms,
+                      selectedRoomIndex: _selectedRoomIndex,
+                      selectedItemIndex: _selectedItemIndex,
+                      selectedRoomItems: _selectedRoomItems,
+                      selectedItemDetails: _selectedItemDetails,
+                      inspectionId: widget.inspectionId,
+                      onRoomSelected: _handleRoomSelected,
+                      onItemSelected: _handleItemSelected,
+                      onRoomDuplicate: _duplicateRoom,
+                      onRoomDelete: _deleteRoom,
+                      inspectionService: _inspectionService,
+                      onAddRoom: _addRoom,
+                    )
+                  : StatefulBuilder(
+                      builder: (context, setState) {
+                        return RoomsList(
                         rooms: _rooms,
                         expandedRoomIndex: _expandedRoomIndex,
                         onRoomUpdated: _updateRoom,
@@ -937,10 +944,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                           });
                         },
                         inspectionId: widget.inspectionId,
-                      ),
-          ),
+                        onRoomsReordered: _loadRooms, // Add this line
+                      );
+                      },
+                    ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 }

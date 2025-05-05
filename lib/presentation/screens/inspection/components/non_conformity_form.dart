@@ -157,7 +157,7 @@ Widget build(BuildContext context) {
                   TextFormField(
                     controller: _descriptionController,
                     decoration: const InputDecoration(
-                      labelText: 'Description',
+                      labelText: 'Descrição',
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 3,
@@ -380,7 +380,7 @@ Widget build(BuildContext context) {
             TextFormField(
               controller: _descriptionController,
               decoration: const InputDecoration(
-                labelText: 'Description',
+                labelText: 'Descrição',
                 border: OutlineInputBorder(),
               ),
               maxLines: 3,

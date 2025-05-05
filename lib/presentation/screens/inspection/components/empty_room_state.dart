@@ -18,12 +18,12 @@ class EmptyRoomState extends StatelessWidget {
           const Icon(Icons.home_work_outlined, size: 80, color: Colors.grey),
           const SizedBox(height: 16),
           const Text(
-            'No rooms added',
+            'Nenhum tópico adicionado',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Click the + button to add rooms',
+            'Clique no botão + para adicionar tópicos',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70),
           ),
@@ -31,7 +31,7 @@ class EmptyRoomState extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: onAddRoom,
             icon: const Icon(Icons.add),
-            label: const Text('Add Room'),
+            label: const Text('Adicionar tópico'),
           ),
         ],
       ),
