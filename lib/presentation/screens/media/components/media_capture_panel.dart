@@ -413,7 +413,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: Color(0xFF1E293B), // Slate background to match theme
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Form(
@@ -430,10 +430,11 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -441,119 +442,178 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
             const SizedBox(height: 16),
             
             // Room selector
-            const Text('Tópico'),
-            DropdownButtonFormField<String>(
-              value: _roomId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                hintText: 'Selecione um tópico',
-                border: OutlineInputBorder(),
+            const Text('Tópico', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[700]!),
               ),
-              items: widget.rooms.map((room) {
-                return DropdownMenuItem<String>(
-                  value: room.id,
-                  child: Text(room.roomName),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _roomId = value;
-                  _itemId = null;
-                  _detailId = null;
-                  _items = [];
-                  _details = [];
-                });
-                
-                if (value != null) {
-                  _loadItems(value);
-                }
-              },
-              validator: (value) => value == null ? 'Selecione um tópico' : null,
+              child: DropdownButtonFormField<String>(
+                value: _roomId,
+                isExpanded: true,
+                dropdownColor: Colors.grey[800],
+                decoration: const InputDecoration(
+                  hintText: 'Selecione um tópico',
+                  hintStyle: TextStyle(color: Colors.white70),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                  border: InputBorder.none,
+                ),
+                style: const TextStyle(color: Colors.white),
+                items: widget.rooms.map((room) {
+                  return DropdownMenuItem<String>(
+                    value: room.id,
+                    child: Text(room.roomName),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _roomId = value;
+                    _itemId = null;
+                    _detailId = null;
+                    _items = [];
+                    _details = [];
+                  });
+                  
+                  if (value != null) {
+                    _loadItems(value);
+                  }
+                },
+                validator: (value) => value == null ? 'Selecione um tópico' : null,
+              ),
             ),
             const SizedBox(height: 16),
             
             // Item selector
-            const Text('Item'),
+            const Text('Item', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 8),
             _isLoadingItems
-                ? const LinearProgressIndicator()
-                : DropdownButtonFormField<String>(
-                    value: _itemId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Selecione um item',
-                      border: OutlineInputBorder(),
+                ? const LinearProgressIndicator(color: Colors.blue)
+                : Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
                     ),
-                    items: _items.map((item) {
-                      return DropdownMenuItem<String>(
-                        value: item.id,
-                        child: Text(item.itemName),
-                      );
-                    }).toList(),
-                    onChanged: _roomId == null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _itemId = value;
-                              _detailId = null;
-                              _details = [];
-                            });
-                            
-                            if (value != null && _roomId != null) {
-                              _loadDetails(_roomId!, value);
-                            }
-                          },
-                    validator: (value) => value == null ? 'Selecione um item' : null,
+                    child: DropdownButtonFormField<String>(
+                      value: _itemId,
+                      isExpanded: true,
+                      dropdownColor: Colors.grey[800],
+                      decoration: const InputDecoration(
+                        hintText: 'Selecione um item',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                        border: InputBorder.none,
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      items: _items.map((item) {
+                        return DropdownMenuItem<String>(
+                          value: item.id,
+                          child: Text(item.itemName),
+                        );
+                      }).toList(),
+                      onChanged: _roomId == null
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _itemId = value;
+                                _detailId = null;
+                                _details = [];
+                              });
+                              
+                              if (value != null && _roomId != null) {
+                                _loadDetails(_roomId!, value);
+                              }
+                            },
+                      validator: (value) => value == null ? 'Selecione um item' : null,
+                    ),
                   ),
             const SizedBox(height: 16),
             
             // Detail selector
-            const Text('Detalhe'),
+            const Text('Detalhe', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 8),
             _isLoadingDetails
-                ? const LinearProgressIndicator()
-                : DropdownButtonFormField<String>(
-                    value: _detailId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Selecione um detalhe',
-                      border: OutlineInputBorder(),
+                ? const LinearProgressIndicator(color: Colors.blue)
+                : Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
                     ),
-                    items: _details.map((detail) {
-                      return DropdownMenuItem<String>(
-                        value: detail.id,
-                        child: Text(detail.detailName),
-                      );
-                    }).toList(),
-                    onChanged: _itemId == null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _detailId = value;
-                            });
-                          },
-                    validator: (value) => value == null ? 'Selecione um detalhe' : null,
+                    child: DropdownButtonFormField<String>(
+                      value: _detailId,
+                      isExpanded: true,
+                      dropdownColor: Colors.grey[800],
+                      decoration: const InputDecoration(
+                        hintText: 'Selecione um detalhe',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                        border: InputBorder.none,
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      items: _details.map((detail) {
+                        return DropdownMenuItem<String>(
+                          value: detail.id,
+                          child: Text(detail.detailName),
+                        );
+                      }).toList(),
+                      onChanged: _itemId == null
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _detailId = value;
+                              });
+                            },
+                      validator: (value) => value == null ? 'Selecione um detalhe' : null,
+                    ),
                   ),
             const SizedBox(height: 16),
             
             // Non-conformity flag
-            SwitchListTile(
-              title: const Text('Não Conformidade'),
-              subtitle: const Text('Marcar como item com problema'),
-              value: _isNonConformity,
-              onChanged: (value) {
-                setState(() {
-                  _isNonConformity = value;
-                });
-              },
-              activeColor: Colors.red,
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SwitchListTile(
+                title: const Text('Não Conformidade',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text('Marcar como item com problema',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                value: _isNonConformity,
+                onChanged: (value) {
+                  setState(() {
+                    _isNonConformity = value;
+                  });
+                },
+                activeColor: Colors.orange,
+              ),
             ),
             
             // Observation field
-            const Text('Observação (opcional)'),
+            const SizedBox(height: 16),
+            const Text('Observação (opcional)', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _observationController,
-              decoration: const InputDecoration(
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
                 hintText: 'Digite uma observação...',
-                border: OutlineInputBorder(),
+                hintStyle: const TextStyle(color: Colors.white54),
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
               ),
               maxLines: 2,
               onChanged: (value) {
@@ -630,6 +690,10 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                           )
                         : const Icon(Icons.photo_library),
                     label: const Text('Galeria Fotos'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.blue),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -648,18 +712,25 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                           )
                         : const Icon(Icons.video_library),
                     label: const Text('Galeria Vídeos'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.purple),
+                    ),
                   ),
                 ),
               ],
             ),
             if (_isLoading) ...[
               const SizedBox(height: 16),
-              const LinearProgressIndicator(),
+              const LinearProgressIndicator(color: Colors.blue),
               const SizedBox(height: 8),
               const Center(
                 child: Text(
                   'Processando mídia...',
-                  style: TextStyle(fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic, 
+                    color: Colors.white70
+                  ),
                 ),
               ),
             ],

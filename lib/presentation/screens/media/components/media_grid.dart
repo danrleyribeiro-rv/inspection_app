@@ -56,12 +56,12 @@ class MediaGrid extends StatelessWidget {
       }
     }
     
-    // Create a decoration for the card
+    // Create a decoration for the card with consistent dark theme colors
     BoxDecoration decoration = BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       border: isNonConformity 
           ? Border.all(color: Colors.red, width: 2) 
-          : Border.all(color: Colors.grey.shade300),
+          : Border.all(color: Colors.grey.shade700),
     );
     
     // Choose display widget
@@ -125,6 +125,7 @@ class MediaGrid extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
+        color: Colors.grey[850], // Consistent dark theme
         child: Container(
           decoration: decoration,
           child: Stack(
@@ -132,7 +133,7 @@ class MediaGrid extends StatelessWidget {
             children: [
               // Main media display
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(7), // Slightly smaller to show border
                 child: displayWidget,
               ),
               
@@ -147,7 +148,7 @@ class MediaGrid extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.red,
+                          color: Colors.red.withOpacity(0.8),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -160,7 +161,9 @@ class MediaGrid extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: isImage ? Colors.blue : Colors.purple,
+                        color: isImage 
+                            ? Colors.blue.withOpacity(0.8) 
+                            : Colors.purple.withOpacity(0.8),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -216,6 +219,7 @@ class MediaGrid extends StatelessWidget {
         height: 24,
         child: CircularProgressIndicator(
           strokeWidth: 2,
+          color: Colors.white,
         ),
       ),
     );
@@ -223,11 +227,12 @@ class MediaGrid extends StatelessWidget {
   
   Widget _buildErrorPlaceholder() {
     return Container(
-      color: Colors.grey.shade200,
+      color: Colors.grey.shade800,
       child: const Center(
         child: Icon(
           Icons.broken_image,
           color: Colors.red,
+          size: 32,
         ),
       ),
     );
@@ -235,20 +240,21 @@ class MediaGrid extends StatelessWidget {
   
   Widget _buildNoSourcePlaceholder(String type) {
     return Container(
-      color: Colors.grey.shade200,
+      color: Colors.grey.shade800,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             type == 'image' ? Icons.image_not_supported : Icons.videocam_off,
-            color: Colors.grey,
+            color: Colors.grey.shade400,
+            size: 32,
           ),
           const SizedBox(height: 4),
           Text(
             'Sem fonte',
             style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 10,
+              color: Colors.grey.shade400,
+              fontSize: 12,
             ),
           ),
         ],

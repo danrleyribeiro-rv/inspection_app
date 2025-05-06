@@ -226,8 +226,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
         title: const Text('Galeria de Mídia'),
+        backgroundColor: const Color(0xFF1E293B),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -235,6 +237,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
+                backgroundColor: Colors.transparent,
                 builder: (context) => MediaFilterPanel(
                   inspectionId: widget.inspectionId,
                   rooms: _rooms,
@@ -258,7 +261,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : Column(
               children: [
                 // Filter summary
@@ -275,12 +278,17 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                             children: [
                               const Icon(Icons.photo_library, size: 64, color: Colors.grey),
                               const SizedBox(height: 16),
-                              const Text('Nenhuma mídia encontrada'),
+                              const Text(
+                                'Nenhuma mídia encontrada',
+                                style: TextStyle(color: Colors.white),
+                              ),
                               if (_selectedRoomId != null || _selectedItemId != null || _selectedDetailId != null || 
                                   _isNonConformityOnly != null || _mediaType != null)
-                                ElevatedButton(
+                                TextButton.icon(
+                                  icon: const Icon(Icons.filter_alt_off),
                                   onPressed: _clearFilters,
-                                  child: const Text('Limpar filtros'),
+                                  label: const Text('Limpar filtros'),
+                                  style: TextButton.styleFrom(foregroundColor: Colors.white),
                                 ),
                             ],
                           ),
@@ -308,7 +316,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
             ),
           );
         },
-        child: const Icon(Icons.add_a_photo),
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.add_a_photo, color: Colors.white),
       ),
     );
   }
@@ -326,7 +335,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       
       filterChips.add(
         Chip(
-          label: Text('Tópico: $roomName'),
+          label: Text('Tópico: $roomName', style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.blue.shade900,
+          deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
               roomId: null,
@@ -353,7 +364,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       
       filterChips.add(
         Chip(
-          label: Text('Item: $itemName'),
+          label: Text('Item: $itemName', style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.indigo.shade900,
+          deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
               roomId: _selectedRoomId,
@@ -380,7 +393,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       
       filterChips.add(
         Chip(
-          label: Text('Detalhe: $detailName'),
+          label: Text('Detalhe: $detailName', style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.teal.shade900,
+          deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
               roomId: _selectedRoomId,
@@ -398,8 +413,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     if (_isNonConformityOnly == true) {
       filterChips.add(
         Chip(
-          label: const Text('Apenas Não Conformidades'),
-          backgroundColor: Colors.orange.shade100,
+          label: const Text('Apenas Não Conformidades', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.orange.shade900,
+          deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
               roomId: _selectedRoomId,
@@ -415,10 +431,16 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     
     // Add media type filter chip
     if (_mediaType != null) {
+      final chipColor = _mediaType == 'image' ? Colors.purple.shade900 : Colors.pink.shade900;
+      
       filterChips.add(
         Chip(
-          label: Text(_mediaType == 'image' ? 'Apenas Fotos' : 'Apenas Vídeos'),
-          backgroundColor: _mediaType == 'image' ? Colors.blue.shade100 : Colors.purple.shade100,
+          label: Text(
+            _mediaType == 'image' ? 'Apenas Fotos' : 'Apenas Vídeos',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: chipColor,
+          deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
               roomId: _selectedRoomId,
@@ -441,10 +463,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         children: [
           ...filterChips,
           ActionChip(
-            label: const Text('Limpar Filtros'),
+            label: const Text('Limpar Filtros', style: TextStyle(color: Colors.white)),
             onPressed: _clearFilters,
-            backgroundColor: Colors.grey.shade200,
-            avatar: const Icon(Icons.clear, size: 16),
+            backgroundColor: Colors.grey.shade800,
+            avatar: const Icon(Icons.clear, size: 16, color: Colors.white),
           ),
         ],
       ),
