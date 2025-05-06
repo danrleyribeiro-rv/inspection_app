@@ -8,8 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter/return_code.dart';
 
 class ImageWatermarkService {
   static final ImageWatermarkService _instance = ImageWatermarkService._internal();
@@ -131,69 +129,8 @@ class ImageWatermarkService {
     Position? location,
     String? locationAddress,
   }) async {
-    try {
-      // Create a temporary directory for processing
-      final tempDir = await getTemporaryDirectory();
-      final outputFileName = 'watermarked_${timestamp.millisecondsSinceEpoch}${path.extension(videoFile.path)}';
-      final outputPath = '${tempDir.path}/$outputFileName';
-      
-      // Format date and time with seconds
-      final dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm:ss');
-      final formattedDateTime = dateTimeFormat.format(timestamp);
-      
-      // Icon to use based on source (📁 for gallery, 📷 for camera)
-      final icon = isFromGallery ? '\u{1F4C1}' : '\u{1F4F7}';
-      
-      // Prepare watermark text
-      String watermarkText = '$icon $formattedDateTime';
-      
-      // Add location information if provided
-      if (location != null) {
-        watermarkText += ' | ${location.latitude.toStringAsFixed(4)},${location.longitude.toStringAsFixed(4)}';
-      }
-      
-      // Add address if provided
-      if (locationAddress != null && locationAddress.isNotEmpty) {
-        final shortenedAddress = locationAddress.length > 30 
-            ? '${locationAddress.substring(0, 27)}...' 
-            : locationAddress;
-        watermarkText += ' | $shortenedAddress';
-      }
-      
-      // Escape special characters for FFmpeg
-      watermarkText = watermarkText.replaceAll("'", "'\\''");
-      
-      // Get video duration to ensure watermark shows throughout the video
-      // Note: We use the ffmpeg -i option to extract duration, but for more robust apps,
-      // you might want to use a dedicated video metadata package
-      
-      // Build FFmpeg command
-      // This adds a text watermark to the bottom right corner with semi-transparent black background
-      final command = "-i '${videoFile.path}' -vf \"drawtext=fontfile=/system/fonts/Roboto-Regular.ttf:"
-          "text='$watermarkText':"
-          "fontcolor=white:fontsize=24:"
-          "box=1:boxcolor=black@0.5:boxborderw=5:"
-          "x=w-tw-10:y=h-th-10:"  // Position in bottom right with 10px padding
-          "\" -codec:a copy '${outputPath}'";
-
-      // Execute the FFmpeg command
-      final session = await FFmpegKit.execute(command);
-      final returnCode = await session.getReturnCode();
-      
-      if (ReturnCode.isSuccess(returnCode)) {
-        // Command completed successfully
-        return File(outputPath);
-      } else {
-        // Command failed - log the error and return original file
-        print('FFmpeg command failed with return code: $returnCode');
-        final logs = await session.getLogs();
-        print('FFmpeg logs: $logs');
-        return videoFile;
-      }
-    } catch (e) {
-      print('Error adding watermark to video: $e');
-      return videoFile; // Return original if watermarking fails
-    }
+    // FFmpeg functionality removed. Return original file.
+    return videoFile;
   }
 
   Future<void> _drawWatermark(

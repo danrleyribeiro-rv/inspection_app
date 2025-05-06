@@ -1,0 +1,258 @@
+// lib/presentation/screens/media/components/media_grid.dart
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class MediaGrid extends StatelessWidget {
+  final List<Map<String, dynamic>> media;
+  final Function(Map<String, dynamic>) onTap;
+
+  const MediaGrid({
+    super.key,
+    required this.media,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: media.length,
+      itemBuilder: (context, index) {
+        final mediaItem = media[index];
+        return _buildMediaGridItem(context, mediaItem);
+      },
+    );
+  }
+
+  Widget _buildMediaGridItem(BuildContext context, Map<String, dynamic> mediaItem) {
+    final bool isImage = mediaItem['type'] == 'image';
+    final bool isNonConformity = mediaItem['is_non_conformity'] == true;
+    final bool hasUrl = mediaItem['url'] != null && (mediaItem['url'] as String).isNotEmpty;
+    final bool hasLocalPath = mediaItem['localPath'] != null && (mediaItem['localPath'] as String).isNotEmpty;
+    
+    // Format date
+    String formattedDate = '';
+    if (mediaItem['created_at'] != null) {
+      try {
+        DateTime date;
+        if (mediaItem['created_at'] is Timestamp) {
+          date = mediaItem['created_at'].toDate();
+        } else if (mediaItem['created_at'] is String) {
+          date = DateTime.parse(mediaItem['created_at']);
+        } else {
+          date = DateTime.now();
+        }
+        formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(date);
+      } catch (e) {
+        print('Error formatting date: $e');
+      }
+    }
+    
+    // Create a decoration for the card
+    BoxDecoration decoration = BoxDecoration(
+      borderRadius: BorderRadius.circular(8),
+      border: isNonConformity 
+          ? Border.all(color: Colors.red, width: 2) 
+          : Border.all(color: Colors.grey.shade300),
+    );
+    
+    // Choose display widget
+    Widget displayWidget;
+    if (isImage) {
+      if (hasLocalPath) {
+        final file = File(mediaItem['localPath']);
+        if (file.existsSync()) {
+          displayWidget = Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+          );
+        } else if (hasUrl) {
+          displayWidget = Image.network(
+            mediaItem['url'],
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _buildLoadingIndicator();
+            },
+            errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+          );
+        } else {
+          displayWidget = _buildNoSourcePlaceholder('image');
+        }
+      } else if (hasUrl) {
+        displayWidget = Image.network(
+          mediaItem['url'],
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _buildLoadingIndicator();
+          },
+          errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+        );
+      } else {
+        displayWidget = _buildNoSourcePlaceholder('image');
+      }
+    } else { // Video
+      displayWidget = Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.black),
+          Center(
+            child: Icon(
+              Icons.videocam,
+              color: Colors.white.withOpacity(0.7),
+              size: 40,
+            ),
+          ),
+          // Add thumbnail if available in the future
+        ],
+      );
+    }
+    
+    return InkWell(
+      onTap: () => onTap(mediaItem),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Container(
+          decoration: decoration,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Main media display
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: displayWidget,
+              ),
+              
+              // Indicators and badges
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isNonConformity)
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isImage ? Colors.blue : Colors.purple,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        isImage ? Icons.photo : Icons.videocam,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Date
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.7),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: Text(
+                    formattedDate,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildLoadingIndicator() {
+    return const Center(
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildErrorPlaceholder() {
+    return Container(
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: Icon(
+          Icons.broken_image,
+          color: Colors.red,
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildNoSourcePlaceholder(String type) {
+    return Container(
+      color: Colors.grey.shade200,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            type == 'image' ? Icons.image_not_supported : Icons.videocam_off,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Sem fonte',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
