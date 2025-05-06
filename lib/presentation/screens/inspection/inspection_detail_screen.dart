@@ -29,8 +29,7 @@ class InspectionDetailScreen extends StatefulWidget {
   State<InspectionDetailScreen> createState() => _InspectionDetailScreenState();
 }
 
-class _InspectionDetailScreenState extends State<InspectionDetailScreen>
-    with SingleTickerProviderStateMixin {
+class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final _inspectionService = FirebaseInspectionService();
   final _connectivityService = Connectivity();
   final _importExportService = ImportExportService();
@@ -50,30 +49,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
   List<Item> _selectedRoomItems = [];
   List<Detail> _selectedItemDetails = [];
 
-  // State for expandable action buttons
-  bool _isRoomButtonExpanded = false;
-  bool _isExportButtonExpanded = false;
-  late AnimationController _animationController;
-
-  // Checkpoint state
-  int _checkpointCounter = 0;
-  List<Map<String, dynamic>> _checkpoints = [];
-
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
     _listenToConnectivity();
     _loadInspection();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   void _listenToConnectivity() {
@@ -676,119 +656,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
     );
   }
 
-  // Método para salvar checkpoint da inspeção atual
-  Future<void> _saveCheckpoint() async {
-    if (_inspection == null) return;
-
-    try {
-      setState(() => _isSyncing = true);
-
-      _checkpointCounter++;
-      final timestamp = DateTime.now();
-
-      // Criar um objeto de checkpoint com os dados atuais
-      final checkpoint = {
-        'id':
-            'checkpoint_${_checkpointCounter}_${timestamp.millisecondsSinceEpoch}',
-        'timestamp': timestamp,
-        'inspection': _inspection!.toJson(),
-        'completion_percentage': _completionPercentage,
-      };
-
-      // Adicionar à lista de checkpoints
-      setState(() {
-        _checkpoints.add(checkpoint);
-      });
-
-      // Também poderia salvar no Firestore para persistência
-      // await _firestore.collection('inspection_checkpoints').add({
-      //   'inspection_id': widget.inspectionId,
-      //   'timestamp': FieldValue.serverTimestamp(),
-      //   'data': checkpoint,
-      // });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Checkpoint #$_checkpointCounter salvo com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error saving checkpoint: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar checkpoint: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSyncing = false);
-      }
-    }
-  }
-
-  // Método para listar e restaurar checkpoints
-  void _showCheckpoints() {
-    if (_checkpoints.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nenhum checkpoint disponível'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Checkpoints Salvos'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: _checkpoints.length,
-            itemBuilder: (context, index) {
-              final checkpoint = _checkpoints[_checkpoints.length - 1 - index];
-              final timestamp = checkpoint['timestamp'] as DateTime;
-              final formattedDate =
-                  DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp);
-
-              return ListTile(
-                title: Text('Checkpoint #${_checkpoints.length - index}'),
-                subtitle: Text(formattedDate),
-                trailing: Text(
-                    '${(checkpoint['completion_percentage'] as double).toStringAsFixed(1)}%'),
-                onTap: () {
-                  // Aqui implementaríamos a lógica para restaurar o checkpoint
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Restauração de checkpoints ainda não implementada'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Fechar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isLandscape =
@@ -846,20 +713,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
               visualDensity: VisualDensity.compact,
             ),
 
-          // NEW: Checkpoint save button
-          IconButton(
-            icon: const Icon(Icons.save_outlined),
-            onPressed: _isSyncing ? null : _saveCheckpoint,
-            tooltip: 'Salvar Checkpoint',
-          ),
-
-          // NEW: Checkpoint history button
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: _checkpoints.isEmpty ? null : _showCheckpoints,
-            tooltip: 'Ver Checkpoints',
-          ),
-
           // Loading indicator
           if (_isSyncing || _isApplyingTemplate)
             const Padding(
@@ -873,302 +726,371 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
                 ),
               ),
             ),
+
+          // Menu button with proper spacing
+          if (!(_isSyncing || _isApplyingTemplate))
+            PopupMenuButton<String>(
+              padding: const EdgeInsets.all(8),
+              icon: const Icon(Icons.more_vert, size: 22),
+              onSelected: (value) async {
+                switch (value) {
+                  case 'export':
+                    await _exportInspection();
+                    break;
+                  case 'import':
+                    await _importInspection();
+                    break;
+                  case 'nonConformities':
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => NonConformityScreen(
+                          inspectionId: widget.inspectionId,
+                        ),
+                      ),
+                    );
+                    break;
+                  case 'media':
+                    _navigateToMediaGallery();
+                    break;
+                  case 'refresh':
+                    await _loadInspection();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'export',
+                  child: Row(
+                    children: [
+                      Icon(Icons.file_download),
+                      SizedBox(width: 8),
+                      Text('Exportar Inspeção'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'import',
+                  child: Row(
+                    children: [
+                      Icon(Icons.file_upload),
+                      SizedBox(width: 8),
+                      Text('Importar Inspeção'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'nonConformities',
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber),
+                      SizedBox(width: 8),
+                      Text('Não-Conformidades'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'media',
+                  child: Row(
+                    children: [
+                      Icon(Icons.photo_library),
+                      SizedBox(width: 8),
+                      Text('Galeria de Mídia'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'refresh',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh),
+                      SizedBox(width: 8),
+                      Text('Atualizar Dados'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
       body: _buildBody(isLandscape, screenSize),
-      // Bottom bar with 4 main functions - only show when we have rooms and aren't loading
-      bottomNavigationBar: !_isLoading
-          ? BottomAppBar(
-              height: 60,
-              color: Colors.grey[850],
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Galeria de mídia
-                  IconButton(
-                    icon: const Icon(Icons.photo_library, color: Colors.purple),
-                    onPressed: _navigateToMediaGallery,
-                    tooltip: 'Galeria de Mídia',
-                  ),
+      floatingActionButton: !_isLoading && _rooms.isNotEmpty
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Floating button para acessar galeria de mídia
+                FloatingActionButton(
+                  onPressed: _navigateToMediaGallery,
+                  heroTag: 'mediaGallery',
+                  backgroundColor: Colors.purple,
+                  mini: true,
+                  child: const Icon(Icons.photo_library),
+                ),
+                const SizedBox(width: 8),
+                // Botão de IA para sugestão de salas
+                AISuggestionButton(
+                  tooltip: 'Sugerir tópicos de vistoria',
+                  onGeneratingSuggestions: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'Gerando sugestão de tópicos de vistoria...')),
+                    );
+                  },
+                  onError: (message) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message)),
+                    );
+                  },
+                  generateSuggestions: () async {
+                    final geminiService = GeminiService();
+                    final inspectionType = _inspection?.title ?? 'Inspeção';
+                    final existingRooms =
+                        _rooms.map((room) => room.roomName).toList();
+                    return await geminiService.suggestCompleteRooms(
+                        inspectionType, existingRooms);
+                  },
+                  onSuggestionSelected: (suggestion) async {
+                    if (suggestion is Map<String, dynamic>) {
+                      setState(() => _isLoading = true);
+                      try {
+                        // Criar sala
+                        final room = await _inspectionService.addRoom(
+                          widget.inspectionId,
+                          suggestion['room_name'],
+                        );
 
-                  // Não conformidades
-                  IconButton(
-                    icon: const Icon(Icons.warning_amber_rounded,
-                        color: Colors.orange),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => NonConformityScreen(
-                            inspectionId: widget.inspectionId,
+                        // Criar itens e detalhes
+                        if (room.id != null && suggestion['items'] != null) {
+                          for (var itemData in suggestion['items']) {
+                            final item = await _inspectionService.addItem(
+                              widget.inspectionId,
+                              room.id!,
+                              itemData['item_name'],
+                            );
+
+                            // Criar detalhes
+                            if (item.id != null &&
+                                itemData['details'] != null) {
+                              for (var detailData in itemData['details']) {
+                                await _inspectionService.addDetail(
+                                  widget.inspectionId,
+                                  room.id!,
+                                  item.id!,
+                                  detailData['detail_name'],
+                                  type: detailData['type'],
+                                  options: detailData['options'] != null
+                                      ? List<String>.from(detailData['options'])
+                                      : null,
+                                );
+                              }
+                            }
+                          }
+                        }
+
+                        await _loadRooms();
+                        await _calculateCompletionPercentage();
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Sala "${suggestion['room_name']}" criada com sucesso'),
+                            backgroundColor: Colors.green,
                           ),
-                        ),
-                      );
-                    },
-                    tooltip: 'Não Conformidades',
-                  ),
-
-                  // Adicionar sala - expandable with AI suggestion
-                  _buildExpandableRoomButton(),
-
-                  // Importar/Exportar - expandable
-                  _buildExpandableImportExportButton(),
-                ],
-              ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Erro ao criar sala: $e'),
+                              backgroundColor: Colors.red),
+                        );
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isLoading = false);
+                        }
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
+                // FloatingActionButton original para adicionar sala
+                FloatingActionButton(
+                  onPressed: _addRoom,
+                  heroTag: 'addRoom',
+                  backgroundColor: Theme.of(context).primaryColor,
+                  child: const Icon(Icons.add),
+                ),
+              ],
             )
           : null,
     );
   }
 
-  // Expandable room button with AI suggestion option
-  Widget _buildExpandableRoomButton() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Normal Add Room button
-        IconButton(
-          icon: AnimatedIcon(
-            icon: AnimatedIcons.menu_close,
-            progress: _animationController,
-            color: Colors.blue,
-          ),
-          onPressed: () {
-            setState(() {
-              _isRoomButtonExpanded = !_isRoomButtonExpanded;
-              _isExportButtonExpanded = false; // Close other expandable
+  Widget _buildBody(bool isLandscape, Size screenSize) {
+    if (_isLoading) {
+      return LoadingState(
+          isDownloading: false, isApplyingTemplate: _isApplyingTemplate);
+    }
 
-              if (_isRoomButtonExpanded) {
-                _animationController.forward();
-              } else {
-                _animationController.reverse();
-              }
-            });
-          },
-          tooltip: 'Adicionar Tópico',
+    // Calculate available height by subtracting app bar, status bar, etc.
+    final double availableHeight = screenSize.height -
+        kToolbarHeight -
+        MediaQuery.of(context).padding.top -
+        MediaQuery.of(context).padding.bottom;
+
+    return Column(
+      children: [
+        // Inspection header with status and progress
+        if (_inspection != null)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: screenSize.width,
+            ),
+            child: InspectionHeader(
+              inspection: _inspection!.toJson(),
+              completionPercentage: _completionPercentage,
+              isOffline: !_isOnline,
+            ),
+          ),
+
+        // Main content area
+        Expanded(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: screenSize.width,
+              maxHeight: availableHeight - (_inspection != null ? 110 : 0),
+            ),
+            child: _rooms.isEmpty
+                ? EmptyRoomState(onAddRoom: _addRoom)
+                : isLandscape
+                    ? LandscapeView(
+                        rooms: _rooms,
+                        selectedRoomIndex: _selectedRoomIndex,
+                        selectedItemIndex: _selectedItemIndex,
+                        selectedRoomItems: _selectedRoomItems,
+                        selectedItemDetails: _selectedItemDetails,
+                        inspectionId: widget.inspectionId,
+                        onRoomSelected: _handleRoomSelected,
+                        onItemSelected: _handleItemSelected,
+                        onRoomDuplicate: _duplicateRoom,
+                        onRoomDelete: _deleteRoom,
+                        inspectionService: _inspectionService,
+                        onAddRoom: _addRoom,
+                      )
+                    : StatefulBuilder(
+                        builder: (context, setState) {
+                          return RoomsList(
+                            rooms: _rooms,
+                            expandedRoomIndex: _expandedRoomIndex,
+                            onRoomUpdated: _updateRoom,
+                            onRoomDeleted: _deleteRoom,
+                            onRoomDuplicated: _duplicateRoom,
+                            onExpansionChanged: (index) {
+                              setState(() {
+                                _expandedRoomIndex =
+                                    _expandedRoomIndex == index ? -1 : index;
+                              });
+                            },
+                            inspectionId: widget.inspectionId,
+                            onRoomsReordered: _loadRooms,
+                          );
+                        },
+                      ),
+          ),
         ),
 
-        // Expandable menu
-        if (_isRoomButtonExpanded)
-          Positioned(
-            bottom: 50,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // AI suggestion button
-                  Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: AISuggestionButton(
-                      icon: Icons.lightbulb_outline,
-                      color: Colors.amber,
-                      tooltip: 'Sugerir tópicos de vistoria',
-                      onGeneratingSuggestions: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  'Gerando sugestão de tópicos de vistoria...')),
-                        );
-                      },
-                      onError: (message) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(message)),
-                        );
-                      },
-                      generateSuggestions: () async {
-                        final geminiService = GeminiService();
-                        final inspectionType = _inspection?.title ?? 'Inspeção';
-                        final existingRooms =
-                            _rooms.map((room) => room.roomName).toList();
-                        return await geminiService.suggestCompleteRooms(
-                            inspectionType, existingRooms);
-                      },
-                      onSuggestionSelected: (suggestion) async {
-                        setState(() {
-                          _isRoomButtonExpanded = false;
-                          _animationController.reverse();
-                          _isLoading = true;
-                        });
+        // Barra de atalhos para funcionalidades principais
+        if (!_isLoading && _rooms.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[850],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Atalho para Galeria de Mídia
+                _buildShortcutButton(
+                  icon: Icons.photo_library,
+                  label: 'Galeria',
+                  onTap: _navigateToMediaGallery,
+                  color: Colors.purple,
+                ),
 
-                        try {
-                          if (suggestion is Map<String, dynamic>) {
-                            // Criar sala
-                            final room = await _inspectionService.addRoom(
-                              widget.inspectionId,
-                              suggestion['room_name'],
-                            );
+                // Atalho para Não Conformidades
+                _buildShortcutButton(
+                  icon: Icons.warning_amber_rounded,
+                  label: 'Não Conformidades',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => NonConformityScreen(
+                          inspectionId: widget.inspectionId,
+                        ),
+                      ),
+                    );
+                  },
+                  color: Colors.orange,
+                ),
 
-                            // Criar itens e detalhes
-                            if (room.id != null &&
-                                suggestion['items'] != null) {
-                              for (var itemData in suggestion['items']) {
-                                final item = await _inspectionService.addItem(
-                                  widget.inspectionId,
-                                  room.id!,
-                                  itemData['item_name'],
-                                );
+                // Atalho para Adicionar Sala/Tópico
+                _buildShortcutButton(
+                  icon: Icons.add_circle_outline,
+                  label: 'Novo Tópico',
+                  onTap: _addRoom,
+                  color: Colors.blue,
+                ),
 
-                                // Criar detalhes
-                                if (item.id != null &&
-                                    itemData['details'] != null) {
-                                  for (var detailData in itemData['details']) {
-                                    await _inspectionService.addDetail(
-                                      widget.inspectionId,
-                                      room.id!,
-                                      item.id!,
-                                      detailData['detail_name'],
-                                      type: detailData['type'],
-                                      options: detailData['options'] != null
-                                          ? List<String>.from(
-                                              detailData['options'])
-                                          : null,
-                                    );
-                                  }
-                                }
-                              }
-                            }
-
-                            await _loadRooms();
-                            await _calculateCompletionPercentage();
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Sala "${suggestion['room_name']}" criada com sucesso'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text('Erro ao criar sala: $e'),
-                                backgroundColor: Colors.red),
-                          );
-                        } finally {
-                          if (mounted) {
-                            setState(() => _isLoading = false);
-                          }
-                        }
-                      },
-                    ),
-                  ),
-
-                  // Manual Add button
-                  Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: IconButton(
-                      icon: const Icon(Icons.add_circle,
-                          color: Colors.blue, size: 30),
-                      tooltip: 'Adicionar tópico manualmente',
-                      onPressed: () {
-                        setState(() {
-                          _isRoomButtonExpanded = false;
-                          _animationController.reverse();
-                        });
-                        _addRoom();
-                      },
-                    ),
-                  ),
-                ],
-              ),
+                // Atalho para Exportar
+                _buildShortcutButton(
+                  icon: Icons.file_download_outlined,
+                  label: 'Exportar',
+                  onTap: _exportInspection,
+                  color: Colors.green,
+                ),
+              ],
             ),
           ),
       ],
     );
   }
 
-  // Expandable Import/Export button
-  Widget _buildExpandableImportExportButton() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Main import/export button
-        IconButton(
-          icon: AnimatedIcon(
-            icon: AnimatedIcons.menu_close,
-            progress: _animationController,
-            color: Colors.green,
-          ),
-          onPressed: () {
-            setState(() {
-              _isExportButtonExpanded = !_isExportButtonExpanded;
-              _isRoomButtonExpanded = false; // Close other expandable
-
-              if (_isExportButtonExpanded) {
-                _animationController.forward();
-              } else {
-                _animationController.reverse();
-              }
-            });
-          },
-          tooltip: 'Importar/Exportar',
-        ),
-
-        // Expandable menu
-        if (_isExportButtonExpanded)
-          Positioned(
-            bottom: 50,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Export button
-                  Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: IconButton(
-                      icon: const Icon(Icons.file_download,
-                          color: Colors.green, size: 30),
-                      tooltip: 'Exportar Inspeção',
-                      onPressed: () {
-                        setState(() {
-                          _isExportButtonExpanded = false;
-                          _animationController.reverse();
-                        });
-                        _exportInspection();
-                      },
-                    ),
-                  ),
-
-                  // Import button
-                  Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: IconButton(
-                      icon: const Icon(Icons.file_upload,
-                          color: Colors.blue, size: 30),
-                      tooltip: 'Importar Inspeção',
-                      onPressed: () {
-                        setState(() {
-                          _isExportButtonExpanded = false;
-                          _animationController.reverse();
-                        });
-                        _importInspection();
-                      },
-                    ),
-                  ),
-                ],
+  Widget _buildShortcutButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
               ),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }
