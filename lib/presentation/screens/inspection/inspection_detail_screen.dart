@@ -19,6 +19,7 @@ import 'package:inspection_app/services/gemini_service.dart';
 import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
 // Importação da tela de galeria de mídia
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
+import 'package:flutter/services.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -661,6 +662,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
     final screenSize = MediaQuery.of(context).size; // Get screen dimensions
+    final bottomPadding =
+        MediaQuery.of(context).padding.bottom; // Obter o padding inferior
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Slate background
@@ -812,20 +815,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             ),
         ],
       ),
-      body: _buildBody(isLandscape, screenSize),
+      body: Padding(
+        padding: EdgeInsets.only(
+            bottom: bottomPadding), // Adicionar padding inferior
+        child: _buildBody(isLandscape, screenSize),
+      ),
       floatingActionButton: !_isLoading && _rooms.isNotEmpty
           ? Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Floating button para acessar galeria de mídia
-                FloatingActionButton(
-                  onPressed: _navigateToMediaGallery,
-                  heroTag: 'mediaGallery',
-                  backgroundColor: Colors.purple,
-                  mini: true,
-                  child: const Icon(Icons.photo_library),
-                ),
-                const SizedBox(width: 8),
                 // Botão de IA para sugestão de salas
                 AISuggestionButton(
                   tooltip: 'Sugerir tópicos de vistoria',
@@ -997,6 +995,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       ),
           ),
         ),
+
+        // Adicione um espaçamento inferior para evitar sobreposição
+        SizedBox(height: 56),
 
         // Barra de atalhos para funcionalidades principais
         if (!_isLoading && _rooms.isNotEmpty)
