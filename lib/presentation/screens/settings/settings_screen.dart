@@ -71,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Excluir Conta'),
         content: const Text(
-          'Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.',
+          'Tem certeza de que deseja excluir sua conta? Esta ação não pode ser desfeita.',
         ),
         actions: [
           TextButton(
@@ -162,7 +162,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   title: const Text('Localização',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Permitir acesso à localização do dispositivo',
+                  subtitle: const Text(
+                      'Permitir acesso à localização do dispositivo',
                       style: TextStyle(color: Colors.white70)),
                   value: _locationPermission,
                   activeColor: Colors.blue,
@@ -174,7 +175,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   title: const Text('Câmera',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Permitir acesso à câmera do dispositivo',
+                  subtitle: const Text(
+                      'Permitir acesso à câmera do dispositivo',
                       style: TextStyle(color: Colors.white70)),
                   value: _cameraPermission,
                   activeColor: Colors.blue,
@@ -201,8 +203,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _buildSectionHeader('Conta'),
                 ListTile(
-                  title: const Text('Sair',
-                      style: TextStyle(color: Colors.white)),
+                  title:
+                      const Text('Sair', style: TextStyle(color: Colors.white)),
                   subtitle: const Text('Encerrar sessão atual',
                       style: TextStyle(color: Colors.white70)),
                   leading: const Icon(Icons.logout, color: Colors.white),

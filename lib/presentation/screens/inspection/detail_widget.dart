@@ -146,14 +146,14 @@ class _DetailWidgetState extends State<DetailWidget> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         _valueController.text,
                         style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
                       ),
                     ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.edit, size: 18),
                     onPressed: _renameDetail,
@@ -161,7 +161,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     constraints: const BoxConstraints(),
                     tooltip: 'Renomear Detalhe',
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.copy, size: 18),
                     onPressed: () => widget.onDetailDuplicated(widget.detail),
@@ -169,7 +169,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     constraints: const BoxConstraints(),
                     tooltip: 'Duplicate Detail',
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.delete, size: 18),
                     onPressed: _showDeleteConfirmation,
@@ -177,7 +177,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                     constraints: const BoxConstraints(),
                     tooltip: 'Delete Detail',
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, size: 18),
                 ],
               ),
@@ -204,7 +204,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                       const Text('Damaged detail'),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 5),
                   if (widget.detail.type == 'select' && widget.detail.options != null && widget.detail.options!.isNotEmpty)
                     DropdownButtonFormField<String>(
                       value: _valueController.text.isNotEmpty ? _valueController.text : null,
@@ -260,7 +260,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                       onMediaDeleted: (_) => setState(() {}),
                       onMediaMoved: (_, __, ___, ____) => setState(() {}),
                     ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 5),
                   ElevatedButton.icon(
                     onPressed: () {
                       if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null) {
@@ -284,10 +284,10 @@ class _DetailWidgetState extends State<DetailWidget> {
                       }
                     },
                     icon: const Icon(Icons.report_problem),
-                    label: const Text('Add Non-Conformity'),
+                    label: const Text('+ Não Conformidade'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
+                      backgroundColor: const Color.fromARGB(255, 255, 0, 0),
+                      foregroundColor: const Color.fromARGB(255, 255, 255, 255),
                     ),
                   ),
                 ],

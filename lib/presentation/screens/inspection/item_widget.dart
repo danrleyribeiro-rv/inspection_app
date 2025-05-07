@@ -349,10 +349,10 @@ class _ItemWidgetState extends State<ItemWidget> {
                       border: OutlineInputBorder(),
                       hintText: 'Adicione observações sobre este item...',
                     ),
-                    maxLines: 3,
+                    maxLines: 1,
                     onChanged: (_) => _updateItem(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -371,7 +371,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_details.isEmpty)

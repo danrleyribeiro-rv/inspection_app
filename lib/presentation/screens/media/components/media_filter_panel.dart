@@ -179,11 +179,11 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           // Room filter
           const Text('Tópico', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           Container(
             decoration: BoxDecoration(
               color: Colors.grey[800],
@@ -222,11 +222,11 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
               },
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           // Item filter
           const Text('Item', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           _isLoadingItems
             ? const LinearProgressIndicator(backgroundColor: Colors.grey)
             : Container(
@@ -267,11 +267,11 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                       },
                 ),
               ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           // Detail filter
           const Text('Detalhe', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           _isLoadingDetails
             ? const LinearProgressIndicator(backgroundColor: Colors.grey)
             : Container(
@@ -306,7 +306,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                       },
                 ),
               ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           // Non-conformity filter
           SwitchListTile(
@@ -324,7 +324,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
 
           // Media type filter - using proper colors
           const Text('Tipo de Mídia', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           Container(
             decoration: BoxDecoration(
               color: Colors.grey[800],
@@ -371,7 +371,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Buttons
           Row(
@@ -384,7 +384,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 ),
                 child: const Text('Limpar Filtros'),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 10),
               ElevatedButton(
                 onPressed: _applyFilters,
                 style: ElevatedButton.styleFrom(

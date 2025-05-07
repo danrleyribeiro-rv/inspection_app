@@ -1,4 +1,4 @@
-// lib/presentation/screens/auth/forgot_password_screen.dart 
+// lib/presentation/screens/auth/forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:inspection_app/services/firebase_auth_service.dart';
@@ -25,12 +25,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     try {
       // Send password reset email using Firebase Auth
       await _authService.resetPassword(_emailController.text.trim());
-      
+
       setState(() => _emailSent = true); // Indicate success
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        String message = 'Um erro ocorreu enquanto enviava o link de redefinição.';
-        
+        String message =
+            'Um erro ocorreu enquanto enviava o link de redefinição.';
+
         switch (e.code) {
           case 'user-not-found':
             message = 'Nenhum usuário encontrado com esse e-mail.';
@@ -44,7 +45,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           default:
             message = e.message ?? 'Erro desconhecido ocorreu';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), backgroundColor: Colors.red),
         );
@@ -76,11 +77,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.email, size: 60, color: Theme.of(context).primaryColor),
+                    Icon(Icons.email,
+                        size: 60, color: Theme.of(context).primaryColor),
                     const SizedBox(height: 20),
                     const Text(
-                      'Password reset email sent!',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      'E-mail enviado com sucesso! Verifique sua caixa de entrada.',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -94,7 +97,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                        onPressed: () => Navigator.of(context)
+                            .pushReplacementNamed('/login'),
                         child: const Text('Retornar ao Login'),
                       ),
                     ),
@@ -114,7 +118,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Insira seu endereço de e-mail abaixo e nós enviaremos um link para redefinir sua senha',
+                      'Por favor, insira seu endereço de e-mail para redefinir sua senha.',
                       style: TextStyle(
                         color: Colors.grey,
                       ),

@@ -65,7 +65,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
         widget.selectedDetail == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Selecione um ambiente, item e detalhe')), // Translated
+            content:
+                Text('Selecione um ambiente, item e detalhe')), // Translated
       );
       return;
     }
@@ -118,7 +119,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
         );
       }
     } finally {
-      if (mounted) { // Check mounted again before calling setState
+      if (mounted) {
+        // Check mounted again before calling setState
         setState(() => _isCreating = false);
       }
     }
@@ -141,47 +143,47 @@ class _NonConformityFormState extends State<NonConformityForm> {
 
   @override
   Widget build(BuildContext context) {
-    // Initialize DateFormat for Portuguese locale if not already done elsewhere
-    // Intl.defaultLocale = 'pt_BR'; // Uncomment if needed globally
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(0),
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.isOffline) _buildOfflineIndicator(),
             _buildLocationCard(), // Only Room, Item, Detail selection
-            const SizedBox(height: 16),
-            Card( // Card for non-conformity details
+            const SizedBox(height: 5),
+            Card(
+              // Card for non-conformity details
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(5),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField( // Description
+                    TextFormField(
+                      // Description
                       controller: _descriptionController,
                       decoration: const InputDecoration(
                         labelText: 'Descrição', // Translated
                         border: OutlineInputBorder(),
                       ),
-                      maxLines: 3,
+                      maxLines: 2,
                       validator: (value) => value == null || value.isEmpty
                           ? 'Informe uma descrição' // Translated
                           : null,
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField( // Corrective Action
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      // Corrective Action
                       controller: _correctiveActionController,
                       decoration: const InputDecoration(
                         labelText: 'Ação Corretiva (opcional)', // Translated
                         border: OutlineInputBorder(),
                       ),
-                      maxLines: 3,
+                      maxLines: 2,
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField( // Deadline
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      // Deadline
                       readOnly: true,
                       decoration: InputDecoration(
                         labelText: 'Prazo', // Translated
@@ -197,8 +199,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
                             : '',
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>( // Severity
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      // Severity
                       decoration: const InputDecoration(
                         labelText: 'Severidade', // Translated
                         border: OutlineInputBorder(),
@@ -219,8 +222,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox( // Save Button
+            const SizedBox(height: 5),
+            SizedBox(
+              // Save Button
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
@@ -240,31 +244,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
     );
   }
 
-  Widget _buildOfflineIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.wifi_off, color: Colors.orange),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              // Translated
-              'Você está offline. As não conformidades serão sincronizadas quando você estiver online novamente.',
-              style: TextStyle(color: Colors.orange),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildLocationCard() {
     // Now only contains Room, Item, and Detail dropdowns
     return Card(
@@ -278,7 +257,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
               'Localização da Não Conformidade', // Translated
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
 
             // Room dropdown
             DropdownButtonFormField<Room>(
@@ -298,9 +277,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
                   widget.onRoomSelected(value);
                 }
               },
-              validator: (value) => value == null ? 'Selecione um ambiente' : null, // Translated
+              validator: (value) =>
+                  value == null ? 'Selecione um ambiente' : null, // Translated
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // Item dropdown
             DropdownButtonFormField<Item>(
@@ -320,9 +300,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
                   widget.onItemSelected(value);
                 }
               },
-              validator: (value) => value == null ? 'Selecione um item' : null, // Translated
+              validator: (value) =>
+                  value == null ? 'Selecione um item' : null, // Translated
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // Detail dropdown
             DropdownButtonFormField<Detail>(
@@ -342,7 +323,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
                   widget.onDetailSelected(value);
                 }
               },
-              validator: (value) => value == null ? 'Selecione um detalhe' : null, // Translated
+              validator: (value) =>
+                  value == null ? 'Selecione um detalhe' : null, // Translated
             ),
             // Removed duplicate fields from here
           ],

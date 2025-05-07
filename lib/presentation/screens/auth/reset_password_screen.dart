@@ -47,15 +47,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        
+
         // Navigate to login screen after successful password reset
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
       }
     } catch (e) {
       String message = e.toString();
 
-      if (e.toString().contains('FirebaseAuthException')) message = 'Falha ao redefinir a senha.';
-      
+      if (e.toString().contains('FirebaseAuthException'))
+        message = 'Falha ao redefinir a senha.';
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -65,8 +67,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         );
       }
     } finally {
-      if(mounted){
-      
+      if (mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -87,7 +88,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Crie uma nova senha',
+                'Por favor, insira sua nova senha abaixo.',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -96,7 +97,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Sua senha deve ter pelo menos 6 caracteres',
+                'Confirme sua nova senha.',
                 style: TextStyle(
                   color: Colors.grey,
                 ),

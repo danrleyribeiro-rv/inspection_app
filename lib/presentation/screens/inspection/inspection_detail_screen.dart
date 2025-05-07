@@ -102,9 +102,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         // Load inspection rooms
         await _loadRooms();
 
-        // Calculate completion percentage
-        await _calculateCompletionPercentage();
-
         // Check if there's a template to apply
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
@@ -112,35 +109,21 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             await _checkAndApplyTemplate();
           } else {
             print(
-                'Inspection already has template applied: ${inspection.templateId}');
+                'Inspeção já tem template aplicado: ${inspection.templateId}');
           }
         }
       } else {
-        _showErrorSnackBar('Inspection not found.');
+        _showErrorSnackBar('Inspeção não encontrada.');
       }
     } catch (e) {
-      print("Error in _loadInspection: $e");
+      print("Erro ao carregar inspeção: $e");
       if (mounted) {
-        _showErrorSnackBar('Error loading inspection: $e');
+        _showErrorSnackBar('Erro ao carregar inspeção: $e');
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  Future<void> _calculateCompletionPercentage() async {
-    try {
-      final percentage = await _inspectionService
-          .calculateCompletionPercentage(widget.inspectionId);
-      if (mounted) {
-        setState(() {
-          _completionPercentage = percentage;
-        });
-      }
-    } catch (e) {
-      print('Error calculating completion percentage: $e');
     }
   }
 
@@ -164,16 +147,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
         // Log for diagnostic purposes
         print(
-            'Starting template application: ${_inspection!.templateId} for inspection: ${_inspection!.id}');
+            'Iniciando aplicação de template: ${_inspection!.templateId} para inspeção: ${_inspection!.id}');
         print(
-            'Current template application status: ${_inspection!.isTemplated}');
+            'Status atual da aplicação de template: ${_inspection!.isTemplated}');
 
         // Apply the template
         final success = await _inspectionService.applyTemplateToInspection(
             _inspection!.id, _inspection!.templateId!);
 
         print(
-            'Template application result: ${success ? 'SUCCESS' : 'FAILURE'}');
+            'Resultado da aplicação de template: ${success ? 'SUCESSO' : 'FALHA'}');
 
         if (success) {
           // Update inspection status locally AND on Firestore
@@ -223,7 +206,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           }
         }
       } catch (e) {
-        print('Error applying template: $e');
+        print('Erro ao aplicar template: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -239,12 +222,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } else {
-      print('No template to apply or already applied');
+      print('Nenhum template para aplicar ou já aplicado');
       if (_inspection!.isTemplated == true) {
-        print('The inspection already has an applied template');
+        print('A inspeção já tem um template aplicado');
       }
       if (_inspection!.templateId == null) {
-        print('No template ID associated with this inspection');
+        print('Nenhum ID de template associado a esta inspeção');
       }
     }
   }
@@ -307,7 +290,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         // Apply the template
         await _checkAndApplyTemplate();
       } catch (e) {
-        print('Error in manual template application: $e');
+        print('Erro na aplicação manual de template: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -344,9 +327,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         _selectedItemDetails = [];
       });
     } catch (e) {
-      print('Error loading rooms: $e');
+      print('Erro ao carregar salas: $e');
       if (mounted) {
-        _showErrorSnackBar('Error loading rooms: $e');
+        _showErrorSnackBar('Erro ao carregar salas: $e');
       }
     }
   }
@@ -387,7 +370,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         );
 
         await _loadRooms();
-        await _calculateCompletionPercentage();
 
         // Expand the newly added room
         if (_rooms.isNotEmpty) {
@@ -427,7 +409,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } catch (e) {
-      print('Error in _addRoom: $e');
+      print('Erro ao adicionar sala: $e');
     }
   }
 
@@ -439,7 +421,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           widget.inspectionId, room.roomName);
 
       await _loadRooms();
-      await _calculateCompletionPercentage();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -470,10 +451,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           _rooms[index] = updatedRoom;
         });
       }
-
-      await _calculateCompletionPercentage();
     } catch (e) {
-      print('Error updating room: $e');
+      print('Erro ao atualizar sala: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao atualizar sala: $e')),
@@ -489,7 +468,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       await _inspectionService.deleteRoom(widget.inspectionId, roomId);
 
       await _loadRooms();
-      await _calculateCompletionPercentage();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -537,7 +515,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } catch (e) {
-      print('Error loading items: $e');
+      print('Erro ao carregar itens: $e');
     }
   }
 
@@ -566,7 +544,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } catch (e) {
-      print('Error loading details: $e');
+      print('Erro ao carregar detalhes: $e');
     }
   }
 
@@ -790,106 +768,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             bottom: bottomPadding), // Adicionar padding inferior
         child: _buildBody(isLandscape, screenSize),
       ),
-      floatingActionButton: !_isLoading && _rooms.isNotEmpty
-          ? Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Botão de IA para sugestão de salas
-                AISuggestionButton(
-                  tooltip: 'Sugerir tópicos de vistoria',
-                  onGeneratingSuggestions: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'Gerando sugestão de tópicos de vistoria...')),
-                    );
-                  },
-                  onError: (message) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(message)),
-                    );
-                  },
-                  generateSuggestions: () async {
-                    final geminiService = GeminiService();
-                    final inspectionType = _inspection?.title ?? 'Inspeção';
-                    final existingRooms =
-                        _rooms.map((room) => room.roomName).toList();
-                    return await geminiService.suggestCompleteRooms(
-                        inspectionType, existingRooms);
-                  },
-                  onSuggestionSelected: (suggestion) async {
-                    if (suggestion is Map<String, dynamic>) {
-                      setState(() => _isLoading = true);
-                      try {
-                        // Criar sala
-                        final room = await _inspectionService.addRoom(
-                          widget.inspectionId,
-                          suggestion['room_name'],
-                        );
-
-                        // Criar itens e detalhes
-                        if (room.id != null && suggestion['items'] != null) {
-                          for (var itemData in suggestion['items']) {
-                            final item = await _inspectionService.addItem(
-                              widget.inspectionId,
-                              room.id!,
-                              itemData['item_name'],
-                            );
-
-                            // Criar detalhes
-                            if (item.id != null &&
-                                itemData['details'] != null) {
-                              for (var detailData in itemData['details']) {
-                                await _inspectionService.addDetail(
-                                  widget.inspectionId,
-                                  room.id!,
-                                  item.id!,
-                                  detailData['detail_name'],
-                                  type: detailData['type'],
-                                  options: detailData['options'] != null
-                                      ? List<String>.from(detailData['options'])
-                                      : null,
-                                );
-                              }
-                            }
-                          }
-                        }
-
-                        await _loadRooms();
-                        await _calculateCompletionPercentage();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Sala "${suggestion['room_name']}" criada com sucesso'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Erro ao criar sala: $e'),
-                              backgroundColor: Colors.red),
-                        );
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isLoading = false);
-                        }
-                      }
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                // FloatingActionButton original para adicionar sala
-                FloatingActionButton(
-                  onPressed: _addRoom,
-                  heroTag: 'addRoom',
-                  backgroundColor: Theme.of(context).primaryColor,
-                  child: const Icon(Icons.add),
-                ),
-              ],
-            )
-          : null,
+      floatingActionButton: null,
     );
   }
 
@@ -967,7 +846,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ),
 
         // Adicione um espaçamento inferior para evitar sobreposição
-        SizedBox(height: 56),
+        SizedBox(height: 2),
 
         // Barra de atalhos para funcionalidades principais
         if (!_isLoading && _rooms.isNotEmpty)
@@ -997,7 +876,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 // Atalho para Não Conformidades
                 _buildShortcutButton(
                   icon: Icons.warning_amber_rounded,
-                  label: 'Não Conformidades',
+                  label: 'NCs',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -1007,23 +886,108 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       ),
                     );
                   },
-                  color: Colors.orange,
+                  color: const Color.fromARGB(255, 255, 0, 0),
                 ),
 
                 // Atalho para Adicionar Sala/Tópico
                 _buildShortcutButton(
                   icon: Icons.add_circle_outline,
-                  label: 'Novo Tópico',
+                  label: '+ Tópico',
                   onTap: _addRoom,
                   color: Colors.blue,
                 ),
 
                 // Atalho para Exportar
                 _buildShortcutButton(
-                  icon: Icons.local_offer,
+                  icon: Icons.download,
                   label: 'Exportar',
                   onTap: _exportInspection,
-                  color: Colors.green,
+                color: Colors.green,
+                ),
+
+                // Botão de IA para sugestão de salas
+                AISuggestionButton(
+                  tooltip: 'Sugerir tópicos de vistoria',
+                  onGeneratingSuggestions: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'Gerando sugestão de tópicos de vistoria...')),
+                    );
+                  },
+                  onError: (message) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message)),
+                    );
+                  },
+                  generateSuggestions: () async {
+                    final geminiService = GeminiService();
+                    final inspectionType = _inspection?.title ?? 'Inspeção';
+                    final existingRooms =
+                        _rooms.map((room) => room.roomName).toList();
+                    return await geminiService.suggestCompleteRooms(
+                        inspectionType, existingRooms);
+                  },
+                  onSuggestionSelected: (suggestion) async {
+                    if (suggestion is Map<String, dynamic>) {
+                      setState(() => _isLoading = true);
+                      try {
+                        // Criar sala
+                        final room = await _inspectionService.addRoom(
+                          widget.inspectionId,
+                          suggestion['room_name'],
+                        );
+
+                        // Criar itens e detalhes
+                        if (room.id != null && suggestion['items'] != null) {
+                          for (var itemData in suggestion['items']) {
+                            final item = await _inspectionService.addItem(
+                              widget.inspectionId,
+                              room.id!,
+                              itemData['item_name'],
+                            );
+
+                            // Criar detalhes
+                            if (item.id != null &&
+                                itemData['details'] != null) {
+                              for (var detailData in itemData['details']) {
+                                await _inspectionService.addDetail(
+                                  widget.inspectionId,
+                                  room.id!,
+                                  item.id!,
+                                  detailData['detail_name'],
+                                  type: detailData['type'],
+                                  options: detailData['options'] != null
+                                      ? List<String>.from(detailData['options'])
+                                      : null,
+                                );
+                              }
+                            }
+                          }
+                        }
+
+                        await _loadRooms();
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Sala "${suggestion['room_name']}" criada com sucesso'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Erro ao criar sala: $e'),
+                              backgroundColor: Colors.red),
+                        );
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isLoading = false);
+                        }
+                      }
+                    }
+                  },
                 ),
               ],
             ),
@@ -1038,28 +1002,35 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     required VoidCallback onTap,
     required Color color,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+    return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: color,
-              size: 24,
+        padding: EdgeInsets.zero, // Remove padding to stretch to edges
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.zero, // Remove border radius
+          child: Container(
+            width: double.infinity, // Make container take full width
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  color: color,
+                  size: 30,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

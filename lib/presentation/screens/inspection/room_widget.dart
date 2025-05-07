@@ -298,14 +298,14 @@ class _RoomWidgetState extends State<RoomWidget> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
-        side: BorderSide(color: Colors.grey.shade300, width: 1),
+        side: BorderSide(color: Colors.grey.shade300, width: 0),
       ),
       child: Column(
         children: [
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
                   Expanded(
@@ -317,7 +317,7 @@ class _RoomWidgetState extends State<RoomWidget> {
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         if (widget.room.roomLabel != null) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(widget.room.roomLabel!, style: TextStyle(color: Colors.grey[600])),
                         ],
                       ],
@@ -346,7 +346,7 @@ class _RoomWidgetState extends State<RoomWidget> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -357,10 +357,10 @@ class _RoomWidgetState extends State<RoomWidget> {
                       border: OutlineInputBorder(),
                       hintText: 'Adicione observações sobre este tópico...',
                     ),
-                    maxLines: 3,
+                    maxLines: 1,
                     onChanged: (_) => _updateRoom(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -378,13 +378,13 @@ class _RoomWidgetState extends State<RoomWidget> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_items.isEmpty)
                     const Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: EdgeInsets.all(8),
                         child: Text('Nenhum item adicionado ainda'),
                       ),
                     )

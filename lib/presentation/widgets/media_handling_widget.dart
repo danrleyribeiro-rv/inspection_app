@@ -45,7 +45,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   final _storage = FirebaseService().storage;
   final _uuid = Uuid();
   final _watermarkService = ImageWatermarkService();
-  
+
   List<Map<String, dynamic>> _mediaItems = [];
   bool _isLoading = true;
   bool _isProcessingVideo = false; // Novo estado para processamento de vídeo
@@ -121,22 +121,23 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       // Obter a localização atual
       final position = await _watermarkService.getCurrentLocation();
       String? address;
-      
+
       // Obter endereço legível se tivermos a posição
       if (position != null) {
         address = await _watermarkService.getAddressFromPosition(position);
       }
-      
+
       // Create a unique local path for the file
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
-      final newFilename = 'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+      final newFilename =
+          'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
       final localPath = '${mediaDir.path}/$newFilename';
 
       // Get original file
       final file = File(pickedFile.path);
-      
+
       // Add watermark to image
       final watermarkedFile = await _watermarkService.addWatermarkToImage(
         file,
@@ -145,7 +146,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         location: position,
         locationAddress: address,
       );
-      
+
       // Add metadata
       final finalFile = await _watermarkService.addMetadataToImage(
         watermarkedFile,
@@ -154,7 +155,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         location: position,
         locationAddress: address,
       );
-      
+
       // Copy to local path
       await finalFile.copy(localPath);
 
@@ -171,10 +172,13 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
       // Try to upload to Firebase Storage if possible
       try {
-        final storagePath = 'inspections/${widget.inspectionId}/${widget.roomId}/${widget.itemId}/${widget.detailId}/$newFilename';
+        final storagePath =
+            'inspections/${widget.inspectionId}/${widget.roomId}/${widget.itemId}/${widget.detailId}/$newFilename';
         final uploadTask = await _storage.ref(storagePath).putFile(
               File(localPath),
-              SettableMetadata(contentType: 'image/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
+              SettableMetadata(
+                  contentType:
+                      'image/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
             );
 
         final downloadUrl = await uploadTask.ref.getDownloadURL();
@@ -241,22 +245,23 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       // Obter a localização atual
       final position = await _watermarkService.getCurrentLocation();
       String? address;
-      
+
       // Obter endereço legível se tivermos a posição
       if (position != null) {
         address = await _watermarkService.getAddressFromPosition(position);
       }
-      
+
       // Create a unique local path for the file
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
-      final newFilename = 'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+      final newFilename =
+          'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
       final localPath = '${mediaDir.path}/$newFilename';
 
       // Get original file
       final file = File(pickedFile.path);
-      
+
       // Add watermark to video
       final watermarkedFile = await _watermarkService.addWatermarkToVideo(
         file,
@@ -265,7 +270,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         location: position,
         locationAddress: address,
       );
-      
+
       // Copy to local path if needed
       if (watermarkedFile.path != localPath) {
         await watermarkedFile.copy(localPath);
@@ -284,10 +289,13 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
       // Try to upload to Firebase Storage if possible
       try {
-        final storagePath = 'inspections/${widget.inspectionId}/${widget.roomId}/${widget.itemId}/${widget.detailId}/$newFilename';
+        final storagePath =
+            'inspections/${widget.inspectionId}/${widget.roomId}/${widget.itemId}/${widget.detailId}/$newFilename';
         final uploadTask = await _storage.ref(storagePath).putFile(
               File(localPath),
-              SettableMetadata(contentType: 'video/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
+              SettableMetadata(
+                  contentType:
+                      'video/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
             );
 
         final downloadUrl = await uploadTask.ref.getDownloadURL();
@@ -357,7 +365,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
     try {
       // Get the media document
-      final docSnapshot = await _firestore.collection('media').doc(mediaId).get();
+      final docSnapshot =
+          await _firestore.collection('media').doc(mediaId).get();
 
       if (!docSnapshot.exists) {
         throw Exception('Media not found');
@@ -455,7 +464,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
     try {
       // Get the media document
-      final docSnapshot = await _firestore.collection('media').doc(mediaId).get();
+      final docSnapshot =
+          await _firestore.collection('media').doc(mediaId).get();
 
       if (!docSnapshot.exists) {
         throw Exception('Media not found');
@@ -521,53 +531,49 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Media capture buttons
+        // Unified media capture buttons
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickImage(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Take Photo'),
+            Container(
+              decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+          onPressed:
+              _isLoading ? null : () => _pickImage(ImageSource.camera),
+          icon: const Icon(Icons.camera_alt),
+          tooltip: 'Câmera',
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickVideo(ImageSource.camera),
-                icon: const Icon(Icons.videocam),
-                label: const Text('Record Video'),
+            Container(
+              decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+          onPressed:
+              _isLoading ? null : () => _pickVideo(ImageSource.camera),
+          icon: const Icon(Icons.videocam),
+          tooltip: 'Vídeo',
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+          onPressed:
+              _isLoading ? null : () => _pickImage(ImageSource.gallery),
+          icon: const Icon(Icons.photo_library),
+          tooltip: 'Galeria',
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickImage(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('From Gallery'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickVideo(ImageSource.gallery),
-                icon: const Icon(Icons.video_library),
-                label: const Text('Video Gallery'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 5),
 
         // Media display
         if (_isLoading)
@@ -601,18 +607,21 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               const Text(
                 'Mídias Anexadas:',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 5),
               SizedBox(
-                height: 150,
+                height: 100,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _mediaItems.length,
                   itemBuilder: (context, index) {
                     final media = _mediaItems[index];
                     final isImage = media['type'] == 'image';
-                    final hasUrl = media['url'] != null && (media['url'] as String).isNotEmpty;
-                    final hasLocalPath = media['localPath'] != null && (media['localPath'] as String).isNotEmpty;
+                    final hasUrl = media['url'] != null &&
+                        (media['url'] as String).isNotEmpty;
+                    final hasLocalPath = media['localPath'] != null &&
+                        (media['localPath'] as String).isNotEmpty;
                     final mediaId = media['id'] as String;
 
                     Widget displayWidget;
@@ -620,35 +629,42 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                       if (hasLocalPath) {
                         final file = File(media['localPath']);
                         if (file.existsSync()) {
-                            displayWidget = Image.file(
-                              file,
-                              fit: BoxFit.cover,
-                              errorBuilder: (ctx, error, _) => Container(
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.broken_image, color: Colors.red),
-                              ),
-                            );
+                          displayWidget = Image.file(
+                            file,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, error, _) => Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.broken_image,
+                                  color: Colors.red),
+                            ),
+                          );
                         } else if (hasUrl) {
-                            displayWidget = Image.network(
-                              media['url'],
-                              fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return const Center(child: CircularProgressIndicator());
-                              },
-                              errorBuilder: (ctx, error, _) => Container(
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.error_outline, color: Colors.red),
-                              ),
-                            );
+                          displayWidget = Image.network(
+                            media['url'],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                  child: CircularProgressIndicator());
+                            },
+                            errorBuilder: (ctx, error, _) => Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.error_outline,
+                                  color: Colors.red),
+                            ),
+                          );
                         } else {
-                             displayWidget = Container(
-                                color: Colors.grey[300],
-                                child: const Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [Icon(Icons.image_not_supported), SizedBox(height: 4), Text('No Image', style: TextStyle(fontSize: 10))]
-                                ),
-                              );
+                          displayWidget = Container(
+                            color: Colors.grey[300],
+                            child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.image_not_supported),
+                                  SizedBox(height: 4),
+                                  Text('No Image',
+                                      style: TextStyle(fontSize: 10))
+                                ]),
+                          );
                         }
                       } else if (hasUrl) {
                         displayWidget = Image.network(
@@ -656,23 +672,30 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                                child: CircularProgressIndicator());
                           },
                           errorBuilder: (ctx, error, _) => Container(
                             color: Colors.grey[300],
-                            child: const Icon(Icons.cloud_off, color: Colors.orange),
+                            child: const Icon(Icons.cloud_off,
+                                color: Colors.orange),
                           ),
                         );
                       } else {
                         displayWidget = Container(
                           color: Colors.grey[300],
-                           child: const Column(
+                          child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: [Icon(Icons.image), SizedBox(height: 4), Text('No Source', style: TextStyle(fontSize: 10))]
-                          ),
+                              children: [
+                                Icon(Icons.image),
+                                SizedBox(height: 4),
+                                Text('No Source',
+                                    style: TextStyle(fontSize: 10))
+                              ]),
                         );
                       }
-                    } else { // isVideo
+                    } else {
+                      // isVideo
                       displayWidget = Container(
                         color: Colors.grey[800],
                         child: const Center(
@@ -684,12 +707,16 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                         ),
                       );
                       if (!hasLocalPath && !hasUrl) {
-                         displayWidget = Container(
+                        displayWidget = Container(
                           color: Colors.grey[300],
-                           child: const Column(
+                          child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: [Icon(Icons.videocam_off), SizedBox(height: 4), Text('No Source', style: TextStyle(fontSize: 10))]
-                          ),
+                              children: [
+                                Icon(Icons.videocam_off),
+                                SizedBox(height: 4),
+                                Text('No Source',
+                                    style: TextStyle(fontSize: 10))
+                              ]),
                         );
                       }
                     }
@@ -699,8 +726,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                       child: Stack(
                         children: [
                           Container(
-                            width: 150,
-                            height: 150,
+                            width: 110,
+                            height: 110,
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.grey),
                               borderRadius: BorderRadius.circular(8),
@@ -724,15 +751,15 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                                   ),
                                   child: IconButton(
                                     icon: const Icon(Icons.delete,
-                                        color: Colors.white, size: 20),
+                                        color: Colors.white, size: 15),
                                     onPressed: () => _deleteMedia(mediaId),
                                     tooltip: 'Delete Media',
                                     constraints: const BoxConstraints.tightFor(
-                                        width: 30, height: 30),
+                                        width: 17, height: 17),
                                     padding: EdgeInsets.zero,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 2),
                                 Container(
                                   decoration: BoxDecoration(
                                     color: overlayColor,
@@ -740,11 +767,11 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                                   ),
                                   child: IconButton(
                                     icon: const Icon(Icons.drive_file_move,
-                                        color: Colors.white, size: 20),
+                                        color: Colors.white, size: 15),
                                     onPressed: () => _moveMedia(mediaId),
                                     tooltip: 'Move Media',
                                     constraints: const BoxConstraints.tightFor(
-                                        width: 30, height: 30),
+                                        width: 17, height: 17),
                                     padding: EdgeInsets.zero,
                                   ),
                                 ),
@@ -764,7 +791,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                isImage ? 'Photo' : 'Video',
+                                isImage ? 'Foto' : 'Video',
                                 style: const TextStyle(
                                     color: Colors.white, fontSize: 12),
                               ),
@@ -824,7 +851,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   Future<void> _loadRooms() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
-    
+
     try {
       final rooms = await _inspectionService.getRooms(widget.inspectionId);
 
@@ -862,11 +889,12 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadItems(String roomId) async {
     if (_items.isEmpty || _selectedRoomId != roomId) {
-       setState(() => _isLoading = true);
+      setState(() => _isLoading = true);
     }
 
     try {
-      final items = await _inspectionService.getItems(widget.inspectionId, roomId);
+      final items =
+          await _inspectionService.getItems(widget.inspectionId, roomId);
 
       if (!mounted) return;
 
@@ -876,10 +904,11 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         _details = [];
         _selectedDetailId = null;
 
-        if (widget.currentRoomId == roomId && _items.any((item) => item.id == widget.currentItemId)) {
+        if (widget.currentRoomId == roomId &&
+            _items.any((item) => item.id == widget.currentItemId)) {
           _selectedItemId = widget.currentItemId;
         } else if (_items.isNotEmpty) {
-           _selectedItemId = _items.first.id;
+          _selectedItemId = _items.first.id;
         } else {
           _selectedItemId = null;
         }
@@ -899,8 +928,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   }
 
   Future<void> _loadDetails(String roomId, String itemId) async {
-     if (_details.isEmpty || _selectedItemId != itemId) {
-       setState(() => _isLoading = true);
+    if (_details.isEmpty || _selectedItemId != itemId) {
+      setState(() => _isLoading = true);
     }
     try {
       final details = await _inspectionService.getDetails(
@@ -912,8 +941,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         _details = details;
         _isLoading = false;
 
-        if (widget.currentRoomId == roomId && widget.currentItemId == itemId && _details.any((detail) => detail.id == widget.currentDetailId)) {
-            _selectedDetailId = widget.currentDetailId;
+        if (widget.currentRoomId == roomId &&
+            widget.currentItemId == itemId &&
+            _details.any((detail) => detail.id == widget.currentDetailId)) {
+          _selectedDetailId = widget.currentDetailId;
         } else if (_details.isNotEmpty) {
           _selectedDetailId = _details.first.id;
         } else {
@@ -921,7 +952,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         }
       });
     } catch (e) {
-       if (mounted) {
+      if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading details: $e')),
@@ -936,7 +967,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
       title: const Text('Mover Mídia Para'),
       content: SizedBox(
         width: double.maxFinite,
-        child: _isLoading && (_rooms.isEmpty || _items.isEmpty || _details.isEmpty)
+        child: _isLoading &&
+                (_rooms.isEmpty || _items.isEmpty || _details.isEmpty)
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 child: Column(
@@ -951,7 +983,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       items: _rooms.map((room) {
                         return DropdownMenuItem<String>(
                           value: room.id,
-                          child: Text(room.roomName, overflow: TextOverflow.ellipsis),
+                          child: Text(room.roomName,
+                              overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -962,15 +995,16 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                             _selectedDetailId = null;
                             _items = [];
                             _details = [];
-                             _isLoading = true;
+                            _isLoading = true;
                           });
                           _loadItems(value);
                         }
                       },
-                      validator: (value) => value == null ? 'Por favor, selecione um tópico' : null,
+                      validator: (value) => value == null
+                          ? 'Por favor, selecione um tópico'
+                          : null,
                     ),
                     const SizedBox(height: 16),
-
                     const Text('Item:'),
                     DropdownButtonFormField<String>(
                       value: _selectedItemId,
@@ -979,24 +1013,27 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       items: _items.map((item) {
                         return DropdownMenuItem<String>(
                           value: item.id,
-                          child: Text(item.itemName, overflow: TextOverflow.ellipsis),
+                          child: Text(item.itemName,
+                              overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: (value) {
-                        if (value != null && _selectedRoomId != null && value != _selectedItemId) {
+                        if (value != null &&
+                            _selectedRoomId != null &&
+                            value != _selectedItemId) {
                           setState(() {
                             _selectedItemId = value;
                             _selectedDetailId = null;
                             _details = [];
-                             _isLoading = true;
+                            _isLoading = true;
                           });
                           _loadDetails(_selectedRoomId!, value);
                         }
                       },
-                       validator: (value) => value == null ? 'Por favor, selecione um item' : null,
+                      validator: (value) =>
+                          value == null ? 'Por favor, selecione um item' : null,
                     ),
                     const SizedBox(height: 16),
-
                     const Text('Detalhe:'),
                     DropdownButtonFormField<String>(
                       value: _selectedDetailId,
@@ -1005,7 +1042,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       items: _details.map((detail) {
                         return DropdownMenuItem<String>(
                           value: detail.id,
-                          child: Text(detail.detailName, overflow: TextOverflow.ellipsis),
+                          child: Text(detail.detailName,
+                              overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -1015,14 +1053,21 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                           });
                         }
                       },
-                       validator: (value) => value == null ? 'Por favor, selecione um detalhe' : null,
+                      validator: (value) => value == null
+                          ? 'Por favor, selecione um detalhe'
+                          : null,
                     ),
-
-                    if (_isLoading && !(_rooms.isEmpty || _items.isEmpty || _details.isEmpty))
-                       const Padding(
-                         padding: EdgeInsets.only(top: 16.0),
-                         child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3))),
-                       ),
+                    if (_isLoading &&
+                        !(_rooms.isEmpty || _items.isEmpty || _details.isEmpty))
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16.0),
+                        child: Center(
+                            child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 3))),
+                      ),
                   ],
                 ),
               ),
