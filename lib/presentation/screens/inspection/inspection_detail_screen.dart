@@ -37,12 +37,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final _importExportService = ImportExportService();
   final _firestore = FirebaseFirestore.instance;
   final _checkpointService = InspectionCheckpointService();
-  bool _isCalculatingProgress = false;
 
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
+  bool _isCalculatingProgress = false;
   Inspection? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
@@ -145,7 +145,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           _detailsScore = progress['details_score'];
           _mediaScore = progress['media_score'];
           _completionPercentage = progress['completion_percentage'];
-          _isCalculatingProgress = false;
         });
       }
     } catch (e) {

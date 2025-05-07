@@ -192,8 +192,6 @@ Future<Map<String, dynamic>> getInspectionProgress(String inspectionId) async {
       // Para cada item, verifica mídia e detalhes
       for (var itemDoc in itemsSnapshot.docs) {
         final itemId = itemDoc.id;
-        bool itemHasMedia = false;
-        
         // 1. Verificar se o item tem mídia associada
         final mediaSnapshot = await _firestore
             .collection('media')
@@ -204,7 +202,6 @@ Future<Map<String, dynamic>> getInspectionProgress(String inspectionId) async {
             .get();
         
         if (mediaSnapshot.docs.isNotEmpty) {
-          itemHasMedia = true;
           itemsWithMedia++;
         }
         

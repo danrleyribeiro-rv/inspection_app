@@ -8,7 +8,6 @@ import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/firebase_storage_service.dart';
 import 'package:inspection_app/services/image_watermark_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;

@@ -66,7 +66,7 @@ class FirebaseService {
   static Future<bool> isOnline() async {
     try {
       // Tenta buscar um documento pequeno do servidor para testar a conexão
-      final result = await FirebaseFirestore.instance
+      await FirebaseFirestore.instance
           .collection('online_check')
           .doc('ping')
           .get(const GetOptions(source: Source.server));

@@ -1,11 +1,6 @@
 // lib/presentation/screens/media/media_gallery_screen.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:inspection_app/models/room.dart';
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/firebase_service.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';

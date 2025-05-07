@@ -2,8 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/inspection_checkpoint_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
+
 
 class CheckpointHistoryDialog extends StatefulWidget {
   final String inspectionId;

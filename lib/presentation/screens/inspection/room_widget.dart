@@ -198,7 +198,7 @@ class _RoomWidgetState extends State<RoomWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final newItem = await _inspectionService.isItemDuplicate(
+      await _inspectionService.isItemDuplicate(
         widget.room.inspectionId,
         widget.room.id!,
         item.itemName,

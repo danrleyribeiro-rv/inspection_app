@@ -70,6 +70,9 @@ class InspectionCheckpointBar extends StatelessWidget {
     final mediaProgress = (itemsWithMedia != null && totalItemsForMedia != null && totalItemsForMedia! > 0)
         ? ((itemsWithMedia! / totalItemsForMedia!) * 100)
         : 0.0;
+
+    // Exibir progresso de mídia no console (ou use conforme necessário)
+    debugPrint('Media Progress: $mediaProgress');
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

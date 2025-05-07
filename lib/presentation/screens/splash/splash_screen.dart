@@ -1,7 +1,6 @@
 // lib/presentation/screens/splash/splash_screen.dart
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/firebase_service.dart';
 import 'dart:async';
 
@@ -74,7 +73,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   
   Future<void> _tryToSyncPendingData() async {
     try {
-      final inspectionService = FirebaseInspectionService();
+      // FirebaseInspectionService is not explicitly used here, as Firebase handles synchronization automatically.
       
       // Não é necessário chamar funções de sincronização explicitamente, pois o Firebase
       // fará isso automaticamente ao reconectar

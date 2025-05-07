@@ -14,7 +14,6 @@ import 'package:uuid/uuid.dart';
 import 'package:inspection_app/models/room.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:geolocator/geolocator.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;

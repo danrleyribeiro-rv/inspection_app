@@ -130,7 +130,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       try {
         // Create media directory
         final mediaDir = await _getMediaDirectory();
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        // Removed unused timestamp variable
         final fileExt = path.extension(pickedFile.path);
         final filename = 'nc_${widget.nonConformityId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';

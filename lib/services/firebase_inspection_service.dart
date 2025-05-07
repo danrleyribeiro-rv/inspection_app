@@ -678,7 +678,7 @@ class FirebaseInspectionService {
               'inspection_id': inspectionId,
               'room_id': roomId,
               'item_name': itemName,
-              'item_label': itemDescription ?? '',
+              'item_label': itemDescription,
               'position': itemPosition++,
               'is_damaged': false,
               'created_at': FieldValue.serverTimestamp(),
