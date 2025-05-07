@@ -1,5 +1,7 @@
 // lib/models/inspection.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Inspection {
   final String id;
   final String title;
@@ -18,6 +20,12 @@ class Inspection {
   final String? inspectorId;
   final bool isTemplated;
   final String? templateId;
+
+  final DateTime? lastCheckpointAt;
+  final String? lastCheckpointBy;
+  final String? lastCheckpointMessage;
+  final double? lastCheckpointCompletion;
+
   
   Inspection({
     required this.id,
@@ -37,6 +45,11 @@ class Inspection {
     this.inspectorId,
     this.isTemplated = false,
     this.templateId,
+
+    this.lastCheckpointAt,
+    this.lastCheckpointBy,
+    this.lastCheckpointMessage,
+    this.lastCheckpointCompletion,
   });
 
   // Create a copy of this inspection with the given fields replaced
@@ -58,6 +71,10 @@ class Inspection {
     String? inspectorId,
     bool? isTemplated,
     String? templateId,
+    DateTime? lastCheckpointAt,
+    String? lastCheckpointBy,
+    String? lastCheckpointMessage,
+    double? lastCheckpointCompletion,
   }) {
     return Inspection(
       id: id ?? this.id,
@@ -77,31 +94,52 @@ class Inspection {
       inspectorId: inspectorId ?? this.inspectorId,
       isTemplated: isTemplated ?? this.isTemplated,
       templateId: templateId ?? this.templateId,
+      lastCheckpointAt: lastCheckpointAt ?? this.lastCheckpointAt,
+      lastCheckpointBy: lastCheckpointBy ?? this.lastCheckpointBy,
+      lastCheckpointMessage: lastCheckpointMessage ?? this.lastCheckpointMessage,
+      lastCheckpointCompletion: lastCheckpointCompletion ?? this.lastCheckpointCompletion,
     );
   }
 
   // Convert to a Map (JSON)
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'street': street,
-      'neighborhood': neighborhood,
-      'city': city,
-      'state': state,
-      'zip_code': zipCode,
-      'status': status,
-      'observation': observation,
-      'scheduled_date': scheduledDate?.toIso8601String(),
-      'finished_at': finishedAt?.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-      'project_id': projectId,
-      'inspector_id': inspectorId,
-      'is_templated': isTemplated,
-      'template_id': templateId,
-    };
+Map<String, dynamic> toJson() {
+  // Mapa base com todos os campos existentes
+  final Map<String, dynamic> data = {
+    'id': id,
+    'title': title,
+    'street': street,
+    'neighborhood': neighborhood,
+    'city': city,
+    'state': state,
+    'zip_code': zipCode,
+    'status': status,
+    'observation': observation,
+    'scheduled_date': scheduledDate?.toIso8601String(),
+    'finished_at': finishedAt?.toIso8601String(),
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+    'project_id': projectId,
+    'inspector_id': inspectorId,
+    'is_templated': isTemplated,
+    'template_id': templateId,
+  };
+  
+  // Adicione os novos campos relacionados a checkpoints
+  if (lastCheckpointAt != null) {
+    data['last_checkpoint_at'] = lastCheckpointAt!.toIso8601String();
   }
+  if (lastCheckpointBy != null) {
+    data['last_checkpoint_by'] = lastCheckpointBy;
+  }
+  if (lastCheckpointMessage != null) {
+    data['last_checkpoint_message'] = lastCheckpointMessage;
+  }
+  if (lastCheckpointCompletion != null) {
+    data['last_checkpoint_completion'] = lastCheckpointCompletion;
+  }
+  
+  return data;
+}
 
   // Create an Inspection from a Map (JSON)
   factory Inspection.fromJson(Map<String, dynamic> json) {
@@ -116,6 +154,14 @@ class Inspection {
         isTemplated = true;
       }
     }
+    DateTime? lastCheckpointAt;
+    if (json['last_checkpoint_at'] != null) {
+    if (json['last_checkpoint_at'] is Timestamp) {
+      lastCheckpointAt = (json['last_checkpoint_at'] as Timestamp).toDate();
+    } else if (json['last_checkpoint_at'] is String) {
+      lastCheckpointAt = DateTime.parse(json['last_checkpoint_at']);
+    }
+  }
     
     String? templateId = json['template_id']?.toString();
     
@@ -137,6 +183,12 @@ class Inspection {
       inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,
       templateId: templateId,
+      lastCheckpointAt: lastCheckpointAt,
+      lastCheckpointBy: json['last_checkpoint_by'],
+      lastCheckpointMessage: json['last_checkpoint_message'],
+      lastCheckpointCompletion: json['last_checkpoint_completion'] != null 
+        ? (json['last_checkpoint_completion'] as num).toDouble() 
+        : null,
     );
   }
   

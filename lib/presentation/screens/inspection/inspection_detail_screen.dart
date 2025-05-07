@@ -11,13 +11,16 @@ import 'package:inspection_app/presentation/screens/inspection/components/landsc
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/empty_room_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/inspection_header.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/services/import_export_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/gemini_service.dart';
 import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
+import 'package:inspection_app/services/inspection_checkpoint_service.dart';
+import 'package:inspection_app/presentation/widgets/create_checkpoint_dialog.dart';
+import 'package:inspection_app/presentation/widgets/checkpoint_history_dialog.dart';
+import 'package:inspection_app/presentation/widgets/inspection_checkpoint_bar.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -33,6 +36,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final _connectivityService = Connectivity();
   final _importExportService = ImportExportService();
   final _firestore = FirebaseFirestore.instance;
+  final _checkpointService = InspectionCheckpointService();
+  bool _isCalculatingProgress = false;
 
   bool _isLoading = true;
   bool _isSyncing = false;
@@ -43,6 +48,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   int _expandedRoomIndex = -1;
   double _completionPercentage = 0.0;
 
+  int _completedItems = 0;
+  int _totalItems = 0;
+  int _itemsWithMedia = 0;
+  int _totalItemsForMedia = 0;
+  double _detailsScore = 0.0;
+  double _mediaScore = 0.0;
+
   int _selectedRoomIndex = -1;
   int _selectedItemIndex = -1;
   List<Item> _selectedRoomItems = [];
@@ -52,7 +64,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   void initState() {
     super.initState();
     _listenToConnectivity();
-    _loadInspection();
+    _loadInspection().then((_) {
+      _calculateInspectionProgress();
+    });
   }
 
   void _listenToConnectivity() {
@@ -81,6 +95,65 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         });
       }
     });
+  }
+
+  void _showCreateCheckpointDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => CreateCheckpointDialog(
+        inspectionId: widget.inspectionId,
+        completedItems: _completedItems,
+        totalItems: _totalItems,
+        completionPercentage: _completionPercentage,
+        itemsWithMedia: _itemsWithMedia,
+        totalItemsForMedia: _totalItemsForMedia,
+        detailsScore: _detailsScore,
+        mediaScore: _mediaScore,
+        onCheckpointCreated: () {
+          // Recarregar inspeção após criar checkpoint
+          _loadInspection();
+        },
+      ),
+    );
+  }
+
+  void _showCheckpointHistory() {
+    showDialog(
+      context: context,
+      builder: (context) => CheckpointHistoryDialog(
+        inspectionId: widget.inspectionId,
+      ),
+    );
+  }
+
+  Future<void> _calculateInspectionProgress() async {
+    if (!mounted) return;
+
+    setState(() => _isCalculatingProgress = true);
+
+    try {
+      final progress =
+          await _checkpointService.getInspectionProgress(widget.inspectionId);
+
+      if (mounted) {
+        setState(() {
+          // Armazenar todos os valores de progresso
+          _completedItems = progress['completed_items'];
+          _totalItems = progress['total_items'];
+          _itemsWithMedia = progress['items_with_media'];
+          _totalItemsForMedia = progress['total_items_for_media'];
+          _detailsScore = progress['details_score'];
+          _mediaScore = progress['media_score'];
+          _completionPercentage = progress['completion_percentage'];
+          _isCalculatingProgress = false;
+        });
+      }
+    } catch (e) {
+      print('Erro ao calcular progresso: $e');
+      if (mounted) {
+        setState(() => _isCalculatingProgress = false);
+      }
+    }
   }
 
   Future<void> _loadInspection() async {
@@ -782,69 +855,75 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     final double availableHeight = screenSize.height -
         kToolbarHeight -
         MediaQuery.of(context).padding.top -
-        MediaQuery.of(context).padding.bottom;
+        MediaQuery.of(context).padding.bottom -
+        InspectionCheckpointBar.HEIGHT; // Altura da barra de checkpoint
 
     return Column(
       children: [
-        // Inspection header with status and progress
+        // Checkpoint bar
         if (_inspection != null)
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: screenSize.width,
-            ),
-            child: InspectionHeader(
-              inspection: _inspection!.toJson(),
-              completionPercentage: _completionPercentage,
-              isOffline: !_isOnline,
-            ),
-          ),
+        InspectionCheckpointBar(
+          lastCheckpointAt: _inspection!.lastCheckpointAt,
+          lastCheckpointMessage: _inspection!.lastCheckpointMessage,
+          lastCheckpointCompletion: _inspection!.lastCheckpointCompletion,
+          
+          // Adicionar novos parâmetros de progresso detalhado
+          completedItems: _completedItems,
+          totalItems: _totalItems,
+          itemsWithMedia: _itemsWithMedia,
+          totalItemsForMedia: _totalItemsForMedia,
+          detailsScore: _detailsScore,
+          mediaScore: _mediaScore,
+          
+          onAddCheckpoint: _showCreateCheckpointDialog,
+          onViewHistory: _showCheckpointHistory,
+        ),
 
         // Main content area
         Expanded(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: screenSize.width,
-              maxHeight: availableHeight - (_inspection != null ? 110 : 0),
-            ),
-            child: _rooms.isEmpty
-                ? EmptyRoomState(onAddRoom: _addRoom)
-                : isLandscape
-                    ? LandscapeView(
-                        rooms: _rooms,
-                        selectedRoomIndex: _selectedRoomIndex,
-                        selectedItemIndex: _selectedItemIndex,
-                        selectedRoomItems: _selectedRoomItems,
-                        selectedItemDetails: _selectedItemDetails,
-                        inspectionId: widget.inspectionId,
-                        onRoomSelected: _handleRoomSelected,
-                        onItemSelected: _handleItemSelected,
-                        onRoomDuplicate: _duplicateRoom,
-                        onRoomDelete: _deleteRoom,
-                        inspectionService: _inspectionService,
-                        onAddRoom: _addRoom,
-                      )
-                    : StatefulBuilder(
-                        builder: (context, setState) {
-                          return RoomsList(
-                            rooms: _rooms,
-                            expandedRoomIndex: _expandedRoomIndex,
-                            onRoomUpdated: _updateRoom,
-                            onRoomDeleted: _deleteRoom,
-                            onRoomDuplicated: _duplicateRoom,
-                            onExpansionChanged: (index) {
-                              setState(() {
-                                _expandedRoomIndex =
-                                    _expandedRoomIndex == index ? -1 : index;
-                              });
-                            },
-                            inspectionId: widget.inspectionId,
-                            onRoomsReordered: _loadRooms,
-                          );
-                        },
-                      ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: screenSize.width,
+            maxHeight: availableHeight,
           ),
+          child: _rooms.isEmpty
+              ? EmptyRoomState(onAddRoom: _addRoom)
+              : isLandscape
+                  ? LandscapeView(
+                      rooms: _rooms,
+                      selectedRoomIndex: _selectedRoomIndex,
+                      selectedItemIndex: _selectedItemIndex,
+                      selectedRoomItems: _selectedRoomItems,
+                      selectedItemDetails: _selectedItemDetails,
+                      inspectionId: widget.inspectionId,
+                      onRoomSelected: _handleRoomSelected,
+                      onItemSelected: _handleItemSelected,
+                      onRoomDuplicate: _duplicateRoom,
+                      onRoomDelete: _deleteRoom,
+                      inspectionService: _inspectionService,
+                      onAddRoom: _addRoom,
+                    )
+                  : StatefulBuilder(
+                      builder: (context, setState) {
+                        return RoomsList(
+                          rooms: _rooms,
+                          expandedRoomIndex: _expandedRoomIndex,
+                          onRoomUpdated: _updateRoom,
+                          onRoomDeleted: _deleteRoom,
+                          onRoomDuplicated: _duplicateRoom,
+                          onExpansionChanged: (index) {
+                            setState(() {
+                              _expandedRoomIndex =
+                                  _expandedRoomIndex == index ? -1 : index;
+                            });
+                          },
+                          inspectionId: widget.inspectionId,
+                          onRoomsReordered: _loadRooms,
+                        );
+                      },
+                    ),
         ),
-
+      ),
         // Adicione um espaçamento inferior para evitar sobreposição
         SizedBox(height: 2),
 
@@ -902,7 +981,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   icon: Icons.download,
                   label: 'Exportar',
                   onTap: _exportInspection,
-                color: Colors.green,
+                  color: Colors.green,
                 ),
 
                 // Botão de IA para sugestão de salas
