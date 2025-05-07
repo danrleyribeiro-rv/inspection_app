@@ -17,9 +17,7 @@ import 'package:inspection_app/services/import_export_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/gemini_service.dart';
 import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
-// Importação da tela de galeria de mídia
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:flutter/services.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -670,13 +668,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       appBar: AppBar(
         title: Text(_inspection?.title ?? 'Inspeção'),
         actions: [
-          // Galeria de mídia button
-          IconButton(
-            icon: const Icon(Icons.photo_library),
-            onPressed: () => _navigateToMediaGallery(),
-            tooltip: 'Galeria de Mídia',
-          ),
-
           // Connectivity status indicator
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -701,7 +692,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               ],
             ),
           ),
-
           // Template apply button - more compact for small screens
           if (_isOnline &&
               _inspection != null &&
@@ -778,26 +768,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       Icon(Icons.file_upload),
                       SizedBox(width: 8),
                       Text('Importar Inspeção'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'nonConformities',
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber),
-                      SizedBox(width: 8),
-                      Text('Não-Conformidades'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'media',
-                  child: Row(
-                    children: [
-                      Icon(Icons.photo_library),
-                      SizedBox(width: 8),
-                      Text('Galeria de Mídia'),
                     ],
                   ),
                 ),
@@ -1050,7 +1020,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
                 // Atalho para Exportar
                 _buildShortcutButton(
-                  icon: Icons.file_download_outlined,
+                  icon: Icons.local_offer,
                   label: 'Exportar',
                   onTap: _exportInspection,
                   color: Colors.green,
