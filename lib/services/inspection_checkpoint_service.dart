@@ -3,15 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
+/// Esta classe representa um checkpoint da inspeção
 class InspectionCheckpoint {
   final String id;
   final String inspectionId;
   final String createdBy;
   final DateTime createdAt;
   final String? message;
-  final int completedItems;
-  final int totalItems;
-  final double completionPercentage;
+  final Map<String, dynamic>? data; // Dados completos para restauração
 
   InspectionCheckpoint({
     required this.id,
@@ -19,276 +18,502 @@ class InspectionCheckpoint {
     required this.createdBy,
     required this.createdAt,
     this.message,
-    required this.completedItems,
-    required this.totalItems,
-    required this.completionPercentage,
+    this.data,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'inspection_id': inspectionId,
-      'created_by': createdBy,
-      'created_at': createdAt,
-      'message': message,
-      'completed_items': completedItems,
-      'total_items': totalItems,
-      'completion_percentage': completionPercentage,
-    };
-  }
-
-  factory InspectionCheckpoint.fromJson(String id, Map<String, dynamic> json) {
-    DateTime createdAt;
-    if (json['created_at'] is Timestamp) {
-      createdAt = (json['created_at'] as Timestamp).toDate();
-    } else if (json['created_at'] is String) {
-      createdAt = DateTime.parse(json['created_at']);
-    } else {
-      createdAt = DateTime.now();
-    }
-
-    return InspectionCheckpoint(
-      id: id,
-      inspectionId: json['inspection_id'] ?? '',
-      createdBy: json['created_by'] ?? '',
-      createdAt: createdAt,
-      message: json['message'],
-      completedItems: json['completed_items'] ?? 0,
-      totalItems: json['total_items'] ?? 0,
-      completionPercentage: (json['completion_percentage'] ?? 0.0).toDouble(),
-    );
-  }
-
-  String get formattedDate {
-    return DateFormat('dd/MM/yyyy HH:mm').format(createdAt);
-  }
+  String get formattedDate => DateFormat('dd/MM/yyyy HH:mm').format(createdAt);
 }
 
 class InspectionCheckpointService {
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
 
-  InspectionCheckpointService({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
-
-  /// Cria um checkpoint para uma inspeção
-  /// 
-  /// [inspectionId] - ID da inspeção
-  /// [message] - Mensagem opcional para o checkpoint
-  /// [completedItems] - Número de itens completados (detalhes preenchidos)
-  /// [totalItems] - Número total de itens na inspeção
-  /// [completionPercentage] - Porcentagem de conclusão da inspeção (0-100)
-  Future<InspectionCheckpoint?> createCheckpoint({
+  // Método para criar um checkpoint da inspeção
+  Future<void> createCheckpoint({
     required String inspectionId,
     String? message,
-    required int completedItems,
-    required int totalItems,
-    required double completionPercentage,
   }) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception('Usuário não autenticado');
-      }
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Usuário não autenticado');
 
-      final checkpointData = {
-        'inspection_id': inspectionId,
-        'created_by': user.uid,
-        'created_at': FieldValue.serverTimestamp(),
-        'message': message,
-        'completed_items': completedItems,
-        'total_items': totalItems,
-        'completion_percentage': completionPercentage,
-      };
+    // Obter todas as salas, itens e detalhes para criar um snapshot completo
+    final checkpointData = await _createInspectionSnapshot(inspectionId);
 
-      // Salva no Firestore
-      final docRef = await _firestore
-          .collection('inspection_checkpoints')
-          .add(checkpointData);
-
-      // Atualiza também a informação do último checkpoint na coleção de inspeções
-      await _firestore.collection('inspections').doc(inspectionId).update({
-        'last_checkpoint_at': FieldValue.serverTimestamp(),
-        'last_checkpoint_by': user.uid,
-        'last_checkpoint_message': message,
-        'last_checkpoint_completion': completionPercentage,
-      });
-
-      // Recupera o documento com o timestamp gerado pelo servidor
-      final doc = await docRef.get();
-      if (doc.exists) {
-        return InspectionCheckpoint.fromJson(
-          doc.id,
-          doc.data() as Map<String, dynamic>,
-        );
-      }
-
-      return null;
-    } catch (e) {
-      print('Erro ao criar checkpoint: $e');
-      rethrow;
-    }
-  }
-
-  /// Recupera todos os checkpoints de uma inspeção ordenados por data de criação
-  Future<List<InspectionCheckpoint>> getCheckpoints(String inspectionId) async {
-    try {
-      final snapshots = await _firestore
-          .collection('inspection_checkpoints')
-          .where('inspection_id', isEqualTo: inspectionId)
-          .orderBy('created_at', descending: true)
-          .get();
-
-      return snapshots.docs
-          .map((doc) => InspectionCheckpoint.fromJson(
-                doc.id,
-                doc.data(),
-              ))
-          .toList();
-    } catch (e) {
-      print('Erro ao recuperar checkpoints: $e');
-      return [];
-    }
-  }
-
-/// Considera:
-/// 1. Detalhes preenchidos (com valor ou marcados como danificados)
-/// 2. Presença de mídia (fotos/vídeos) para cada item
-/// 3. Observações preenchidas
-/// 
-/// Retorna o número de itens completados, o total de itens e a porcentagem de conclusão
-Future<Map<String, dynamic>> getInspectionProgress(String inspectionId) async {
-  try {
-    // Contadores para o progresso
-    int completedDetails = 0;
-    int totalDetails = 0;
-    int itemsWithMedia = 0;
-    int totalItems = 0;
+    // Salvar o checkpoint
+    await _firestore.collection('inspection_checkpoints').add({
+      'inspection_id': inspectionId,
+      'created_by': userId,
+      'created_at': FieldValue.serverTimestamp(),
+      'message': message,
+      'snapshot_data': checkpointData, // Dados completos da inspeção
+    });
     
-    // Peso para cada componente do progresso (ajuste conforme necessário)
-    const double DETAIL_VALUE_WEIGHT = 0.6; // 60% do progresso vem de detalhes preenchidos
-    const double MEDIA_WEIGHT = 0.4; // 40% do progresso vem de mídia
+    // Atualizar a inspeção com a informação do último checkpoint
+    await _firestore.collection('inspections').doc(inspectionId).update({
+      'last_checkpoint_at': FieldValue.serverTimestamp(),
+      'last_checkpoint_message': message,
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+  }
+  
+  // Método para obter os checkpoints de uma inspeção
+  Future<List<InspectionCheckpoint>> getCheckpoints(String inspectionId) async {
+    final snapshot = await _firestore
+        .collection('inspection_checkpoints')
+        .where('inspection_id', isEqualTo: inspectionId)
+        .orderBy('created_at', descending: true)
+        .get();
+        
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      
+      DateTime createdAt;
+      if (data['created_at'] is Timestamp) {
+        createdAt = (data['created_at'] as Timestamp).toDate();
+      } else {
+        createdAt = DateTime.now(); // Fallback
+      }
+      
+      return InspectionCheckpoint(
+        id: doc.id,
+        inspectionId: data['inspection_id'],
+        createdBy: data['created_by'],
+        createdAt: createdAt,
+        message: data['message'],
+        data: data['snapshot_data'],
+      );
+    }).toList();
+  }
 
-    // Recupera todas as salas da inspeção
+  // Obtém um checkpoint específico pelo ID
+  Future<InspectionCheckpoint?> getCheckpointById(String checkpointId) async {
+    try {
+      final doc = await _firestore.collection('inspection_checkpoints').doc(checkpointId).get();
+      if (!doc.exists) return null;
+      
+      final data = doc.data()!;
+      
+      DateTime createdAt;
+      if (data['created_at'] is Timestamp) {
+        createdAt = (data['created_at'] as Timestamp).toDate();
+      } else {
+        createdAt = DateTime.now(); // Fallback
+      }
+      
+      return InspectionCheckpoint(
+        id: doc.id,
+        inspectionId: data['inspection_id'],
+        createdBy: data['created_by'],
+        createdAt: createdAt,
+        message: data['message'],
+        data: data['snapshot_data'],
+      );
+    } catch (e) {
+      print('Erro ao buscar checkpoint: $e');
+      return null;
+    }
+  }
+
+  // Método para restaurar uma inspeção a partir de um checkpoint
+  Future<bool> restoreFromCheckpoint(InspectionCheckpoint checkpoint) async {
+    if (checkpoint.data == null) {
+      throw Exception('Dados do checkpoint são nulos ou incompletos');
+    }
+    
+    final inspectionId = checkpoint.inspectionId;
+    final batch = _firestore.batch();
+    final snapshot = checkpoint.data!;
+    
+    try {
+      // 1. Limpar dados existentes
+      await _clearInspectionData(inspectionId);
+      
+      // 2. Restaurar salas, itens e detalhes
+      if (snapshot['rooms'] != null) {
+        for (final roomData in snapshot['rooms']) {
+          final roomId = roomData['id'];
+          final roomRef = _firestore.collection('rooms').doc(roomId);
+          
+          // Remover campos que não devem ser restaurados
+          final Map<String, dynamic> cleanRoomData = {...roomData};
+          cleanRoomData.remove('id');
+          cleanRoomData.remove('items');
+          
+          // Adicionar campos de registro da restauração
+          cleanRoomData['restored_from_checkpoint'] = checkpoint.id;
+          cleanRoomData['restored_at'] = FieldValue.serverTimestamp();
+          
+          batch.set(roomRef, cleanRoomData);
+          
+          // Restaurar itens desta sala
+          if (roomData['items'] != null) {
+            for (final itemData in roomData['items']) {
+              final itemId = itemData['id'];
+              final itemRef = _firestore.collection('room_items').doc(itemId);
+              
+              // Remover campos que não devem ser restaurados
+              final Map<String, dynamic> cleanItemData = {...itemData};
+              cleanItemData.remove('id');
+              cleanItemData.remove('details');
+              
+              // Adicionar campos de registro da restauração
+              cleanItemData['restored_from_checkpoint'] = checkpoint.id;
+              cleanItemData['restored_at'] = FieldValue.serverTimestamp();
+              
+              batch.set(itemRef, cleanItemData);
+              
+              // Restaurar detalhes deste item
+              if (itemData['details'] != null) {
+                for (final detailData in itemData['details']) {
+                  final detailId = detailData['id'];
+                  final detailRef = _firestore.collection('item_details').doc(detailId);
+                  
+                  // Remover apenas o ID e manter todos os outros campos
+                  final Map<String, dynamic> cleanDetailData = {...detailData};
+                  cleanDetailData.remove('id');
+                  
+                  // Adicionar campos de registro da restauração
+                  cleanDetailData['restored_from_checkpoint'] = checkpoint.id;
+                  cleanDetailData['restored_at'] = FieldValue.serverTimestamp();
+                  
+                  batch.set(detailRef, cleanDetailData);
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // 3. Restaurar não conformidades
+      if (snapshot['non_conformities'] != null) {
+        for (final ncData in snapshot['non_conformities']) {
+          final ncId = ncData['id'];
+          final ncRef = _firestore.collection('non_conformities').doc(ncId);
+          
+          // Remover campos que não devem ser restaurados
+          final Map<String, dynamic> cleanNcData = {...ncData};
+          cleanNcData.remove('id');
+          
+          // Adicionar campos de registro da restauração
+          cleanNcData['restored_from_checkpoint'] = checkpoint.id;
+          cleanNcData['restored_at'] = FieldValue.serverTimestamp();
+          
+          batch.set(ncRef, cleanNcData);
+        }
+      }
+      
+      // 4. Restaurar mídia (apenas metadados, não os arquivos físicos)
+      if (snapshot['media'] != null) {
+        for (final mediaData in snapshot['media']) {
+          final mediaId = mediaData['id'];
+          final mediaRef = _firestore.collection('media').doc(mediaId);
+          
+          // Remover campos que não devem ser restaurados
+          final Map<String, dynamic> cleanMediaData = {...mediaData};
+          cleanMediaData.remove('id');
+          
+          // Adicionar campos de registro da restauração
+          cleanMediaData['restored_from_checkpoint'] = checkpoint.id;
+          cleanMediaData['restored_at'] = FieldValue.serverTimestamp();
+          
+          batch.set(mediaRef, cleanMediaData);
+        }
+      }
+      
+      // 5. Atualizar o documento da inspeção
+      final inspectionRef = _firestore.collection('inspections').doc(inspectionId);
+      batch.update(inspectionRef, {
+        'restored_from_checkpoint': checkpoint.id,
+        'restored_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      
+      // Executar o batch
+      await batch.commit();
+      
+      return true;
+    } catch (e) {
+      print('Erro ao restaurar checkpoint: $e');
+      return false;
+    }
+  }
+  
+  // Método para limpar os dados existentes da inspeção antes da restauração
+  Future<void> _clearInspectionData(String inspectionId) async {
+    // Buscar e remover detalhes
+    final detailsSnapshot = await _firestore
+        .collection('item_details')
+        .where('inspection_id', isEqualTo: inspectionId)
+        .get();
+        
+    for (final doc in detailsSnapshot.docs) {
+      await doc.reference.delete();
+    }
+    
+    // Buscar e remover itens
+    final itemsSnapshot = await _firestore
+        .collection('room_items')
+        .where('inspection_id', isEqualTo: inspectionId)
+        .get();
+        
+    for (final doc in itemsSnapshot.docs) {
+      await doc.reference.delete();
+    }
+    
+    // Buscar e remover salas
     final roomsSnapshot = await _firestore
         .collection('rooms')
         .where('inspection_id', isEqualTo: inspectionId)
         .get();
-
-    // Para cada sala, recupera seus itens
-    for (var roomDoc in roomsSnapshot.docs) {
-      final roomId = roomDoc.id;
-      
-      final itemsSnapshot = await _firestore
-          .collection('room_items')
-          .where('inspection_id', isEqualTo: inspectionId)
-          .where('room_id', isEqualTo: roomId)
-          .get();
-      
-      totalItems += itemsSnapshot.docs.length;
-
-      // Para cada item, verifica mídia e detalhes
-      for (var itemDoc in itemsSnapshot.docs) {
-        final itemId = itemDoc.id;
-        // 1. Verificar se o item tem mídia associada
-        final mediaSnapshot = await _firestore
-            .collection('media')
-            .where('inspection_id', isEqualTo: inspectionId)
-            .where('room_id', isEqualTo: roomId)
-            .where('room_item_id', isEqualTo: itemId)
-            .limit(1) // Precisamos apenas saber se existe pelo menos um
-            .get();
         
-        if (mediaSnapshot.docs.isNotEmpty) {
-          itemsWithMedia++;
-        }
-        
-        // 2. Verificar detalhes do item
-        final detailsSnapshot = await _firestore
-            .collection('item_details')
-            .where('inspection_id', isEqualTo: inspectionId)
-            .where('room_id', isEqualTo: roomId)
-            .where('item_id', isEqualTo: itemId)
-            .get();
-
-        final detailsCount = detailsSnapshot.docs.length;
-        totalDetails += detailsCount;
-        
-        // Contar detalhes completados
-        for (var detailDoc in detailsSnapshot.docs) {
-          final detail = detailDoc.data();
-          
-          // Um detalhe é considerado completado se:
-          // 1. Tem valor preenchido, OU
-          // 2. Está marcado como danificado, OU
-          // 3. Tem observação preenchida
-          if ((detail['detail_value'] != null && detail['detail_value'].toString().isNotEmpty) ||
-              detail['is_damaged'] == true ||
-              (detail['observation'] != null && detail['observation'].toString().isNotEmpty)) {
-            completedDetails++;
-          }
-        }
-      }
-    }
-
-    // Calcular as pontuações parciais
-    double detailsScore = 0;
-    if (totalDetails > 0) {
-      detailsScore = (completedDetails / totalDetails) * DETAIL_VALUE_WEIGHT;
+    for (final doc in roomsSnapshot.docs) {
+      await doc.reference.delete();
     }
     
-    double mediaScore = 0;
-    if (totalItems > 0) {
-      mediaScore = (itemsWithMedia / totalItems) * MEDIA_WEIGHT;
+    // Buscar e remover não conformidades
+    final nonConformitiesSnapshot = await _firestore
+        .collection('non_conformities')
+        .where('inspection_id', isEqualTo: inspectionId)
+        .get();
+        
+    for (final doc in nonConformitiesSnapshot.docs) {
+      await doc.reference.delete();
     }
     
-    // Calcular pontuação total (porcentagem de conclusão)
-    final completionPercentage = (detailsScore + mediaScore) * 100;
-    
-    // Logs para depuração (opcional)
-    print('Progresso da inspeção $inspectionId:');
-    print('  Detalhes completados: $completedDetails / $totalDetails');
-    print('  Itens com mídia: $itemsWithMedia / $totalItems');
-    print('  Pontuação detalhes: ${detailsScore * 100}%');
-    print('  Pontuação mídia: ${mediaScore * 100}%');
-    print('  Progresso total: ${completionPercentage.toStringAsFixed(1)}%');
-
-    return {
-      'completed_items': completedDetails,
-      'total_items': totalDetails,
-      'items_with_media': itemsWithMedia,
-      'total_items_for_media': totalItems,
-      'completion_percentage': double.parse(completionPercentage.toStringAsFixed(1)),
-      'details_score': detailsScore,
-      'media_score': mediaScore,
-    };
-  } catch (e) {
-    print('Erro ao calcular progresso da inspeção: $e');
-    return {
-      'completed_items': 0,
-      'total_items': 0,
-      'items_with_media': 0,
-      'total_items_for_media': 0,
-      'completion_percentage': 0.0,
-      'details_score': 0.0,
-      'media_score': 0.0,
-    };
+    // Não removemos as mídias físicas, apenas os metadados
+    final mediaSnapshot = await _firestore
+        .collection('media')
+        .where('inspection_id', isEqualTo: inspectionId)
+        .get();
+        
+    for (final doc in mediaSnapshot.docs) {
+      await doc.reference.delete();
+    }
   }
-}
+  
+  // Método privado para criar um snapshot completo da inspeção
+// lib/services/inspection_checkpoint_service.dart
+// No método _createInspectionSnapshot, modifique:
 
-  /// Exclui um checkpoint
+Future<Map<String, dynamic>> _createInspectionSnapshot(String inspectionId) async {
+  // Buscar inspeção
+  final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
+  if (!inspectionDoc.exists) throw Exception('Inspeção não encontrada');
+  
+  // Buscar salas
+  final roomsSnapshot = await _firestore
+      .collection('rooms')
+      .where('inspection_id', isEqualTo: inspectionId)
+      .get();
+      
+  final rooms = <Map<String, dynamic>>[];
+  
+  // Contadores para verificação
+  int totalItems = 0;
+  int totalDetails = 0;
+  
+  for (final roomDoc in roomsSnapshot.docs) {
+    final roomData = roomDoc.data();
+    final roomId = roomDoc.id;
+    
+    // Buscar itens desta sala
+    final itemsSnapshot = await _firestore
+        .collection('room_items')
+        .where('room_id', isEqualTo: roomId)
+        .get();
+        
+    final items = <Map<String, dynamic>>[];
+    
+    for (final itemDoc in itemsSnapshot.docs) {
+      final itemData = itemDoc.data();
+      final itemId = itemDoc.id;
+      totalItems++;
+      
+      // Buscar detalhes deste item
+      final detailsSnapshot = await _firestore
+          .collection('item_details')
+          .where('item_id', isEqualTo: itemId)
+          .get();
+          
+      final details = <Map<String, dynamic>>[];
+      
+      for (final detailDoc in detailsSnapshot.docs) {
+        totalDetails++;
+        final detailData = detailDoc.data();
+        
+        // Incluir todos os campos do detalhe, sem filtro
+        details.add({
+          'id': detailDoc.id,
+          ...detailData,
+        });
+      }
+      
+      items.add({
+        'id': itemId,
+        ...itemData,
+        'details': details,
+      });
+    }
+    
+    rooms.add({
+      'id': roomId,
+      ...roomData,
+      'items': items,
+    });
+  }
+  
+  // Adicione logs para verificação
+  print('Checkpoint snapshot: Total de salas: ${rooms.length}');
+  print('Checkpoint snapshot: Total de itens: $totalItems');
+  print('Checkpoint snapshot: Total de detalhes: $totalDetails');
+  
+  // Buscar não conformidades
+  final nonConformitiesSnapshot = await _firestore
+      .collection('non_conformities')
+      .where('inspection_id', isEqualTo: inspectionId)
+      .get();
+      
+  final nonConformities = nonConformitiesSnapshot.docs.map((doc) {
+    return {
+      'id': doc.id,
+      ...doc.data(),
+    };
+  }).toList();
+  
+  // Buscar mídia
+  final mediaSnapshot = await _firestore
+      .collection('media')
+      .where('inspection_id', isEqualTo: inspectionId)
+      .get();
+      
+  final media = mediaSnapshot.docs.map((doc) {
+    return {
+      'id': doc.id,
+      ...doc.data(),
+    };
+  }).toList();
+  
+  return {
+    'inspection': {
+      'id': inspectionId,
+      ...inspectionDoc.data() ?? {},
+    },
+    'rooms': rooms,
+    'non_conformities': nonConformities,
+    'media': media,
+  };
+}  
+  // Exclui um checkpoint
   Future<bool> deleteCheckpoint(String checkpointId) async {
     try {
-      await _firestore
-          .collection('inspection_checkpoints')
-          .doc(checkpointId)
-          .delete();
+      await _firestore.collection('inspection_checkpoints').doc(checkpointId).delete();
       return true;
     } catch (e) {
       print('Erro ao excluir checkpoint: $e');
       return false;
+    }
+  }
+  
+  // Obtém o último checkpoint de uma inspeção
+  Future<InspectionCheckpoint?> getLastCheckpoint(String inspectionId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('inspection_checkpoints')
+          .where('inspection_id', isEqualTo: inspectionId)
+          .orderBy('created_at', descending: true)
+          .limit(1)
+          .get();
+          
+      if (snapshot.docs.isEmpty) return null;
+      
+      final doc = snapshot.docs.first;
+      final data = doc.data();
+      
+      DateTime createdAt;
+      if (data['created_at'] is Timestamp) {
+        createdAt = (data['created_at'] as Timestamp).toDate();
+      } else {
+        createdAt = DateTime.now(); // Fallback
+      }
+      
+      return InspectionCheckpoint(
+        id: doc.id,
+        inspectionId: data['inspection_id'],
+        createdBy: data['created_by'],
+        createdAt: createdAt,
+        message: data['message'],
+        data: data['snapshot_data'],
+      );
+    } catch (e) {
+      print('Erro ao buscar último checkpoint: $e');
+      return null;
+    }
+  }
+  
+  // Compara o estado atual com um checkpoint para verificar diferenças
+  Future<Map<String, dynamic>> compareWithCheckpoint(String inspectionId, String checkpointId) async {
+    try {
+      // Obter o checkpoint
+      final checkpoint = await getCheckpointById(checkpointId);
+      if (checkpoint == null || checkpoint.data == null) {
+        throw Exception('Checkpoint não encontrado ou dados incompletos');
+      }
+      
+      // Obter snapshot atual
+      final currentSnapshot = await _createInspectionSnapshot(inspectionId);
+      
+      // Comparar número de salas
+      final checkpointRooms = checkpoint.data!['rooms'] as List<dynamic>? ?? [];
+      final currentRooms = currentSnapshot['rooms'] as List<dynamic>? ?? [];
+      
+      // Comparar número de itens e detalhes
+      int checkpointItemsCount = 0;
+      int currentItemsCount = 0;
+      int checkpointDetailsCount = 0;
+      int currentDetailsCount = 0;
+      
+      for (final room in checkpointRooms) {
+        final items = room['items'] as List<dynamic>? ?? [];
+        checkpointItemsCount += items.length;
+        
+        for (final item in items) {
+          final details = item['details'] as List<dynamic>? ?? [];
+          checkpointDetailsCount += details.length;
+        }
+      }
+      
+      for (final room in currentRooms) {
+        final items = room['items'] as List<dynamic>? ?? [];
+        currentItemsCount += items.length;
+        
+        for (final item in items) {
+          final details = item['details'] as List<dynamic>? ?? [];
+          currentDetailsCount += details.length;
+        }
+      }
+      
+      // Comparar não conformidades
+      final checkpointNCs = checkpoint.data!['non_conformities'] as List<dynamic>? ?? [];
+      final currentNCs = currentSnapshot['non_conformities'] as List<dynamic>? ?? [];
+      
+      // Comparar mídia
+      final checkpointMedia = checkpoint.data!['media'] as List<dynamic>? ?? [];
+      final currentMedia = currentSnapshot['media'] as List<dynamic>? ?? [];
+      
+      return {
+        'checkpoint_date': checkpoint.createdAt,
+        'checkpoint_message': checkpoint.message,
+        'rooms_diff': currentRooms.length - checkpointRooms.length,
+        'items_diff': currentItemsCount - checkpointItemsCount,
+        'details_diff': currentDetailsCount - checkpointDetailsCount,
+        'non_conformities_diff': currentNCs.length - checkpointNCs.length,
+        'media_diff': currentMedia.length - checkpointMedia.length,
+      };
+    } catch (e) {
+      print('Erro ao comparar com checkpoint: $e');
+      return {
+        'error': e.toString(),
+      };
     }
   }
 }

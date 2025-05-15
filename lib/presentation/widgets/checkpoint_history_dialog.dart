@@ -2,14 +2,16 @@
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/inspection_checkpoint_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:intl/intl.dart';
 
 class CheckpointHistoryDialog extends StatefulWidget {
   final String inspectionId;
+  final Function(InspectionCheckpoint) onRestore; // Callback para restauração
 
   const CheckpointHistoryDialog({
     super.key,
     required this.inspectionId,
+    required this.onRestore,
   });
 
   @override
@@ -23,6 +25,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
   bool _isLoading = true;
   List<InspectionCheckpoint> _checkpoints = [];
   Map<String, String> _userNames = {};
+  Map<String, Map<String, dynamic>> _comparisons = {};
 
   @override
   void initState() {
@@ -52,6 +55,19 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
         } catch (e) {
           print('Erro ao buscar usuário $userId: $e');
           _userNames[userId] = 'Usuário não encontrado';
+        }
+      }
+      
+      // Para cada checkpoint, obter comparação com o estado atual
+      for (final checkpoint in checkpoints) {
+        try {
+          final comparison = await _checkpointService.compareWithCheckpoint(
+            widget.inspectionId, 
+            checkpoint.id
+          );
+          _comparisons[checkpoint.id] = comparison;
+        } catch (e) {
+          print('Erro ao comparar checkpoint ${checkpoint.id}: $e');
         }
       }
 
@@ -88,6 +104,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
         isLoading: _isLoading,
         getUserName: _getUserName,
         onRefresh: _loadCheckpoints,
+        onRestore: widget.onRestore,
       ),
     );
   }
@@ -98,6 +115,7 @@ class ContentBox extends StatelessWidget {
   final bool isLoading;
   final String Function(String) getUserName;
   final VoidCallback onRefresh;
+  final Function(InspectionCheckpoint) onRestore;
 
   const ContentBox({
     super.key,
@@ -105,6 +123,7 @@ class ContentBox extends StatelessWidget {
     required this.isLoading,
     required this.getUserName,
     required this.onRefresh,
+    required this.onRestore,
   });
 
   @override
@@ -228,25 +247,7 @@ class ContentBox extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                  
-                                  // Informações de progresso
-                                  const SizedBox(height: 8),
-                                  LinearProgressIndicator(
-                                    value: checkpoint.completionPercentage / 100,
-                                    backgroundColor: Colors.grey.shade700,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      _getProgressColor(checkpoint.completionPercentage),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Progresso: ${checkpoint.completionPercentage.toStringAsFixed(1)}% (${checkpoint.completedItems}/${checkpoint.totalItems} itens)',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  
+                        
                                   // Mensagem do checkpoint
                                   if (checkpoint.message != null && checkpoint.message!.isNotEmpty) ...[
                                     const SizedBox(height: 8),
@@ -265,6 +266,28 @@ class ContentBox extends StatelessWidget {
                                       ),
                                     ),
                                   ],
+                                  
+                                  // Botão de restauração
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.of(context).pop(); // Fecha o diálogo atual
+                                          onRestore(checkpoint); // Chama callback de restauração
+                                        },
+                                        icon: const Icon(Icons.restore, size: 16),
+                                        label: const Text('Restaurar'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.orange,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          textStyle: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -275,15 +298,5 @@ class ContentBox extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _getProgressColor(double percentage) {
-    if (percentage < 30) {
-      return Colors.red;
-    } else if (percentage < 70) {
-      return Colors.orange;
-    } else {
-      return Colors.green;
-    }
   }
 }

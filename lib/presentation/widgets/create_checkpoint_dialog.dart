@@ -4,18 +4,12 @@ import 'package:inspection_app/services/inspection_checkpoint_service.dart';
 
 class CreateCheckpointDialog extends StatefulWidget {
   final String inspectionId;
-  final int completedItems;
-  final int totalItems;
-  final double completionPercentage;
   final Function() onCheckpointCreated;
 
   const CreateCheckpointDialog({
     super.key,
     required this.inspectionId,
-    required this.completedItems,
-    required this.totalItems,
-    required this.completionPercentage,
-    required this.onCheckpointCreated, required int itemsWithMedia, required int totalItemsForMedia, required double detailsScore, required double mediaScore,
+    required this.onCheckpointCreated,
   });
 
   @override
@@ -33,52 +27,62 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
     super.dispose();
   }
 
-  Future<void> _createCheckpoint() async {
-    if (_isCreating) return;
+Future<void> _createCheckpoint() async {
+  if (_isCreating) return;
 
-    setState(() => _isCreating = true);
+  setState(() => _isCreating = true);
 
-    try {
-      final message = _messageController.text.trim();
-      
-      await _checkpointService.createCheckpoint(
-        inspectionId: widget.inspectionId,
-        message: message.isEmpty ? null : message,
-        completedItems: widget.completedItems,
-        totalItems: widget.totalItems,
-        completionPercentage: widget.completionPercentage,
+  try {
+    final message = _messageController.text.trim();
+    
+    // Exibe uma mensagem sobre o salvamento em andamento
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Salvando checkpoint... Aguarde enquanto os dados são capturados.'),
+          duration: Duration(seconds: 3),
+        ),
       );
+    }
+    
+    // Criação do checkpoint com tempo suficiente para capturar todos os dados
+    await _checkpointService.createCheckpoint(
+      inspectionId: widget.inspectionId,
+      message: message.isEmpty ? null : message,
+    );
 
-      if (mounted) {
-        Navigator.of(context).pop(true);
-        widget.onCheckpointCreated();
+    if (mounted) {
+      Navigator.of(context).pop(true);
+      widget.onCheckpointCreated();
 
-        // Mostrar SnackBar após a criação
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Checkpoint registrado com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isCreating = false);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao registrar checkpoint: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } 
-  }
+      // Mostrar SnackBar após a criação
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Checkpoint registrado com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() => _isCreating = false);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao registrar checkpoint: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isCreating = false);
+    }
+  } 
+}
 
   @override
   Widget build(BuildContext context) {
-    final progressColor = _getProgressColor(widget.completionPercentage);
-
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -140,31 +144,6 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Informações de progresso
-                  const Text(
-                    'Progresso atual da inspeção:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: widget.completionPercentage / 100,
-                    backgroundColor: Colors.grey.shade700,
-                    valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${widget.completionPercentage.toStringAsFixed(1)}% (${widget.completedItems}/${widget.totalItems} itens preenchidos)',
-                    style: TextStyle(
-                      color: Colors.grey.shade300,
-                      fontSize: 14,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
                   // Campo de mensagem
                   const Text(
                     'Mensagem (opcional):',
@@ -228,7 +207,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: _isCreating
-                          ? SizedBox(
+                          ? const SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
@@ -246,15 +225,5 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
         ),
       ),
     );
-  }
-
-  Color _getProgressColor(double percentage) {
-    if (percentage < 30) {
-      return Colors.red;
-    } else if (percentage < 70) {
-      return Colors.orange;
-    } else {
-      return Colors.green;
-    }
   }
 }

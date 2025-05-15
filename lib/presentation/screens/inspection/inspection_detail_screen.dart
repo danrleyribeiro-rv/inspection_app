@@ -18,9 +18,7 @@ import 'package:inspection_app/services/gemini_service.dart';
 import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/services/inspection_checkpoint_service.dart';
-import 'package:inspection_app/presentation/widgets/create_checkpoint_dialog.dart';
-import 'package:inspection_app/presentation/widgets/checkpoint_history_dialog.dart';
-import 'package:inspection_app/presentation/widgets/inspection_checkpoint_bar.dart';
+import 'package:inspection_app/services/checkpoint_dialog_service.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -32,29 +30,25 @@ class InspectionDetailScreen extends StatefulWidget {
 }
 
 class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
+  // Serviços
   final _inspectionService = FirebaseInspectionService();
   final _connectivityService = Connectivity();
   final _importExportService = ImportExportService();
   final _firestore = FirebaseFirestore.instance;
   final _checkpointService = InspectionCheckpointService();
+  late CheckpointDialogService _checkpointDialogService;
 
+  // Estados
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
-  bool _isCalculatingProgress = false;
+  bool _isRestoringCheckpoint = false;
   Inspection? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
-  double _completionPercentage = 0.0;
-
-  int _completedItems = 0;
-  int _totalItems = 0;
-  int _itemsWithMedia = 0;
-  int _totalItemsForMedia = 0;
-  double _detailsScore = 0.0;
-  double _mediaScore = 0.0;
-
+  
+  // Estados para visualização em paisagem
   int _selectedRoomIndex = -1;
   int _selectedItemIndex = -1;
   List<Item> _selectedRoomItems = [];
@@ -64,11 +58,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   void initState() {
     super.initState();
     _listenToConnectivity();
-    _loadInspection().then((_) {
-      _calculateInspectionProgress();
+    
+    // Inicializar o serviço de diálogos de checkpoint
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkpointDialogService = CheckpointDialogService(
+        context,
+        _checkpointService,
+        _loadInspection, // Callback para recarregar dados após restauração
+      );
     });
+    
+    _loadInspection();
   }
 
+  // Monitora o estado de conectividade e reage às mudanças
   void _listenToConnectivity() {
     _connectivityService.onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
@@ -77,7 +80,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               connectivityResult.contains(ConnectivityResult.mobile);
         });
 
-        // If we're back online and have a pending template to apply
+        // Se estiver online e tiver um template pendente
         if (_isOnline &&
             _inspection != null &&
             _inspection!.templateId != null &&
@@ -97,64 +100,17 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     });
   }
 
+  // Exibe o diálogo para criar um novo checkpoint
   void _showCreateCheckpointDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => CreateCheckpointDialog(
-        inspectionId: widget.inspectionId,
-        completedItems: _completedItems,
-        totalItems: _totalItems,
-        completionPercentage: _completionPercentage,
-        itemsWithMedia: _itemsWithMedia,
-        totalItemsForMedia: _totalItemsForMedia,
-        detailsScore: _detailsScore,
-        mediaScore: _mediaScore,
-        onCheckpointCreated: () {
-          // Recarregar inspeção após criar checkpoint
-          _loadInspection();
-        },
-      ),
-    );
+    _checkpointDialogService.showCreateCheckpointDialog(widget.inspectionId);
   }
 
+  // Exibe o diálogo com o histórico de checkpoints
   void _showCheckpointHistory() {
-    showDialog(
-      context: context,
-      builder: (context) => CheckpointHistoryDialog(
-        inspectionId: widget.inspectionId,
-      ),
-    );
+    _checkpointDialogService.showCheckpointHistory(widget.inspectionId);
   }
 
-  Future<void> _calculateInspectionProgress() async {
-    if (!mounted) return;
-
-    setState(() => _isCalculatingProgress = true);
-
-    try {
-      final progress =
-          await _checkpointService.getInspectionProgress(widget.inspectionId);
-
-      if (mounted) {
-        setState(() {
-          // Armazenar todos os valores de progresso
-          _completedItems = progress['completed_items'];
-          _totalItems = progress['total_items'];
-          _itemsWithMedia = progress['items_with_media'];
-          _totalItemsForMedia = progress['total_items_for_media'];
-          _detailsScore = progress['details_score'];
-          _mediaScore = progress['media_score'];
-          _completionPercentage = progress['completion_percentage'];
-        });
-      }
-    } catch (e) {
-      print('Erro ao calcular progresso: $e');
-      if (mounted) {
-        setState(() => _isCalculatingProgress = false);
-      }
-    }
-  }
-
+  // Carrega os dados da inspeção
   Future<void> _loadInspection() async {
     if (!mounted) return;
 
@@ -171,24 +127,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           _inspection = inspection;
         });
 
-        // Load inspection rooms
+        // Carrega as salas da inspeção
         await _loadRooms();
 
-        // Check if there's a template to apply
+        // Verifica se há um template para aplicar
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
-            // Template hasn't been applied yet
+            // Se o template não foi aplicado ainda
             await _checkAndApplyTemplate();
-          } else {
-            print(
-                'Inspeção já tem template aplicado: ${inspection.templateId}');
           }
         }
       } else {
         _showErrorSnackBar('Inspeção não encontrada.');
       }
     } catch (e) {
-      print("Erro ao carregar inspeção: $e");
       if (mounted) {
         _showErrorSnackBar('Erro ao carregar inspeção: $e');
       }
@@ -199,15 +151,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Verifica e aplica o template automaticamente, se necessário
   Future<void> _checkAndApplyTemplate() async {
     if (_inspection == null) return;
 
-    // Only proceed if the inspection has a template ID and hasn't been applied yet
+    // Só prossegue se a inspeção tiver um ID de template e não tiver sido aplicada ainda
     if (_inspection!.templateId != null && _inspection!.isTemplated != true) {
       setState(() => _isApplyingTemplate = true);
 
       try {
-        // Show loading message
+        // Mostra mensagem de carregamento
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -217,21 +170,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           );
         }
 
-        // Log for diagnostic purposes
-        print(
-            'Iniciando aplicação de template: ${_inspection!.templateId} para inspeção: ${_inspection!.id}');
-        print(
-            'Status atual da aplicação de template: ${_inspection!.isTemplated}');
-
-        // Apply the template
+        // Aplica o template
         final success = await _inspectionService.applyTemplateToInspection(
             _inspection!.id, _inspection!.templateId!);
 
-        print(
-            'Resultado da aplicação de template: ${success ? 'SUCESSO' : 'FALHA'}');
-
         if (success) {
-          // Update inspection status locally AND on Firestore
+          // Atualiza o status da inspeção localmente E no Firestore
           await _firestore
               .collection('inspections')
               .doc(_inspection!.id)
@@ -242,7 +186,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           });
 
           if (mounted) {
-            // Update state
+            // Atualiza o estado
             final updatedInspection = _inspection!.copyWith(
               isTemplated: true,
               status: 'in_progress',
@@ -254,7 +198,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             });
           }
 
-          // Reload inspection data completely to get the updated structure
+          // Recarrega os dados da inspeção para obter a estrutura atualizada
           await _loadInspection();
 
           if (mounted) {
@@ -278,7 +222,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           }
         }
       } catch (e) {
-        print('Erro ao aplicar template: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -293,22 +236,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           setState(() => _isApplyingTemplate = false);
         }
       }
-    } else {
-      print('Nenhum template para aplicar ou já aplicado');
-      if (_inspection!.isTemplated == true) {
-        print('A inspeção já tem um template aplicado');
-      }
-      if (_inspection!.templateId == null) {
-        print('Nenhum ID de template associado a esta inspeção');
-      }
     }
   }
 
-  // Function for manual template application (for the UI button)
+  // Função para aplicação manual de template (para o botão da UI)
   Future<void> _manuallyApplyTemplate() async {
     if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
 
-    // Show confirmation dialog
+    // Mostrar diálogo de confirmação
     final shouldApply = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -337,7 +272,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       setState(() => _isApplyingTemplate = true);
 
       try {
-        // Show loading message
+        // Mostrar mensagem de carregamento
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Aplicando template à inspeção...'),
@@ -345,13 +280,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           ),
         );
 
-        // Force reset of template flag in Firestore
+        // Forçar redefinição da flag de template no Firestore
         await _firestore.collection('inspections').doc(_inspection!.id).update({
           'is_templated': false,
           'updated_at': FieldValue.serverTimestamp(),
         });
 
-        // Update local instance
+        // Atualizar instância local
         setState(() {
           _inspection = _inspection!.copyWith(
             isTemplated: false,
@@ -359,10 +294,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           );
         });
 
-        // Apply the template
+        // Aplicar o template
         await _checkAndApplyTemplate();
       } catch (e) {
-        print('Erro na aplicação manual de template: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -379,6 +313,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Carrega as salas da inspeção
   Future<void> _loadRooms() async {
     if (_inspection?.id == null) {
       if (mounted) setState(() => _isLoading = false);
@@ -392,20 +327,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       setState(() {
         _rooms = rooms;
 
-        // Reset selection state
+        // Resetar estado de seleção
         _selectedRoomIndex = -1;
         _selectedItemIndex = -1;
         _selectedRoomItems = [];
         _selectedItemDetails = [];
       });
     } catch (e) {
-      print('Erro ao carregar salas: $e');
       if (mounted) {
         _showErrorSnackBar('Erro ao carregar salas: $e');
       }
     }
   }
 
+  // Exibe mensagem de erro como SnackBar
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -414,6 +349,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Adiciona uma nova sala/tópico à inspeção
   Future<void> _addRoom() async {
     try {
       final template = await showDialog<Map<String, dynamic>>(
@@ -443,14 +379,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
         await _loadRooms();
 
-        // Expand the newly added room
+        // Expande a sala recém-adicionada
         if (_rooms.isNotEmpty) {
           setState(() {
             _expandedRoomIndex = _rooms.length - 1;
           });
         }
 
-        // Update inspection status to in_progress if it was pending
+        // Atualiza o status da inspeção para in_progress se estava pendente
         if (_inspection?.status == 'pending') {
           final updatedInspection = _inspection!.copyWith(
             status: 'in_progress',
@@ -481,10 +417,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } catch (e) {
-      print('Erro ao adicionar sala: $e');
+      // Error handling
     }
   }
 
+  // Duplica uma sala existente
   Future<void> _duplicateRoom(Room room) async {
     setState(() => _isLoading = true);
 
@@ -513,6 +450,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Atualiza uma sala existente
   Future<void> _updateRoom(Room updatedRoom) async {
     try {
       await _inspectionService.updateRoom(updatedRoom);
@@ -524,7 +462,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao atualizar sala: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao atualizar sala: $e')),
@@ -533,6 +470,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Remove uma sala existente
   Future<void> _deleteRoom(dynamic roomId) async {
     setState(() => _isLoading = true);
 
@@ -560,7 +498,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Methods for landscape view
+  // Métodos para visualização em paisagem
+  // Seleciona uma sala e carrega seus itens
   Future<void> _handleRoomSelected(int index) async {
     if (index < 0 || index >= _rooms.length) return;
 
@@ -571,7 +510,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       _selectedItemDetails = [];
     });
 
-    // Load items for the selected room
+    // Carrega os itens da sala selecionada
     try {
       final room = _rooms[index];
       if (room.id != null) {
@@ -587,10 +526,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } catch (e) {
-      print('Erro ao carregar itens: $e');
+      // Error handling
     }
   }
 
+  // Seleciona um item e carrega seus detalhes
   Future<void> _handleItemSelected(int index) async {
     if (index < 0 || index >= _selectedRoomItems.length) return;
 
@@ -599,7 +539,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       _selectedItemDetails = [];
     });
 
-    // Load details for the selected item
+    // Carrega os detalhes do item selecionado
     try {
       final item = _selectedRoomItems[index];
       if (item.id != null && item.roomId != null) {
@@ -616,11 +556,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       }
     } catch (e) {
-      print('Erro ao carregar detalhes: $e');
+      // Error handling
     }
   }
 
-  // Import/Export functions
+  // Exporta a inspeção para um arquivo JSON
   Future<void> _exportInspection() async {
     final confirmed =
         await _importExportService.showExportConfirmationDialog(context);
@@ -648,6 +588,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
+  // Importa a inspeção de um arquivo JSON
   Future<void> _importInspection() async {
     final confirmed =
         await _importExportService.showImportConfirmationDialog(context);
@@ -669,7 +610,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           widget.inspectionId, jsonData);
 
       if (success) {
-        // Reload data
+        // Recarrega os dados
         await _loadInspection();
 
         if (mounted) {
@@ -694,7 +635,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Método para navegar para a tela de galeria de mídia
+  // Navega para a tela de galeria de mídia
   void _navigateToMediaGallery() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -709,16 +650,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Widget build(BuildContext context) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
-    final screenSize = MediaQuery.of(context).size; // Get screen dimensions
-    final bottomPadding =
-        MediaQuery.of(context).padding.bottom; // Obter o padding inferior
+    final screenSize = MediaQuery.of(context).size;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Slate background
       appBar: AppBar(
         title: Text(_inspection?.title ?? 'Inspeção'),
         actions: [
-          // Connectivity status indicator
+          // Indicador de status de conectividade
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
@@ -742,7 +682,17 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               ],
             ),
           ),
-          // Template apply button - more compact for small screens
+          
+          // Botão de checkpoint
+          IconButton(
+            icon: const Icon(Icons.save_outlined, size: 22),
+            tooltip: 'Criar Checkpoint',
+            onPressed: _showCreateCheckpointDialog,
+            padding: const EdgeInsets.all(8),
+            visualDensity: VisualDensity.compact,
+          ),
+          
+          // Botão de aplicar template
           if (_isOnline &&
               _inspection != null &&
               _inspection!.templateId != null)
@@ -756,8 +706,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               visualDensity: VisualDensity.compact,
             ),
 
-          // Loading indicator
-          if (_isSyncing || _isApplyingTemplate)
+          // Indicador de carregamento
+          if (_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
               child: SizedBox(
@@ -770,8 +720,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               ),
             ),
 
-          // Menu button with proper spacing
-          if (!(_isSyncing || _isApplyingTemplate))
+          // Botão de menu
+          if (!(_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint))
             PopupMenuButton<String>(
               padding: const EdgeInsets.all(8),
               icon: const Icon(Icons.more_vert, size: 22),
@@ -794,6 +744,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     break;
                   case 'media':
                     _navigateToMediaGallery();
+                    break;
+                  case 'checkpointHistory':
+                    _showCheckpointHistory();
                     break;
                   case 'refresh':
                     await _loadInspection();
@@ -821,6 +774,17 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     ],
                   ),
                 ),
+                // Item para histórico de checkpoints
+                const PopupMenuItem(
+                  value: 'checkpointHistory',
+                  child: Row(
+                    children: [
+                      Icon(Icons.history),
+                      SizedBox(width: 8),
+                      Text('Histórico de Checkpoints'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'refresh',
                   child: Row(
@@ -836,95 +800,97 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ],
       ),
       body: Padding(
-        padding: EdgeInsets.only(
-            bottom: bottomPadding), // Adicionar padding inferior
+        padding: EdgeInsets.only(bottom: bottomPadding),
         child: _buildBody(isLandscape, screenSize),
       ),
-      floatingActionButton: null,
     );
   }
 
+  // Constrói o corpo principal da tela
   Widget _buildBody(bool isLandscape, Size screenSize) {
     if (_isLoading) {
       return LoadingState(
           isDownloading: false, isApplyingTemplate: _isApplyingTemplate);
     }
 
-    // Calculate available height by subtracting app bar, status bar, etc.
+    if (_isRestoringCheckpoint) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.green),
+            SizedBox(height: 24),
+            Text(
+              'Restaurando checkpoint...',
+              style: TextStyle(fontSize: 18, color: Colors.white),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Por favor, aguarde enquanto a inspeção é restaurada.',
+              style: TextStyle(color: Colors.white70),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Calcula a altura disponível
     final double availableHeight = screenSize.height -
         kToolbarHeight -
         MediaQuery.of(context).padding.top -
-        MediaQuery.of(context).padding.bottom -
-        InspectionCheckpointBar.HEIGHT; // Altura da barra de checkpoint
+        MediaQuery.of(context).padding.bottom;
 
     return Column(
       children: [
-        // Checkpoint bar
-        if (_inspection != null)
-        InspectionCheckpointBar(
-          lastCheckpointAt: _inspection!.lastCheckpointAt,
-          lastCheckpointMessage: _inspection!.lastCheckpointMessage,
-          lastCheckpointCompletion: _inspection!.lastCheckpointCompletion,
-          
-          // Adicionar novos parâmetros de progresso detalhado
-          completedItems: _completedItems,
-          totalItems: _totalItems,
-          itemsWithMedia: _itemsWithMedia,
-          totalItemsForMedia: _totalItemsForMedia,
-          detailsScore: _detailsScore,
-          mediaScore: _mediaScore,
-          
-          onAddCheckpoint: _showCreateCheckpointDialog,
-          onViewHistory: _showCheckpointHistory,
-        ),
-
-        // Main content area
+        // Área de conteúdo principal
         Expanded(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: screenSize.width,
-            maxHeight: availableHeight,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: screenSize.width,
+              maxHeight: availableHeight,
+            ),
+            child: _rooms.isEmpty
+                ? EmptyRoomState(onAddRoom: _addRoom)
+                : isLandscape
+                    ? LandscapeView(
+                        rooms: _rooms,
+                        selectedRoomIndex: _selectedRoomIndex,
+                        selectedItemIndex: _selectedItemIndex,
+                        selectedRoomItems: _selectedRoomItems,
+                        selectedItemDetails: _selectedItemDetails,
+                        inspectionId: widget.inspectionId,
+                        onRoomSelected: _handleRoomSelected,
+                        onItemSelected: _handleItemSelected,
+                        onRoomDuplicate: _duplicateRoom,
+                        onRoomDelete: _deleteRoom,
+                        inspectionService: _inspectionService,
+                        onAddRoom: _addRoom,
+                      )
+                    : StatefulBuilder(
+                        builder: (context, setState) {
+                          return RoomsList(
+                            rooms: _rooms,
+                            expandedRoomIndex: _expandedRoomIndex,
+                            onRoomUpdated: _updateRoom,
+                            onRoomDeleted: _deleteRoom,
+                            onRoomDuplicated: _duplicateRoom,
+                            onExpansionChanged: (index) {
+                              setState(() {
+                                _expandedRoomIndex =
+                                    _expandedRoomIndex == index ? -1 : index;
+                              });
+                            },
+                            inspectionId: widget.inspectionId,
+                            onRoomsReordered: _loadRooms,
+                          );
+                        },
+                      ),
           ),
-          child: _rooms.isEmpty
-              ? EmptyRoomState(onAddRoom: _addRoom)
-              : isLandscape
-                  ? LandscapeView(
-                      rooms: _rooms,
-                      selectedRoomIndex: _selectedRoomIndex,
-                      selectedItemIndex: _selectedItemIndex,
-                      selectedRoomItems: _selectedRoomItems,
-                      selectedItemDetails: _selectedItemDetails,
-                      inspectionId: widget.inspectionId,
-                      onRoomSelected: _handleRoomSelected,
-                      onItemSelected: _handleItemSelected,
-                      onRoomDuplicate: _duplicateRoom,
-                      onRoomDelete: _deleteRoom,
-                      inspectionService: _inspectionService,
-                      onAddRoom: _addRoom,
-                    )
-                  : StatefulBuilder(
-                      builder: (context, setState) {
-                        return RoomsList(
-                          rooms: _rooms,
-                          expandedRoomIndex: _expandedRoomIndex,
-                          onRoomUpdated: _updateRoom,
-                          onRoomDeleted: _deleteRoom,
-                          onRoomDuplicated: _duplicateRoom,
-                          onExpansionChanged: (index) {
-                            setState(() {
-                              _expandedRoomIndex =
-                                  _expandedRoomIndex == index ? -1 : index;
-                            });
-                          },
-                          inspectionId: widget.inspectionId,
-                          onRoomsReordered: _loadRooms,
-                        );
-                      },
-                    ),
         ),
-      ),
-        // Adicione um espaçamento inferior para evitar sobreposição
-        SizedBox(height: 2),
+        
+        // Espaçamento inferior
+        const SizedBox(height: 2),
 
         // Barra de atalhos para funcionalidades principais
         if (!_isLoading && _rooms.isNotEmpty)
@@ -975,7 +941,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   color: Colors.blue,
                 ),
 
-                // Atalho para Exportar
+ // Atalho para Exportar
                 _buildShortcutButton(
                   icon: Icons.download,
                   label: 'Exportar',
@@ -1074,6 +1040,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
+  // Constrói um botão de atalho para a barra inferior
   Widget _buildShortcutButton({
     required IconData icon,
     required String label,
@@ -1081,33 +1048,30 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     required Color color,
   }) {
     return Expanded(
-      child: Padding(
-        padding: EdgeInsets.zero, // Remove padding to stretch to edges
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.zero, // Remove border radius
-          child: Container(
-            width: double.infinity, // Make container take full width
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: 30,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.zero,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: color,
+                size: 30,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       ),
