@@ -1,4 +1,3 @@
-// lib/presentation/widgets/non_conformity_media_widget.dart (simplified)
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -39,11 +38,30 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   final _connectivityService = Connectivity();
   final _uuid = Uuid();
 
+  // Parse the non-conformity ID to extract component IDs
+  late String _topicId;
+  late String _itemId;
+  late String _detailId;
+  late String _ncId;
+
   @override
   void initState() {
     super.initState();
+    _parseNonConformityId();
     _checkConnectivity();
     _loadMedia();
+  }
+
+  void _parseNonConformityId() {
+    final parts = widget.nonConformityId.split('-');
+    if (parts.length >= 5) {
+      _topicId = parts[1];
+      _itemId = parts[2];
+      _detailId = parts[3];
+      _ncId = parts[4];
+    } else {
+      throw Exception('Invalid non-conformity ID format: ${widget.nonConformityId}');
+    }
   }
 
   @override
@@ -67,58 +85,35 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final inspectionDoc = await _firestore.collection('inspections').doc(widget.inspectionId).get();
+      // Get media collection from the non-conformity document
+      final mediaSnapshot = await _firestore
+          .collection('inspections')
+          .doc(widget.inspectionId)
+          .collection('topics')
+          .doc(_topicId)
+          .collection('topic_items')
+          .doc(_itemId)
+          .collection('item_details')
+          .doc(_detailId)
+          .collection('non_conformities')
+          .doc(_ncId)
+          .collection('nc_media')
+          .orderBy('created_at', descending: true)
+          .get();
       
-      if (!inspectionDoc.exists) {
-        setState(() => _isLoading = false);
-        return;
-      }
-      
-      final data = inspectionDoc.data() ?? {};
-      final mediaArray = data['media'] as List<dynamic>? ?? [];
-      
-      List<Map<String, dynamic>> mediaItems = [];
-      
-      for (var mediaData in mediaArray) {
-        if (mediaData['non_conformity_id'] == widget.nonConformityId) {
-          mediaItems.add(Map<String, dynamic>.from(mediaData));
-        }
-      }
-      
-      // Sort by timestamp
-      mediaItems.sort((a, b) {
-        final aTimestamp = a['timestamp'] ?? a['created_at'] ?? 0;
-        final bTimestamp = b['timestamp'] ?? b['created_at'] ?? 0;
-        
-        // Convert timestamps to comparable values
-        DateTime aDate, bDate;
-        if (aTimestamp is Timestamp) {
-          aDate = aTimestamp.toDate();
-        } else if (aTimestamp is int) {
-          aDate = DateTime.fromMillisecondsSinceEpoch(aTimestamp);
-        } else {
-          aDate = DateTime.now();
-        }
-        
-        if (bTimestamp is Timestamp) {
-          bDate = bTimestamp.toDate();
-        } else if (bTimestamp is int) {
-          bDate = DateTime.fromMillisecondsSinceEpoch(bTimestamp);
-        } else {
-          bDate = DateTime.now();
-        }
-        
-        return bDate.compareTo(aDate); // Descending order
+      if (!mounted) return;
+
+      setState(() {
+        _mediaItems = mediaSnapshot.docs.map((doc) {
+          return {
+            'id': doc.id,
+            ...doc.data(),
+          };
+        }).toList();
+        _isLoading = false;
       });
-      
-      if (mounted) {
-        setState(() {
-          _mediaItems = mediaItems;
-          _isLoading = false;
-        });
-      }
     } catch (e) {
-      print('Error loading media: $e');
+      print('Error loading non-conformity media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -159,7 +154,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       try {
         // Create media directory
         final mediaDir = await _getMediaDirectory();
-        // Removed unused timestamp variable
         final fileExt = path.extension(pickedFile.path);
         final filename = 'nc_${widget.nonConformityId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
@@ -170,16 +164,17 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
         // For media tracking
         final mediaData = {
-          'non_conformity_id': widget.nonConformityId,
-          'inspection_id': widget.inspectionId,
           'type': type,
           'timestamp': FieldValue.serverTimestamp(),
           'localPath': localPath,
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
         };
 
         // If online, upload to Firebase Storage
         if (_isOnline) {
-          final storagePath = 'non_conformities/${widget.inspectionId}/${widget.nonConformityId}/$filename';
+          final storagePath = 
+            'inspections/${widget.inspectionId}/$_topicId/$_itemId/$_detailId/non_conformities/$_ncId/$filename';
           
           final contentType = type == 'image'
               ? 'image/${fileExt.toLowerCase().replaceAll(".", "")}'
@@ -194,24 +189,26 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           mediaData['url'] = downloadUrl;
         }
 
-        // Save reference to Firestore (works offline)
-        final docRef = await _firestore.collection('non_conformity_media').add(mediaData);
-
-        // Add to the local list
-        if (mounted) {
-          setState(() {
-            _mediaItems.insert(0, {
-              'id': docRef.id,
-              'url': mediaData['url'],
-              'type': type,
-              'timestamp': DateTime.now().toIso8601String(),
-              'localPath': localPath,
-            });
-          });
-        }
+        // Save to Firestore
+        await _firestore
+            .collection('inspections')
+            .doc(widget.inspectionId)
+            .collection('topics')
+            .doc(_topicId)
+            .collection('topic_items')
+            .doc(_itemId)
+            .collection('item_details')
+            .doc(_detailId)
+            .collection('non_conformities')
+            .doc(_ncId)
+            .collection('nc_media')
+            .add(mediaData);
 
         // Notify of addition
         widget.onMediaAdded(localPath);
+
+        // Reload media
+        await _loadMedia();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -274,22 +271,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // Get the inspection document
-      final inspectionDoc = await _firestore.collection('inspections').doc(widget.inspectionId).get();
-      
-      if (!inspectionDoc.exists) {
-        throw Exception('Inspection not found');
-      }
-      
-      final data = inspectionDoc.data() ?? {};
-      final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
-      
-      // Find the media item
-      final mediaIndex = mediaArray.indexWhere((m) => m['id'] == media['id']);
-      
-      if (mediaIndex < 0) {
-        throw Exception('Media not found');
-      }
+      final mediaId = media['id'];
       
       // Try to delete from storage if URL exists
       if (_isOnline && media['url'] != null) {
@@ -304,7 +286,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           print('Error deleting from storage: $e');
         }
       }
-      
+
       // Try to delete local file
       if (media['localPath'] != null) {
         try {
@@ -316,21 +298,26 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           print('Error deleting local file: $e');
         }
       }
-      
-      // Remove from array
-      mediaArray.removeAt(mediaIndex);
-      
-      // Update the inspection document
-      await _firestore.collection('inspections').doc(widget.inspectionId).update({
-        'media': mediaArray,
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-      
-      // Update local state
-      setState(() {
-        _mediaItems.removeWhere((item) => item['id'] == media['id']);
-      });
-      
+
+      // Delete from Firestore
+      await _firestore
+          .collection('inspections')
+          .doc(widget.inspectionId)
+          .collection('topics')
+          .doc(_topicId)
+          .collection('topic_items')
+          .doc(_itemId)
+          .collection('item_details')
+          .doc(_detailId)
+          .collection('non_conformities')
+          .doc(_ncId)
+          .collection('nc_media')
+          .doc(mediaId)
+          .delete();
+
+      // Reload
+      await _loadMedia();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -340,7 +327,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         );
       }
     } catch (e) {
-      print('Error removing media: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -369,7 +355,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Your existing build method
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

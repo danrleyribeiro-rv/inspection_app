@@ -1,15 +1,15 @@
 // lib/presentation/screens/inspection/inspection_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/rooms_list.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/topics_list.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/landscape_view.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/empty_room_state.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/services/import_export_service.dart';
@@ -44,13 +44,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   bool _isApplyingTemplate = false;
   bool _isRestoringCheckpoint = false;
   Inspection? _inspection;
-  List<Room> _rooms = [];
-  int _expandedRoomIndex = -1;
+  List<Topic> _topics = [];
+  int _expandedTopicIndex = -1;
 
   // Estados para visualização em paisagem
-  int _selectedRoomIndex = -1;
+  int _selectedTopicIndex = -1;
   int _selectedItemIndex = -1;
-  List<Item> _selectedRoomItems = [];
+  List<Item> _selectedTopicItems = [];
   List<Detail> _selectedItemDetails = [];
 
   @override
@@ -127,7 +127,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         });
 
         // Carrega as salas da inspeção
-        await _loadRooms();
+        await _loadTopics();
 
         // Verifica se há um template para aplicar
         if (_isOnline && inspection.templateId != null) {
@@ -313,23 +313,23 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   // Carrega as salas da inspeção
-  Future<void> _loadRooms() async {
+  Future<void> _loadTopics() async {
     if (_inspection?.id == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
     try {
-      final rooms = await _inspectionService.getRooms(widget.inspectionId);
+      final topics = await _inspectionService.getTopics(widget.inspectionId);
 
       if (!mounted) return;
       setState(() {
-        _rooms = rooms;
+        _topics = topics;
 
         // Resetar estado de seleção
-        _selectedRoomIndex = -1;
+        _selectedTopicIndex = -1;
         _selectedItemIndex = -1;
-        _selectedRoomItems = [];
+        _selectedTopicItems = [];
         _selectedItemDetails = [];
       });
     } catch (e) {
@@ -349,39 +349,39 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   // Adiciona uma nova sala/tópico à inspeção
-  Future<void> _addRoom() async {
+  Future<void> _addTopic() async {
     try {
       final template = await showDialog<Map<String, dynamic>>(
         context: context,
         builder: (context) => TemplateSelectorDialog(
           title: 'Adicionar Sala',
-          type: 'room',
+          type: 'topic',
           parentName: 'Inspeção',
         ),
       );
 
       if (template == null || !mounted) return;
 
-      final roomName = template['name'] as String;
-      final roomLabel = template['value'] as String?;
+      final topicName = template['name'] as String;
+      final topicLabel = template['value'] as String?;
 
       setState(() => _isLoading = true);
 
       try {
-        final position = _rooms.isNotEmpty ? _rooms.last.position + 1 : 0;
-        await _inspectionService.addRoom(
+        final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
+        await _inspectionService.addTopic(
           widget.inspectionId,
-          roomName,
-          label: roomLabel,
+          topicName,
+          label: topicLabel,
           position: position,
         );
 
-        await _loadRooms();
+        await _loadTopics();
 
         // Expande a sala recém-adicionada
-        if (_rooms.isNotEmpty) {
+        if (_topics.isNotEmpty) {
           setState(() {
-            _expandedRoomIndex = _rooms.length - 1;
+            _expandedTopicIndex = _topics.length - 1;
           });
         }
 
@@ -421,19 +421,19 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   // Duplica uma sala existente
-  Future<void> _duplicateRoom(Room room) async {
+  Future<void> _duplicateTopic(Topic topic) async {
     setState(() => _isLoading = true);
 
     try {
-      await _inspectionService.isRoomDuplicate(
-          widget.inspectionId, room.roomName);
+      await _inspectionService.isTopicDuplicate(
+          widget.inspectionId, topic.topicName);
 
-      await _loadRooms();
+      await _loadTopics();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sala "${room.roomName}" duplicada com sucesso'),
+            content: Text('Sala "${topic.topicName}" duplicada com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -450,14 +450,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   // Atualiza uma sala existente
-  Future<void> _updateRoom(Room updatedRoom) async {
+  Future<void> _updateTopic(Topic updatedTopic) async {
     try {
-      await _inspectionService.updateRoom(updatedRoom);
+      await _inspectionService.updateTopic(updatedTopic);
 
-      final index = _rooms.indexWhere((r) => r.id == updatedRoom.id);
+      final index = _topics.indexWhere((r) => r.id == updatedTopic.id);
       if (index >= 0 && mounted) {
         setState(() {
-          _rooms[index] = updatedRoom;
+          _topics[index] = updatedTopic;
         });
       }
     } catch (e) {
@@ -470,13 +470,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   // Remove uma sala existente
-  Future<void> _deleteRoom(dynamic roomId) async {
+  Future<void> _deleteTopic(dynamic topicId) async {
     setState(() => _isLoading = true);
 
     try {
-      await _inspectionService.deleteRoom(widget.inspectionId, roomId);
+      await _inspectionService.deleteTopic(widget.inspectionId, topicId);
 
-      await _loadRooms();
+      await _loadTopics();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -499,28 +499,28 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   // Métodos para visualização em paisagem
   // Seleciona uma sala e carrega seus itens
-  Future<void> _handleRoomSelected(int index) async {
-    if (index < 0 || index >= _rooms.length) return;
+  Future<void> _handleTopicSelected(int index) async {
+    if (index < 0 || index >= _topics.length) return;
 
     setState(() {
-      _selectedRoomIndex = index;
+      _selectedTopicIndex = index;
       _selectedItemIndex = -1;
-      _selectedRoomItems = [];
+      _selectedTopicItems = [];
       _selectedItemDetails = [];
     });
 
     // Carrega os itens da sala selecionada
     try {
-      final room = _rooms[index];
-      if (room.id != null) {
+      final topic = _topics[index];
+      if (topic.id != null) {
         final items = await _inspectionService.getItems(
           widget.inspectionId,
-          room.id!,
+          topic.id!,
         );
 
         if (mounted) {
           setState(() {
-            _selectedRoomItems = items;
+            _selectedTopicItems = items;
           });
         }
       }
@@ -531,7 +531,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   // Seleciona um item e carrega seus detalhes
   Future<void> _handleItemSelected(int index) async {
-    if (index < 0 || index >= _selectedRoomItems.length) return;
+    if (index < 0 || index >= _selectedTopicItems.length) return;
 
     setState(() {
       _selectedItemIndex = index;
@@ -540,11 +540,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     // Carrega os detalhes do item selecionado
     try {
-      final item = _selectedRoomItems[index];
-      if (item.id != null && item.roomId != null) {
+      final item = _selectedTopicItems[index];
+      if (item.id != null && item.topicId != null) {
         final details = await _inspectionService.getDetails(
           widget.inspectionId,
-          item.roomId!,
+          item.topicId!,
           item.id!,
         );
 
@@ -726,17 +726,17 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     if (_inspection != null) {
                       final inspectionId = _inspection!.id;
                       final inspectionService = FirebaseInspectionService();
-                      int totalRooms = _rooms.length;
+                      int totalTopics = _topics.length;
                       int totalItems = 0;
                       int totalDetails = 0;
                       int totalMedia = 0;
-                      for (final room in _rooms) {
+                      for (final topic in _topics) {
                         final items = await inspectionService.getItems(
-                            inspectionId, room.id!);
+                            inspectionId, topic.id!);
                         totalItems += items.length;
                         for (final item in items) {
                           final details = await inspectionService.getDetails(
-                              inspectionId, room.id!, item.id!);
+                              inspectionId, topic.id!, item.id!);
                           totalDetails += details.length;
                         }
                       }
@@ -752,7 +752,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                         context: context,
                         builder: (context) => InspectionInfoDialog(
                           inspection: _inspection!,
-                          totalRooms: totalRooms,
+                          totalTopics: totalTopics,
                           totalItems: totalItems,
                           totalDetails: totalDetails,
                           totalMedia: totalMedia,
@@ -859,39 +859,39 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               maxWidth: screenSize.width,
               maxHeight: availableHeight,
             ),
-            child: _rooms.isEmpty
-                ? EmptyRoomState(onAddRoom: _addRoom)
+            child: _topics.isEmpty
+                ? EmptyTopicState(onAddTopic: _addTopic)
                 : isLandscape
                     ? LandscapeView(
-                        rooms: _rooms,
-                        selectedRoomIndex: _selectedRoomIndex,
+                        topics: _topics,
+                        selectedTopicIndex: _selectedTopicIndex,
                         selectedItemIndex: _selectedItemIndex,
-                        selectedRoomItems: _selectedRoomItems,
+                        selectedTopicItems: _selectedTopicItems,
                         selectedItemDetails: _selectedItemDetails,
                         inspectionId: widget.inspectionId,
-                        onRoomSelected: _handleRoomSelected,
+                        onTopicSelected: _handleTopicSelected,
                         onItemSelected: _handleItemSelected,
-                        onRoomDuplicate: _duplicateRoom,
-                        onRoomDelete: _deleteRoom,
+                        onTopicDuplicate: _duplicateTopic,
+                        onTopicDelete: _deleteTopic,
                         inspectionService: _inspectionService,
-                        onAddRoom: _addRoom,
+                        onAddTopic: _addTopic,
                       )
                     : StatefulBuilder(
                         builder: (context, setState) {
-                          return RoomsList(
-                            rooms: _rooms,
-                            expandedRoomIndex: _expandedRoomIndex,
-                            onRoomUpdated: _updateRoom,
-                            onRoomDeleted: _deleteRoom,
-                            onRoomDuplicated: _duplicateRoom,
+                          return TopicsList(
+                            topics: _topics,
+                            expandedTopicIndex: _expandedTopicIndex,
+                            onTopicUpdated: _updateTopic,
+                            onTopicDeleted: _deleteTopic,
+                            onTopicDuplicated: _duplicateTopic,
                             onExpansionChanged: (index) {
                               setState(() {
-                                _expandedRoomIndex =
-                                    _expandedRoomIndex == index ? -1 : index;
+                                _expandedTopicIndex =
+                                    _expandedTopicIndex == index ? -1 : index;
                               });
                             },
                             inspectionId: widget.inspectionId,
-                            onRoomsReordered: _loadRooms,
+                            onTopicsReordered: _loadTopics,
                           );
                         },
                       ),
@@ -902,7 +902,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         const SizedBox(height: 2),
 
         // Barra de atalhos para funcionalidades principais
-        if (!_isLoading && _rooms.isNotEmpty)
+        if (!_isLoading && _topics.isNotEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             decoration: BoxDecoration(
@@ -946,7 +946,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 _buildShortcutButton(
                   icon: Icons.add_circle_outline,
                   label: '+ Tópico',
-                  onTap: _addRoom,
+                  onTap: _addTopic,
                   color: Colors.blue,
                 ),
 

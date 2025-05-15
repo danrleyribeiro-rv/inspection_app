@@ -20,13 +20,14 @@ class MediaDetailsBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<MediaDetailsBottomSheet> createState() => _MediaDetailsBottomSheetState();
+  State<MediaDetailsBottomSheet> createState() =>
+      _MediaDetailsBottomSheetState();
 }
 
 class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
   final _firestore = FirebaseService().firestore;
   final _storage = FirebaseStorage.instance;
-  
+
   bool _isLoading = false;
   bool _isEditing = false;
   bool _isNonConformity = false;
@@ -36,25 +37,26 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize with media data
     _isNonConformity = widget.media['is_non_conformity'] == true;
     _observation = widget.media['observation'] ?? '';
     _observationController.text = _observation;
   }
-  
+
   @override
   void dispose() {
     _observationController.dispose();
     super.dispose();
   }
-  
- Future<void> _deleteMedia() async {
+
+  Future<void> _deleteMedia() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Mídia'),
-        content: const Text('Tem certeza que deseja excluir esta mídia? Esta ação não pode ser desfeita.'),
+        content: const Text(
+            'Tem certeza que deseja excluir esta mídia? Esta ação não pode ser desfeita.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -68,39 +70,41 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
         ],
       ),
     );
-    
+
     if (confirmed != true) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final mediaId = widget.media['id'];
-      
+
       // Parse the composite ID to get the inspection ID
       final parts = mediaId.split('-');
       if (parts.length < 4) {
         throw Exception('Invalid media ID format');
       }
-      
+
       final inspectionId = parts[0];
-      
+
       // Get the inspection document
-      final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
-      
+      final inspectionDoc =
+          await _firestore.collection('inspections').doc(inspectionId).get();
+
       if (!inspectionDoc.exists) {
         throw Exception('Inspection not found');
       }
-      
+
       final data = inspectionDoc.data() ?? {};
       final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
-      
+
       // Find the media to delete
-      final mediaIndex = mediaArray.indexWhere((media) => media['id'] == mediaId);
-      
+      final mediaIndex =
+          mediaArray.indexWhere((media) => media['id'] == mediaId);
+
       if (mediaIndex < 0) {
         throw Exception('Media not found');
       }
-      
+
       // Delete from storage if URL exists
       if (widget.media['url'] != null) {
         try {
@@ -110,7 +114,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
           print('Error deleting from storage: $e');
         }
       }
-      
+
       // Delete local file
       if (widget.media['localPath'] != null) {
         try {
@@ -122,23 +126,23 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
           print('Error deleting local file: $e');
         }
       }
-      
+
       // Remove from array
       mediaArray.removeAt(mediaIndex);
-      
+
       // Update the inspection document
       await _firestore.collection('inspections').doc(inspectionId).update({
         'media': mediaArray,
         'updated_at': FieldValue.serverTimestamp(),
       });
-      
+
       // Notify parent
       widget.onMediaDeleted(mediaId);
-      
+
       // Close bottom sheet
       if (mounted) {
         Navigator.of(context).pop();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Mídia excluída com sucesso'),
@@ -150,7 +154,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       print('Error deleting media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao excluir mídia: $e'),
@@ -160,11 +164,11 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       }
     }
   }
-  
+
   Future<void> _shareMedia() async {
     try {
       final mediaPath = widget.media['localPath'];
-      
+
       if (mediaPath != null && File(mediaPath).existsSync()) {
         await Share.shareXFiles([XFile(mediaPath)]);
       } else if (widget.media['url'] != null) {
@@ -185,80 +189,84 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       }
     }
   }
-  
+
   Future<void> _updateMedia() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final mediaId = widget.media['id'];
-      
+
       // Parse the composite ID to get the inspection ID
       final parts = mediaId.split('-');
       if (parts.length < 4) {
         throw Exception('Invalid media ID format');
       }
-      
+
       final inspectionId = parts[0];
-      
+
       // Get the inspection document
-      final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
-      
+      final inspectionDoc =
+          await _firestore.collection('inspections').doc(inspectionId).get();
+
       if (!inspectionDoc.exists) {
         throw Exception('Inspection not found');
       }
-      
+
       final data = inspectionDoc.data() ?? {};
       final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
-      
+
       // Find the media to update
-      final mediaIndex = mediaArray.indexWhere((media) => media['id'] == mediaId);
-      
+      final mediaIndex =
+          mediaArray.indexWhere((media) => media['id'] == mediaId);
+
       if (mediaIndex < 0) {
         throw Exception('Media not found');
       }
-      
+
       // Update media data
       mediaArray[mediaIndex]['is_non_conformity'] = _isNonConformity;
-      mediaArray[mediaIndex]['observation'] = _observation.isEmpty ? null : _observation;
+      mediaArray[mediaIndex]['observation'] =
+          _observation.isEmpty ? null : _observation;
       mediaArray[mediaIndex]['updated_at'] = FieldValue.serverTimestamp();
-      
+
       // Update the inspection document
       await _firestore.collection('inspections').doc(inspectionId).update({
         'media': mediaArray,
         'updated_at': FieldValue.serverTimestamp(),
       });
-      
+
       // Update detail non-conformity status if needed
       if (widget.media['detail_id'] != null) {
-        final roomId = widget.media['room_id'];
-        final itemId = widget.media['room_item_id'];
+        final topicId = widget.media['topic_id'];
+        final itemId = widget.media['topic_item_id'];
         final detailId = widget.media['detail_id'];
-        
-        final detailsArray = List<Map<String, dynamic>>.from(data['details'] ?? []);
-        
+
+        final detailsArray =
+            List<Map<String, dynamic>>.from(data['details'] ?? []);
+
         // Find the detail
-        final detailIndex = detailsArray.indexWhere(
-          (detail) => detail['room_id'] == roomId && 
-                     detail['item_id'] == itemId && 
-                     detail['id'] == detailId
-        );
-        
+        final detailIndex = detailsArray.indexWhere((detail) =>
+            detail['topic_id'] == topicId &&
+            detail['item_id'] == itemId &&
+            detail['id'] == detailId);
+
         if (detailIndex >= 0) {
           detailsArray[detailIndex]['is_damaged'] = _isNonConformity;
-          detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
-          
+          detailsArray[detailIndex]['updated_at'] =
+              FieldValue.serverTimestamp();
+
           await _firestore.collection('inspections').doc(inspectionId).update({
             'details': detailsArray,
             'updated_at': FieldValue.serverTimestamp(),
           });
         }
       }
-      
+
       setState(() {
         _isEditing = false;
         _isLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -271,7 +279,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       print('Error updating media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao atualizar mídia: $e'),
@@ -281,12 +289,12 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       }
     }
   }
-    
+
   // Format timestamp
   String _formatDateTime(dynamic timestamp) {
     try {
       DateTime date;
-      
+
       if (timestamp is Timestamp) {
         date = timestamp.toDate();
       } else if (timestamp is String) {
@@ -294,7 +302,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       } else {
         return 'Data desconhecida';
       }
-      
+
       return DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
     } catch (e) {
       print('Error formatting date: $e');
@@ -305,10 +313,10 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final bool isImage = widget.media['type'] == 'image';
-    final bool hasLocalPath = widget.media['localPath'] != null && 
-                             File(widget.media['localPath']).existsSync();
+    final bool hasLocalPath = widget.media['localPath'] != null &&
+        File(widget.media['localPath']).existsSync();
     final bool hasUrl = widget.media['url'] != null;
-    
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
@@ -330,7 +338,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          
+
           // Media display
           Flexible(
             child: SingleChildScrollView(
@@ -342,7 +350,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                     _buildImageDisplay(hasLocalPath, hasUrl)
                   else
                     _buildVideoDisplay(hasLocalPath, hasUrl),
-                  
+
                   // Media info
                   Padding(
                     padding: const EdgeInsets.all(16),
@@ -367,49 +375,53 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _buildInfoRow(
-                                  Icons.home_work_outlined, 
-                                  'Tópico', 
-                                  widget.media['room_name'] ?? 'Não especificado',
+                                  Icons.home_work_outlined,
+                                  'Tópico',
+                                  widget.media['topic_name'] ??
+                                      'Não especificado',
                                 ),
                                 const SizedBox(height: 8),
                                 _buildInfoRow(
-                                  Icons.list_alt, 
-                                  'Item', 
-                                  widget.media['item_name'] ?? 'Não especificado',
+                                  Icons.list_alt,
+                                  'Item',
+                                  widget.media['item_name'] ??
+                                      'Não especificado',
                                 ),
                                 const SizedBox(height: 8),
                                 _buildInfoRow(
-                                  Icons.details, 
-                                  'Detalhe', 
-                                  widget.media['detail_name'] ?? 'Não especificado',
+                                  Icons.details,
+                                  'Detalhe',
+                                  widget.media['detail_name'] ??
+                                      'Não especificado',
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         // Date and non-conformity status
                         Row(
                           children: [
                             Expanded(
                               child: _buildInfoRow(
-                                Icons.calendar_today, 
-                                'Data de Captura', 
+                                Icons.calendar_today,
+                                'Data de Captura',
                                 _formatDateTime(widget.media['created_at']),
                               ),
                             ),
                           ],
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         if (_isEditing) ...[
                           // Non-conformity switch
                           SwitchListTile(
                             title: const Text('Não Conformidade'),
-                            subtitle: const Text('Marcar como item com problema'),
+                            subtitle:
+                                const Text('Marcar como item com problema'),
                             value: _isNonConformity,
                             onChanged: (value) {
                               setState(() {
@@ -418,7 +430,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                             },
                             activeColor: Colors.red,
                           ),
-                          
+
                           // Observation field
                           const Text(
                             'Observação (opcional):',
@@ -438,9 +450,9 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                               _observation = value;
                             },
                           ),
-                          
+
                           const SizedBox(height: 16),
-                          
+
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -448,8 +460,11 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                                 onPressed: () {
                                   setState(() {
                                     _isEditing = false;
-                                    _isNonConformity = widget.media['is_non_conformity'] == true;
-                                    _observation = widget.media['observation'] ?? '';
+                                    _isNonConformity =
+                                        widget.media['is_non_conformity'] ==
+                                            true;
+                                    _observation =
+                                        widget.media['observation'] ?? '';
                                     _observationController.text = _observation;
                                   });
                                 },
@@ -477,8 +492,8 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                             color: _isNonConformity ? Colors.red.shade50 : null,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
-                              side: _isNonConformity 
-                                  ? BorderSide(color: Colors.red.shade300) 
+                              side: _isNonConformity
+                                  ? BorderSide(color: Colors.red.shade300)
                                   : BorderSide.none,
                             ),
                             child: Padding(
@@ -486,23 +501,28 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                               child: Row(
                                 children: [
                                   Icon(
-                                    _isNonConformity 
-                                        ? Icons.warning_amber_rounded 
+                                    _isNonConformity
+                                        ? Icons.warning_amber_rounded
                                         : Icons.check_circle_outline,
-                                    color: _isNonConformity ? Colors.red : Colors.green,
+                                    color: _isNonConformity
+                                        ? Colors.red
+                                        : Colors.green,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          _isNonConformity 
-                                              ? 'Não Conformidade' 
+                                          _isNonConformity
+                                              ? 'Não Conformidade'
                                               : 'Conformidade',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            color: _isNonConformity ? Colors.red : Colors.green,
+                                            color: _isNonConformity
+                                                ? Colors.red
+                                                : Colors.green,
                                           ),
                                         ),
                                         if (_observation.isNotEmpty) ...[
@@ -524,7 +544,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
               ),
             ),
           ),
-          
+
           // Actions
           Padding(
             padding: const EdgeInsets.all(16),
@@ -533,11 +553,13 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.edit),
-                  onPressed: _isLoading ? null : () {
-                    setState(() {
-                      _isEditing = !_isEditing;
-                    });
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          setState(() {
+                            _isEditing = !_isEditing;
+                          });
+                        },
                   tooltip: 'Editar',
                 ),
                 IconButton(
@@ -557,7 +579,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       ),
     );
   }
-  
+
   Widget _buildImageDisplay(bool hasLocalPath, bool hasUrl) {
     if (hasLocalPath) {
       return Image.file(
@@ -579,7 +601,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       return _buildNoSourceContainer('image');
     }
   }
-  
+
   Widget _buildVideoDisplay(bool hasLocalPath, bool hasUrl) {
     // TODO: Implement video player later
     return Container(
@@ -600,7 +622,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       ),
     );
   }
-  
+
   Widget _buildLoadingContainer() {
     return Container(
       height: 300,
@@ -610,7 +632,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       ),
     );
   }
-  
+
   Widget _buildErrorContainer() {
     return Container(
       height: 300,
@@ -627,7 +649,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       ),
     );
   }
-  
+
   Widget _buildNoSourceContainer(String type) {
     return Container(
       height: 300,
@@ -648,7 +670,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       ),
     );
   }
-  
+
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/models/inspection.dart';
@@ -31,326 +31,313 @@ class FirebaseInspectionService {
         );
   }
 
-  // ROOMS METHODS
-  Future<List<Room>> getRooms(String inspectionId) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
+  // TOPICS METHODS (Previously ROOMS)
+  Future<List<Topic>> getTopics(String inspectionId) async {
+    final topicsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .orderBy('position')
+        .get();
 
-    if (!inspectionDoc.exists) {
+    if (topicsSnapshot.docs.isEmpty) {
       return [];
     }
 
-    final data = inspectionDoc.data();
-    final roomsData = data?['rooms'] as List<dynamic>? ?? [];
-
-    List<Room> rooms = [];
-    for (var i = 0; i < roomsData.length; i++) {
-      final roomData = roomsData[i];
-      if (roomData != null) {
-        rooms.add(Room.fromMap({
-          ...roomData,
-          'id': roomData['id'] ?? i.toString(),
-          'inspection_id': inspectionId,
-        }));
-      }
+    List<Topic> topics = [];
+    for (var doc in topicsSnapshot.docs) {
+      final data = doc.data();
+      topics.add(Topic.fromMap({
+        ...data,
+        'id': doc.id,
+        'inspection_id': inspectionId,
+      }));
     }
 
-    // Sort by position
-    rooms.sort((a, b) => a.position.compareTo(b.position));
-    return rooms;
+    return topics;
   }
 
-  Future<Room> addRoom(String inspectionId, String roomName,
+  Future<Topic> addTopic(String inspectionId, String topicName,
       {String? label, int? position, String? observation}) async {
-    final existingRooms = await getRooms(inspectionId);
+    final existingTopics = await getTopics(inspectionId);
+    final newPosition = position ?? (existingTopics.isEmpty ? 0 : existingTopics.last.position + 1);
 
-    // Create the new room with sequential ID
-    final roomId =
-        existingRooms.isEmpty ? '0' : (existingRooms.length).toString();
-    final newPosition = position ??
-        (existingRooms.isEmpty ? 0 : existingRooms.last.position + 1);
-
-    final room = Room(
-      id: roomId,
+    final topic = Topic(
+      id: null, // Will be set by Firestore
       inspectionId: inspectionId,
-      roomName: roomName,
-      roomLabel: label,
+      topicName: topicName,
+      topicLabel: label,
       position: newPosition,
       observation: observation,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
 
-    // Update the rooms array in the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'rooms': FieldValue.arrayUnion([room.toMap()..remove('inspection_id')]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Create a new topic document
+    final docRef = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .add(topic.toMap()..remove('inspection_id')..remove('id'));
 
-    return room;
+    // Return the topic with the generated ID
+    return topic.copyWith(id: docRef.id);
   }
 
-  Future<void> updateRoom(Room updatedRoom) async {
-    final inspectionId = updatedRoom.inspectionId;
-    final roomId = updatedRoom.id;
+  Future<void> updateTopic(Topic updatedTopic) async {
+    final inspectionId = updatedTopic.inspectionId;
+    final topicId = updatedTopic.id;
 
-    if (roomId == null) {
-      throw Exception('Room ID is required for updates');
+    if (topicId == null) {
+      throw Exception('Topic ID is required for updates');
     }
 
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final roomsData = List<Map<String, dynamic>>.from(data['rooms'] ?? []);
-
-    // Find the index of the room to update
-    final roomIndex = roomsData.indexWhere((room) => room['id'] == roomId);
-    if (roomIndex < 0) {
-      throw Exception('Room not found in inspection');
-    }
-
-    // Update the room data
-    roomsData[roomIndex] = updatedRoom.toMap()..remove('inspection_id');
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'rooms': roomsData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .update(updatedTopic.toMap()..remove('inspection_id')..remove('id'));
   }
 
-  Future<void> deleteRoom(String inspectionId, String roomId) async {
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
+  Future<void> deleteTopic(String inspectionId, String topicId) async {
+    // Get all items for this topic
+    final itemsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .get();
 
-    final data = inspectionDoc.data() ?? {};
-    final roomsData = List<Map<String, dynamic>>.from(data['rooms'] ?? []);
+    // Delete all items and their details recursively
+    for (var itemDoc in itemsSnapshot.docs) {
+      // Get all details for this item
+      final detailsSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemDoc.id)
+          .collection('item_details')
+          .get();
 
-    // Find the room to delete
-    final roomIndex = roomsData.indexWhere((room) => room['id'] == roomId);
-    if (roomIndex < 0) {
-      throw Exception('Room not found in inspection');
-    }
+      // Delete all details, media, and non-conformities
+      for (var detailDoc in detailsSnapshot.docs) {
+        // Delete media
+        final mediaSnapshot = await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemDoc.id)
+            .collection('item_details')
+            .doc(detailDoc.id)
+            .collection('media')
+            .get();
 
-    // Remove the room
-    roomsData.removeAt(roomIndex);
+        for (var mediaDoc in mediaSnapshot.docs) {
+          await mediaDoc.reference.delete();
+        }
 
-    // Also remove all items for this room
-    final itemsData = List<Map<String, dynamic>>.from(data['items'] ?? []);
-    itemsData.removeWhere((item) => item['room_id'] == roomId);
+        // Delete non-conformities and their media
+        final ncSnapshot = await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemDoc.id)
+            .collection('item_details')
+            .doc(detailDoc.id)
+            .collection('non_conformities')
+            .get();
 
-    // Also remove all details for items in this room
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
-    detailsData.removeWhere((detail) => detail['room_id'] == roomId);
+        for (var ncDoc in ncSnapshot.docs) {
+          // Delete non-conformity media
+          final ncMediaSnapshot = await firestore
+              .collection('inspections')
+              .doc(inspectionId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('topic_items')
+              .doc(itemDoc.id)
+              .collection('item_details')
+              .doc(detailDoc.id)
+              .collection('non_conformities')
+              .doc(ncDoc.id)
+              .collection('nc_media')
+              .get();
 
-    // Also remove all media for this room
-    final mediaData = List<Map<String, dynamic>>.from(data['media'] ?? []);
-    mediaData.removeWhere((media) => media['room_id'] == roomId);
+          for (var ncMediaDoc in ncMediaSnapshot.docs) {
+            await ncMediaDoc.reference.delete();
+          }
 
-    // Also remove all non-conformities for this room
-    final ncData =
-        List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-    ncData.removeWhere((nc) => nc['room_id'] == roomId);
+          // Delete non-conformity
+          await ncDoc.reference.delete();
+        }
 
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'rooms': roomsData,
-      'items': itemsData,
-      'details': detailsData,
-      'media': mediaData,
-      'non_conformities': ncData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
-  }
-
-  Future<void> reorderRooms(String inspectionId, List<String> roomIds) async {
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final roomsData = List<Map<String, dynamic>>.from(data['rooms'] ?? []);
-
-    // Create a new list of rooms in the desired order
-    List<Map<String, dynamic>> reorderedRooms = [];
-    for (var id in roomIds) {
-      final roomIndex = roomsData.indexWhere((room) => room['id'] == id);
-      if (roomIndex >= 0) {
-        final roomData = roomsData[roomIndex];
-        roomData['position'] = reorderedRooms.length;
-        reorderedRooms.add(roomData);
+        // Delete detail
+        await detailDoc.reference.delete();
       }
+
+      // Delete item
+      await itemDoc.reference.delete();
     }
 
-    // Add any rooms not in the roomIds list at the end
-    for (var room in roomsData) {
-      if (!roomIds.contains(room['id'])) {
-        room['position'] = reorderedRooms.length;
-        reorderedRooms.add(room);
-      }
-    }
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'rooms': reorderedRooms,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Delete topic
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .delete();
   }
 
-  Future<Room> isRoomDuplicate(String inspectionId, String roomName) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
+  Future<void> reorderTopics(String inspectionId, List<String> topicIds) async {
+    WriteBatch batch = firestore.batch();
+
+    for (int i = 0; i < topicIds.length; i++) {
+      final topicRef = firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicIds[i]);
+
+      batch.update(topicRef, {'position': i});
     }
 
-    final data = inspectionDoc.data() ?? {};
-    final roomsData = List<Map<String, dynamic>>.from(data['rooms'] ?? []);
+    await batch.commit();
+  }
 
-    // Create a copy of the room
-    final sourceRoomIndex =
-        roomsData.indexWhere((room) => room['room_name'] == roomName);
-    if (sourceRoomIndex < 0) {
-      throw Exception('Source room not found');
+  Future<Topic> isTopicDuplicate(String inspectionId, String topicName) async {
+    // Find the source topic
+    final querySnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .where('topic_name', isEqualTo: topicName)
+        .limit(1)
+        .get();
+
+    if (querySnapshot.docs.isEmpty) {
+      throw Exception('Source topic not found');
     }
 
-    final sourceRoom = roomsData[sourceRoomIndex];
-    final newRoomId = roomsData.length.toString();
+    final sourceTopicDoc = querySnapshot.docs.first;
+    final sourceTopicData = sourceTopicDoc.data();
 
-    // Create new room with a duplicated name
-    final newRoomName = '$roomName (copy)';
-    final newRoom = {
-      ...Map<String, dynamic>.from(sourceRoom),
-      'id': newRoomId,
-      'room_name': newRoomName,
-      'position': roomsData.length,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    };
+    // Create new topic with duplicated name
+    final existingTopics = await getTopics(inspectionId);
+    final newPosition = existingTopics.isEmpty ? 0 : existingTopics.last.position + 1;
+    final newTopicName = '$topicName (copy)';
 
-    // Also duplicate all items for this room
-    final itemsData = List<Map<String, dynamic>>.from(data['items'] ?? []);
-    final sourceRoomItems =
-        itemsData.where((item) => item['room_id'] == sourceRoom['id']).toList();
+    // Create the new topic
+    final newTopic = await addTopic(
+      inspectionId,
+      newTopicName,
+      label: sourceTopicData['topic_label'],
+      position: newPosition,
+      observation: sourceTopicData['observation'],
+    );
 
-    List<Map<String, dynamic>> newItems = [];
-    Map<String, String> itemIdMapping = {}; // Map of old item ID to new item ID
+    // Get all items for the source topic
+    final itemsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(sourceTopicDoc.id)
+        .collection('topic_items')
+        .orderBy('position')
+        .get();
 
-    for (var i = 0; i < sourceRoomItems.length; i++) {
-      final sourceItem = sourceRoomItems[i];
-      final newItemId = i.toString();
-
-      // Map old item ID to new item ID
-      itemIdMapping[sourceItem['id']] = newItemId;
-
+    // Duplicate all items and their details
+    for (var itemDoc in itemsSnapshot.docs) {
+      final itemData = itemDoc.data();
+      
       // Create new item
-      final newItem = {
-        ...Map<String, dynamic>.from(sourceItem),
-        'id': newItemId,
-        'room_id': newRoomId,
-        'created_at': FieldValue.serverTimestamp(),
+      final newItemRef = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(newTopic.id)
+          .collection('topic_items')
+          .add({
+        ...itemData,
         'updated_at': FieldValue.serverTimestamp(),
-      };
+        'created_at': FieldValue.serverTimestamp(),
+      });
 
-      newItems.add(newItem);
-    }
+      // Get all details for the source item
+      final detailsSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(sourceTopicDoc.id)
+          .collection('topic_items')
+          .doc(itemDoc.id)
+          .collection('item_details')
+          .orderBy('position')
+          .get();
 
-    // Also duplicate all details for items in this room
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
-    List<Map<String, dynamic>> newDetails = [];
-
-    for (var sourceItemId in itemIdMapping.keys) {
-      final sourceItemDetails = detailsData
-          .where((detail) =>
-              detail['room_id'] == sourceRoom['id'] &&
-              detail['item_id'] == sourceItemId)
-          .toList();
-
-      for (var i = 0; i < sourceItemDetails.length; i++) {
-        final sourceDetail = sourceItemDetails[i];
-        final newItemId = itemIdMapping[sourceItemId]!;
-        final newDetailId = i.toString();
-
-        // Create new detail
-        final newDetail = {
-          ...Map<String, dynamic>.from(sourceDetail),
-          'id': newDetailId,
-          'room_id': newRoomId,
-          'item_id': newItemId,
-          'created_at': FieldValue.serverTimestamp(),
+      // Duplicate all details
+      for (var detailDoc in detailsSnapshot.docs) {
+        final detailData = detailDoc.data();
+        
+        await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(newTopic.id)
+            .collection('topic_items')
+            .doc(newItemRef.id)
+            .collection('item_details')
+            .add({
+          ...detailData,
           'updated_at': FieldValue.serverTimestamp(),
-        };
-
-        newDetails.add(newDetail);
+          'created_at': FieldValue.serverTimestamp(),
+        });
       }
     }
 
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'rooms': FieldValue.arrayUnion([newRoom]),
-      'items': FieldValue.arrayUnion(newItems),
-      'details': FieldValue.arrayUnion(newDetails),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
-
-    return Room.fromMap({
-      ...newRoom,
-      'inspection_id': inspectionId,
-    });
+    return newTopic;
   }
 
   // ITEMS METHODS
-  Future<List<Item>> getItems(String inspectionId, String roomId) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-
-    if (!inspectionDoc.exists) {
-      return [];
-    }
-
-    final data = inspectionDoc.data();
-    final itemsData = data?['items'] as List<dynamic>? ?? [];
+  Future<List<Item>> getItems(String inspectionId, String topicId) async {
+    final querySnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .orderBy('position')
+        .get();
 
     List<Item> items = [];
-    for (var itemData in itemsData) {
-      if (itemData['room_id'] == roomId) {
-        items.add(Item.fromMap({
-          ...itemData,
-          'inspection_id': inspectionId,
-        }));
-      }
+    for (var doc in querySnapshot.docs) {
+      final data = doc.data();
+      items.add(Item.fromMap({
+        ...data,
+        'id': doc.id,
+        'topic_id': topicId,
+        'inspection_id': inspectionId,
+      }));
     }
 
-    // Sort by position
-    items.sort((a, b) => a.position.compareTo(b.position));
     return items;
   }
 
-  Future<Item> addItem(String inspectionId, String roomId, String itemName,
+  Future<Item> addItem(String inspectionId, String topicId, String itemName,
       {String? label, String? observation}) async {
-    final existingItems = await getItems(inspectionId, roomId);
-
-    // Create the new item with sequential ID
-    final itemId =
-        existingItems.isEmpty ? '0' : (existingItems.length).toString();
-    final newPosition =
-        existingItems.isEmpty ? 0 : existingItems.last.position + 1;
+    final existingItems = await getItems(inspectionId, topicId);
+    final newPosition = existingItems.isEmpty ? 0 : existingItems.last.position + 1;
 
     final item = Item(
-      id: itemId,
-      roomId: roomId,
+      id: null, // Will be set by Firestore
+      topicId: topicId,
       inspectionId: inspectionId,
       itemName: itemName,
       itemLabel: label,
@@ -360,206 +347,222 @@ class FirebaseInspectionService {
       updatedAt: DateTime.now(),
     );
 
-    // Update the items array in the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'items': FieldValue.arrayUnion([item.toMap()..remove('inspection_id')]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Create a new item document
+    final docRef = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .add(item.toMap()..remove('inspection_id')..remove('id')..remove('topic_id'));
 
-    return item;
+    // Return the item with the generated ID
+    return item.copyWith(id: docRef.id);
   }
 
   Future<void> updateItem(Item updatedItem) async {
     final inspectionId = updatedItem.inspectionId;
-    final roomId = updatedItem.roomId;
+    final topicId = updatedItem.topicId;
     final itemId = updatedItem.id;
 
-    if (roomId == null || itemId == null) {
-      throw Exception('Room ID and Item ID are required for updates');
+    if (topicId == null || itemId == null) {
+      throw Exception('Topic ID and Item ID are required for updates');
     }
 
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final itemsData = List<Map<String, dynamic>>.from(data['items'] ?? []);
-
-    // Find the index of the item to update
-    final itemIndex = itemsData.indexWhere(
-        (item) => item['room_id'] == roomId && item['id'] == itemId);
-
-    if (itemIndex < 0) {
-      throw Exception('Item not found in inspection');
-    }
-
-    // Update the item data
-    itemsData[itemIndex] = updatedItem.toMap()..remove('inspection_id');
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'items': itemsData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .update(updatedItem.toMap()
+          ..remove('inspection_id')
+          ..remove('id')
+          ..remove('topic_id'));
   }
 
-  Future<void> deleteItem(
-      String inspectionId, String roomId, String itemId) async {
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
+  Future<void> deleteItem(String inspectionId, String topicId, String itemId) async {
+    // Get all details for this item
+    final detailsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .get();
+
+    // Delete all details, media, and non-conformities
+    for (var detailDoc in detailsSnapshot.docs) {
+      // Delete media
+      final mediaSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailDoc.id)
+          .collection('media')
+          .get();
+
+      for (var mediaDoc in mediaSnapshot.docs) {
+        await mediaDoc.reference.delete();
+      }
+
+      // Delete non-conformities and their media
+      final ncSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailDoc.id)
+          .collection('non_conformities')
+          .get();
+
+      for (var ncDoc in ncSnapshot.docs) {
+        // Delete non-conformity media
+        final ncMediaSnapshot = await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemId)
+            .collection('item_details')
+            .doc(detailDoc.id)
+            .collection('non_conformities')
+            .doc(ncDoc.id)
+            .collection('nc_media')
+            .get();
+
+        for (var ncMediaDoc in ncMediaSnapshot.docs) {
+          await ncMediaDoc.reference.delete();
+        }
+
+        // Delete non-conformity
+        await ncDoc.reference.delete();
+      }
+
+      // Delete detail
+      await detailDoc.reference.delete();
     }
 
-    final data = inspectionDoc.data() ?? {};
-    final itemsData = List<Map<String, dynamic>>.from(data['items'] ?? []);
-
-    // Find the item to delete
-    final itemIndex = itemsData.indexWhere(
-        (item) => item['room_id'] == roomId && item['id'] == itemId);
-
-    if (itemIndex < 0) {
-      throw Exception('Item not found in inspection');
-    }
-
-    // Remove the item
-    itemsData.removeAt(itemIndex);
-
-    // Also remove all details for this item
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
-    detailsData.removeWhere(
-        (detail) => detail['room_id'] == roomId && detail['item_id'] == itemId);
-
-    // Also remove all media for this item
-    final mediaData = List<Map<String, dynamic>>.from(data['media'] ?? []);
-    mediaData.removeWhere((media) =>
-        media['room_id'] == roomId && media['room_item_id'] == itemId);
-
-    // Also remove all non-conformities for this item
-    final ncData =
-        List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-    ncData.removeWhere(
-        (nc) => nc['room_id'] == roomId && nc['item_id'] == itemId);
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'items': itemsData,
-      'details': detailsData,
-      'media': mediaData,
-      'non_conformities': ncData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Delete item
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .delete();
   }
 
-  Future<Item> isItemDuplicate(
-      String inspectionId, String roomId, String itemName) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final itemsData = List<Map<String, dynamic>>.from(data['items'] ?? []);
-
+  Future<Item> isItemDuplicate(String inspectionId, String topicId, String itemName) async {
     // Find the source item
-    final sourceItemIndex = itemsData.indexWhere(
-        (item) => item['room_id'] == roomId && item['item_name'] == itemName);
+    final querySnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .where('item_name', isEqualTo: itemName)
+        .limit(1)
+        .get();
 
-    if (sourceItemIndex < 0) {
+    if (querySnapshot.docs.isEmpty) {
       throw Exception('Source item not found');
     }
 
-    final sourceItem = itemsData[sourceItemIndex];
-    final existingItems =
-        itemsData.where((item) => item['room_id'] == roomId).toList();
-    final newItemId = existingItems.length.toString();
+    final sourceItemDoc = querySnapshot.docs.first;
+    final sourceItemData = sourceItemDoc.data();
 
-    // Create new item with a duplicated name
+    // Create new item with duplicated name
+    final existingItems = await getItems(inspectionId, topicId);
+    final newPosition = existingItems.isEmpty ? 0 : existingItems.last.position + 1;
     final newItemName = '$itemName (copy)';
-    final newItem = {
-      ...Map<String, dynamic>.from(sourceItem),
-      'id': newItemId,
-      'item_name': newItemName,
-      'position': existingItems.length,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    };
 
-    // Also duplicate all details for this item
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
-    final sourceItemDetails = detailsData
-        .where((detail) =>
-            detail['room_id'] == roomId &&
-            detail['item_id'] == sourceItem['id'])
-        .toList();
+    // Create the new item
+    final newItem = await addItem(
+      inspectionId,
+      topicId,
+      newItemName,
+      label: sourceItemData['item_label'],
+      observation: sourceItemData['observation'],
+    );
 
-    List<Map<String, dynamic>> newDetails = [];
+    // Get all details for the source item
+    final detailsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(sourceItemDoc.id)
+        .collection('item_details')
+        .orderBy('position')
+        .get();
 
-    for (var i = 0; i < sourceItemDetails.length; i++) {
-      final sourceDetail = sourceItemDetails[i];
-      final newDetailId = i.toString();
-
-      // Create new detail
-      final newDetail = {
-        ...Map<String, dynamic>.from(sourceDetail),
-        'id': newDetailId,
-        'item_id': newItemId,
-        'created_at': FieldValue.serverTimestamp(),
+    // Duplicate all details
+    for (var detailDoc in detailsSnapshot.docs) {
+      final detailData = detailDoc.data();
+      
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(newItem.id)
+          .collection('item_details')
+          .add({
+        ...detailData,
         'updated_at': FieldValue.serverTimestamp(),
-      };
-
-      newDetails.add(newDetail);
+        'created_at': FieldValue.serverTimestamp(),
+      });
     }
 
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'items': FieldValue.arrayUnion([newItem]),
-      'details': FieldValue.arrayUnion(newDetails),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
-
-    return Item.fromMap({
-      ...newItem,
-      'inspection_id': inspectionId,
-    });
+    return newItem;
   }
 
   // DETAILS METHODS
-  Future<List<Detail>> getDetails(
-      String inspectionId, String roomId, String itemId) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-
-    if (!inspectionDoc.exists) {
-      return [];
-    }
-
-    final data = inspectionDoc.data();
-    final detailsData = data?['details'] as List<dynamic>? ?? [];
+  Future<List<Detail>> getDetails(String inspectionId, String topicId, String itemId) async {
+    final querySnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .orderBy('position')
+        .get();
 
     List<Detail> details = [];
-    for (var detailData in detailsData) {
-      if (detailData['room_id'] == roomId && detailData['item_id'] == itemId) {
-        details.add(Detail.fromMap({
-          ...detailData,
-          'inspection_id': inspectionId,
-        }));
-      }
+    for (var doc in querySnapshot.docs) {
+      final data = doc.data();
+      details.add(Detail.fromMap({
+        ...data,
+        'id': doc.id,
+        'topic_id': topicId,
+        'item_id': itemId,
+        'inspection_id': inspectionId,
+      }));
     }
 
-    // Sort by position
-    details.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
     return details;
   }
 
   Future<Detail> addDetail(
     String inspectionId,
-    String roomId,
+    String topicId,
     String itemId,
     String detailName, {
     String? type,
@@ -568,17 +571,12 @@ class FirebaseInspectionService {
     String? observation,
     bool? isDamaged,
   }) async {
-    final existingDetails = await getDetails(inspectionId, roomId, itemId);
-
-    // Create the new detail with sequential ID
-    final detailId =
-        existingDetails.isEmpty ? '0' : (existingDetails.length).toString();
-    final newPosition =
-        existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
+    final existingDetails = await getDetails(inspectionId, topicId, itemId);
+    final newPosition = existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
 
     final detail = Detail(
-      id: detailId,
-      roomId: roomId,
+      id: null, // Will be set by Firestore
+      topicId: topicId,
       itemId: itemId,
       inspectionId: inspectionId,
       detailName: detailName,
@@ -592,539 +590,897 @@ class FirebaseInspectionService {
       updatedAt: DateTime.now(),
     );
 
-    // Update the details array in the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'details':
-          FieldValue.arrayUnion([detail.toMap()..remove('inspection_id')]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Create a new detail document
+    final docRef = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .add(detail.toMap()
+          ..remove('inspection_id')
+          ..remove('id')
+          ..remove('topic_id')
+          ..remove('item_id'));
 
-    return detail;
+    // Return the detail with the generated ID
+    return detail.copyWith(id: docRef.id);
   }
 
   Future<void> updateDetail(Detail updatedDetail) async {
     final inspectionId = updatedDetail.inspectionId;
-    final roomId = updatedDetail.roomId;
+    final topicId = updatedDetail.topicId;
     final itemId = updatedDetail.itemId;
     final detailId = updatedDetail.id;
 
-    if (roomId == null || itemId == null || detailId == null) {
-      throw Exception(
-          'Room ID, Item ID, and Detail ID are required for updates');
+    if (topicId == null || itemId == null || detailId == null) {
+      throw Exception('Topic ID, Item ID, and Detail ID are required for updates');
     }
 
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
-
-    // Find the index of the detail to update
-    final detailIndex = detailsData.indexWhere((detail) =>
-        detail['room_id'] == roomId &&
-        detail['item_id'] == itemId &&
-        detail['id'] == detailId);
-
-    if (detailIndex < 0) {
-      throw Exception('Detail not found in inspection');
-    }
-
-    // Update the detail data
-    detailsData[detailIndex] = updatedDetail.toMap()..remove('inspection_id');
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'details': detailsData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .update(updatedDetail.toMap()
+          ..remove('inspection_id')
+          ..remove('id')
+          ..remove('topic_id')
+          ..remove('item_id'));
   }
 
-  Future<void> deleteDetail(String inspectionId, String roomId, String itemId,
-      String detailId) async {
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
+  Future<void> deleteDetail(String inspectionId, String topicId, String itemId, String detailId) async {
+    // Delete media
+    final mediaSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('media')
+        .get();
+
+    for (var mediaDoc in mediaSnapshot.docs) {
+      await mediaDoc.reference.delete();
     }
 
-    final data = inspectionDoc.data() ?? {};
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
+    // Delete non-conformities and their media
+    final ncSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .get();
 
-    // Find the detail to delete
-    final detailIndex = detailsData.indexWhere((detail) =>
-        detail['room_id'] == roomId &&
-        detail['item_id'] == itemId &&
-        detail['id'] == detailId);
+    for (var ncDoc in ncSnapshot.docs) {
+      // Delete non-conformity media
+      final ncMediaSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('non_conformities')
+          .doc(ncDoc.id)
+          .collection('nc_media')
+          .get();
 
-    if (detailIndex < 0) {
-      throw Exception('Detail not found in inspection');
+      for (var ncMediaDoc in ncMediaSnapshot.docs) {
+        await ncMediaDoc.reference.delete();
+      }
+
+      // Delete non-conformity
+      await ncDoc.reference.delete();
     }
 
-    // Remove the detail
-    detailsData.removeAt(detailIndex);
-
-    // Also remove all media for this detail
-    final mediaData = List<Map<String, dynamic>>.from(data['media'] ?? []);
-    mediaData.removeWhere((media) =>
-        media['room_id'] == roomId &&
-        media['room_item_id'] == itemId &&
-        media['detail_id'] == detailId);
-
-    // Also remove all non-conformities for this detail
-    final ncData =
-        List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-    ncData.removeWhere((nc) =>
-        nc['room_id'] == roomId &&
-        nc['item_id'] == itemId &&
-        nc['detail_id'] == detailId);
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'details': detailsData,
-      'media': mediaData,
-      'non_conformities': ncData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Delete detail
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .delete();
   }
 
-  Future<Detail?> isDetailDuplicate(String inspectionId, String roomId,
-      String itemId, String detailName) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final detailsData = List<Map<String, dynamic>>.from(data['details'] ?? []);
-
+  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId, String itemId, String detailName) async {
     // Find the source detail
-    final sourceDetailIndex = detailsData.indexWhere((detail) =>
-        detail['room_id'] == roomId &&
-        detail['item_id'] == itemId &&
-        detail['detail_name'] == detailName);
+    final querySnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .where('detail_name', isEqualTo: detailName)
+        .limit(1)
+        .get();
 
-    if (sourceDetailIndex < 0) {
+    if (querySnapshot.docs.isEmpty) {
       throw Exception('Source detail not found');
     }
 
-    final sourceDetail = detailsData[sourceDetailIndex];
-    final existingDetails = detailsData
-        .where((detail) =>
-            detail['room_id'] == roomId && detail['item_id'] == itemId)
-        .toList();
-    final newDetailId = existingDetails.length.toString();
+    final sourceDetailDoc = querySnapshot.docs.first;
+    final sourceDetailData = sourceDetailDoc.data();
 
-    // Create new detail with a duplicated name
+    // Get existing details to determine position
+    final existingDetails = await getDetails(inspectionId, topicId, itemId);
+    final newPosition = existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
     final newDetailName = '$detailName (copy)';
-    final newDetail = {
-      ...Map<String, dynamic>.from(sourceDetail),
-      'id': newDetailId,
-      'detail_name': newDetailName,
-      'position': existingDetails.length,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    };
 
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'details': FieldValue.arrayUnion([newDetail]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // Create options array if needed
+    List<String>? options;
+    if (sourceDetailData['options'] != null) {
+      if (sourceDetailData['options'] is List) {
+        options = List<String>.from(sourceDetailData['options']);
+      } else if (sourceDetailData['options'] is Map && 
+                 sourceDetailData['options']['arrayValue'] != null &&
+                 sourceDetailData['options']['arrayValue']['values'] != null) {
+        options = [];
+        for (var option in sourceDetailData['options']['arrayValue']['values']) {
+          if (option['stringValue'] != null) {
+            options.add(option['stringValue']);
+          }
+        }
+      }
+    }
 
-    return Detail.fromMap({
-      ...newDetail,
-      'inspection_id': inspectionId,
-    });
+    // Create the new detail
+    return await addDetail(
+      inspectionId,
+      topicId,
+      itemId,
+      newDetailName,
+      type: sourceDetailData['type'],
+      options: options,
+      detailValue: sourceDetailData['detail_value'],
+      observation: sourceDetailData['observation'],
+      isDamaged: sourceDetailData['is_damaged'],
+    );
   }
 
   // NON-CONFORMITY METHODS
-  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
-      String inspectionId) async {
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-
-    if (!inspectionDoc.exists) {
-      return [];
-    }
-
-    final data = inspectionDoc.data();
-    final ncData = data?['non_conformities'] as List<dynamic>? ?? [];
-
+  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {
+    // First get all topics (topics)
+    final topicsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .get();
+    
     List<Map<String, dynamic>> nonConformities = [];
-    for (var ncItem in ncData) {
-      final roomId = ncItem['room_id'];
-      final itemId = ncItem['item_id'];
-      final detailId = ncItem['detail_id'];
-
-      // Get room data
-      final roomsData = data?['rooms'] as List<dynamic>? ?? [];
-      final room = roomsData.firstWhere(
-        (room) => room['id'] == roomId,
-        orElse: () => {'room_name': 'Room not found'},
-      );
-
-      // Get item data
-      final itemsData = data?['items'] as List<dynamic>? ?? [];
-      final item = itemsData.firstWhere(
-        (item) => item['room_id'] == roomId && item['id'] == itemId,
-        orElse: () => {'item_name': 'Item not found'},
-      );
-
-      // Get detail data
-      final detailsData = data?['details'] as List<dynamic>? ?? [];
-      final detail = detailsData.firstWhere(
-        (detail) =>
-            detail['room_id'] == roomId &&
-            detail['item_id'] == itemId &&
-            detail['id'] == detailId,
-        orElse: () => {'detail_name': 'Detail not found'},
-      );
-
-      nonConformities.add({
-        ...Map<String, dynamic>.from(ncItem),
-        'rooms': room,
-        'room_items': item,
-        'item_details': detail,
-      });
+    
+    // For each topic
+    for (var topicDoc in topicsSnapshot.docs) {
+      final topicId = topicDoc.id;
+      final topicData = topicDoc.data();
+      
+      // Get all items
+      final itemsSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .get();
+      
+      // For each item
+      for (var itemDoc in itemsSnapshot.docs) {
+        final itemId = itemDoc.id;
+        final itemData = itemDoc.data();
+        
+        // Get all details
+        final detailsSnapshot = await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemId)
+            .collection('item_details')
+            .get();
+        
+        // For each detail
+        for (var detailDoc in detailsSnapshot.docs) {
+          final detailId = detailDoc.id;
+          final detailData = detailDoc.data();
+          
+          // Get all non-conformities
+          final ncSnapshot = await firestore
+              .collection('inspections')
+              .doc(inspectionId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('topic_items')
+              .doc(itemId)
+              .collection('item_details')
+              .doc(detailId)
+              .collection('non_conformities')
+              .get();
+          
+          // For each non-conformity
+          for (var ncDoc in ncSnapshot.docs) {
+            final ncData = ncDoc.data();
+            
+            // Add to the list with hierarchy data
+            nonConformities.add({
+              ...ncData,
+              'id': ncDoc.id,
+              'inspection_id': inspectionId,
+              'topic_id': topicId,
+              'item_id': itemId,
+              'detail_id': detailId,
+              'topics': {
+                'topic_name': topicData['topic_name'],
+                'id': topicId,
+              },
+              'topic_items': {
+                'item_name': itemData['item_name'],
+                'id': itemId,
+              },
+              'item_details': {
+                'detail_name': detailData['detail_name'],
+                'id': detailId,
+              },
+            });
+          }
+        }
+      }
     }
-
+    
     return nonConformities;
   }
 
   Future<void> saveNonConformity(Map<String, dynamic> nonConformityData) async {
     final inspectionId = nonConformityData['inspection_id'];
-    final roomId = nonConformityData['room_id'];
+    final topicId = nonConformityData['topic_id'];
     final itemId = nonConformityData['item_id'];
     final detailId = nonConformityData['detail_id'];
 
-    // Generate a unique ID based on the hierarchical structure
-    final nonConformityId =
-        '$inspectionId-$roomId-$itemId-$detailId-${_uuid.v4().substring(0, 8)}';
-
-    final ncData = {
+    // Create a new non-conformity document
+    final docRef = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .add({
       ...nonConformityData,
-      'id': nonConformityId,
-    };
-
-    // Update the non-conformities array in the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'non_conformities': FieldValue.arrayUnion([ncData]),
+      'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
-    });
+    }..remove('inspection_id')
+     ..remove('topic_id')
+     ..remove('item_id')
+     ..remove('detail_id')
+     ..remove('id'));
 
     // Also update the detail to mark as damaged
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (inspectionDoc.exists) {
-      final data = inspectionDoc.data() ?? {};
-      final detailsData =
-          List<Map<String, dynamic>>.from(data['details'] ?? []);
-
-      final detailIndex = detailsData.indexWhere((detail) =>
-          detail['room_id'] == roomId &&
-          detail['item_id'] == itemId &&
-          detail['id'] == detailId);
-
-      if (detailIndex >= 0) {
-        detailsData[detailIndex]['is_damaged'] = true;
-        detailsData[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
-
-        await firestore.collection('inspections').doc(inspectionId).update({
-          'details': detailsData,
-        });
-      }
-    }
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .update({'is_damaged': true});
   }
 
-  Future<void> updateNonConformityStatus(
-      String nonConformityId, String newStatus) async {
-    // Parse the composite ID to get the inspection ID
+  Future<void> updateNonConformityStatus(String nonConformityId, String newStatus) async {
+    // Parse the composite ID to extract the hierarchy IDs
     final parts = nonConformityId.split('-');
-    if (parts.length < 4) {
+    if (parts.length < 5) {
       throw Exception('Invalid non-conformity ID format');
     }
 
     final inspectionId = parts[0];
+    final topicId = parts[1];
+    final itemId = parts[2];
+    final detailId = parts[3];
+    final ncId = parts[4];
 
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final ncData =
-        List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-
-    // Find the non-conformity to update
-    final ncIndex = ncData.indexWhere((nc) => nc['id'] == nonConformityId);
-    if (ncIndex < 0) {
-      throw Exception('Non-conformity not found');
-    }
-
-    // Update the status
-    ncData[ncIndex]['status'] = newStatus;
-    ncData[ncIndex]['updated_at'] = FieldValue.serverTimestamp();
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'non_conformities': ncData,
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .doc(ncId)
+        .update({
+      'status': newStatus,
       'updated_at': FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> updateNonConformity(
-      String nonConformityId, Map<String, dynamic> updatedData) async {
-    // Parse the composite ID to get the inspection ID
+  Future<void> updateNonConformity(String nonConformityId, Map<String, dynamic> updatedData) async {
+    // Parse the composite ID to extract the hierarchy IDs
     final parts = nonConformityId.split('-');
-    if (parts.length < 4) {
+    if (parts.length < 5) {
       throw Exception('Invalid non-conformity ID format');
     }
 
     final inspectionId = parts[0];
+    final topicId = parts[1];
+    final itemId = parts[2];
+    final detailId = parts[3];
+    final ncId = parts[4];
 
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final ncData =
-        List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-
-    // Find the non-conformity to update
-    final ncIndex = ncData.indexWhere((nc) => nc['id'] == nonConformityId);
-    if (ncIndex < 0) {
-      throw Exception('Non-conformity not found');
-    }
-
-    // Update the data
-    ncData[ncIndex] = {
-      ...ncData[ncIndex],
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .doc(ncId)
+        .update({
       ...updatedData,
       'updated_at': FieldValue.serverTimestamp(),
-    };
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'non_conformities': ncData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    }..remove('inspection_id')
+     ..remove('topic_id')
+     ..remove('item_id')
+     ..remove('detail_id')
+     ..remove('id'));
   }
 
-  Future<void> deleteNonConformity(
-      String nonConformityId, String inspectionId) async {
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
+  Future<void> deleteNonConformity(String nonConformityId, String inspectionId) async {
+    // Parse the composite ID to extract the hierarchy IDs
+    final parts = nonConformityId.split('-');
+    if (parts.length < 5) {
+      throw Exception('Invalid non-conformity ID format');
     }
 
-    final data = inspectionDoc.data() ?? {};
-    final ncData =
-        List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
+    final topicId = parts[1];
+    final itemId = parts[2];
+    final detailId = parts[3];
+    final ncId = parts[4];
 
-    // Find the non-conformity to delete
-    final ncIndex = ncData.indexWhere((nc) => nc['id'] == nonConformityId);
-    if (ncIndex < 0) {
-      throw Exception('Non-conformity not found');
+    // Delete non-conformity media
+    final ncMediaSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .doc(ncId)
+        .collection('nc_media')
+        .get();
+
+    for (var ncMediaDoc in ncMediaSnapshot.docs) {
+      await ncMediaDoc.reference.delete();
     }
 
-    // Get the reference info before removing it
-    final roomId = ncData[ncIndex]['room_id'];
-    final itemId = ncData[ncIndex]['item_id'];
-    final detailId = ncData[ncIndex]['detail_id'];
+    // Delete the non-conformity
+    await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .doc(ncId)
+        .delete();
 
-    // Remove the non-conformity
-    ncData.removeAt(ncIndex);
+    // Check if there are any other non-conformities for this detail
+    final otherNcSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .limit(1)
+        .get();
 
-    // Also remove all media associated with this non-conformity
-    final mediaData = List<Map<String, dynamic>>.from(data['media'] ?? []);
-    mediaData
-        .removeWhere((media) => media['non_conformity_id'] == nonConformityId);
-
-    // Check if there are any other non-conformities for the same detail
-    final hasOtherNCs = ncData.any((nc) =>
-        nc['room_id'] == roomId &&
-        nc['item_id'] == itemId &&
-        nc['detail_id'] == detailId);
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'non_conformities': ncData,
-      'media': mediaData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
-
-    // If there are no other non-conformities for this detail, update the detail's damage status
-    if (!hasOtherNCs) {
-      final detailsData =
-          List<Map<String, dynamic>>.from(data['details'] ?? []);
-      final detailIndex = detailsData.indexWhere((detail) =>
-          detail['room_id'] == roomId &&
-          detail['item_id'] == itemId &&
-          detail['id'] == detailId);
-
-      if (detailIndex >= 0) {
-        detailsData[detailIndex]['is_damaged'] = false;
-        detailsData[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
-
-        await firestore.collection('inspections').doc(inspectionId).update({
-          'details': detailsData,
-        });
-      }
+    // If no other non-conformities, update detail to not damaged
+    if (otherNcSnapshot.docs.isEmpty) {
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .update({'is_damaged': false});
     }
   }
 
   // MEDIA METHODS
   Future<void> saveMedia(Map<String, dynamic> mediaData) async {
     final inspectionId = mediaData['inspection_id'];
-    final roomId = mediaData['room_id'];
-    final itemId = mediaData['room_item_id'];
+    final topicId = mediaData['topic_id'];
+    final itemId = mediaData['topic_item_id'];
     final detailId = mediaData['detail_id'];
+    final isNonConformity = mediaData['is_non_conformity'] == true;
+    final nonConformityId = mediaData['non_conformity_id'];
 
-    // Generate a unique ID based on the hierarchical structure
-    final mediaId =
-        '$inspectionId-$roomId-$itemId-$detailId-${_uuid.v4().substring(0, 8)}';
+    // Generate a unique ID for the media
+    final mediaId = _uuid.v4();
 
-    final media = {
-      ...mediaData,
-      'id': mediaId,
-    };
+    // Determine where to save the media
+    if (isNonConformity && nonConformityId != null) {
+      // Parse the non-conformity ID to extract the NC doc ID
+      final parts = nonConformityId.split('-');
+      if (parts.length < 5) {
+        throw Exception('Invalid non-conformity ID format');
+      }
+      
+      final ncId = parts[4];
+      
+      // Save to non-conformity media
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('non_conformities')
+          .doc(ncId)
+          .collection('nc_media')
+          .doc(mediaId)
+          .set({
+        ...mediaData,
+        'id': mediaId,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      }..remove('inspection_id')
+       ..remove('topic_id')
+       ..remove('topic_item_id')
+       ..remove('detail_id')
+       ..remove('non_conformity_id'));
+    } else {
+      // Save to regular media
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('media')
+          .doc(mediaId)
+          .set({
+        ...mediaData,
+        'id': mediaId,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      }..remove('inspection_id')
+       ..remove('topic_id')
+       ..remove('topic_item_id')
+       ..remove('detail_id')
+       ..remove('non_conformity_id'));
+    }
 
-    // Update the media array in the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'media': FieldValue.arrayUnion([media]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    // If marked as non-conformity, update the detail
+    if (isNonConformity) {
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .update({'is_damaged': true});
+    }
   }
 
-  Future<void> deleteMedia(String mediaId) async {
-    // Parse the composite ID to get the inspection ID
-    final parts = mediaId.split('-');
-    if (parts.length < 4) {
-      throw Exception('Invalid media ID format');
+  Future<void> deleteMedia(String mediaId, Map<String, dynamic> mediaData) async {
+    final inspectionId = mediaData['inspection_id'];
+    final topicId = mediaData['topic_id'];
+    final itemId = mediaData['topic_item_id'];
+    final detailId = mediaData['detail_id'];
+    final isNonConformity = mediaData['is_non_conformity'] == true;
+    final nonConformityId = mediaData['non_conformity_id'];
+
+    if (isNonConformity && nonConformityId != null) {
+      // Parse the non-conformity ID to extract the NC doc ID
+      final parts = nonConformityId.split('-');
+      if (parts.length < 5) {
+        throw Exception('Invalid non-conformity ID format');
+      }
+      
+      final ncId = parts[4];
+      
+      // Delete from non-conformity media
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('non_conformities')
+          .doc(ncId)
+          .collection('nc_media')
+          .doc(mediaId)
+          .delete();
+    } else {
+      // Delete from regular media
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('media')
+          .doc(mediaId)
+          .delete();
     }
-
-    final inspectionId = parts[0];
-
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
-    }
-
-    final data = inspectionDoc.data() ?? {};
-    final mediaData = List<Map<String, dynamic>>.from(data['media'] ?? []);
-
-    // Find the media to delete
-    final mediaIndex = mediaData.indexWhere((media) => media['id'] == mediaId);
-    if (mediaIndex < 0) {
-      throw Exception('Media not found');
-    }
-
-    // Remove the media
-    mediaData.removeAt(mediaIndex);
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'media': mediaData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
   }
 
-  Future<void> updateMedia(
-      String mediaId, Map<String, dynamic> updatedData) async {
-    // Parse the composite ID to get the inspection ID
-    final parts = mediaId.split('-');
-    if (parts.length < 4) {
-      throw Exception('Invalid media ID format');
+  Future<void> updateMedia(String mediaId, Map<String, dynamic> mediaData, Map<String, dynamic> updatedData) async {
+    final inspectionId = mediaData['inspection_id'];
+    final topicId = mediaData['topic_id'];
+    final itemId = mediaData['topic_item_id'];
+    final detailId = mediaData['detail_id'];
+    final isNonConformity = mediaData['is_non_conformity'] == true;
+    final nonConformityId = mediaData['non_conformity_id'];
+
+    if (isNonConformity && nonConformityId != null) {
+      // Parse the non-conformity ID to extract the NC doc ID
+      final parts = nonConformityId.split('-');
+      if (parts.length < 5) {
+        throw Exception('Invalid non-conformity ID format');
+      }
+      
+      final ncId = parts[4];
+      
+      // Update in non-conformity media
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('non_conformities')
+          .doc(ncId)
+          .collection('nc_media')
+          .doc(mediaId)
+          .update({
+        ...updatedData,
+        'updated_at': FieldValue.serverTimestamp(),
+      }..remove('inspection_id')
+       ..remove('topic_id')
+       ..remove('topic_item_id')
+       ..remove('detail_id')
+       ..remove('non_conformity_id')
+       ..remove('id'));
+    } else {
+      // Update in regular media
+      await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('media')
+          .doc(mediaId)
+          .update({
+        ...updatedData,
+        'updated_at': FieldValue.serverTimestamp(),
+      }..remove('inspection_id')
+       ..remove('topic_id')
+       ..remove('topic_item_id')
+       ..remove('detail_id')
+       ..remove('non_conformity_id')
+       ..remove('id'));
     }
 
-    final inspectionId = parts[0];
-
-    // Get the current inspection document
-    final inspectionDoc =
-        await firestore.collection('inspections').doc(inspectionId).get();
-    if (!inspectionDoc.exists) {
-      throw Exception('Inspection not found');
+    // If is_non_conformity status changed, update the detail
+    if (updatedData.containsKey('is_non_conformity')) {
+      bool isNowNonConformity = updatedData['is_non_conformity'] == true;
+      
+      if (isNowNonConformity) {
+        await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemId)
+            .collection('item_details')
+            .doc(detailId)
+            .update({'is_damaged': true});
+      } else {
+        // Check if there are any other media or non-conformities marking this as damaged
+        bool stillDamaged = false;
+        
+        // Check other media
+        final otherMediaSnapshot = await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemId)
+            .collection('item_details')
+            .doc(detailId)
+            .collection('media')
+            .where('is_non_conformity', isEqualTo: true)
+            .limit(1)
+            .get();
+            
+        if (otherMediaSnapshot.docs.isNotEmpty) {
+          stillDamaged = true;
+        }
+        
+        // Check non-conformities
+        if (!stillDamaged) {
+          final ncSnapshot = await firestore
+              .collection('inspections')
+              .doc(inspectionId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('topic_items')
+              .doc(itemId)
+              .collection('item_details')
+              .doc(detailId)
+              .collection('non_conformities')
+              .limit(1)
+              .get();
+              
+          if (ncSnapshot.docs.isNotEmpty) {
+            stillDamaged = true;
+          }
+        }
+        
+        // Update the detail if no longer damaged
+        if (!stillDamaged) {
+          await firestore
+              .collection('inspections')
+              .doc(inspectionId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('topic_items')
+              .doc(itemId)
+              .collection('item_details')
+              .doc(detailId)
+              .update({'is_damaged': false});
+        }
+      }
     }
+  }
 
-    final data = inspectionDoc.data() ?? {};
-    final mediaData = List<Map<String, dynamic>>.from(data['media'] ?? []);
+  // Get all media for an inspection
+  Future<List<Map<String, dynamic>>> getAllMedia(String inspectionId) async {
+    List<Map<String, dynamic>> allMedia = [];
 
-    // Find the media to update
-    final mediaIndex = mediaData.indexWhere((media) => media['id'] == mediaId);
-    if (mediaIndex < 0) {
-      throw Exception('Media not found');
+    // First get all topics (topics)
+    final topicsSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .get();
+    
+    // For each topic
+    for (var topicDoc in topicsSnapshot.docs) {
+      final topicId = topicDoc.id;
+      final topicData = topicDoc.data();
+      
+      // Get all items
+      final itemsSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .get();
+      
+      // For each item
+      for (var itemDoc in itemsSnapshot.docs) {
+        final itemId = itemDoc.id;
+        final itemData = itemDoc.data();
+        
+        // Get all details
+        final detailsSnapshot = await firestore
+            .collection('inspections')
+            .doc(inspectionId)
+            .collection('topics')
+            .doc(topicId)
+            .collection('topic_items')
+            .doc(itemId)
+            .collection('item_details')
+            .get();
+        
+        // For each detail
+        for (var detailDoc in detailsSnapshot.docs) {
+          final detailId = detailDoc.id;
+          final detailData = detailDoc.data();
+          
+          // Get regular media
+          final mediaSnapshot = await firestore
+              .collection('inspections')
+              .doc(inspectionId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('topic_items')
+              .doc(itemId)
+              .collection('item_details')
+              .doc(detailId)
+              .collection('media')
+              .get();
+          
+          // Add regular media to list
+          for (var mediaDoc in mediaSnapshot.docs) {
+            final mediaData = mediaDoc.data();
+            
+            allMedia.add({
+              ...mediaData,
+              'id': mediaDoc.id,
+              'inspection_id': inspectionId,
+              'topic_id': topicId,
+              'topic_item_id': itemId,
+              'detail_id': detailId,
+              'topic_name': topicData['topic_name'],
+              'item_name': itemData['item_name'],
+              'detail_name': detailData['detail_name'],
+            });
+          }
+          
+          // Get non-conformities
+          final ncSnapshot = await firestore
+              .collection('inspections')
+              .doc(inspectionId)
+              .collection('topics')
+              .doc(topicId)
+              .collection('topic_items')
+              .doc(itemId)
+              .collection('item_details')
+              .doc(detailId)
+              .collection('non_conformities')
+              .get();
+          
+          // For each non-conformity
+          for (var ncDoc in ncSnapshot.docs) {
+            final ncId = ncDoc.id;
+            final ncData = ncDoc.data();
+            
+            // Build a non-conformity ID
+            final nonConformityId = '$inspectionId-$topicId-$itemId-$detailId-$ncId';
+            
+            // Get non-conformity media
+            final ncMediaSnapshot = await firestore
+                .collection('inspections')
+                .doc(inspectionId)
+                .collection('topics')
+                .doc(topicId)
+                .collection('topic_items')
+                .doc(itemId)
+                .collection('item_details')
+                .doc(detailId)
+                .collection('non_conformities')
+                .doc(ncId)
+                .collection('nc_media')
+                .get();
+            
+            // Add non-conformity media to list
+            for (var mediaDoc in ncMediaSnapshot.docs) {
+              final mediaData = mediaDoc.data();
+              
+              allMedia.add({
+                ...mediaData,
+                'id': mediaDoc.id,
+                'inspection_id': inspectionId,
+                'topic_id': topicId,
+                'topic_item_id': itemId,
+                'detail_id': detailId,
+                'non_conformity_id': nonConformityId,
+                'is_non_conformity': true,
+                'topic_name': topicData['topic_name'],
+                'item_name': itemData['item_name'],
+                'detail_name': detailData['detail_name'],
+              });
+            }
+          }
+        }
+      }
     }
-
-    // Update the data
-    mediaData[mediaIndex] = {
-      ...mediaData[mediaIndex],
-      ...updatedData,
-      'updated_at': FieldValue.serverTimestamp(),
-    };
-
-    // Update the inspection document
-    await firestore.collection('inspections').doc(inspectionId).update({
-      'media': mediaData,
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    
+    return allMedia;
   }
 
   // TEMPLATE APPLICATION
-  Future<bool> applyTemplateToInspection(
-      String inspectionId, String templateId) async {
+  Future<bool> applyTemplateToInspection(String inspectionId, String templateId) async {
     try {
       // Get the template
-      final templateDoc =
-          await firestore.collection('templates').doc(templateId).get();
+      final templateDoc = await firestore.collection('templates').doc(templateId).get();
       if (!templateDoc.exists) {
         return false;
       }
 
       final templateData = templateDoc.data() ?? {};
-      final roomsData = templateData['rooms'] as List<dynamic>? ?? [];
+      final topicsData = templateData['topics'] as List<dynamic>? ?? [];
 
-      // Create rooms from template
-      for (var i = 0; i < roomsData.length; i++) {
-        final roomTemplate = roomsData[i];
+      // Process topics (topics)
+      for (var i = 0; i < topicsData.length; i++) {
+        final topicTemplate = topicsData[i];
 
-        // Extract room name
-        String roomName = '';
-        if (roomTemplate is Map &&
-            roomTemplate['name'] is Map &&
-            roomTemplate['name']['stringValue'] != null) {
-          roomName = roomTemplate['name']['stringValue'];
-        } else if (roomTemplate is Map && roomTemplate['name'] is String) {
-          roomName = roomTemplate['name'];
+        // Extract topic name
+        String topicName = '';
+        if (topicTemplate is Map &&
+            topicTemplate['name'] is Map &&
+            topicTemplate['name']['stringValue'] != null) {
+          topicName = topicTemplate['name']['stringValue'];
+        } else if (topicTemplate is Map && topicTemplate['name'] is String) {
+          topicName = topicTemplate['name'];
         }
 
-        if (roomName.isEmpty) continue;
+        if (topicName.isEmpty) continue;
 
-        // Create room
-        final room = await addRoom(
+        // Create topic
+        final topic = await addTopic(
           inspectionId,
-          roomName,
+          topicName,
           position: i,
         );
 
         // Extract items
-        final itemsData = _extractArrayFromTemplate(roomTemplate, 'items');
+        final itemsData = _extractArrayFromTemplate(topicTemplate, 'items');
 
-        // Create items from template
+        // Process items
         for (var j = 0; j < itemsData.length; j++) {
           final itemTemplate = itemsData[j];
           final itemFields = _extractFieldsFromTemplate(itemTemplate);
@@ -1137,16 +1493,15 @@ class FirebaseInspectionService {
           // Create item
           final item = await addItem(
             inspectionId,
-            room.id!,
+            topic.id!,
             itemName,
-            observation:
-                _extractStringValueFromTemplate(itemFields, 'description'),
+            observation: _extractStringValueFromTemplate(itemFields, 'description'),
           );
 
           // Extract details
           final detailsData = _extractArrayFromTemplate(itemFields, 'details');
 
-          // Create details from template
+          // Process details
           for (var k = 0; k < detailsData.length; k++) {
             final detailTemplate = detailsData[k];
             final detailFields = _extractFieldsFromTemplate(detailTemplate);
@@ -1164,8 +1519,7 @@ class FirebaseInspectionService {
             // Extract options for select type
             List<String>? options;
             if (detailType == 'select') {
-              final optionsArray =
-                  _extractArrayFromTemplate(detailFields, 'options');
+              final optionsArray = _extractArrayFromTemplate(detailFields, 'options');
               options = [];
 
               for (var option in optionsArray) {
@@ -1183,8 +1537,7 @@ class FirebaseInspectionService {
                     defaultValue: '');
 
                 if (optionsText.isNotEmpty) {
-                  options =
-                      optionsText.split(',').map((e) => e.trim()).toList();
+                  options = optionsText.split(',').map((e) => e.trim()).toList();
                 }
               }
             }
@@ -1192,7 +1545,7 @@ class FirebaseInspectionService {
             // Create detail
             await addDetail(
               inspectionId,
-              room.id!,
+              topic.id!,
               item.id!,
               detailName,
               type: detailType,

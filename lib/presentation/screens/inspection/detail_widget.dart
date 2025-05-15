@@ -327,11 +327,11 @@ class _DetailWidgetState extends State<DetailWidget> {
                   ),
                   const SizedBox(height: 16),
                   if (widget.detail.id != null &&
-                      widget.detail.roomId != null &&
+                      widget.detail.topicId != null &&
                       widget.detail.itemId != null)
                     MediaHandlingWidget(
                       inspectionId: widget.detail.inspectionId,
-                      roomId: widget.detail.roomId!,
+                      topicId: widget.detail.topicId!,
                       itemId: widget.detail.itemId!,
                       detailId: widget.detail.id!,
                       onMediaAdded: (_) => setState(() {}),
@@ -342,13 +342,13 @@ class _DetailWidgetState extends State<DetailWidget> {
                   ElevatedButton.icon(
                     onPressed: () {
                       if (widget.detail.id != null &&
-                          widget.detail.roomId != null &&
+                          widget.detail.topicId != null &&
                           widget.detail.itemId != null) {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => NonConformityScreen(
                               inspectionId: widget.detail.inspectionId,
-                              preSelectedRoom: widget.detail.roomId,
+                              preSelectedTopic: widget.detail.topicId,
                               preSelectedItem: widget.detail.itemId,
                               preSelectedDetail: widget.detail.id,
                             ),

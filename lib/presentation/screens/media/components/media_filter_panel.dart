@@ -1,20 +1,20 @@
 // lib/presentation/screens/media/components/media_filter_panel.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 
 class MediaFilterPanel extends StatefulWidget {
   final String inspectionId;
-  final List<Room> rooms;
-  final String? selectedRoomId;
+  final List<Topic> topics;
+  final String? selectedTopicId;
   final String? selectedItemId;
   final String? selectedDetailId;
   final bool? isNonConformityOnly;
   final String? mediaType;
   final Function({
-    String? roomId,
+    String? topicId,
     String? itemId,
     String? detailId,
     bool? isNonConformityOnly,
@@ -25,8 +25,8 @@ class MediaFilterPanel extends StatefulWidget {
   const MediaFilterPanel({
     super.key,
     required this.inspectionId,
-    required this.rooms,
-    this.selectedRoomId,
+    required this.topics,
+    this.selectedTopicId,
     this.selectedItemId,
     this.selectedDetailId,
     this.isNonConformityOnly,
@@ -43,7 +43,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   final _inspectionService = FirebaseInspectionService();
 
   // Local state
-  String? _roomId;
+  String? _topicId;
   String? _itemId;
   String? _detailId;
   bool _isNonConformityOnly = false;
@@ -62,29 +62,29 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
     super.initState();
 
     // Initialize with provided values
-    _roomId = widget.selectedRoomId;
+    _topicId = widget.selectedTopicId;
     _itemId = widget.selectedItemId;
     _detailId = widget.selectedDetailId;
     _isNonConformityOnly = widget.isNonConformityOnly ?? false;
     _mediaType = widget.mediaType;
 
-    // Load items and details if room/item is selected
-    if (_roomId != null) {
-      _loadItems(_roomId!);
+    // Load items and details if topic/item is selected
+    if (_topicId != null) {
+      _loadItems(_topicId!);
     }
 
-    if (_roomId != null && _itemId != null) {
-      _loadDetails(_roomId!, _itemId!);
+    if (_topicId != null && _itemId != null) {
+      _loadDetails(_topicId!, _itemId!);
     }
   }
 
-  Future<void> _loadItems(String roomId) async {
+  Future<void> _loadItems(String topicId) async {
     setState(() => _isLoadingItems = true);
 
     try {
       final items = await _inspectionService.getItems(
         widget.inspectionId,
-        roomId,
+        topicId,
       );
 
       setState(() {
@@ -97,13 +97,13 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
     }
   }
 
-  Future<void> _loadDetails(String roomId, String itemId) async {
+  Future<void> _loadDetails(String topicId, String itemId) async {
     setState(() => _isLoadingDetails = true);
 
     try {
       final details = await _inspectionService.getDetails(
         widget.inspectionId,
-        roomId,
+        topicId,
         itemId,
       );
 
@@ -120,7 +120,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   void _applyFilters() {
     // Call the parent function with the selected filters
     widget.onApplyFilters(
-      roomId: _roomId,
+      topicId: _topicId,
       itemId: _itemId,
       detailId: _detailId,
       isNonConformityOnly: _isNonConformityOnly,
@@ -132,7 +132,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
 
   void _clearFilters() {
     setState(() {
-      _roomId = null;
+      _topicId = null;
       _itemId = null;
       _detailId = null;
       _isNonConformityOnly = false;
@@ -181,7 +181,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
           ),
           const SizedBox(height: 10),
 
-          // Room filter
+          // Topic filter
           const Text('Tópico', style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 5),
           Container(
@@ -191,7 +191,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
               border: Border.all(color: Colors.grey[700]!),
             ),
             child: DropdownButtonFormField<String>(
-              value: _roomId,
+              value: _topicId,
               isExpanded: true,
               dropdownColor: Colors.grey[800],
               decoration: const InputDecoration(
@@ -201,15 +201,15 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 border: InputBorder.none,
               ),
               style: const TextStyle(color: Colors.white),
-              items: widget.rooms.map((room) {
+              items: widget.topics.map((topic) {
                 return DropdownMenuItem<String>(
-                  value: room.id,
-                  child: Text(room.roomName),
+                  value: topic.id,
+                  child: Text(topic.topicName),
                 );
               }).toList(),
               onChanged: (value) {
                 setState(() {
-                  _roomId = value;
+                  _topicId = value;
                   _itemId = null;
                   _detailId = null;
                   _items = [];
@@ -228,89 +228,90 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
           const Text('Item', style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 5),
           _isLoadingItems
-            ? const LinearProgressIndicator(backgroundColor: Colors.grey)
-            : Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[700]!),
-                ),
-                child: DropdownButtonFormField<String>(
-                  value: _itemId,
-                  isExpanded: true,
-                  dropdownColor: Colors.grey[800],
-                  decoration: const InputDecoration(
-                    hintText: 'Selecione um item',
-                    hintStyle: TextStyle(color: Colors.white70),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                    border: InputBorder.none,
+              ? const LinearProgressIndicator(backgroundColor: Colors.grey)
+              : Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[700]!),
                   ),
-                  style: const TextStyle(color: Colors.white),
-                  items: _items.map((item) {
-                    return DropdownMenuItem<String>(
-                      value: item.id,
-                      child: Text(item.itemName),
-                    );
-                  }).toList(),
-                  onChanged: _roomId == null
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _itemId = value;
-                          _detailId = null;
-                          _details = [];
-                        });
+                  child: DropdownButtonFormField<String>(
+                    value: _itemId,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[800],
+                    decoration: const InputDecoration(
+                      hintText: 'Selecione um item',
+                      hintStyle: TextStyle(color: Colors.white70),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                      border: InputBorder.none,
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    items: _items.map((item) {
+                      return DropdownMenuItem<String>(
+                        value: item.id,
+                        child: Text(item.itemName),
+                      );
+                    }).toList(),
+                    onChanged: _topicId == null
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _itemId = value;
+                              _detailId = null;
+                              _details = [];
+                            });
 
-                        if (value != null && _roomId != null) {
-                          _loadDetails(_roomId!, value);
-                        }
-                      },
+                            if (value != null && _topicId != null) {
+                              _loadDetails(_topicId!, value);
+                            }
+                          },
+                  ),
                 ),
-              ),
           const SizedBox(height: 10),
 
           // Detail filter
           const Text('Detalhe', style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 5),
           _isLoadingDetails
-            ? const LinearProgressIndicator(backgroundColor: Colors.grey)
-            : Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[700]!),
-                ),
-                child: DropdownButtonFormField<String>(
-                  value: _detailId,
-                  isExpanded: true,
-                  dropdownColor: Colors.grey[800],
-                  decoration: const InputDecoration(
-                    hintText: 'Selecione um detalhe',
-                    hintStyle: TextStyle(color: Colors.white70),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                    border: InputBorder.none,
+              ? const LinearProgressIndicator(backgroundColor: Colors.grey)
+              : Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[700]!),
                   ),
-                  style: const TextStyle(color: Colors.white),
-                  items: _details.map((detail) {
-                    return DropdownMenuItem<String>(
-                      value: detail.id,
-                      child: Text(detail.detailName),
-                    );
-                  }).toList(),
-                  onChanged: _itemId == null
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _detailId = value;
-                        });
-                      },
+                  child: DropdownButtonFormField<String>(
+                    value: _detailId,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[800],
+                    decoration: const InputDecoration(
+                      hintText: 'Selecione um detalhe',
+                      hintStyle: TextStyle(color: Colors.white70),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                      border: InputBorder.none,
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    items: _details.map((detail) {
+                      return DropdownMenuItem<String>(
+                        value: detail.id,
+                        child: Text(detail.detailName),
+                      );
+                    }).toList(),
+                    onChanged: _itemId == null
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _detailId = value;
+                            });
+                          },
+                  ),
                 ),
-              ),
           const SizedBox(height: 10),
 
           // Non-conformity filter
           SwitchListTile(
-            title: const Text('Apenas Não Conformidades', 
+            title: const Text(
+              'Apenas Não Conformidades',
               style: TextStyle(color: Colors.white),
             ),
             value: _isNonConformityOnly,
@@ -333,7 +334,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             child: Column(
               children: [
                 RadioListTile<String?>(
-                  title: const Text('Todos', style: TextStyle(color: Colors.white)),
+                  title: const Text('Todos',
+                      style: TextStyle(color: Colors.white)),
                   value: null,
                   groupValue: _mediaType,
                   activeColor: Colors.blue,
@@ -345,7 +347,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 ),
                 Divider(height: 1, color: Colors.grey[700]),
                 RadioListTile<String>(
-                  title: const Text('Fotos', style: TextStyle(color: Colors.white)),
+                  title: const Text('Fotos',
+                      style: TextStyle(color: Colors.white)),
                   value: 'image',
                   groupValue: _mediaType,
                   activeColor: Colors.blue,
@@ -357,7 +360,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 ),
                 Divider(height: 1, color: Colors.grey[700]),
                 RadioListTile<String>(
-                  title: const Text('Vídeos', style: TextStyle(color: Colors.white)),
+                  title: const Text('Vídeos',
+                      style: TextStyle(color: Colors.white)),
                   value: 'video',
                   groupValue: _mediaType,
                   activeColor: Colors.blue,

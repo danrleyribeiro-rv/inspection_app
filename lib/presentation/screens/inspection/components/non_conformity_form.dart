@@ -1,6 +1,6 @@
 // lib/presentation/screens/inspection/components/non_conformity_form.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
@@ -8,30 +8,30 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NonConformityForm extends StatefulWidget {
-  final List<Room> rooms;
+  final List<Topic> topics;
   final List<Item> items;
   final List<Detail> details;
-  final Room? selectedRoom;
+  final Topic? selectedTopic;
   final Item? selectedItem;
   final Detail? selectedDetail;
   final String inspectionId;
   final bool isOffline;
-  final Function(Room) onRoomSelected;
+  final Function(Topic) onTopicSelected;
   final Function(Item) onItemSelected;
   final Function(Detail) onDetailSelected;
   final VoidCallback onNonConformitySaved;
 
   const NonConformityForm({
     super.key,
-    required this.rooms,
+    required this.topics,
     required this.items,
     required this.details,
-    required this.selectedRoom,
+    required this.selectedTopic,
     required this.selectedItem,
     required this.selectedDetail,
     required this.inspectionId,
     required this.isOffline,
-    required this.onRoomSelected,
+    required this.onTopicSelected,
     required this.onItemSelected,
     required this.onDetailSelected,
     required this.onNonConformitySaved,
@@ -58,15 +58,13 @@ class _NonConformityFormState extends State<NonConformityForm> {
     super.dispose();
   }
 
-Future<void> _saveNonConformity() async {
+  Future<void> _saveNonConformity() async {
     if (!_formKey.currentState!.validate()) return;
-    if (widget.selectedRoom == null ||
+    if (widget.selectedTopic == null ||
         widget.selectedItem == null ||
         widget.selectedDetail == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text('Selecione um ambiente, item e detalhe')),
+        const SnackBar(content: Text('Selecione um ambiente, item e detalhe')),
       );
       return;
     }
@@ -75,39 +73,42 @@ Future<void> _saveNonConformity() async {
 
     try {
       // Create composite ID with sequential part
-      final roomId = widget.selectedRoom!.id;
+      final topicId = widget.selectedTopic!.id;
       final itemId = widget.selectedItem!.id;
       final detailId = widget.selectedDetail!.id;
-      
+
       // Get existing non-conformities to determine the next sequential ID
       final inspectionDoc = await _inspectionService.firestore
           .collection('inspections')
           .doc(widget.inspectionId)
           .get();
-          
+
       if (!inspectionDoc.exists) {
         throw Exception('Inspection not found');
       }
-      
+
       final data = inspectionDoc.data() ?? {};
-      final ncArray = List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-      
+      final ncArray =
+          List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
+
       // Filter to find non-conformities for the same detail
-      final detailNCs = ncArray.where((nc) => 
-          nc['room_id'] == roomId && 
-          nc['item_id'] == itemId && 
-          nc['detail_id'] == detailId
-      ).toList();
-      
+      final detailNCs = ncArray
+          .where((nc) =>
+              nc['topic_id'] == topicId &&
+              nc['item_id'] == itemId &&
+              nc['detail_id'] == detailId)
+          .toList();
+
       // Create non-conformity ID with sequential numbering
       final sequentialPart = detailNCs.length.toString();
-      final nonConformityId = '${widget.inspectionId}-$roomId-$itemId-$detailId-$sequentialPart';
-      
+      final nonConformityId =
+          '${widget.inspectionId}-$topicId-$itemId-$detailId-$sequentialPart';
+
       // Prepare non-conformity data
       final nonConformityData = {
         'id': nonConformityId,
         'inspection_id': widget.inspectionId,
-        'room_id': roomId,
+        'topic_id': topicId,
         'item_id': itemId,
         'detail_id': detailId,
         'description': _descriptionController.text,
@@ -123,7 +124,7 @@ Future<void> _saveNonConformity() async {
 
       // Add to the non-conformities array
       ncArray.add(nonConformityData);
-      
+
       // Update the inspection document
       await _inspectionService.firestore
           .collection('inspections')
@@ -132,21 +133,21 @@ Future<void> _saveNonConformity() async {
         'non_conformities': ncArray,
         'updated_at': FieldValue.serverTimestamp(),
       });
-      
+
       // Also update the detail to mark as damaged
-      final detailsArray = List<Map<String, dynamic>>.from(data['details'] ?? []);
-      
+      final detailsArray =
+          List<Map<String, dynamic>>.from(data['details'] ?? []);
+
       // Find the detail
-      final detailIndex = detailsArray.indexWhere(
-        (detail) => detail['room_id'] == roomId && 
-                   detail['item_id'] == itemId && 
-                   detail['id'] == detailId
-      );
-      
+      final detailIndex = detailsArray.indexWhere((detail) =>
+          detail['topic_id'] == topicId &&
+          detail['item_id'] == itemId &&
+          detail['id'] == detailId);
+
       if (detailIndex >= 0) {
         detailsArray[detailIndex]['is_damaged'] = true;
         detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
-        
+
         await _inspectionService.firestore
             .collection('inspections')
             .doc(widget.inspectionId)
@@ -211,7 +212,7 @@ Future<void> _saveNonConformity() async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLocationCard(), // Only Room, Item, Detail selection
+            _buildLocationCard(), // Only Topic, Item, Detail selection
             const SizedBox(height: 5),
             Card(
               // Card for non-conformity details
@@ -306,7 +307,7 @@ Future<void> _saveNonConformity() async {
   }
 
   Widget _buildLocationCard() {
-    // Now only contains Room, Item, and Detail dropdowns
+    // Now only contains Topic, Item, and Detail dropdowns
     return Card(
       margin: const EdgeInsets.only(bottom: 0), // Adjusted margin
       child: Padding(
@@ -320,22 +321,22 @@ Future<void> _saveNonConformity() async {
             ),
             const SizedBox(height: 8),
 
-            // Room dropdown
-            DropdownButtonFormField<Room>(
+            // Topic dropdown
+            DropdownButtonFormField<Topic>(
               decoration: const InputDecoration(
                 labelText: 'Ambiente', // Translated
                 border: OutlineInputBorder(),
               ),
-              value: widget.selectedRoom,
-              items: widget.rooms.map((room) {
-                return DropdownMenuItem<Room>(
-                  value: room,
-                  child: Text(room.roomName),
+              value: widget.selectedTopic,
+              items: widget.topics.map((topic) {
+                return DropdownMenuItem<Topic>(
+                  value: topic,
+                  child: Text(topic.topicName),
                 );
               }).toList(),
               onChanged: (value) {
                 if (value != null) {
-                  widget.onRoomSelected(value);
+                  widget.onTopicSelected(value);
                 }
               },
               validator: (value) =>

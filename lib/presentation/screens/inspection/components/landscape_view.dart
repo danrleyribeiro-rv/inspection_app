@@ -1,6 +1,6 @@
 // lib/presentation/screens/inspection/components/landscape_view.dart (updated with rename)
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
@@ -8,37 +8,38 @@ import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
 
 class LandscapeView extends StatelessWidget {
-  final List<Room> rooms;
-  final int selectedRoomIndex;
+  final List<Topic> topics;
+  final int selectedTopicIndex;
   final int selectedItemIndex;
-  final List<Item> selectedRoomItems;
+  final List<Item> selectedTopicItems;
   final List<Detail> selectedItemDetails;
   final String inspectionId;
-  final Function(int) onRoomSelected;
+  final Function(int) onTopicSelected;
   final Function(int) onItemSelected;
-  final Function(Room) onRoomDuplicate;
-  final Function(String) onRoomDelete;
+  final Function(Topic) onTopicDuplicate;
+  final Function(String) onTopicDelete;
   final FirebaseInspectionService inspectionService;
-  final VoidCallback onAddRoom;
+  final VoidCallback onAddTopic;
 
   const LandscapeView({
     super.key,
-    required this.rooms,
-    required this.selectedRoomIndex,
+    required this.topics,
+    required this.selectedTopicIndex,
     required this.selectedItemIndex,
-    required this.selectedRoomItems,
+    required this.selectedTopicItems,
     required this.selectedItemDetails,
     required this.inspectionId,
-    required this.onRoomSelected,
+    required this.onTopicSelected,
     required this.onItemSelected,
-    required this.onRoomDuplicate,
-    required this.onRoomDelete,
+    required this.onTopicDuplicate,
+    required this.onTopicDelete,
     required this.inspectionService,
-    required this.onAddRoom,
+    required this.onAddTopic,
   });
 
   Future<String?> _showTextInputDialog(
-      BuildContext context, String title, String label, {String? initialValue}) async {
+      BuildContext context, String title, String label,
+      {String? initialValue}) async {
     return showDialog<String>(
       context: context,
       builder: (context) => RenameDialog(
@@ -53,7 +54,7 @@ class LandscapeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.width < 600;
-    
+
     return Container(
       constraints: BoxConstraints(
         maxWidth: screenSize.width,
@@ -61,10 +62,10 @@ class LandscapeView extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Rooms column
+          // Topics column
           Expanded(
             flex: isSmallScreen ? 2 : 2,
-            child: _buildRoomsColumn(context),
+            child: _buildTopicsColumn(context),
           ),
           VerticalDivider(thickness: 1, width: 1, color: Colors.grey[700]),
           // Items column
@@ -83,8 +84,8 @@ class LandscapeView extends StatelessWidget {
     );
   }
 
-  Widget _buildRoomsColumn(BuildContext context) {
-    if (rooms.isEmpty) {
+  Widget _buildTopicsColumn(BuildContext context) {
+    if (topics.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -94,7 +95,7 @@ class LandscapeView extends StatelessWidget {
             const Text('Nenhum tópico', style: TextStyle(color: Colors.white)),
             const SizedBox(height: 8),
             ElevatedButton.icon(
-              onPressed: onAddRoom,
+              onPressed: onAddTopic,
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Adicionar'),
             ),
@@ -104,32 +105,32 @@ class LandscapeView extends StatelessWidget {
     }
 
     return ListView.builder(
-      itemCount: rooms.length,
+      itemCount: topics.length,
       itemBuilder: (context, index) {
-        final room = rooms[index];
+        final topic = topics[index];
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-          color: selectedRoomIndex == index 
-              ? Colors.blue.withOpacity(0.2) 
+          color: selectedTopicIndex == index
+              ? Colors.blue.withOpacity(0.2)
               : Colors.grey.shade800,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
           ),
           child: InkWell(
-            onTap: () => onRoomSelected(index),
+            onTap: () => onTopicSelected(index),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(
                 children: [
-                  // Room name
+                  // Topic name
                   Expanded(
                     child: Text(
-                      room.roomName, 
+                      topic.topicName,
                       style: const TextStyle(color: Colors.white),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  
+
                   // Action buttons
                   SizedBox(
                     width: 80, // Increased width for rename button
@@ -141,62 +142,55 @@ class LandscapeView extends StatelessWidget {
                           onTap: () async {
                             final newName = await _showTextInputDialog(
                               context,
-                              'Rename Room',
-                              'Room name',
-                              initialValue: room.roomName,
+                              'Rename Topic',
+                              'Topic name',
+                              initialValue: topic.topicName,
                             );
-                            
-                            if (newName != null && newName.isNotEmpty && newName != room.roomName) {
-                              final updatedRoom = room.copyWith(
-                                roomName: newName,
+
+                            if (newName != null &&
+                                newName.isNotEmpty &&
+                                newName != topic.topicName) {
+                              final updatedTopic = topic.copyWith(
+                                topicName: newName,
                                 updatedAt: DateTime.now(),
                               );
-                              await inspectionService.updateRoom(updatedRoom);
-                              // Trigger reload of rooms
-                              onRoomSelected(selectedRoomIndex);
+                              await inspectionService.updateTopic(updatedTopic);
+                              // Trigger reload of topics
+                              onTopicSelected(selectedTopicIndex);
                             }
                           },
                           child: const Padding(
                             padding: EdgeInsets.all(4.0),
-                            child: Icon(
-                              Icons.edit, 
-                              color: Colors.white, 
-                              size: 18
-                            ),
+                            child:
+                                Icon(Icons.edit, color: Colors.white, size: 18),
                           ),
                         ),
-                        
+
                         const SizedBox(width: 4),
-                        
+
                         // Duplicate button
                         InkWell(
-                          onTap: () => onRoomDuplicate(room),
+                          onTap: () => onTopicDuplicate(topic),
                           child: const Padding(
                             padding: EdgeInsets.all(4.0),
-                            child: Icon(
-                              Icons.copy, 
-                              color: Colors.white, 
-                              size: 18
-                            ),
+                            child:
+                                Icon(Icons.copy, color: Colors.white, size: 18),
                           ),
                         ),
-                        
+
                         const SizedBox(width: 4),
-                        
+
                         // Delete button
                         InkWell(
                           onTap: () async {
-                            if (room.id != null) {
-                              await onRoomDelete(room.id!);
+                            if (topic.id != null) {
+                              await onTopicDelete(topic.id!);
                             }
                           },
                           child: const Padding(
                             padding: EdgeInsets.all(4.0),
-                            child: Icon(
-                              Icons.delete, 
-                              color: Colors.white, 
-                              size: 18
-                            ),
+                            child: Icon(Icons.delete,
+                                color: Colors.white, size: 18),
                           ),
                         ),
                       ],
@@ -212,9 +206,10 @@ class LandscapeView extends StatelessWidget {
   }
 
   Widget _buildItemsColumn(BuildContext context) {
-    if (selectedRoomIndex < 0) {
+    if (selectedTopicIndex < 0) {
       return const Center(
-          child: Text('Selecione um tópico', style: TextStyle(color: Colors.white)));
+          child: Text('Selecione um tópico',
+              style: TextStyle(color: Colors.white)));
     }
 
     return Column(
@@ -226,7 +221,7 @@ class LandscapeView extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Itens - ${selectedRoomIndex >= 0 && selectedRoomIndex < rooms.length ? rooms[selectedRoomIndex].roomName : ""}',
+                  'Itens - ${selectedTopicIndex >= 0 && selectedTopicIndex < topics.length ? topics[selectedTopicIndex].topicName : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.white),
                   overflow: TextOverflow.ellipsis,
@@ -236,17 +231,17 @@ class LandscapeView extends StatelessWidget {
               InkWell(
                 onTap: () async {
                   // Logic to add item
-                  if (selectedRoomIndex >= 0 &&
-                      rooms[selectedRoomIndex].id != null) {
+                  if (selectedTopicIndex >= 0 &&
+                      topics[selectedTopicIndex].id != null) {
                     final name = await _showTextInputDialog(
                         context, 'Add Item', 'Item name');
                     if (name != null && name.isNotEmpty) {
                       await inspectionService.addItem(
                         inspectionId,
-                        rooms[selectedRoomIndex].id!,
+                        topics[selectedTopicIndex].id!,
                         name,
                       );
-                      onRoomSelected(selectedRoomIndex);
+                      onTopicSelected(selectedTopicIndex);
                     }
                   }
                 },
@@ -262,18 +257,19 @@ class LandscapeView extends StatelessWidget {
 
         // Items list
         Expanded(
-          child: selectedRoomItems.isEmpty
+          child: selectedTopicItems.isEmpty
               ? const Center(
                   child: Text('Nenhum item neste tópico',
                       style: TextStyle(color: Colors.white)))
               : ListView.builder(
-                  itemCount: selectedRoomItems.length,
+                  itemCount: selectedTopicItems.length,
                   itemBuilder: (context, index) {
-                    final item = selectedRoomItems[index];
+                    final item = selectedTopicItems[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-                      color: selectedItemIndex == index 
-                          ? Colors.blue.withOpacity(0.2) 
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 2, horizontal: 4),
+                      color: selectedItemIndex == index
+                          ? Colors.blue.withOpacity(0.2)
                           : Colors.grey.shade800,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -281,7 +277,8 @@ class LandscapeView extends StatelessWidget {
                       child: InkWell(
                         onTap: () => onItemSelected(index),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 8),
                           child: Row(
                             children: [
                               // Item name
@@ -292,7 +289,7 @@ class LandscapeView extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              
+
                               // Action buttons
                               SizedBox(
                                 width: 60,
@@ -302,53 +299,52 @@ class LandscapeView extends StatelessWidget {
                                     // Rename button
                                     InkWell(
                                       onTap: () async {
-                                        final newName = await _showTextInputDialog(
+                                        final newName =
+                                            await _showTextInputDialog(
                                           context,
                                           'Rename Item',
                                           'Item name',
                                           initialValue: item.itemName,
                                         );
-                                        
-                                        if (newName != null && newName.isNotEmpty && newName != item.itemName) {
+
+                                        if (newName != null &&
+                                            newName.isNotEmpty &&
+                                            newName != item.itemName) {
                                           final updatedItem = item.copyWith(
                                             itemName: newName,
                                             updatedAt: DateTime.now(),
                                           );
-                                          await inspectionService.updateItem(updatedItem);
-                                          onRoomSelected(selectedRoomIndex);
+                                          await inspectionService
+                                              .updateItem(updatedItem);
+                                          onTopicSelected(selectedTopicIndex);
                                         }
                                       },
                                       child: const Padding(
                                         padding: EdgeInsets.all(4.0),
-                                        child: Icon(
-                                          Icons.edit, 
-                                          color: Colors.white, 
-                                          size: 18
-                                        ),
+                                        child: Icon(Icons.edit,
+                                            color: Colors.white, size: 18),
                                       ),
                                     ),
-                                    
+
                                     const SizedBox(width: 4),
-                                    
+
                                     // Delete button
                                     InkWell(
                                       onTap: () async {
-                                        if (item.id != null && item.roomId != null) {
+                                        if (item.id != null &&
+                                            item.topicId != null) {
                                           await inspectionService.deleteItem(
                                             inspectionId,
-                                            item.roomId!,
+                                            item.topicId!,
                                             item.id!,
                                           );
-                                          onRoomSelected(selectedRoomIndex);
+                                          onTopicSelected(selectedTopicIndex);
                                         }
                                       },
                                       child: const Padding(
                                         padding: EdgeInsets.all(4.0),
-                                        child: Icon(
-                                          Icons.delete, 
-                                          color: Colors.white, 
-                                          size: 18
-                                        ),
+                                        child: Icon(Icons.delete,
+                                            color: Colors.white, size: 18),
                                       ),
                                     ),
                                   ],
@@ -369,7 +365,8 @@ class LandscapeView extends StatelessWidget {
   Widget _buildDetailsColumn(BuildContext context) {
     if (selectedItemIndex < 0) {
       return const Center(
-          child: Text('Selecione um item', style: TextStyle(color: Colors.white)));
+          child:
+              Text('Selecione um item', style: TextStyle(color: Colors.white)));
     }
 
     return Column(
@@ -381,7 +378,7 @@ class LandscapeView extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Detalhes - ${selectedItemIndex >= 0 && selectedItemIndex < selectedRoomItems.length ? selectedRoomItems[selectedItemIndex].itemName : ""}',
+                  'Detalhes - ${selectedItemIndex >= 0 && selectedItemIndex < selectedTopicItems.length ? selectedTopicItems[selectedItemIndex].itemName : ""}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.white),
                   overflow: TextOverflow.ellipsis,
@@ -392,14 +389,14 @@ class LandscapeView extends StatelessWidget {
                 onTap: () async {
                   // Logic to add detail
                   if (selectedItemIndex >= 0) {
-                    final item = selectedRoomItems[selectedItemIndex];
-                    if (item.id != null && item.roomId != null) {
+                    final item = selectedTopicItems[selectedItemIndex];
+                    if (item.id != null && item.topicId != null) {
                       final name = await _showTextInputDialog(
                           context, 'Add Detail', 'Detail name');
                       if (name != null && name.isNotEmpty) {
                         await inspectionService.addDetail(
                           inspectionId,
-                          item.roomId!,
+                          item.topicId!,
                           item.id!,
                           name,
                         );
@@ -467,8 +464,10 @@ class LandscapeView extends StatelessWidget {
                       'Detail name',
                       initialValue: detail.detailName,
                     );
-                    
-                    if (newName != null && newName.isNotEmpty && newName != detail.detailName) {
+
+                    if (newName != null &&
+                        newName.isNotEmpty &&
+                        newName != detail.detailName) {
                       final updatedDetail = detail.copyWith(
                         detailName: newName,
                         updatedAt: DateTime.now(),
@@ -488,11 +487,11 @@ class LandscapeView extends StatelessWidget {
                   onTap: () async {
                     // Logic to delete detail
                     if (detail.id != null &&
-                        detail.roomId != null &&
+                        detail.topicId != null &&
                         detail.itemId != null) {
                       await inspectionService.deleteDetail(
                         inspectionId,
-                        detail.roomId!,
+                        detail.topicId!,
                         detail.itemId!,
                         detail.id!,
                       );
@@ -512,7 +511,7 @@ class LandscapeView extends StatelessWidget {
             Row(
               children: [
                 SizedBox(
-                  width: 24, 
+                  width: 24,
                   height: 24,
                   child: Checkbox(
                     value: detail.isDamaged ?? false,
@@ -544,7 +543,8 @@ class LandscapeView extends StatelessWidget {
                 labelStyle: TextStyle(color: Colors.white70),
                 fillColor: Colors.white10,
                 filled: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               onChanged: (value) async {
                 // Update the detail after a delay
@@ -567,7 +567,8 @@ class LandscapeView extends StatelessWidget {
                 labelStyle: TextStyle(color: Colors.white70),
                 fillColor: Colors.white10,
                 filled: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               maxLines: 3,
               minLines: 2,
@@ -592,7 +593,7 @@ class LandscapeView extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (context) => NonConformityScreen(
                         inspectionId: inspectionId,
-                        preSelectedRoom: detail.roomId,
+                        preSelectedTopic: detail.topicId,
                         preSelectedItem: detail.itemId,
                         preSelectedDetail: detail.id,
                       ),

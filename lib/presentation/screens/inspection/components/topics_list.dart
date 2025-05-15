@@ -1,51 +1,51 @@
-// lib/presentation/screens/inspection/components/rooms_list.dart
+// lib/presentation/screens/inspection/components/topics_list.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/room.dart';
-import 'package:inspection_app/presentation/screens/inspection/room_widget.dart';
+import 'package:inspection_app/models/topic.dart';
+import 'package:inspection_app/presentation/screens/inspection/topic_widget.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 
-class RoomsList extends StatefulWidget {
-  final List<Room> rooms;
-  final int expandedRoomIndex;
-  final Function(Room) onRoomUpdated;
-  final Function(String) onRoomDeleted;
-  final Function(Room) onRoomDuplicated;
+class TopicsList extends StatefulWidget {
+  final List<Topic> topics;
+  final int expandedTopicIndex;
+  final Function(Topic) onTopicUpdated;
+  final Function(String) onTopicDeleted;
+  final Function(Topic) onTopicDuplicated;
   final Function(int) onExpansionChanged;
   final String inspectionId;
-  final VoidCallback? onRoomsReordered;
+  final VoidCallback? onTopicsReordered;
 
-  const RoomsList({
+  const TopicsList({
     super.key,
-    required this.rooms,
-    required this.expandedRoomIndex,
-    required this.onRoomUpdated,
-    required this.onRoomDeleted,
-    required this.onRoomDuplicated,
+    required this.topics,
+    required this.expandedTopicIndex,
+    required this.onTopicUpdated,
+    required this.onTopicDeleted,
+    required this.onTopicDuplicated,
     required this.onExpansionChanged,
     required this.inspectionId,
-    this.onRoomsReordered,
+    this.onTopicsReordered,
   });
 
   @override
-  State<RoomsList> createState() => _RoomsListState();
+  State<TopicsList> createState() => _TopicsListState();
 }
 
-class _RoomsListState extends State<RoomsList> {
+class _TopicsListState extends State<TopicsList> {
   final _inspectionService = FirebaseInspectionService();
   bool _isReordering = false;
-  late List<Room> _localRooms;
+  late List<Topic> _localTopics;
 
   @override
   void initState() {
     super.initState();
-    _localRooms = List.from(widget.rooms);
+    _localTopics = List.from(widget.topics);
   }
 
   @override
-  void didUpdateWidget(RoomsList oldWidget) {
+  void didUpdateWidget(TopicsList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.rooms != oldWidget.rooms) {
-      _localRooms = List.from(widget.rooms);
+    if (widget.topics != oldWidget.topics) {
+      _localTopics = List.from(widget.topics);
     }
   }
 
@@ -53,18 +53,18 @@ class _RoomsListState extends State<RoomsList> {
   Widget build(BuildContext context) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-      itemCount: _localRooms.length,
+      itemCount: _localTopics.length,
       onReorder: _onReorder,
       itemBuilder: (context, index) {
-        final room = _localRooms[index];
-        
-        return RoomWidget(
-          key: ValueKey(room.id),
-          room: room,
-          onRoomUpdated: widget.onRoomUpdated,
-          onRoomDeleted: widget.onRoomDeleted,
-          onRoomDuplicated: widget.onRoomDuplicated,
-          isExpanded: index == widget.expandedRoomIndex,
+        final topic = _localTopics[index];
+
+        return TopicWidget(
+          key: ValueKey(topic.id),
+          topic: topic,
+          onTopicUpdated: widget.onTopicUpdated,
+          onTopicDeleted: widget.onTopicDeleted,
+          onTopicDuplicated: widget.onTopicDuplicated,
+          isExpanded: index == widget.expandedTopicIndex,
           onExpansionChanged: () => widget.onExpansionChanged(index),
         );
       },
@@ -83,22 +83,22 @@ class _RoomsListState extends State<RoomsList> {
     try {
       // Reordenar a lista local primeiro
       setState(() {
-        final room = _localRooms.removeAt(oldIndex);
-        _localRooms.insert(newIndex, room);
+        final topic = _localTopics.removeAt(oldIndex);
+        _localTopics.insert(newIndex, topic);
       });
-      
+
       // Obter a lista de IDs na nova ordem
-      final List<String> roomIds = _localRooms
-          .where((room) => room.id != null)
-          .map((room) => room.id!)
+      final List<String> topicIds = _localTopics
+          .where((topic) => topic.id != null)
+          .map((topic) => topic.id!)
           .toList();
-      
+
       // Atualizar no Firestore
-      await _inspectionService.reorderRooms(widget.inspectionId, roomIds);
-      
+      await _inspectionService.reorderTopics(widget.inspectionId, topicIds);
+
       // Chamar o callback para atualizar os dados
-      widget.onRoomsReordered?.call();
-      
+      widget.onTopicsReordered?.call();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -110,9 +110,9 @@ class _RoomsListState extends State<RoomsList> {
     } catch (e) {
       // Em caso de erro, reverter para a ordem original
       setState(() {
-        _localRooms = List.from(widget.rooms);
+        _localTopics = List.from(widget.topics);
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao reordenar: $e')),

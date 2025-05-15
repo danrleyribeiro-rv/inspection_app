@@ -2,7 +2,7 @@
 class Detail {
   final String? id;
   final String inspectionId;
-  final String? roomId;
+  final String? topicId;
   final String? itemId;
   final String? detailId;
   final int? position;
@@ -19,7 +19,7 @@ class Detail {
   Detail(
       {this.id,
       required this.inspectionId,
-      this.roomId,
+      this.topicId,
       this.itemId,
       this.detailId,
       this.position,
@@ -50,8 +50,8 @@ class Detail {
     return Detail(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
-      roomId: json['room_id']?.toString(),
-      itemId: json['room_item_id']?.toString(),
+      topicId: json['topic_id']?.toString(),
+      itemId: json['topic_item_id']?.toString(),
       detailId: json['detail_id']?.toString(),
       position: json['position'] is int ? json['position'] : null,
       detailName: json['detail_name'],
@@ -74,13 +74,13 @@ class Detail {
     );
   }
 
+  static Detail fromMap(Map<String, dynamic> map) => Detail.fromJson(map);
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'inspection_id': inspectionId,
-      'room_id': roomId,
-      'room_item_id': itemId,
-      'detail_id': detailId,
+      'topic_id': topicId,
       'position': position,
       'detail_name': detailName,
       'detail_value': detailValue,
@@ -94,13 +94,28 @@ class Detail {
     };
   }
 
-  Map<String, dynamic> toMap() => toJson();
-  static Detail fromMap(Map<String, dynamic> map) => Detail.fromJson(map);
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'topic_id': topicId,
+      'item_id': itemId,
+      'inspection_id': inspectionId,
+      'detail_name': detailName,
+      'type': type,
+      'options': options,
+      'detail_value': detailValue,
+      'observation': observation,
+      'is_damaged': isDamaged,
+      'position': position,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+    };
+  }
 
   Detail copyWith({
     String? id,
     String? inspectionId,
-    String? roomId,
+    String? topicId,
     String? itemId,
     String? detailId,
     int? position,
@@ -117,7 +132,7 @@ class Detail {
     return Detail(
       id: id ?? this.id,
       inspectionId: inspectionId ?? this.inspectionId,
-      roomId: roomId ?? this.roomId,
+      topicId: topicId ?? this.topicId,
       itemId: itemId ?? this.itemId,
       detailId: detailId ?? this.detailId,
       position: position ?? this.position,

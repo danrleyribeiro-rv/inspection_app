@@ -1,12 +1,12 @@
-// lib/presentation/screens/inspection/components/empty_room_state.dart
+// lib/presentation/screens/inspection/components/empty_topic_state.dart
 import 'package:flutter/material.dart';
 
-class EmptyRoomState extends StatelessWidget {
-  final VoidCallback onAddRoom;
+class EmptyTopicState extends StatelessWidget {
+  final VoidCallback onAddTopic;
 
-  const EmptyRoomState({
+  const EmptyTopicState({
     super.key,
-    required this.onAddRoom,
+    required this.onAddTopic,
   });
 
   @override
@@ -19,7 +19,8 @@ class EmptyRoomState extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             'Nenhum tópico adicionado',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -29,7 +30,7 @@ class EmptyRoomState extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: onAddRoom,
+            onPressed: onAddTopic,
             icon: const Icon(Icons.add),
             label: const Text('Adicionar tópico'),
           ),

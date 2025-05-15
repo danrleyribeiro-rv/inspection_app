@@ -1,7 +1,7 @@
 // lib/presentation/screens/media/media_gallery_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/firebase_service.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';
@@ -28,10 +28,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _allMedia = [];
   List<Map<String, dynamic>> _filteredMedia = [];
-  List<Room> _rooms = [];
+  List<Topic> _topics = [];
 
   // Filter states
-  String? _selectedRoomId;
+  String? _selectedTopicId;
   String? _selectedItemId;
   String? _selectedDetailId;
   bool? _isNonConformityOnly;
@@ -66,8 +66,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Load rooms, which will be needed for filtering
-      final rooms = await _inspectionService.getRooms(widget.inspectionId);
+      // Load topics, which will be needed for filtering
+      final topics = await _inspectionService.getTopics(widget.inspectionId);
 
       // Get the inspection document
       final inspectionDoc = await _firestore
@@ -84,33 +84,33 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
       // Convert to list of maps
       final media = await Future.wait(mediaArray.map((mediaData) async {
-        String? roomName;
+        String? topicName;
         String? itemName;
         String? detailName;
         bool isNonConformity = false;
 
-        final roomId = mediaData['room_id'];
-        final itemId = mediaData['room_item_id'];
+        final topicId = mediaData['topic_id'];
+        final itemId = mediaData['topic_item_id'];
         final detailId = mediaData['detail_id'];
 
-        // Get room name
-        if (roomId != null) {
-          final roomsArray = data['rooms'] as List<dynamic>? ?? [];
-          final room = roomsArray.firstWhere(
-            (room) => room['id'] == roomId,
+        // Get topic name
+        if (topicId != null) {
+          final topicsArray = data['topics'] as List<dynamic>? ?? [];
+          final topic = topicsArray.firstWhere(
+            (topic) => topic['id'] == topicId,
             orElse: () => null,
           );
 
-          if (room != null) {
-            roomName = room['room_name'];
+          if (topic != null) {
+            topicName = topic['topic_name'];
           }
         }
 
 // Get item name
-        if (roomId != null && itemId != null) {
+        if (topicId != null && itemId != null) {
           final itemsArray = data['items'] as List<dynamic>? ?? [];
           final item = itemsArray.firstWhere(
-            (item) => item['room_id'] == roomId && item['id'] == itemId,
+            (item) => item['topic_id'] == topicId && item['id'] == itemId,
             orElse: () => null,
           );
 
@@ -120,11 +120,11 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         }
 
         // Get detail name and check non-conformity status
-        if (roomId != null && itemId != null && detailId != null) {
+        if (topicId != null && itemId != null && detailId != null) {
           final detailsArray = data['details'] as List<dynamic>? ?? [];
           final detail = detailsArray.firstWhere(
             (detail) =>
-                detail['room_id'] == roomId &&
+                detail['topic_id'] == topicId &&
                 detail['item_id'] == itemId &&
                 detail['id'] == detailId,
             orElse: () => null,
@@ -140,7 +140,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           final nonConformitiesArray =
               data['non_conformities'] as List<dynamic>? ?? [];
           final hasNonConformity = nonConformitiesArray.any((nc) =>
-              nc['room_id'] == roomId &&
+              nc['topic_id'] == topicId &&
               nc['item_id'] == itemId &&
               nc['detail_id'] == detailId);
 
@@ -156,7 +156,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
         return {
           ...Map<String, dynamic>.from(mediaData),
-          'room_name': roomName,
+          'topic_name': topicName,
           'item_name': itemName,
           'detail_name': detailName,
           'is_non_conformity': isNonConformity,
@@ -172,7 +172,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
       if (mounted) {
         setState(() {
-          _rooms = rooms;
+          _topics = topics;
           _allMedia = media;
           _filteredMedia = List.from(media);
           _isLoading = false;
@@ -190,14 +190,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   void _applyFilters({
-    String? roomId,
+    String? topicId,
     String? itemId,
     String? detailId,
     bool? isNonConformityOnly,
     String? mediaType,
   }) {
     setState(() {
-      _selectedRoomId = roomId;
+      _selectedTopicId = topicId;
       _selectedItemId = itemId;
       _selectedDetailId = detailId;
       _isNonConformityOnly = isNonConformityOnly;
@@ -205,13 +205,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
       // Apply filters
       _filteredMedia = _allMedia.where((media) {
-        // Filter by room if selected
-        if (roomId != null && media['room_id'] != roomId) {
+        // Filter by topic if selected
+        if (topicId != null && media['topic_id'] != topicId) {
           return false;
         }
 
         // Filter by item if selected
-        if (itemId != null && media['room_item_id'] != itemId) {
+        if (itemId != null && media['topic_item_id'] != itemId) {
           return false;
         }
 
@@ -238,7 +238,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   void _clearFilters() {
     setState(() {
-      _selectedRoomId = null;
+      _selectedTopicId = null;
       _selectedItemId = null;
       _selectedDetailId = null;
       _isNonConformityOnly = null;
@@ -281,8 +281,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                 backgroundColor: Colors.transparent,
                 builder: (context) => MediaFilterPanel(
                   inspectionId: widget.inspectionId,
-                  rooms: _rooms,
-                  selectedRoomId: _selectedRoomId,
+                  topics: _topics,
+                  selectedTopicId: _selectedTopicId,
                   selectedItemId: _selectedItemId,
                   selectedDetailId: _selectedDetailId,
                   isNonConformityOnly: _isNonConformityOnly,
@@ -306,7 +306,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           : Column(
               children: [
                 // Filter summary
-                if (_selectedRoomId != null ||
+                if (_selectedTopicId != null ||
                     _selectedItemId != null ||
                     _selectedDetailId != null ||
                     _isNonConformityOnly != null ||
@@ -327,7 +327,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                                 'Nenhuma mídia encontrada',
                                 style: TextStyle(color: Colors.white),
                               ),
-                              if (_selectedRoomId != null ||
+                              if (_selectedTopicId != null ||
                                   _selectedItemId != null ||
                                   _selectedDetailId != null ||
                                   _isNonConformityOnly != null ||
@@ -357,8 +357,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
             backgroundColor: Colors.transparent,
             builder: (context) => MediaCapturePanel(
               inspectionId: widget.inspectionId,
-              rooms: _rooms,
-              selectedRoomId: _selectedRoomId,
+              topics: _topics,
+              selectedTopicId: _selectedTopicId,
               selectedItemId: _selectedItemId,
               selectedDetailId: _selectedDetailId,
               onMediaAdded: _handleMediaAdded,
@@ -375,28 +375,28 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     // Build summary of active filters
     List<Widget> filterChips = [];
 
-    // Add room filter chip
-    if (_selectedRoomId != null) {
-      final roomName = _rooms
+    // Add topic filter chip
+    if (_selectedTopicId != null) {
+      final topicName = _topics
           .firstWhere(
-            (room) => room.id == _selectedRoomId,
-            orElse: () => Room(
+            (topic) => topic.id == _selectedTopicId,
+            orElse: () => Topic(
                 id: '',
                 inspectionId: '',
-                roomName: 'Desconhecido',
+                topicName: 'Desconhecido',
                 position: 0),
           )
-          .roomName;
+          .topicName;
 
       filterChips.add(
         Chip(
-          label: Text('Tópico: $roomName',
+          label: Text('Tópico: $topicName',
               style: const TextStyle(color: Colors.white)),
           backgroundColor: Colors.blue.shade900,
           deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
-              roomId: null,
+              topicId: null,
               itemId: _selectedItemId,
               detailId: _selectedDetailId,
               isNonConformityOnly: _isNonConformityOnly,
@@ -412,7 +412,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       // Find the item name
       String itemName = 'Item';
       for (var media in _allMedia) {
-        if (media['room_item_id'] == _selectedItemId) {
+        if (media['topic_item_id'] == _selectedItemId) {
           itemName = media['item_name'] ?? 'Item';
           break;
         }
@@ -426,7 +426,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
-              roomId: _selectedRoomId,
+              topicId: _selectedTopicId,
               itemId: null,
               detailId: _selectedDetailId,
               isNonConformityOnly: _isNonConformityOnly,
@@ -456,7 +456,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
-              roomId: _selectedRoomId,
+              topicId: _selectedTopicId,
               itemId: _selectedItemId,
               detailId: null,
               isNonConformityOnly: _isNonConformityOnly,
@@ -477,7 +477,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
-              roomId: _selectedRoomId,
+              topicId: _selectedTopicId,
               itemId: _selectedItemId,
               detailId: _selectedDetailId,
               isNonConformityOnly: null,
@@ -503,7 +503,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           deleteIconColor: Colors.white,
           onDeleted: () {
             _applyFilters(
-              roomId: _selectedRoomId,
+              topicId: _selectedTopicId,
               itemId: _selectedItemId,
               detailId: _selectedDetailId,
               isNonConformityOnly: _isNonConformityOnly,

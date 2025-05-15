@@ -12,9 +12,9 @@ class FirebaseService {
 
   FirebaseService._internal();
 
-  // Inicialização do FirebaseService (dummy para compatibilidade com main.dart)
+  // Inicialização do FirebaseService
   static Future<void> initialize() async {
-    // Se necessário, inicialize recursos aqui. Por ora, não faz nada.
+    // Placeholder para inicialização futura
   }
 
   // Firebase services

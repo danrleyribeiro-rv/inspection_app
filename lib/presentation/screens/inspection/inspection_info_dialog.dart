@@ -3,7 +3,7 @@ import 'package:inspection_app/models/inspection.dart';
 
 class InspectionInfoDialog extends StatelessWidget {
   final Inspection inspection;
-  final int totalRooms;
+  final int totalTopics;
   final int totalItems;
   final int totalDetails;
   final int totalMedia;
@@ -11,7 +11,7 @@ class InspectionInfoDialog extends StatelessWidget {
   const InspectionInfoDialog({
     super.key,
     required this.inspection,
-    required this.totalRooms,
+    required this.totalTopics,
     required this.totalItems,
     required this.totalDetails,
     required this.totalMedia,
@@ -28,7 +28,7 @@ class InspectionInfoDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _infoRow('Status:', inspection.status),
-            _infoRow('Total de Tópicos:', totalRooms.toString()),
+            _infoRow('Total de Tópicos:', totalTopics.toString()),
             _infoRow('Total de Itens:', totalItems.toString()),
             _infoRow('Total de Detalhes:', totalDetails.toString()),
             _infoRow('Total de Mídias:', totalMedia.toString()),

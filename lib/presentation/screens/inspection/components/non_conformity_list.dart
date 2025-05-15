@@ -65,11 +65,11 @@ class NonConformityList extends StatelessWidget {
   Widget _buildNonConformityCard(
       BuildContext context, Map<String, dynamic> item) {
     // Extract location data
-    final room = item['rooms'] is Map
-        ? item['rooms']
-        : {'room_name': 'Room not specified'};
-    final roomItem = item['room_items'] is Map
-        ? item['room_items']
+    final topic = item['topics'] is Map
+        ? item['topics']
+        : {'topic_name': 'Topic not specified'};
+    final topicItem = item['topic_items'] is Map
+        ? item['topic_items']
         : {'item_name': 'Item not specified'};
     final detail = item['item_details'] is Map
         ? item['item_details']
@@ -184,9 +184,9 @@ class NonConformityList extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 const Spacer(),
-                
+
                 // Edit button
                 IconButton(
                   icon: const Icon(Icons.edit, size: 20),
@@ -195,7 +195,7 @@ class NonConformityList extends StatelessWidget {
                   tooltip: 'Editar não conformidade',
                   visualDensity: VisualDensity.compact,
                 ),
-                
+
                 // Delete button
                 IconButton(
                   icon: const Icon(Icons.delete, size: 20),
@@ -216,7 +216,7 @@ class NonConformityList extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-                '${room['room_name'] ?? "N/A"} > ${roomItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
+                '${topic['topic_name'] ?? "N/A"} > ${topicItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
                 style: TextStyle(color: Colors.grey[600], fontSize: 12)),
             const SizedBox(height: 16),
 
@@ -227,7 +227,7 @@ class NonConformityList extends StatelessWidget {
                   fontWeight: FontWeight.bold, color: Colors.grey[800]),
             ),
             const SizedBox(height: 4),
-            Text(item['description'] ?? "No description", 
+            Text(item['description'] ?? "No description",
                 style: TextStyle(color: Colors.grey[600], fontSize: 12)),
             const SizedBox(height: 16),
 
@@ -307,7 +307,7 @@ class NonConformityList extends StatelessWidget {
       ),
     );
   }
-  
+
   void _showEditDialog(BuildContext context, Map<String, dynamic> item) {
     showDialog(
       context: context,
@@ -322,7 +322,7 @@ class NonConformityList extends StatelessWidget {
       },
     );
   }
-  
+
   void _confirmDelete(BuildContext context, Map<String, dynamic> item) {
     showDialog(
       context: context,
@@ -330,8 +330,7 @@ class NonConformityList extends StatelessWidget {
         return AlertDialog(
           title: const Text('Excluir Não Conformidade'),
           content: const Text(
-            'Tem certeza que deseja excluir esta não conformidade? Esta ação não pode ser desfeita.'
-          ),
+              'Tem certeza que deseja excluir esta não conformidade? Esta ação não pode ser desfeita.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),

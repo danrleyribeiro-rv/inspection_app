@@ -66,6 +66,7 @@ dependencies:
   google_maps_flutter: ^2.12.1
   geolocator: ^14.0.0
   geocoding: ^3.0.0
+  video_player: ^2.9.5
 
 dev_dependencies:
   flutter_test:
@@ -91,6 +92,8 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/videos/
+    - assets/gifs/
     - .env
     
   # Adicione suas fontes se necessário

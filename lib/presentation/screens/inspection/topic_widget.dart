@@ -1,6 +1,6 @@
-// lib/presentation/screens/inspection/room_widget.dart (updated with rename)
+// lib/presentation/screens/inspection/topic_widget.dart (updated with rename)
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/presentation/screens/inspection/item_widget.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
@@ -8,29 +8,29 @@ import 'dart:async';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
 
-class RoomWidget extends StatefulWidget {
-  final Room room;
-  final Function(Room) onRoomUpdated;
-  final Function(String) onRoomDeleted;
-  final Function(Room) onRoomDuplicated;
+class TopicWidget extends StatefulWidget {
+  final Topic topic;
+  final Function(Topic) onTopicUpdated;
+  final Function(String) onTopicDeleted;
+  final Function(Topic) onTopicDuplicated;
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
 
-  const RoomWidget({
+  const TopicWidget({
     super.key,
-    required this.room,
-    required this.onRoomUpdated,
-    required this.onRoomDeleted,
-    required this.onRoomDuplicated,
+    required this.topic,
+    required this.onTopicUpdated,
+    required this.onTopicDeleted,
+    required this.onTopicDuplicated,
     required this.isExpanded,
     required this.onExpansionChanged,
   });
 
   @override
-  State<RoomWidget> createState() => _RoomWidgetState();
+  State<TopicWidget> createState() => _TopicWidgetState();
 }
 
-class _RoomWidgetState extends State<RoomWidget> {
+class _TopicWidgetState extends State<TopicWidget> {
   final FirebaseInspectionService _inspectionService =
       FirebaseInspectionService();
   List<Item> _items = [];
@@ -44,7 +44,7 @@ class _RoomWidgetState extends State<RoomWidget> {
   void initState() {
     super.initState();
     _loadItems();
-    _observationController.text = widget.room.observation ?? '';
+    _observationController.text = widget.topic.observation ?? '';
     _scrollController = ScrollController();
   }
 
@@ -61,14 +61,14 @@ class _RoomWidgetState extends State<RoomWidget> {
     setState(() => _isLoading = true);
 
     try {
-      if (widget.room.id == null) {
+      if (widget.topic.id == null) {
         setState(() => _isLoading = false);
         return;
       }
 
       final items = await _inspectionService.getItems(
-        widget.room.inspectionId,
-        widget.room.id!,
+        widget.topic.inspectionId,
+        widget.topic.id!,
       );
 
       if (!mounted) return;
@@ -94,38 +94,38 @@ class _RoomWidgetState extends State<RoomWidget> {
     }
   }
 
-  void _updateRoom() {
+  void _updateTopic() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
     if (!mounted) return;
 
     _debounce = Timer(const Duration(milliseconds: 500), () {
       if (!mounted) return;
-      final updatedRoom = widget.room.copyWith(
+      final updatedTopic = widget.topic.copyWith(
         observation: _observationController.text.isEmpty
             ? null
             : _observationController.text,
         updatedAt: DateTime.now(),
       );
-      widget.onRoomUpdated(updatedRoom);
+      widget.onTopicUpdated(updatedTopic);
     });
   }
 
-  Future<void> _renameRoom() async {
+  Future<void> _renameTopic() async {
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => RenameDialog(
         title: 'Renomear Tópico',
         label: 'Nome do Tópico',
-        initialValue: widget.room.roomName,
+        initialValue: widget.topic.topicName,
       ),
     );
 
-    if (newName != null && newName != widget.room.roomName) {
-      final updatedRoom = widget.room.copyWith(
-        roomName: newName,
+    if (newName != null && newName != widget.topic.topicName) {
+      final updatedTopic = widget.topic.copyWith(
+        topicName: newName,
         updatedAt: DateTime.now(),
       );
-      widget.onRoomUpdated(updatedRoom);
+      widget.onTopicUpdated(updatedTopic);
     }
   }
 
@@ -166,13 +166,13 @@ class _RoomWidgetState extends State<RoomWidget> {
     );
     if (result != null) {
       _observationController.text = result;
-      _updateRoom();
+      _updateTopic();
       setState(() {});
     }
   }
 
   Future<void> _addItem() async {
-    if (widget.room.id == null) {
+    if (widget.topic.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Erro: ID do tópico não encontrado')),
       );
@@ -184,7 +184,7 @@ class _RoomWidgetState extends State<RoomWidget> {
       builder: (context) => TemplateSelectorDialog(
         title: 'Adicionar Item',
         type: 'item',
-        parentName: widget.room.roomName,
+        parentName: widget.topic.topicName,
       ),
     );
 
@@ -197,8 +197,8 @@ class _RoomWidgetState extends State<RoomWidget> {
       String? itemLabel = template['value'] as String?;
 
       final newItem = await _inspectionService.addItem(
-        widget.room.inspectionId,
-        widget.room.id!,
+        widget.topic.inspectionId,
+        widget.topic.id!,
         itemName,
         label: itemLabel,
       );
@@ -226,12 +226,12 @@ class _RoomWidgetState extends State<RoomWidget> {
     }
   }
 
-  void _duplicateRoom() {
-    widget.onRoomDuplicated(widget.room);
+  void _duplicateTopic() {
+    widget.onTopicDuplicated(widget.topic);
   }
 
   Future<void> _duplicateItem(Item item) async {
-    if (widget.room.id == null || item.id == null) {
+    if (widget.topic.id == null || item.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
@@ -244,8 +244,8 @@ class _RoomWidgetState extends State<RoomWidget> {
 
     try {
       await _inspectionService.isItemDuplicate(
-        widget.room.inspectionId,
-        widget.room.id!,
+        widget.topic.inspectionId,
+        widget.topic.id!,
         item.itemName,
       );
 
@@ -283,7 +283,7 @@ class _RoomWidgetState extends State<RoomWidget> {
 
   Future<void> _handleItemDelete(dynamic itemId) async {
     try {
-      if (widget.room.id == null) {
+      if (widget.topic.id == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Erro: ID do tópico não encontrado')),
         );
@@ -291,8 +291,8 @@ class _RoomWidgetState extends State<RoomWidget> {
       }
 
       await _inspectionService.deleteItem(
-        widget.room.inspectionId,
-        widget.room.id!,
+        widget.topic.inspectionId,
+        widget.topic.id!,
         itemId,
       );
 
@@ -318,7 +318,7 @@ class _RoomWidgetState extends State<RoomWidget> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Excluir Tópico'),
         content: Text(
-            'Tem certeza de que deseja excluir "${widget.room.roomName}"?\n\nTodos os itens, detalhes e mídias associados serão excluídos permanentemente.'),
+            'Tem certeza de que deseja excluir "${widget.topic.topicName}"?\n\nTodos os itens, detalhes e mídias associados serão excluídos permanentemente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -333,8 +333,8 @@ class _RoomWidgetState extends State<RoomWidget> {
       ),
     );
 
-    if (confirmed == true && widget.room.id != null) {
-      widget.onRoomDeleted(widget.room.id!);
+    if (confirmed == true && widget.topic.id != null) {
+      widget.onTopicDeleted(widget.topic.id!);
     }
   }
 
@@ -360,13 +360,13 @@ class _RoomWidgetState extends State<RoomWidget> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.room.roomName,
+                          widget.topic.topicName,
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        if (widget.room.roomLabel != null) ...[
+                        if (widget.topic.topicLabel != null) ...[
                           const SizedBox(height: 2),
-                          Text(widget.room.roomLabel!,
+                          Text(widget.topic.topicLabel!,
                               style: TextStyle(color: Colors.grey[600])),
                         ],
                       ],
@@ -374,12 +374,12 @@ class _RoomWidgetState extends State<RoomWidget> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.edit),
-                    onPressed: _renameRoom,
+                    onPressed: _renameTopic,
                     tooltip: 'Renomear Tópico',
                   ),
                   IconButton(
                     icon: const Icon(Icons.copy),
-                    onPressed: _duplicateRoom,
+                    onPressed: _duplicateTopic,
                     tooltip: 'Duplicar Tópico',
                   ),
                   IconButton(

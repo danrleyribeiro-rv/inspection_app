@@ -1,4 +1,3 @@
-// lib/services/firebase_storage_service.dart
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
@@ -8,8 +7,7 @@ class FirebaseStorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final Uuid _uuid = Uuid();
 
-  static final FirebaseStorageService _instance =
-      FirebaseStorageService._internal();
+  static final FirebaseStorageService _instance = FirebaseStorageService._internal();
 
   factory FirebaseStorageService() {
     return _instance;
@@ -50,9 +48,9 @@ class FirebaseStorageService {
   Future<String> uploadInspectionMedia({
     required File file,
     required String inspectionId,
-    required int roomId,
-    required int itemId,
-    required int detailId,
+    required String topicId,
+    required String itemId,
+    required String detailId,
     required String type,
   }) async {
     try {
@@ -62,8 +60,7 @@ class FirebaseStorageService {
       final filename = '${type}_${timestamp}_${_uuid.v4()}$fileExt';
 
       // Create the storage path
-      final storagePath =
-          'inspections/$inspectionId/$roomId/$itemId/$detailId/$filename';
+      final storagePath = 'inspections/$inspectionId/$topicId/$itemId/$detailId/$filename';
 
       // Determine content type
       String? contentType;
@@ -111,9 +108,10 @@ class FirebaseStorageService {
     }
   }
 
- // Upload non-conformity media
+  // Upload non-conformity media
   Future<String?> uploadNonConformityMedia(
-      String localPath, String inspectionId, int nonConformityId) async {
+      String localPath, String inspectionId, String topicId, String itemId, 
+      String detailId, String nonConformityId) async {
     try {
       // Create file instance from path
       final file = File(localPath);
@@ -135,8 +133,7 @@ class FirebaseStorageService {
       final filename = '${type}_${_uuid.v4()}$fileExt';
 
       // Create the storage path
-      final storagePath =
-          'inspections/$inspectionId/non_conformities/$nonConformityId/$filename';
+      final storagePath = 'inspections/$inspectionId/$topicId/$itemId/$detailId/non_conformities/$nonConformityId/$filename';
 
       // Determine content type
       String? contentType;
@@ -160,18 +157,16 @@ class FirebaseStorageService {
 
   // Delete a file from Firebase Storage
   Future<void> deleteFile(String url) async {
-    //TODO: improve delete handling
-    print('Delete not implemented yet. URL: $url');
-    // try {
-    //   // Get reference from URL
-    //   final ref = _storage.refFromURL(url);
-    //
-    //   // Delete file
-    //   await ref.delete();
-    // } catch (e) {
-    //   print('Error deleting file: $e');
-    //   rethrow;
-    // }
+    try {
+      // Get reference from URL
+      final ref = _storage.refFromURL(url);
+
+      // Delete file
+      await ref.delete();
+    } catch (e) {
+      print('Error deleting file: $e');
+      rethrow;
+    }
   }
 
   // Download a file from Firebase Storage

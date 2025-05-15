@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
@@ -16,8 +16,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MediaCapturePanel extends StatefulWidget {
   final String inspectionId;
-  final List<Room> rooms;
-  final String? selectedRoomId;
+  final List<Topic> topics;
+  final String? selectedTopicId;
   final String? selectedItemId;
   final String? selectedDetailId;
   final Function(String) onMediaAdded;
@@ -25,8 +25,8 @@ class MediaCapturePanel extends StatefulWidget {
   const MediaCapturePanel({
     super.key,
     required this.inspectionId,
-    required this.rooms,
-    this.selectedRoomId,
+    required this.topics,
+    this.selectedTopicId,
     this.selectedItemId,
     this.selectedDetailId,
     required this.onMediaAdded,
@@ -42,18 +42,18 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   final _watermarkService = ImageWatermarkService();
   final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
-  
+
   // Local state
-  String? _roomId;
+  String? _topicId;
   String? _itemId;
   String? _detailId;
   bool _isNonConformity = false;
   String _observation = '';
-  
+
   // Data lists
   List<Item> _items = [];
   List<Detail> _details = [];
-  
+
   // Loading flags
   bool _isLoading = false;
   bool _isLoadingItems = false;
@@ -62,7 +62,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   bool _isVideoLoading = false;
   bool _isGalleryLoading = false;
   bool _isVideoGalleryLoading = false;
-  
+
   // Form key
   final _formKey = GlobalKey<FormState>();
   final _observationController = TextEditingController();
@@ -70,37 +70,37 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize with provided values
-    _roomId = widget.selectedRoomId;
+    _topicId = widget.selectedTopicId;
     _itemId = widget.selectedItemId;
     _detailId = widget.selectedDetailId;
-    
-    // Load items and details if room/item is selected
-    if (_roomId != null) {
-      _loadItems(_roomId!);
+
+    // Load items and details if topic/item is selected
+    if (_topicId != null) {
+      _loadItems(_topicId!);
     }
-    
-    if (_roomId != null && _itemId != null) {
-      _loadDetails(_roomId!, _itemId!);
+
+    if (_topicId != null && _itemId != null) {
+      _loadDetails(_topicId!, _itemId!);
     }
   }
-  
+
   @override
   void dispose() {
     _observationController.dispose();
     super.dispose();
   }
-  
-  Future<void> _loadItems(String roomId) async {
+
+  Future<void> _loadItems(String topicId) async {
     setState(() => _isLoadingItems = true);
-    
+
     try {
       final items = await _inspectionService.getItems(
         widget.inspectionId,
-        roomId,
+        topicId,
       );
-      
+
       setState(() {
         _items = items;
         _isLoadingItems = false;
@@ -110,17 +110,17 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       setState(() => _isLoadingItems = false);
     }
   }
-  
-  Future<void> _loadDetails(String roomId, String itemId) async {
+
+  Future<void> _loadDetails(String topicId, String itemId) async {
     setState(() => _isLoadingDetails = true);
-    
+
     try {
       final details = await _inspectionService.getDetails(
         widget.inspectionId,
-        roomId,
+        topicId,
         itemId,
       );
-      
+
       setState(() {
         _details = details;
         _isLoadingDetails = false;
@@ -130,17 +130,18 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       setState(() => _isLoadingDetails = false);
     }
   }
-  
+
   Future<void> _captureImage() async {
-    if (_roomId == null || _itemId == null || _detailId == null) {
+    if (_topicId == null || _itemId == null || _detailId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione um tópico, item e detalhe primeiro')),
+        const SnackBar(
+            content: Text('Selecione um tópico, item e detalhe primeiro')),
       );
       return;
     }
-    
+
     setState(() => _isCameraLoading = true);
-    
+
     try {
       final picker = ImagePicker();
       final XFile? pickedFile = await picker.pickImage(
@@ -149,14 +150,13 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         maxHeight: 800,
         imageQuality: 80,
       );
-      
+
       if (pickedFile == null) {
         setState(() => _isCameraLoading = false);
         return;
       }
-      
+
       await _processMedia(pickedFile.path, 'image', false);
-      
     } catch (e) {
       print('Error capturing image: $e');
       if (mounted) {
@@ -170,31 +170,31 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       }
     }
   }
-  
+
   Future<void> _captureVideo() async {
-    if (_roomId == null || _itemId == null || _detailId == null) {
+    if (_topicId == null || _itemId == null || _detailId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione um tópico, item e detalhe primeiro')),
+        const SnackBar(
+            content: Text('Selecione um tópico, item e detalhe primeiro')),
       );
       return;
     }
-    
+
     setState(() => _isVideoLoading = true);
-    
+
     try {
       final picker = ImagePicker();
       final XFile? pickedFile = await picker.pickVideo(
         source: ImageSource.camera,
         maxDuration: const Duration(minutes: 1),
       );
-      
+
       if (pickedFile == null) {
         setState(() => _isVideoLoading = false);
         return;
       }
-      
+
       await _processMedia(pickedFile.path, 'video', false);
-      
     } catch (e) {
       print('Error capturing video: $e');
       if (mounted) {
@@ -208,15 +208,16 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       }
     }
   }
-  
+
   Future<void> _pickFromGallery(bool isVideo) async {
-    if (_roomId == null || _itemId == null || _detailId == null) {
+    if (_topicId == null || _itemId == null || _detailId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione um tópico, item e detalhe primeiro')),
+        const SnackBar(
+            content: Text('Selecione um tópico, item e detalhe primeiro')),
       );
       return;
     }
-    
+
     setState(() {
       if (isVideo) {
         _isVideoGalleryLoading = true;
@@ -224,7 +225,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         _isGalleryLoading = true;
       }
     });
-    
+
     try {
       final picker = ImagePicker();
       final XFile? pickedFile = isVideo
@@ -235,7 +236,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
               maxHeight: 800,
               imageQuality: 80,
             );
-      
+
       if (pickedFile == null) {
         setState(() {
           if (isVideo) {
@@ -246,13 +247,12 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         });
         return;
       }
-      
+
       await _processMedia(
         pickedFile.path,
         isVideo ? 'video' : 'image',
         true,
       );
-      
     } catch (e) {
       print('Error picking from gallery: $e');
       if (mounted) {
@@ -272,21 +272,24 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       }
     }
   }
-  
-Future<void> _processMedia(String filePath, String type, bool isFromGallery) async {
+
+  Future<void> _processMedia(
+      String filePath, String type, bool isFromGallery) async {
     try {
       setState(() => _isLoading = true);
 
       // Create a unique filename and path
       final ext = path.extension(filePath);
-      final fileName = '${widget.inspectionId}_${_roomId}_${_itemId}_${_detailId}_${_uuid.v4().substring(0, 8)}$ext';
+      final fileName =
+          '${widget.inspectionId}_${_topicId}_${_itemId}_${_detailId}_${_uuid.v4().substring(0, 8)}$ext';
       final appDir = await getApplicationDocumentsDirectory();
       final localPath = path.join(appDir.path, fileName);
 
       // Apply watermarks and process the file
       if (type == 'image') {
         // Optionally apply watermark
-        final watermarkedFile = await _watermarkService.applyWatermark(filePath, localPath);
+        final watermarkedFile =
+            await _watermarkService.applyWatermark(filePath, localPath);
         // If watermarking failed, fallback to copy
         if (watermarkedFile == null) {
           await File(filePath).copy(localPath);
@@ -295,15 +298,16 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
         // For video, just copy
         await File(filePath).copy(localPath);
       }
-      
+
       // Prepare media data
-      final mediaId = '${widget.inspectionId}-${_roomId}-${_itemId}-${_detailId}-${_uuid.v4().substring(0, 8)}';
-      
+      final mediaId =
+          '${widget.inspectionId}-${_topicId}-${_itemId}-${_detailId}-${_uuid.v4().substring(0, 8)}';
+
       Map<String, dynamic> mediaData = {
         'id': mediaId,
         'inspection_id': widget.inspectionId,
-        'room_id': _roomId,
-        'room_item_id': _itemId,
+        'topic_id': _topicId,
+        'topic_item_id': _itemId,
         'detail_id': _detailId,
         'type': type,
         'localPath': localPath,
@@ -312,11 +316,12 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       };
-      
+
       // Try to upload to Firebase Storage
       try {
         // Upload to Firebase Storage
-        final storageRef = _storage.ref().child('inspection_media').child(fileName);
+        final storageRef =
+            _storage.ref().child('inspection_media').child(fileName);
         final uploadTask = await storageRef.putFile(File(localPath));
         final downloadUrl = await storageRef.getDownloadURL();
 
@@ -325,58 +330,69 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
         print('Error uploading to Firebase Storage: $e');
         // Continue without URL, it will be uploaded when online
       }
-      
+
       // Get the inspection document
-      final inspectionDoc = await _firestore.collection('inspections').doc(widget.inspectionId).get();
-      
+      final inspectionDoc = await _firestore
+          .collection('inspections')
+          .doc(widget.inspectionId)
+          .get();
+
       if (!inspectionDoc.exists) {
         throw Exception('Inspection not found');
       }
-      
+
       final data = inspectionDoc.data() ?? {};
       final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
-      
+
       // Add to array
       mediaArray.add(mediaData);
-      
+
       // Update the inspection document
-      await _firestore.collection('inspections').doc(widget.inspectionId).update({
+      await _firestore
+          .collection('inspections')
+          .doc(widget.inspectionId)
+          .update({
         'media': mediaArray,
         'updated_at': FieldValue.serverTimestamp(),
       });
-      
+
       // Update detail if it's a non-conformity
       if (_isNonConformity && _detailId != null) {
-        final detailsArray = List<Map<String, dynamic>>.from(data['details'] ?? []);
-        
+        final detailsArray =
+            List<Map<String, dynamic>>.from(data['details'] ?? []);
+
         // Find the detail
-        final detailIndex = detailsArray.indexWhere(
-          (detail) => detail['room_id'] == _roomId && 
-                      detail['item_id'] == _itemId && 
-                      detail['id'] == _detailId
-        );
-        
+        final detailIndex = detailsArray.indexWhere((detail) =>
+            detail['topic_id'] == _topicId &&
+            detail['item_id'] == _itemId &&
+            detail['id'] == _detailId);
+
         if (detailIndex >= 0) {
           detailsArray[detailIndex]['is_damaged'] = true;
-          detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
-          
-          await _firestore.collection('inspections').doc(widget.inspectionId).update({
+          detailsArray[detailIndex]['updated_at'] =
+              FieldValue.serverTimestamp();
+
+          await _firestore
+              .collection('inspections')
+              .doc(widget.inspectionId)
+              .update({
             'details': detailsArray,
           });
         }
       }
-      
+
       // Call the callback
       widget.onMediaAdded(localPath);
-      
+
       // Close the bottom sheet
       if (mounted) {
         Navigator.of(context).pop();
-        
+
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+            content:
+                Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -397,10 +413,14 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
 
   @override
   Widget build(BuildContext context) {
-    final bool isFormValid = _roomId != null && _itemId != null && _detailId != null;
-    final bool isAnyLoading = _isLoading || _isCameraLoading || _isVideoLoading || 
-                             _isGalleryLoading || _isVideoGalleryLoading;
-    
+    final bool isFormValid =
+        _topicId != null && _itemId != null && _detailId != null;
+    final bool isAnyLoading = _isLoading ||
+        _isCameraLoading ||
+        _isVideoLoading ||
+        _isGalleryLoading ||
+        _isVideoGalleryLoading;
+
     return Container(
       padding: EdgeInsets.only(
         top: 16,
@@ -436,8 +456,8 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Room selector
+
+            // Topic selector
             const Text('Tópico', style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 8),
             Container(
@@ -447,7 +467,7 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                 border: Border.all(color: Colors.grey[700]!),
               ),
               child: DropdownButtonFormField<String>(
-                value: _roomId,
+                value: _topicId,
                 isExpanded: true,
                 dropdownColor: Colors.grey[800],
                 decoration: const InputDecoration(
@@ -457,30 +477,31 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                   border: InputBorder.none,
                 ),
                 style: const TextStyle(color: Colors.white),
-                items: widget.rooms.map((room) {
+                items: widget.topics.map((topic) {
                   return DropdownMenuItem<String>(
-                    value: room.id,
-                    child: Text(room.roomName),
+                    value: topic.id,
+                    child: Text(topic.topicName),
                   );
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    _roomId = value;
+                    _topicId = value;
                     _itemId = null;
                     _detailId = null;
                     _items = [];
                     _details = [];
                   });
-                  
+
                   if (value != null) {
                     _loadItems(value);
                   }
                 },
-                validator: (value) => value == null ? 'Selecione um tópico' : null,
+                validator: (value) =>
+                    value == null ? 'Selecione um tópico' : null,
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Item selector
             const Text('Item', style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 8),
@@ -509,7 +530,7 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                           child: Text(item.itemName),
                         );
                       }).toList(),
-                      onChanged: _roomId == null
+                      onChanged: _topicId == null
                           ? null
                           : (value) {
                               setState(() {
@@ -517,16 +538,17 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                                 _detailId = null;
                                 _details = [];
                               });
-                              
-                              if (value != null && _roomId != null) {
-                                _loadDetails(_roomId!, value);
+
+                              if (value != null && _topicId != null) {
+                                _loadDetails(_topicId!, value);
                               }
                             },
-                      validator: (value) => value == null ? 'Selecione um item' : null,
+                      validator: (value) =>
+                          value == null ? 'Selecione um item' : null,
                     ),
                   ),
             const SizedBox(height: 16),
-            
+
             // Detail selector
             const Text('Detalhe', style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 8),
@@ -562,11 +584,12 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                                 _detailId = value;
                               });
                             },
-                      validator: (value) => value == null ? 'Selecione um detalhe' : null,
+                      validator: (value) =>
+                          value == null ? 'Selecione um detalhe' : null,
                     ),
                   ),
             const SizedBox(height: 16),
-            
+
             // Non-conformity flag
             Container(
               decoration: BoxDecoration(
@@ -574,10 +597,12 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                 borderRadius: BorderRadius.circular(8),
               ),
               child: SwitchListTile(
-                title: const Text('Não Conformidade',
+                title: const Text(
+                  'Não Conformidade',
                   style: TextStyle(color: Colors.white),
                 ),
-                subtitle: const Text('Marcar como item com problema',
+                subtitle: const Text(
+                  'Marcar como item com problema',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 value: _isNonConformity,
@@ -589,10 +614,11 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                 activeColor: Colors.orange,
               ),
             ),
-            
+
             // Observation field
             const SizedBox(height: 16),
-            const Text('Observação (opcional)', style: TextStyle(color: Colors.white70)),
+            const Text('Observação (opcional)',
+                style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _observationController,
@@ -617,15 +643,14 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
               },
             ),
             const SizedBox(height: 24),
-            
+
             // Camera and gallery buttons
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: isFormValid && !isAnyLoading
-                        ? _captureImage
-                        : null,
+                    onPressed:
+                        isFormValid && !isAnyLoading ? _captureImage : null,
                     icon: _isCameraLoading
                         ? const SizedBox(
                             width: 20,
@@ -646,9 +671,8 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: isFormValid && !isAnyLoading
-                        ? _captureVideo
-                        : null,
+                    onPressed:
+                        isFormValid && !isAnyLoading ? _captureVideo : null,
                     icon: _isVideoLoading
                         ? const SizedBox(
                             width: 20,
@@ -724,9 +748,7 @@ Future<void> _processMedia(String filePath, String type, bool isFromGallery) asy
                 child: Text(
                   'Processando mídia...',
                   style: TextStyle(
-                    fontStyle: FontStyle.italic, 
-                    color: Colors.white70
-                  ),
+                      fontStyle: FontStyle.italic, color: Colors.white70),
                 ),
               ),
             ],

@@ -2,7 +2,7 @@
 // Atualize a classe NonConformityScreen para incluir as novas funções de edição e exclusão
 
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/room.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -12,14 +12,14 @@ import 'package:inspection_app/services/firebase_inspection_service.dart';
 
 class NonConformityScreen extends StatefulWidget {
   final String inspectionId;
-  final dynamic preSelectedRoom; // Aceita String ou int
+  final dynamic preSelectedTopic; // Aceita String ou int
   final dynamic preSelectedItem; // Aceita String ou int
   final dynamic preSelectedDetail; // Aceita String ou int
 
   const NonConformityScreen({
     super.key,
     required this.inspectionId,
-    this.preSelectedRoom,
+    this.preSelectedTopic,
     this.preSelectedItem,
     this.preSelectedDetail,
   });
@@ -36,15 +36,15 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   bool _isLoading = true;
   bool _isOffline = false;
-  List<Room> _rooms = [];
+  List<Topic> _topics = [];
   List<Item> _items = [];
   List<Detail> _details = [];
   List<Map<String, dynamic>> _nonConformities = [];
 
-  Room? _selectedRoom;
+  Topic? _selectedTopic;
   Item? _selectedItem;
   Detail? _selectedDetail;
-  
+
   // Flag para operações de edição/exclusão
   bool _isProcessing = false;
 
@@ -72,27 +72,28 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Load rooms
-      final rooms = await _inspectionService.getRooms(widget.inspectionId);
-      setState(() => _rooms = rooms);
+      // Load topics
+      final topics = await _inspectionService.getTopics(widget.inspectionId);
+      setState(() => _topics = topics);
 
       // Se houver pré-seleção, localizar a sala correspondente
-      if (widget.preSelectedRoom != null) {
+      if (widget.preSelectedTopic != null) {
         // Procurar sala pelo ID usando toString() para comparação segura
-        Room? selectedRoom;
-        for (var room in _rooms) {
-          if (room.id != null && room.id.toString() == widget.preSelectedRoom.toString()) {
-            selectedRoom = room;
+        Topic? selectedTopic;
+        for (var topic in _topics) {
+          if (topic.id != null &&
+              topic.id.toString() == widget.preSelectedTopic.toString()) {
+            selectedTopic = topic;
             break;
           }
         }
 
         // Se encontrou a sala pré-selecionada, carregá-la
-        if (selectedRoom != null) {
-          await _roomSelected(selectedRoom);
-        } else if (_rooms.isNotEmpty) {
+        if (selectedTopic != null) {
+          await _topicSelected(selectedTopic);
+        } else if (_topics.isNotEmpty) {
           // Senão, carrega a primeira sala disponível
-          await _roomSelected(_rooms.first);
+          await _topicSelected(_topics.first);
         }
 
         // Se tiver item pré-selecionado e tiver itens carregados
@@ -100,7 +101,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
           // Procurar item pelo ID
           Item? selectedItem;
           for (var item in _items) {
-            if (item.id != null && item.id.toString() == widget.preSelectedItem.toString()) {
+            if (item.id != null &&
+                item.id.toString() == widget.preSelectedItem.toString()) {
               selectedItem = item;
               break;
             }
@@ -119,7 +121,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             // Procurar detalhe pelo ID
             Detail? selectedDetail;
             for (var detail in _details) {
-              if (detail.id != null && detail.id.toString() == widget.preSelectedDetail.toString()) {
+              if (detail.id != null &&
+                  detail.id.toString() == widget.preSelectedDetail.toString()) {
                 selectedDetail = detail;
                 break;
               }
@@ -153,7 +156,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   Future<void> _loadNonConformities() async {
     try {
-      final nonConformities = await _inspectionService.getNonConformitiesByInspection(widget.inspectionId);
+      final nonConformities = await _inspectionService
+          .getNonConformitiesByInspection(widget.inspectionId);
 
       if (mounted) {
         setState(() {
@@ -170,18 +174,19 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     }
   }
 
-  Future<void> _roomSelected(Room room) async {
+  Future<void> _topicSelected(Topic topic) async {
     setState(() {
-      _selectedRoom = room;
+      _selectedTopic = topic;
       _selectedItem = null;
       _selectedDetail = null;
       _items = [];
       _details = [];
     });
 
-    if (room.id != null) {
+    if (topic.id != null) {
       try {
-        final items = await _inspectionService.getItems(widget.inspectionId, room.id!);
+        final items =
+            await _inspectionService.getItems(widget.inspectionId, topic.id!);
         setState(() => _items = items);
       } catch (e) {
         print('Erro ao carregar itens: $e');
@@ -196,10 +201,10 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       _details = [];
     });
 
-    if (item.id != null && item.roomId != null) {
+    if (item.id != null && item.topicId != null) {
       try {
         final details = await _inspectionService.getDetails(
-            widget.inspectionId, item.roomId!, item.id!);
+            widget.inspectionId, item.topicId!, item.id!);
         setState(() => _details = details);
       } catch (e) {
         print('Erro ao carregar detalhes: $e');
@@ -214,9 +219,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   // Método para atualizar status de não conformidade
   Future<void> _updateNonConformityStatus(String id, String newStatus) async {
     if (_isProcessing) return;
-    
+
     setState(() => _isProcessing = true);
-    
+
     try {
       await _inspectionService.updateNonConformityStatus(id, newStatus);
 
@@ -240,22 +245,23 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
-        }
+      }
     }
   }
-  
+
   // Método para editar uma não conformidade
   Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
     if (_isProcessing) return;
-    
+
     setState(() => _isProcessing = true);
-    
+
     try {
-      await _inspectionService.updateNonConformity(updatedData['id'], updatedData);
-      
+      await _inspectionService.updateNonConformity(
+          updatedData['id'], updatedData);
+
       // Atualizar a lista
       await _loadNonConformities();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -276,19 +282,19 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       }
     }
   }
-  
+
   // Método para excluir uma não conformidade
   Future<void> _deleteNonConformity(String id) async {
     if (_isProcessing) return;
-    
+
     setState(() => _isProcessing = true);
-    
+
     try {
       await _inspectionService.deleteNonConformity(id, widget.inspectionId);
-      
+
       // Atualizar a lista
       await _loadNonConformities();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -352,15 +358,15 @@ class _NonConformityScreenState extends State<NonConformityScreen>
               controller: _tabController,
               children: [
                 NonConformityForm(
-                  rooms: _rooms,
+                  topics: _topics,
                   items: _items,
                   details: _details,
-                  selectedRoom: _selectedRoom,
+                  selectedTopic: _selectedTopic,
                   selectedItem: _selectedItem,
                   selectedDetail: _selectedDetail,
                   inspectionId: widget.inspectionId,
                   isOffline: _isOffline,
-                  onRoomSelected: _roomSelected,
+                  onTopicSelected: _topicSelected,
                   onItemSelected: _itemSelected,
                   onDetailSelected: _detailSelected,
                   onNonConformitySaved: _onNonConformitySaved,

@@ -1,24 +1,22 @@
-// lib/models/room.dart
-class Room {
+// lib/models/topic.dart (adaptado)
+class Topic {
   final String? id;
   final String inspectionId;
-  final String? roomId;
   final int position;
-  final String roomName;
-  final String? roomLabel;
+  final String topicName;
+  final String? topicLabel;
   final String? observation;
   final bool? isDamaged;
   final List<String>? tags;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  Room({
+  Topic({
     this.id,
     required this.inspectionId,
-    this.roomId,
     required this.position,
-    required this.roomName,
-    this.roomLabel,
+    required this.topicName,
+    this.topicLabel,
     this.observation,
     this.isDamaged,
     this.tags,
@@ -26,14 +24,13 @@ class Room {
     this.updatedAt,
   });
 
-  factory Room.fromJson(Map<String, dynamic> json) {
-    return Room(
+  factory Topic.fromJson(Map<String, dynamic> json) {
+    return Topic(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
-      roomId: json['room_id']?.toString(),
       position: json['position'] is int ? json['position'] : 0,
-      roomName: json['room_name'],
-      roomLabel: json['room_label'],
+      topicName: json['topic_name'],
+      topicLabel: json['topic_label'],
       observation: json['observation'],
       isDamaged: json['is_damaged'],
       tags: json['tags'] != null ? List<String>.from(json['tags']) : null,
@@ -54,10 +51,9 @@ class Room {
     return {
       'id': id,
       'inspection_id': inspectionId,
-      'room_id': roomId,
       'position': position,
-      'room_name': roomName,
-      'room_label': roomLabel,
+      'topic_name': topicName,
+      'topic_label': topicLabel,
       'observation': observation,
       'is_damaged': isDamaged,
       'tags': tags,
@@ -67,28 +63,26 @@ class Room {
   }
 
   Map<String, dynamic> toMap() => toJson();
-  static Room fromMap(Map<String, dynamic> map) => Room.fromJson(map);
+  static Topic fromMap(Map<String, dynamic> map) => Topic.fromJson(map);
 
-  Room copyWith({
+  Topic copyWith({
     String? id,
     String? inspectionId,
-    String? roomId,
     int? position,
-    String? roomName,
-    String? roomLabel,
+    String? topicName,
+    String? topicLabel,
     String? observation,
     bool? isDamaged,
     List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
-    return Room(
+    return Topic(
       id: id ?? this.id,
       inspectionId: inspectionId ?? this.inspectionId,
-      roomId: roomId ?? this.roomId,
       position: position ?? this.position,
-      roomName: roomName ?? this.roomName,
-      roomLabel: roomLabel ?? this.roomLabel,
+      topicName: topicName ?? this.topicName,
+      topicLabel: topicLabel ?? this.topicLabel,
       observation: observation ?? this.observation,
       isDamaged: isDamaged ?? this.isDamaged,
       tags: tags ?? this.tags,

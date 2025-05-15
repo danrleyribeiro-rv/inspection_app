@@ -55,35 +55,42 @@ class _ItemWidgetState extends State<ItemWidget> {
     super.dispose();
   }
 
-  Future<void> _loadDetails() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
+Future<void> _loadDetails() async {
+  if (!mounted) return;
+  setState(() => _isLoading = true);
 
-    try {
-      if (widget.item.id == null || widget.item.roomId == null) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-        return;
+  try {
+    if (widget.item.id == null || widget.item.topicId == null) {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
-
-      final details = await _inspectionService.getDetails(
-        widget.item.inspectionId,
-        widget.item.roomId!,
-        widget.item.id!,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _details = details;
-        _isLoading = false;
-      });
-    } catch (e) {
-      print('Error loading details: $e');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      return;
     }
+
+    print('Carregando detalhes para item ${widget.item.id} na sala ${widget.item.topicId}');
+    
+    final details = await _inspectionService.getDetails(
+      widget.item.inspectionId,
+      widget.item.topicId!,
+      widget.item.id!,
+    );
+
+    print('Detalhes carregados: ${details.length}');
+    for (var detail in details) {
+      print('Detail: ${detail.detailName}, tipo: ${detail.type}, options: ${detail.options}');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _details = details;
+      _isLoading = false;
+    });
+  } catch (e) {
+    print('Erro ao carregar detalhes: $e');
+    if (!mounted) return;
+    setState(() => _isLoading = false);
   }
+}
 
   void _updateItem() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
@@ -186,7 +193,7 @@ class _ItemWidgetState extends State<ItemWidget> {
   }
 
   Future<void> _addDetail() async {
-    if (widget.item.id == null || widget.item.roomId == null) {
+    if (widget.item.id == null || widget.item.topicId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Erro: ID do Item ou do Cômodo não encontrado')),
@@ -195,15 +202,15 @@ class _ItemWidgetState extends State<ItemWidget> {
     }
 
     // Buscar o nome da sala
-    String roomName = "";
+    String topicName = "";
     try {
-      final roomDoc = await _inspectionService.firestore
-          .collection('rooms')
-          .doc(widget.item.roomId)
+      final topicDoc = await _inspectionService.firestore
+          .collection('topics')
+          .doc(widget.item.topicId)
           .get();
 
-      if (roomDoc.exists && roomDoc.data() != null) {
-        roomName = roomDoc.data()!['room_name'] ?? '';
+      if (topicDoc.exists && topicDoc.data() != null) {
+        topicName = topicDoc.data()!['topic_name'] ?? '';
       }
     } catch (e) {
       print('Erro ao buscar nome da sala: $e');
@@ -214,7 +221,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       builder: (context) => TemplateSelectorDialog(
         title: 'Adicionar Detalhe',
         type: 'detail',
-        parentName: roomName,
+        parentName: topicName,
         itemName: widget.item.itemName,
       ),
     );
@@ -239,7 +246,7 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       final newDetail = await _inspectionService.addDetail(
         widget.item.inspectionId,
-        widget.item.roomId!,
+        widget.item.topicId!,
         widget.item.id!,
         detailName,
         type: detailType,
@@ -274,7 +281,7 @@ class _ItemWidgetState extends State<ItemWidget> {
 
   Future<void> _duplicateDetail(Detail detail) async {
     if (widget.item.id == null ||
-        widget.item.roomId == null ||
+        widget.item.topicId == null ||
         detail.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -289,7 +296,7 @@ class _ItemWidgetState extends State<ItemWidget> {
     try {
       final newDetail = await _inspectionService.isDetailDuplicate(
         widget.item.inspectionId,
-        widget.item.roomId!,
+        widget.item.topicId!,
         widget.item.id!,
         detail.detailName,
       );
@@ -454,10 +461,10 @@ class _ItemWidgetState extends State<ItemWidget> {
                           },
                           onDetailDeleted: (detailId) async {
                             if (widget.item.id != null &&
-                                widget.item.roomId != null) {
+                                widget.item.topicId != null) {
                               await _inspectionService.deleteDetail(
                                 widget.item.inspectionId,
-                                widget.item.roomId!,
+                                widget.item.topicId!,
                                 widget.item.id!,
                                 detailId,
                               );
