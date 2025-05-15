@@ -49,7 +49,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
     super.dispose();
   }
   
-  Future<void> _deleteMedia() async {
+ Future<void> _deleteMedia() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -76,8 +76,30 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
     try {
       final mediaId = widget.media['id'];
       
-      // Delete from Firestore
-      await _firestore.collection('media').doc(mediaId).delete();
+      // Parse the composite ID to get the inspection ID
+      final parts = mediaId.split('-');
+      if (parts.length < 4) {
+        throw Exception('Invalid media ID format');
+      }
+      
+      final inspectionId = parts[0];
+      
+      // Get the inspection document
+      final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
+      
+      if (!inspectionDoc.exists) {
+        throw Exception('Inspection not found');
+      }
+      
+      final data = inspectionDoc.data() ?? {};
+      final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
+      
+      // Find the media to delete
+      final mediaIndex = mediaArray.indexWhere((media) => media['id'] == mediaId);
+      
+      if (mediaIndex < 0) {
+        throw Exception('Media not found');
+      }
       
       // Delete from storage if URL exists
       if (widget.media['url'] != null) {
@@ -100,6 +122,15 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
           print('Error deleting local file: $e');
         }
       }
+      
+      // Remove from array
+      mediaArray.removeAt(mediaIndex);
+      
+      // Update the inspection document
+      await _firestore.collection('inspections').doc(inspectionId).update({
+        'media': mediaArray,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
       
       // Notify parent
       widget.onMediaDeleted(mediaId);
@@ -161,21 +192,65 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
     try {
       final mediaId = widget.media['id'];
       
-      await _firestore.collection('media').doc(mediaId).update({
-        'is_non_conformity': _isNonConformity,
-        'observation': _observation.isEmpty ? null : _observation,
+      // Parse the composite ID to get the inspection ID
+      final parts = mediaId.split('-');
+      if (parts.length < 4) {
+        throw Exception('Invalid media ID format');
+      }
+      
+      final inspectionId = parts[0];
+      
+      // Get the inspection document
+      final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
+      
+      if (!inspectionDoc.exists) {
+        throw Exception('Inspection not found');
+      }
+      
+      final data = inspectionDoc.data() ?? {};
+      final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
+      
+      // Find the media to update
+      final mediaIndex = mediaArray.indexWhere((media) => media['id'] == mediaId);
+      
+      if (mediaIndex < 0) {
+        throw Exception('Media not found');
+      }
+      
+      // Update media data
+      mediaArray[mediaIndex]['is_non_conformity'] = _isNonConformity;
+      mediaArray[mediaIndex]['observation'] = _observation.isEmpty ? null : _observation;
+      mediaArray[mediaIndex]['updated_at'] = FieldValue.serverTimestamp();
+      
+      // Update the inspection document
+      await _firestore.collection('inspections').doc(inspectionId).update({
+        'media': mediaArray,
         'updated_at': FieldValue.serverTimestamp(),
       });
       
       // Update detail non-conformity status if needed
       if (widget.media['detail_id'] != null) {
-        try {
-          await _firestore.collection('item_details').doc(widget.media['detail_id']).update({
-            'is_damaged': _isNonConformity,
+        final roomId = widget.media['room_id'];
+        final itemId = widget.media['room_item_id'];
+        final detailId = widget.media['detail_id'];
+        
+        final detailsArray = List<Map<String, dynamic>>.from(data['details'] ?? []);
+        
+        // Find the detail
+        final detailIndex = detailsArray.indexWhere(
+          (detail) => detail['room_id'] == roomId && 
+                     detail['item_id'] == itemId && 
+                     detail['id'] == detailId
+        );
+        
+        if (detailIndex >= 0) {
+          detailsArray[detailIndex]['is_damaged'] = _isNonConformity;
+          detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
+          
+          await _firestore.collection('inspections').doc(inspectionId).update({
+            'details': detailsArray,
             'updated_at': FieldValue.serverTimestamp(),
           });
-        } catch (e) {
-          print('Error updating detail status: $e');
         }
       }
       
@@ -206,7 +281,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       }
     }
   }
-  
+    
   // Format timestamp
   String _formatDateTime(dynamic timestamp) {
     try {

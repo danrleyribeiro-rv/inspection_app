@@ -1,10 +1,10 @@
 // lib/models/detail.dart (modificado)
 class Detail {
-  final String? id; 
+  final String? id;
   final String inspectionId;
-  final String? roomId; 
-  final String? itemId; 
-  final String? detailId; 
+  final String? roomId;
+  final String? itemId;
+  final String? detailId;
   final int? position;
   final String detailName;
   final String? detailValue;
@@ -13,38 +13,37 @@ class Detail {
   final List<String>? tags;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final String? type;  // Tipo do detalhe (text, select, number, boolean)
-  final List<String>? options;  // Opções para o tipo select
+  final String? type; // Tipo do detalhe (text, select, number, boolean)
+  final List<String>? options; // Opções para o tipo select
 
-  Detail({
-    this.id,
-    required this.inspectionId,
-    this.roomId,
-    this.itemId,
-    this.detailId,
-    this.position,
-    required this.detailName,
-    this.detailValue,
-    this.observation,
-    this.isDamaged,
-    this.tags,
-    this.createdAt,
-    this.updatedAt,
-    this.type,
-    this.options
-  });
+  Detail(
+      {this.id,
+      required this.inspectionId,
+      this.roomId,
+      this.itemId,
+      this.detailId,
+      this.position,
+      required this.detailName,
+      this.detailValue,
+      this.observation,
+      this.isDamaged,
+      this.tags,
+      this.createdAt,
+      this.updatedAt,
+      this.type,
+      this.options});
 
   factory Detail.fromJson(Map<String, dynamic> json) {
     List<String>? parseOptions(dynamic optionsData) {
       if (optionsData == null) return null;
-      
+
       if (optionsData is List) {
         return List<String>.from(optionsData);
       } else if (optionsData is String) {
         // Se for uma string separada por vírgulas
         return optionsData.split(',').map((e) => e.trim()).toList();
       }
-      
+
       return null;
     }
 
@@ -60,21 +59,21 @@ class Detail {
       observation: json['observation'],
       isDamaged: json['is_damaged'],
       tags: json['tags'] != null ? List<String>.from(json['tags']) : null,
-      createdAt: json['created_at'] != null 
-          ? (json['created_at'] is String 
-              ? DateTime.parse(json['created_at']) 
+      createdAt: json['created_at'] != null
+          ? (json['created_at'] is String
+              ? DateTime.parse(json['created_at'])
               : (json['created_at']?.toDate?.call()))
           : null,
-      updatedAt: json['updated_at'] != null 
-          ? (json['updated_at'] is String 
-              ? DateTime.parse(json['updated_at']) 
+      updatedAt: json['updated_at'] != null
+          ? (json['updated_at'] is String
+              ? DateTime.parse(json['updated_at'])
               : (json['updated_at']?.toDate?.call()))
           : null,
       type: json['type']?.toString(),
       options: parseOptions(json['options']),
     );
   }
-  
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -94,6 +93,9 @@ class Detail {
       'options': options,
     };
   }
+
+  Map<String, dynamic> toMap() => toJson();
+  static Detail fromMap(Map<String, dynamic> map) => Detail.fromJson(map);
 
   Detail copyWith({
     String? id,

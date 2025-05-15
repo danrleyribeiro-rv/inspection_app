@@ -58,7 +58,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
     super.dispose();
   }
 
-  Future<void> _saveNonConformity() async {
+Future<void> _saveNonConformity() async {
     if (!_formKey.currentState!.validate()) return;
     if (widget.selectedRoom == null ||
         widget.selectedItem == null ||
@@ -66,7 +66,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
-                Text('Selecione um ambiente, item e detalhe')), // Translated
+                Text('Selecione um ambiente, item e detalhe')),
       );
       return;
     }
@@ -74,12 +74,42 @@ class _NonConformityFormState extends State<NonConformityForm> {
     setState(() => _isCreating = true);
 
     try {
-      // Prepara dados da não conformidade
+      // Create composite ID with sequential part
+      final roomId = widget.selectedRoom!.id;
+      final itemId = widget.selectedItem!.id;
+      final detailId = widget.selectedDetail!.id;
+      
+      // Get existing non-conformities to determine the next sequential ID
+      final inspectionDoc = await _inspectionService.firestore
+          .collection('inspections')
+          .doc(widget.inspectionId)
+          .get();
+          
+      if (!inspectionDoc.exists) {
+        throw Exception('Inspection not found');
+      }
+      
+      final data = inspectionDoc.data() ?? {};
+      final ncArray = List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
+      
+      // Filter to find non-conformities for the same detail
+      final detailNCs = ncArray.where((nc) => 
+          nc['room_id'] == roomId && 
+          nc['item_id'] == itemId && 
+          nc['detail_id'] == detailId
+      ).toList();
+      
+      // Create non-conformity ID with sequential numbering
+      final sequentialPart = detailNCs.length.toString();
+      final nonConformityId = '${widget.inspectionId}-$roomId-$itemId-$detailId-$sequentialPart';
+      
+      // Prepare non-conformity data
       final nonConformityData = {
+        'id': nonConformityId,
         'inspection_id': widget.inspectionId,
-        'room_id': widget.selectedRoom!.id,
-        'item_id': widget.selectedItem!.id,
-        'detail_id': widget.selectedDetail!.id,
+        'room_id': roomId,
+        'item_id': itemId,
+        'detail_id': detailId,
         'description': _descriptionController.text,
         'severity': _severity,
         'corrective_action': _correctiveActionController.text.isEmpty
@@ -88,20 +118,52 @@ class _NonConformityFormState extends State<NonConformityForm> {
         'deadline': _deadline?.toIso8601String(),
         'status': 'pendente',
         'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
       };
 
-      // Salva no Firestore (funciona offline graças à persistência)
-      await _inspectionService.saveNonConformity(nonConformityData);
+      // Add to the non-conformities array
+      ncArray.add(nonConformityData);
+      
+      // Update the inspection document
+      await _inspectionService.firestore
+          .collection('inspections')
+          .doc(widget.inspectionId)
+          .update({
+        'non_conformities': ncArray,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      
+      // Also update the detail to mark as damaged
+      final detailsArray = List<Map<String, dynamic>>.from(data['details'] ?? []);
+      
+      // Find the detail
+      final detailIndex = detailsArray.indexWhere(
+        (detail) => detail['room_id'] == roomId && 
+                   detail['item_id'] == itemId && 
+                   detail['id'] == detailId
+      );
+      
+      if (detailIndex >= 0) {
+        detailsArray[detailIndex]['is_damaged'] = true;
+        detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
+        
+        await _inspectionService.firestore
+            .collection('inspections')
+            .doc(widget.inspectionId)
+            .update({
+          'details': detailsArray,
+        });
+      }
 
-      // Reseta o formulário
+      // Reset the form
       _descriptionController.clear();
       _correctiveActionController.clear();
       setState(() {
         _deadline = null;
-        _severity = 'Média'; // Reset to default Portuguese value
+        _severity = 'Média';
       });
 
-      // Notifica o widget pai
+      // Notify parent
       widget.onNonConformitySaved();
 
       if (mounted) {
@@ -120,7 +182,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
       }
     } finally {
       if (mounted) {
-        // Check mounted again before calling setState
         setState(() => _isCreating = false);
       }
     }

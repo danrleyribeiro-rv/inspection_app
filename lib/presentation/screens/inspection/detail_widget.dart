@@ -111,6 +111,82 @@ class _DetailWidgetState extends State<DetailWidget> {
     }
   }
 
+  Future<void> _editObservationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller =
+            TextEditingController(text: _observationController.text);
+        return AlertDialog(
+          title: const Text('Editar Observação'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width *
+                0.8, // 80% da largura da tela
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: TextFormField(
+                controller: controller,
+                maxLines: 6,
+                decoration:
+                    const InputDecoration(hintText: 'Digite a observação...'),
+                autofocus: true,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) {
+      _observationController.text = result;
+      _updateDetail();
+      setState(() {});
+    }
+  }
+
+  Future<void> _selectOptionDialog() async {
+    if (widget.detail.options == null || widget.detail.options!.isEmpty) return;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Selecione uma opção'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: widget.detail.options!
+                      .map((opt) => ListTile(
+                            title: Text(opt),
+                            onTap: () => Navigator.of(context).pop(opt),
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (result != null) {
+      _valueController.text = result;
+      _updateDetail();
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -118,7 +194,9 @@ class _DetailWidgetState extends State<DetailWidget> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
-        side: BorderSide(color: _isDamaged ? Colors.red : Colors.grey.shade300, width: _isDamaged ? 2 : 1),
+        side: BorderSide(
+            color: _isDamaged ? Colors.red : Colors.grey.shade300,
+            width: _isDamaged ? 2 : 1),
       ),
       child: Column(
         children: [
@@ -143,14 +221,16 @@ class _DetailWidgetState extends State<DetailWidget> {
                   ),
                   if (_valueController.text.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade100,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         _valueController.text,
-                        style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.blue.shade900),
                       ),
                     ),
                   const SizedBox(width: 4),
@@ -178,7 +258,9 @@ class _DetailWidgetState extends State<DetailWidget> {
                     tooltip: 'Delete Detail',
                   ),
                   const SizedBox(width: 4),
-                  Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, size: 18),
+                  Icon(
+                      widget.isExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 18),
                 ],
               ),
             ),
@@ -205,52 +287,48 @@ class _DetailWidgetState extends State<DetailWidget> {
                     ],
                   ),
                   const SizedBox(height: 5),
-                  if (widget.detail.type == 'select' && widget.detail.options != null && widget.detail.options!.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      value: _valueController.text.isNotEmpty ? _valueController.text : null,
-                      decoration: const InputDecoration(
-                        labelText: 'Value',
-                        border: OutlineInputBorder(),
-                        hintText: 'Select a value',
+                  if (widget.detail.type == 'select' &&
+                      widget.detail.options != null &&
+                      widget.detail.options!.isNotEmpty)
+                    GestureDetector(
+                      onTap: _selectOptionDialog,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Opção',
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Text(_valueController.text.isEmpty
+                            ? 'Selecione...'
+                            : _valueController.text),
                       ),
-                      items: widget.detail.options!.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _valueController.text = value;
-                          });
-                          _updateDetail();
-                        }
-                      },
                     )
                   else
                     TextFormField(
                       controller: _valueController,
                       decoration: const InputDecoration(
-                        labelText: 'Value',
+                        labelText: 'Valor',
                         border: OutlineInputBorder(),
-                        hintText: 'Enter a value',
                       ),
                       onChanged: (_) => _updateDetail(),
                     ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _observationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observations',
-                      border: OutlineInputBorder(),
-                      hintText: 'Add observations about this detail...',
+                  GestureDetector(
+                    onTap: _editObservationDialog,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        controller: _observationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Observação',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
                     ),
-                    maxLines: 3,
-                    onChanged: (_) => _updateDetail(),
                   ),
                   const SizedBox(height: 16),
-                  if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null)
+                  if (widget.detail.id != null &&
+                      widget.detail.roomId != null &&
+                      widget.detail.itemId != null)
                     MediaHandlingWidget(
                       inspectionId: widget.detail.inspectionId,
                       roomId: widget.detail.roomId!,
@@ -263,7 +341,9 @@ class _DetailWidgetState extends State<DetailWidget> {
                   const SizedBox(height: 5),
                   ElevatedButton.icon(
                     onPressed: () {
-                      if (widget.detail.id != null && widget.detail.roomId != null && widget.detail.itemId != null) {
+                      if (widget.detail.id != null &&
+                          widget.detail.roomId != null &&
+                          widget.detail.itemId != null) {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => NonConformityScreen(
@@ -277,7 +357,8 @@ class _DetailWidgetState extends State<DetailWidget> {
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Não foi possível abrir a tela de não-conformidade. IDs ausentes.'),
+                            content: Text(
+                                'Não foi possível abrir a tela de não-conformidade. IDs ausentes.'),
                             backgroundColor: Colors.red,
                           ),
                         );

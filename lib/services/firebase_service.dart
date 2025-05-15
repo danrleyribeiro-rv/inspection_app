@@ -1,113 +1,187 @@
-// lib/services/firebase_service.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:inspection_app/firebase_options.dart';
-import 'package:flutter/foundation.dart';
 
 class FirebaseService {
+  // Singleton pattern
   static final FirebaseService _instance = FirebaseService._internal();
-  
+
   factory FirebaseService() {
     return _instance;
   }
-  
+
   FirebaseService._internal();
-  
-  // Firebase instances
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  final FirebaseAuth auth = FirebaseAuth.instance;
-  final FirebaseStorage storage = FirebaseStorage.instance;
-  
-  // Initialize Firebase with proper offline persistence
+
+  // Inicialização do FirebaseService (dummy para compatibilidade com main.dart)
   static Future<void> initialize() async {
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+    // Se necessário, inicialize recursos aqui. Por ora, não faz nada.
+  }
+
+  // Firebase services
+  final FirebaseAuth auth = FirebaseAuth.instance;
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final FirebaseStorage storage = FirebaseStorage.instance;
+
+  // Get current user
+  User? get currentUser => auth.currentUser;
+
+  // Sign in
+  Future<UserCredential> signInWithEmailAndPassword(
+      String email, String password) async {
+    return await auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  // Sign out
+  Future<void> signOut() async {
+    return await auth.signOut();
+  }
+
+  // Get inspector data
+  Future<Map<String, dynamic>?> getInspectorData() async {
+    final user = currentUser;
+    if (user == null) {
+      return null;
+    }
+
+    final inspectorQuery = await firestore
+        .collection('inspectors')
+        .where('user_id', isEqualTo: user.uid)
+        .limit(1)
+        .get();
+
+    if (inspectorQuery.docs.isEmpty) {
+      return null;
+    }
+
+    final inspectorDoc = inspectorQuery.docs.first;
+    return {
+      'id': inspectorDoc.id,
+      ...inspectorDoc.data(),
+    };
+  }
+
+  // Update inspector profile
+  Future<void> updateInspectorProfile(
+      String inspectorId, Map<String, dynamic> data) async {
+    await firestore.collection('inspectors').doc(inspectorId).update(data);
+  }
+
+  // Get inspections for the current user
+  Future<List<Map<String, dynamic>>> getUserInspections() async {
+    final inspector = await getInspectorData();
+    if (inspector == null) {
+      return [];
+    }
+
+    final inspectionQuery = await firestore
+        .collection('inspections')
+        .where('inspector_id', isEqualTo: inspector['id'])
+        .where('deleted_at', isNull: true)
+        .orderBy('scheduled_date', descending: true)
+        .get();
+
+    return inspectionQuery.docs.map((doc) {
+      return {
+        'id': doc.id,
+        ...doc.data(),
+      };
+    }).toList();
+  }
+
+  // Helper to create a new document with auto-ID
+  Future<DocumentReference> addDocument(
+      String collection, Map<String, dynamic> data) async {
+    return await firestore.collection(collection).add(data);
+  }
+
+  // Helper to update a document
+  Future<void> updateDocument(
+      String collection, String docId, Map<String, dynamic> data) async {
+    await firestore.collection(collection).doc(docId).update(data);
+  }
+
+  // Helper to delete a document
+  Future<void> deleteDocument(String collection, String docId) async {
+    await firestore.collection(collection).doc(docId).delete();
+  }
+
+  // Helper to get a document by ID
+  Future<DocumentSnapshot> getDocument(String collection, String docId) async {
+    return await firestore.collection(collection).doc(docId).get();
+  }
+
+  // Helper to query documents
+  Future<QuerySnapshot> queryDocuments(
+    String collection, {
+    List<QueryPredicate> predicates = const [],
+    String? orderBy,
+    bool descending = false,
+    int? limit,
+  }) async {
+    Query query = firestore.collection(collection);
+
+    // Apply predicates
+    for (final predicate in predicates) {
+      query = query.where(
+        predicate.field,
+        isEqualTo: predicate.isEqualTo,
+        isNotEqualTo: predicate.isNotEqualTo,
+        isGreaterThan: predicate.isGreaterThan,
+        isGreaterThanOrEqualTo: predicate.isGreaterThanOrEqualTo,
+        isLessThan: predicate.isLessThan,
+        isLessThanOrEqualTo: predicate.isLessThanOrEqualTo,
+        arrayContains: predicate.arrayContains,
+        arrayContainsAny: predicate.arrayContainsAny,
+        whereIn: predicate.whereIn,
+        whereNotIn: predicate.whereNotIn,
+        isNull: predicate.isNull,
       );
-      
-      if (!kIsWeb) {
-        // Para plataformas móveis (Android/iOS)
-        // A persistência já está habilitada por padrão, mas configuramos o tamanho do cache
-        try {
-          FirebaseFirestore.instance.settings = const Settings(
-            persistenceEnabled: true,
-            cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-          );
-          print('Firebase initialized for mobile with unlimited cache size');
-        } catch (e) {
-          print('Error configuring Firestore settings: $e');
-        }
-      } else {
-        // Para plataforma web
-        try {
-          // Web requer chamada explícita ao enablePersistence
-          await FirebaseFirestore.instance.enablePersistence(
-            const PersistenceSettings(
-              synchronizeTabs: true,
-            ),
-          );
-          print('Firebase web persistence enabled successfully');
-        } catch (e) {
-          print('Error enabling web persistence: $e');
-          // Isso é esperado se já estiver habilitado ou não for suportado neste navegador
-        }
-      }
-      
-      print('Firebase initialized with appropriate offline persistence settings');
-    } catch (e) {
-      print('Error initializing Firebase: $e');
-      rethrow;
     }
-  }
-  
-  // Check if device is online (for UI indicators)
-  static Future<bool> isOnline() async {
-    try {
-      // Tenta buscar um documento pequeno do servidor para testar a conexão
-      await FirebaseFirestore.instance
-          .collection('online_check')
-          .doc('ping')
-          .get(const GetOptions(source: Source.server));
-      return true;
-    } catch (e) {
-      return false;
+
+    // Apply order
+    if (orderBy != null) {
+      query = query.orderBy(orderBy, descending: descending);
     }
-  }
-  
-  // Force synchronization attempt
-  static Future<void> forceSynchronize() async {
-    try {
-      // Desabilita temporariamente a rede
-      await FirebaseFirestore.instance.disableNetwork();
-      
-      // Pequena pausa para garantir desconexão
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Reabilita para forçar sincronização
-      await FirebaseFirestore.instance.enableNetwork();
-      
-      print('Forced synchronization attempt initiated');
-    } catch (e) {
-      print('Error forcing synchronization: $e');
+
+    // Apply limit
+    if (limit != null) {
+      query = query.limit(limit);
     }
+
+    return await query.get();
   }
-  
-  // Check if there's pending writes that need to be synced to the server
-  static Future<bool> hasPendingWrites() async {
-    try {
-      // Obter qualquer documento com metadados para verificar
-      final snapshot = await FirebaseFirestore.instance
-          .collection('inspections')
-          .limit(1)
-          .get();
-          
-      // Verificar se há writes pendentes
-      return snapshot.metadata.hasPendingWrites;
-    } catch (e) {
-      print('Error checking pending writes: $e');
-      return false;
-    }
-  }
+}
+
+// Helper class for query predicates
+class QueryPredicate {
+  final String field;
+  final dynamic isEqualTo;
+  final dynamic isNotEqualTo;
+  final dynamic isGreaterThan;
+  final dynamic isGreaterThanOrEqualTo;
+  final dynamic isLessThan;
+  final dynamic isLessThanOrEqualTo;
+  final dynamic arrayContains;
+  final List<dynamic>? arrayContainsAny;
+  final List<dynamic>? whereIn;
+  final List<dynamic>? whereNotIn;
+  final bool? isNull;
+
+  QueryPredicate({
+    required this.field,
+    this.isEqualTo,
+    this.isNotEqualTo,
+    this.isGreaterThan,
+    this.isGreaterThanOrEqualTo,
+    this.isLessThan,
+    this.isLessThanOrEqualTo,
+    this.arrayContains,
+    this.arrayContainsAny,
+    this.whereIn,
+    this.whereNotIn,
+    this.isNull,
+  });
 }

@@ -12,7 +12,7 @@ class RoomWidget extends StatefulWidget {
   final Room room;
   final Function(Room) onRoomUpdated;
   final Function(String) onRoomDeleted;
-  final Function(Room) onRoomDuplicated; 
+  final Function(Room) onRoomDuplicated;
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
 
@@ -21,7 +21,7 @@ class RoomWidget extends StatefulWidget {
     required this.room,
     required this.onRoomUpdated,
     required this.onRoomDeleted,
-    required this.onRoomDuplicated, 
+    required this.onRoomDuplicated,
     required this.isExpanded,
     required this.onExpansionChanged,
   });
@@ -31,7 +31,8 @@ class RoomWidget extends StatefulWidget {
 }
 
 class _RoomWidgetState extends State<RoomWidget> {
-  final FirebaseInspectionService _inspectionService = FirebaseInspectionService();
+  final FirebaseInspectionService _inspectionService =
+      FirebaseInspectionService();
   List<Item> _items = [];
   bool _isLoading = true;
   int _expandedItemIndex = -1;
@@ -128,6 +129,48 @@ class _RoomWidgetState extends State<RoomWidget> {
     }
   }
 
+  Future<void> _editObservationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller =
+            TextEditingController(text: _observationController.text);
+        return AlertDialog(
+          title: const Text('Editar Observação do Tópico'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width *
+                0.8, // 80% da largura da tela
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: TextFormField(
+                controller: controller,
+                maxLines: 6,
+                decoration:
+                    const InputDecoration(hintText: 'Digite a observação...'),
+                autofocus: true,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) {
+      _observationController.text = result;
+      _updateRoom();
+      setState(() {});
+    }
+  }
+
   Future<void> _addItem() async {
     if (widget.room.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -190,7 +233,9 @@ class _RoomWidgetState extends State<RoomWidget> {
   Future<void> _duplicateItem(Item item) async {
     if (widget.room.id == null || item.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro: Não é possível duplicar item com IDs ausentes')),
+        const SnackBar(
+            content:
+                Text('Erro: Não é possível duplicar item com IDs ausentes')),
       );
       return;
     }
@@ -208,11 +253,13 @@ class _RoomWidgetState extends State<RoomWidget> {
 
       if (!mounted) return;
       setState(() {
-        _expandedItemIndex = _items.indexWhere((i) => i.itemName == item.itemName);
+        _expandedItemIndex =
+            _items.indexWhere((i) => i.itemName == item.itemName);
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Item "${item.itemName}" duplicado com sucesso')),
+        SnackBar(
+            content: Text('Item "${item.itemName}" duplicado com sucesso')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -314,11 +361,13 @@ class _RoomWidgetState extends State<RoomWidget> {
                       children: [
                         Text(
                           widget.room.roomName,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         if (widget.room.roomLabel != null) ...[
                           const SizedBox(height: 2),
-                          Text(widget.room.roomLabel!, style: TextStyle(color: Colors.grey[600])),
+                          Text(widget.room.roomLabel!,
+                              style: TextStyle(color: Colors.grey[600])),
                         ],
                       ],
                     ),
@@ -338,7 +387,9 @@ class _RoomWidgetState extends State<RoomWidget> {
                     onPressed: _showDeleteConfirmation,
                     tooltip: 'Excluir Tópico',
                   ),
-                  Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more),
+                  Icon(widget.isExpanded
+                      ? Icons.expand_less
+                      : Icons.expand_more),
                 ],
               ),
             ),
@@ -350,15 +401,19 @@ class _RoomWidgetState extends State<RoomWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: _observationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observações',
-                      border: OutlineInputBorder(),
-                      hintText: 'Adicione observações sobre este tópico...',
+                  GestureDetector(
+                    onTap: _editObservationDialog,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        controller: _observationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações',
+                          border: OutlineInputBorder(),
+                          hintText: 'Adicione observações sobre este tópico...',
+                        ),
+                        maxLines: 1,
+                      ),
                     ),
-                    maxLines: 1,
-                    onChanged: (_) => _updateRoom(),
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -366,7 +421,8 @@ class _RoomWidgetState extends State<RoomWidget> {
                     children: [
                       const Text(
                         'Itens',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addItem,
@@ -403,7 +459,8 @@ class _RoomWidgetState extends State<RoomWidget> {
                           isExpanded: index == _expandedItemIndex,
                           onExpansionChanged: () {
                             setState(() {
-                              _expandedItemIndex = _expandedItemIndex == index ? -1 : index;
+                              _expandedItemIndex =
+                                  _expandedItemIndex == index ? -1 : index;
                             });
                           },
                         );

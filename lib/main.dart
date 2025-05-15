@@ -1,6 +1,5 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -14,10 +13,13 @@ import 'package:inspection_app/presentation/screens/auth/reset_password_screen.d
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/gemini_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializa o Firebase antes de qualquer uso
+  await Firebase.initializeApp();
 
   // Configurar o estilo da barra de navegação para evitar sobreposição
   SystemChrome.setSystemUIOverlayStyle(
@@ -34,25 +36,8 @@ Future<void> main() async {
 
   await dotenv.load(fileName: ".env");
 
-  await GeminiService.initialize();
-
   try {
     await FirebaseService.initialize();
-
-    if (!kIsWeb) {
-      print('Configurando persistência offline do Firestore...');
-      try {
-        FirebaseFirestore.instance.settings = const Settings(
-          persistenceEnabled: true,
-          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-        );
-        print('Configurações do Firestore com persistência offline aplicadas.');
-      } catch (e) {
-        print('Erro ao configurar persistência offline do Firestore: $e');
-      }
-    } else {
-      print('Persistência offline não suportada na Web.');
-    }
   } catch (e) {
     print('Erro ao inicializar Firebase: $e');
   }

@@ -273,49 +273,34 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     }
   }
   
-  Future<void> _processMedia(String filePath, String type, bool isFromGallery) async {
+Future<void> _processMedia(String filePath, String type, bool isFromGallery) async {
     try {
       setState(() => _isLoading = true);
-      
-      // Create a temporary directory for processing
-      final timestamp = DateTime.now();
-      final fileExt = path.extension(filePath);
-      final mediaDir = await getApplicationDocumentsDirectory();
-      final directory = Directory('${mediaDir.path}/media');
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-      }
-      
-      // Generate a unique filename
-      final filename = '${type}_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}$fileExt';
-      final localPath = '${directory.path}/$filename';
-      
-      // Get original file
-      final file = File(filePath);
-      
-      // Apply watermark
-      late File processedFile;
+
+      // Create a unique filename and path
+      final ext = path.extension(filePath);
+      final fileName = '${widget.inspectionId}_${_roomId}_${_itemId}_${_detailId}_${_uuid.v4().substring(0, 8)}$ext';
+      final appDir = await getApplicationDocumentsDirectory();
+      final localPath = path.join(appDir.path, fileName);
+
+      // Apply watermarks and process the file
       if (type == 'image') {
-        processedFile = await _watermarkService.addWatermarkToImage(
-          file,
-          isFromGallery: isFromGallery,
-          timestamp: timestamp,
-        );
+        // Optionally apply watermark
+        final watermarkedFile = await _watermarkService.applyWatermark(filePath, localPath);
+        // If watermarking failed, fallback to copy
+        if (watermarkedFile == null) {
+          await File(filePath).copy(localPath);
+        }
       } else {
-        processedFile = await _watermarkService.addWatermarkToVideo(
-          file,
-          isFromGallery: isFromGallery,
-          timestamp: timestamp,
-        );
+        // For video, just copy
+        await File(filePath).copy(localPath);
       }
       
-      // Copy to local path
-      if (processedFile.path != localPath) {
-        await processedFile.copy(localPath);
-      }
+      // Prepare media data
+      final mediaId = '${widget.inspectionId}-${_roomId}-${_itemId}-${_detailId}-${_uuid.v4().substring(0, 8)}';
       
-      // Prepare media metadata
       Map<String, dynamic> mediaData = {
+        'id': mediaId,
         'inspection_id': widget.inspectionId,
         'room_id': _roomId,
         'room_item_id': _itemId,
@@ -325,47 +310,59 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         'is_non_conformity': _isNonConformity,
         'observation': _observation.isEmpty ? null : _observation,
         'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
       };
       
       // Try to upload to Firebase Storage
       try {
-        final storagePath = 'inspections/${widget.inspectionId}/$_roomId/$_itemId/$_detailId/$filename';
-        
-        String? contentType;
-        if (fileExt.toLowerCase().contains(RegExp(r'jpg|jpeg|png|gif|webp'))) {
-          contentType = 'image/${fileExt.toLowerCase().replaceAll('.', '')}';
-        } else if (fileExt.toLowerCase().contains(RegExp(r'mp4|mov|avi'))) {
-          contentType = 'video/${fileExt.toLowerCase().replaceAll('.', '')}';
-        }
-        
-        final ref = _storage.ref().child(storagePath);
-        final UploadTask uploadTask = ref.putFile(
-          File(localPath),
-          SettableMetadata(contentType: contentType),
-        );
-        
-        final snapshot = await uploadTask.whenComplete(() {});
-        final downloadUrl = await snapshot.ref.getDownloadURL();
-        
+        // Upload to Firebase Storage
+        final storageRef = _storage.ref().child('inspection_media').child(fileName);
+        final uploadTask = await storageRef.putFile(File(localPath));
+        final downloadUrl = await storageRef.getDownloadURL();
+
         mediaData['url'] = downloadUrl;
       } catch (e) {
         print('Error uploading to Firebase Storage: $e');
         // Continue without URL, it will be uploaded when online
       }
       
-      // Save to Firestore
-      await _firestore.collection('media').add(mediaData);
+      // Get the inspection document
+      final inspectionDoc = await _firestore.collection('inspections').doc(widget.inspectionId).get();
+      
+      if (!inspectionDoc.exists) {
+        throw Exception('Inspection not found');
+      }
+      
+      final data = inspectionDoc.data() ?? {};
+      final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
+      
+      // Add to array
+      mediaArray.add(mediaData);
+      
+      // Update the inspection document
+      await _firestore.collection('inspections').doc(widget.inspectionId).update({
+        'media': mediaArray,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
       
       // Update detail if it's a non-conformity
       if (_isNonConformity && _detailId != null) {
-        try {
-          final detailRef = _firestore.collection('item_details').doc(_detailId);
-          await detailRef.update({
-            'is_damaged': true,
-            'updated_at': FieldValue.serverTimestamp(),
+        final detailsArray = List<Map<String, dynamic>>.from(data['details'] ?? []);
+        
+        // Find the detail
+        final detailIndex = detailsArray.indexWhere(
+          (detail) => detail['room_id'] == _roomId && 
+                      detail['item_id'] == _itemId && 
+                      detail['id'] == _detailId
+        );
+        
+        if (detailIndex >= 0) {
+          detailsArray[detailIndex]['is_damaged'] = true;
+          detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
+          
+          await _firestore.collection('inspections').doc(widget.inspectionId).update({
+            'details': detailsArray,
           });
-        } catch (e) {
-          print('Error updating detail damage status: $e');
         }
       }
       

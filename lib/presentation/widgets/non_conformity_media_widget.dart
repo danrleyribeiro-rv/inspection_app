@@ -67,27 +67,56 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final snapshot = await _firestore
-          .collection('non_conformity_media')
-          .where('non_conformity_id', isEqualTo: widget.nonConformityId)
-          .orderBy('timestamp', descending: true)
-          .get();
-
-      if (!mounted) return;
-
-      setState(() {
-        _mediaItems = snapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'url': data['url'],
-            'type': data['type'],
-            'timestamp': data['timestamp'],
-            'localPath': data['localPath'],
-          };
-        }).toList();
-        _isLoading = false;
+      final inspectionDoc = await _firestore.collection('inspections').doc(widget.inspectionId).get();
+      
+      if (!inspectionDoc.exists) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      final data = inspectionDoc.data() ?? {};
+      final mediaArray = data['media'] as List<dynamic>? ?? [];
+      
+      List<Map<String, dynamic>> mediaItems = [];
+      
+      for (var mediaData in mediaArray) {
+        if (mediaData['non_conformity_id'] == widget.nonConformityId) {
+          mediaItems.add(Map<String, dynamic>.from(mediaData));
+        }
+      }
+      
+      // Sort by timestamp
+      mediaItems.sort((a, b) {
+        final aTimestamp = a['timestamp'] ?? a['created_at'] ?? 0;
+        final bTimestamp = b['timestamp'] ?? b['created_at'] ?? 0;
+        
+        // Convert timestamps to comparable values
+        DateTime aDate, bDate;
+        if (aTimestamp is Timestamp) {
+          aDate = aTimestamp.toDate();
+        } else if (aTimestamp is int) {
+          aDate = DateTime.fromMillisecondsSinceEpoch(aTimestamp);
+        } else {
+          aDate = DateTime.now();
+        }
+        
+        if (bTimestamp is Timestamp) {
+          bDate = bTimestamp.toDate();
+        } else if (bTimestamp is int) {
+          bDate = DateTime.fromMillisecondsSinceEpoch(bTimestamp);
+        } else {
+          bDate = DateTime.now();
+        }
+        
+        return bDate.compareTo(aDate); // Descending order
       });
+      
+      if (mounted) {
+        setState(() {
+          _mediaItems = mediaItems;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading media: $e');
       if (mounted) {
@@ -245,10 +274,24 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // Delete from Firestore
-      await _firestore.collection('non_conformity_media').doc(media['id']).delete();
-
-      // If online and URL exists, try to delete from storage
+      // Get the inspection document
+      final inspectionDoc = await _firestore.collection('inspections').doc(widget.inspectionId).get();
+      
+      if (!inspectionDoc.exists) {
+        throw Exception('Inspection not found');
+      }
+      
+      final data = inspectionDoc.data() ?? {};
+      final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
+      
+      // Find the media item
+      final mediaIndex = mediaArray.indexWhere((m) => m['id'] == media['id']);
+      
+      if (mediaIndex < 0) {
+        throw Exception('Media not found');
+      }
+      
+      // Try to delete from storage if URL exists
       if (_isOnline && media['url'] != null) {
         try {
           // Get storage reference from URL
@@ -261,7 +304,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           print('Error deleting from storage: $e');
         }
       }
-
+      
       // Try to delete local file
       if (media['localPath'] != null) {
         try {
@@ -273,11 +316,21 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           print('Error deleting local file: $e');
         }
       }
-
+      
+      // Remove from array
+      mediaArray.removeAt(mediaIndex);
+      
+      // Update the inspection document
+      await _firestore.collection('inspections').doc(widget.inspectionId).update({
+        'media': mediaArray,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      
+      // Update local state
       setState(() {
         _mediaItems.removeWhere((item) => item['id'] == media['id']);
       });
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

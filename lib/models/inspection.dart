@@ -26,7 +26,6 @@ class Inspection {
   final String? lastCheckpointMessage;
   final double? lastCheckpointCompletion;
 
-  
   Inspection({
     required this.id,
     required this.title,
@@ -45,7 +44,6 @@ class Inspection {
     this.inspectorId,
     this.isTemplated = false,
     this.templateId,
-
     this.lastCheckpointAt,
     this.lastCheckpointBy,
     this.lastCheckpointMessage,
@@ -96,50 +94,54 @@ class Inspection {
       templateId: templateId ?? this.templateId,
       lastCheckpointAt: lastCheckpointAt ?? this.lastCheckpointAt,
       lastCheckpointBy: lastCheckpointBy ?? this.lastCheckpointBy,
-      lastCheckpointMessage: lastCheckpointMessage ?? this.lastCheckpointMessage,
-      lastCheckpointCompletion: lastCheckpointCompletion ?? this.lastCheckpointCompletion,
+      lastCheckpointMessage:
+          lastCheckpointMessage ?? this.lastCheckpointMessage,
+      lastCheckpointCompletion:
+          lastCheckpointCompletion ?? this.lastCheckpointCompletion,
     );
   }
 
   // Convert to a Map (JSON)
-Map<String, dynamic> toJson() {
-  // Mapa base com todos os campos existentes
-  final Map<String, dynamic> data = {
-    'id': id,
-    'title': title,
-    'street': street,
-    'neighborhood': neighborhood,
-    'city': city,
-    'state': state,
-    'zip_code': zipCode,
-    'status': status,
-    'observation': observation,
-    'scheduled_date': scheduledDate?.toIso8601String(),
-    'finished_at': finishedAt?.toIso8601String(),
-    'created_at': createdAt.toIso8601String(),
-    'updated_at': updatedAt.toIso8601String(),
-    'project_id': projectId,
-    'inspector_id': inspectorId,
-    'is_templated': isTemplated,
-    'template_id': templateId,
-  };
-  
-  // Adicione os novos campos relacionados a checkpoints
-  if (lastCheckpointAt != null) {
-    data['last_checkpoint_at'] = lastCheckpointAt!.toIso8601String();
+  Map<String, dynamic> toJson() {
+    // Mapa base com todos os campos existentes
+    final Map<String, dynamic> data = {
+      'id': id,
+      'title': title,
+      'street': street,
+      'neighborhood': neighborhood,
+      'city': city,
+      'state': state,
+      'zip_code': zipCode,
+      'status': status,
+      'observation': observation,
+      'scheduled_date': scheduledDate?.toIso8601String(),
+      'finished_at': finishedAt?.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'project_id': projectId,
+      'inspector_id': inspectorId,
+      'is_templated': isTemplated,
+      'template_id': templateId,
+    };
+
+    // Adicione os novos campos relacionados a checkpoints
+    if (lastCheckpointAt != null) {
+      data['last_checkpoint_at'] = lastCheckpointAt!.toIso8601String();
+    }
+    if (lastCheckpointBy != null) {
+      data['last_checkpoint_by'] = lastCheckpointBy;
+    }
+    if (lastCheckpointMessage != null) {
+      data['last_checkpoint_message'] = lastCheckpointMessage;
+    }
+    if (lastCheckpointCompletion != null) {
+      data['last_checkpoint_completion'] = lastCheckpointCompletion;
+    }
+
+    return data;
   }
-  if (lastCheckpointBy != null) {
-    data['last_checkpoint_by'] = lastCheckpointBy;
-  }
-  if (lastCheckpointMessage != null) {
-    data['last_checkpoint_message'] = lastCheckpointMessage;
-  }
-  if (lastCheckpointCompletion != null) {
-    data['last_checkpoint_completion'] = lastCheckpointCompletion;
-  }
-  
-  return data;
-}
+
+  Map<String, dynamic> toMap() => toJson();
 
   // Create an Inspection from a Map (JSON)
   factory Inspection.fromJson(Map<String, dynamic> json) {
@@ -156,15 +158,15 @@ Map<String, dynamic> toJson() {
     }
     DateTime? lastCheckpointAt;
     if (json['last_checkpoint_at'] != null) {
-    if (json['last_checkpoint_at'] is Timestamp) {
-      lastCheckpointAt = (json['last_checkpoint_at'] as Timestamp).toDate();
-    } else if (json['last_checkpoint_at'] is String) {
-      lastCheckpointAt = DateTime.parse(json['last_checkpoint_at']);
+      if (json['last_checkpoint_at'] is Timestamp) {
+        lastCheckpointAt = (json['last_checkpoint_at'] as Timestamp).toDate();
+      } else if (json['last_checkpoint_at'] is String) {
+        lastCheckpointAt = DateTime.parse(json['last_checkpoint_at']);
+      }
     }
-  }
-    
+
     String? templateId = json['template_id']?.toString();
-    
+
     return Inspection(
       id: json['id'].toString(),
       title: json['title'] ?? 'Untitled',
@@ -186,21 +188,26 @@ Map<String, dynamic> toJson() {
       lastCheckpointAt: lastCheckpointAt,
       lastCheckpointBy: json['last_checkpoint_by'],
       lastCheckpointMessage: json['last_checkpoint_message'],
-      lastCheckpointCompletion: json['last_checkpoint_completion'] != null 
-        ? (json['last_checkpoint_completion'] as num).toDouble() 
-        : null,
+      lastCheckpointCompletion: json['last_checkpoint_completion'] != null
+          ? (json['last_checkpoint_completion'] as num).toDouble()
+          : null,
     );
   }
-  
+
+  static Inspection fromMap(Map<String, dynamic> map) =>
+      Inspection.fromJson(map);
+
   // Helper method to parse DateTime from various formats
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
-    
+
     if (value is DateTime) {
       return value;
     } else if (value is String) {
       return DateTime.parse(value);
-    } else if (value is Map && value['_seconds'] != null && value['_nanoseconds'] != null) {
+    } else if (value is Map &&
+        value['_seconds'] != null &&
+        value['_nanoseconds'] != null) {
       // Handle Firestore timestamps
       try {
         // Convert Firestore timestamp to DateTime

@@ -117,6 +117,48 @@ class _ItemWidgetState extends State<ItemWidget> {
     }
   }
 
+  Future<void> _editObservationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller =
+            TextEditingController(text: _observationController.text);
+        return AlertDialog(
+          title: const Text('Editar Observação do Item'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width *
+                0.8, // 80% da largura da tela
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: TextFormField(
+                controller: controller,
+                maxLines: 6,
+                decoration:
+                    const InputDecoration(hintText: 'Digite a observação...'),
+                autofocus: true,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) {
+      _observationController.text = result;
+      _updateItem();
+      setState(() {});
+    }
+  }
+
   Future<void> _showDeleteConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -146,7 +188,8 @@ class _ItemWidgetState extends State<ItemWidget> {
   Future<void> _addDetail() async {
     if (widget.item.id == null || widget.item.roomId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro: ID do Item ou do Cômodo não encontrado')),
+        const SnackBar(
+            content: Text('Erro: ID do Item ou do Cômodo não encontrado')),
       );
       return;
     }
@@ -158,7 +201,7 @@ class _ItemWidgetState extends State<ItemWidget> {
           .collection('rooms')
           .doc(widget.item.roomId)
           .get();
-      
+
       if (roomDoc.exists && roomDoc.data() != null) {
         roomName = roomDoc.data()!['room_name'] ?? '';
       }
@@ -183,10 +226,10 @@ class _ItemWidgetState extends State<ItemWidget> {
     try {
       final detailName = template['name'] as String;
       final isCustom = template['isCustom'] as bool? ?? false;
-      
+
       String? detailType = 'text';
       List<String>? options;
-      
+
       if (!isCustom) {
         detailType = template['type'] as String?;
         if (template['options'] is List) {
@@ -235,7 +278,8 @@ class _ItemWidgetState extends State<ItemWidget> {
         detail.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Erro: Não é possível duplicar detalhe com IDs ausentes')),
+            content:
+                Text('Erro: Não é possível duplicar detalhe com IDs ausentes')),
       );
       return;
     }
@@ -306,11 +350,14 @@ class _ItemWidgetState extends State<ItemWidget> {
                       children: [
                         Text(
                           widget.item.itemName,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         if (widget.item.itemLabel != null) ...[
                           const SizedBox(height: 4),
-                          Text(widget.item.itemLabel!, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                          Text(widget.item.itemLabel!,
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 14)),
                         ],
                       ],
                     ),
@@ -330,7 +377,9 @@ class _ItemWidgetState extends State<ItemWidget> {
                     onPressed: _showDeleteConfirmation,
                     tooltip: 'Excluir Item',
                   ),
-                  Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more),
+                  Icon(widget.isExpanded
+                      ? Icons.expand_less
+                      : Icons.expand_more),
                 ],
               ),
             ),
@@ -342,15 +391,19 @@ class _ItemWidgetState extends State<ItemWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: _observationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observações',
-                      border: OutlineInputBorder(),
-                      hintText: 'Adicione observações sobre este item...',
+                  GestureDetector(
+                    onTap: _editObservationDialog,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        controller: _observationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações',
+                          border: OutlineInputBorder(),
+                          hintText: 'Adicione observações sobre este item...',
+                        ),
+                        maxLines: 1,
+                      ),
                     ),
-                    maxLines: 1,
-                    onChanged: (_) => _updateItem(),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -358,7 +411,8 @@ class _ItemWidgetState extends State<ItemWidget> {
                     children: [
                       const Text(
                         'Detalhes',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addDetail,
@@ -391,14 +445,16 @@ class _ItemWidgetState extends State<ItemWidget> {
                         return DetailWidget(
                           detail: _details[index],
                           onDetailUpdated: (updatedDetail) {
-                            final idx = _details.indexWhere((d) => d.id == updatedDetail.id);
+                            final idx = _details
+                                .indexWhere((d) => d.id == updatedDetail.id);
                             if (idx >= 0) {
                               setState(() => _details[idx] = updatedDetail);
                               _inspectionService.updateDetail(updatedDetail);
                             }
                           },
                           onDetailDeleted: (detailId) async {
-                            if (widget.item.id != null && widget.item.roomId != null) {
+                            if (widget.item.id != null &&
+                                widget.item.roomId != null) {
                               await _inspectionService.deleteDetail(
                                 widget.item.inspectionId,
                                 widget.item.roomId!,
@@ -412,7 +468,8 @@ class _ItemWidgetState extends State<ItemWidget> {
                           isExpanded: index == _expandedDetailIndex,
                           onExpansionChanged: () {
                             setState(() {
-                              _expandedDetailIndex = _expandedDetailIndex == index ? -1 : index;
+                              _expandedDetailIndex =
+                                  _expandedDetailIndex == index ? -1 : index;
                             });
                           },
                         );

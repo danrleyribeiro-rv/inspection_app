@@ -14,11 +14,10 @@ import 'package:inspection_app/presentation/screens/inspection/components/loadin
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/services/import_export_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:inspection_app/services/gemini_service.dart';
-import 'package:inspection_app/presentation/widgets/ai_suggestion_button.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/services/inspection_checkpoint_service.dart';
 import 'package:inspection_app/services/checkpoint_dialog_service.dart';
+import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -47,7 +46,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Inspection? _inspection;
   List<Room> _rooms = [];
   int _expandedRoomIndex = -1;
-  
+
   // Estados para visualização em paisagem
   int _selectedRoomIndex = -1;
   int _selectedItemIndex = -1;
@@ -58,7 +57,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   void initState() {
     super.initState();
     _listenToConnectivity();
-    
+
     // Inicializar o serviço de diálogos de checkpoint
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkpointDialogService = CheckpointDialogService(
@@ -67,7 +66,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         _loadInspection, // Callback para recarregar dados após restauração
       );
     });
-    
+
     _loadInspection();
   }
 
@@ -658,31 +657,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       appBar: AppBar(
         title: Text(_inspection?.title ?? 'Inspeção'),
         actions: [
-          // Indicador de status de conectividade
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-            decoration: BoxDecoration(
-              color: _isOnline
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.red.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _isOnline ? Colors.green : Colors.red,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _isOnline ? Icons.signal_wifi_4_bar : Icons.wifi_off,
-                  size: 12,
-                  color: _isOnline ? Colors.green : Colors.red,
-                ),
-              ],
-            ),
-          ),
-          
           // Botão de checkpoint
           IconButton(
             icon: const Icon(Icons.save_outlined, size: 22),
@@ -691,7 +665,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             padding: const EdgeInsets.all(8),
             visualDensity: VisualDensity.compact,
           ),
-          
+
           // Botão de aplicar template
           if (_isOnline &&
               _inspection != null &&
@@ -727,9 +701,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               icon: const Icon(Icons.more_vert, size: 22),
               onSelected: (value) async {
                 switch (value) {
-                  case 'export':
-                    await _exportInspection();
-                    break;
                   case 'import':
                     await _importInspection();
                     break;
@@ -751,19 +722,47 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   case 'refresh':
                     await _loadInspection();
                     break;
+                  case 'info':
+                    if (_inspection != null) {
+                      final inspectionId = _inspection!.id;
+                      final inspectionService = FirebaseInspectionService();
+                      int totalRooms = _rooms.length;
+                      int totalItems = 0;
+                      int totalDetails = 0;
+                      int totalMedia = 0;
+                      for (final room in _rooms) {
+                        final items = await inspectionService.getItems(
+                            inspectionId, room.id!);
+                        totalItems += items.length;
+                        for (final item in items) {
+                          final details = await inspectionService.getDetails(
+                              inspectionId, room.id!, item.id!);
+                          totalDetails += details.length;
+                        }
+                      }
+                      // Buscar mídias diretamente do Firestore
+                      final doc = await FirebaseFirestore.instance
+                          .collection('inspections')
+                          .doc(inspectionId)
+                          .get();
+                      final mediaList =
+                          (doc.data()?['media'] as List<dynamic>? ?? []);
+                      totalMedia = mediaList.length;
+                      showDialog(
+                        context: context,
+                        builder: (context) => InspectionInfoDialog(
+                          inspection: _inspection!,
+                          totalRooms: totalRooms,
+                          totalItems: totalItems,
+                          totalDetails: totalDetails,
+                          totalMedia: totalMedia,
+                        ),
+                      );
+                    }
+                    break;
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'export',
-                  child: Row(
-                    children: [
-                      Icon(Icons.file_download),
-                      SizedBox(width: 8),
-                      Text('Exportar Inspeção'),
-                    ],
-                  ),
-                ),
                 const PopupMenuItem(
                   value: 'import',
                   child: Row(
@@ -792,6 +791,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       Icon(Icons.refresh),
                       SizedBox(width: 8),
                       Text('Atualizar Dados'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'info',
+                  child: Row(
+                    children: const [
+                      Icon(Icons.info_outline),
+                      SizedBox(width: 8),
+                      Text('Informações'),
                     ],
                   ),
                 ),
@@ -888,7 +897,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       ),
           ),
         ),
-        
+
         // Espaçamento inferior
         const SizedBox(height: 2),
 
@@ -941,97 +950,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   color: Colors.blue,
                 ),
 
- // Atalho para Exportar
+                // Atalho para Exportar
                 _buildShortcutButton(
                   icon: Icons.download,
                   label: 'Exportar',
                   onTap: _exportInspection,
                   color: Colors.green,
-                ),
-
-                // Botão de IA para sugestão de salas
-                AISuggestionButton(
-                  tooltip: 'Sugerir tópicos de vistoria',
-                  onGeneratingSuggestions: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'Gerando sugestão de tópicos de vistoria...')),
-                    );
-                  },
-                  onError: (message) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(message)),
-                    );
-                  },
-                  generateSuggestions: () async {
-                    final geminiService = GeminiService();
-                    final inspectionType = _inspection?.title ?? 'Inspeção';
-                    final existingRooms =
-                        _rooms.map((room) => room.roomName).toList();
-                    return await geminiService.suggestCompleteRooms(
-                        inspectionType, existingRooms);
-                  },
-                  onSuggestionSelected: (suggestion) async {
-                    if (suggestion is Map<String, dynamic>) {
-                      setState(() => _isLoading = true);
-                      try {
-                        // Criar sala
-                        final room = await _inspectionService.addRoom(
-                          widget.inspectionId,
-                          suggestion['room_name'],
-                        );
-
-                        // Criar itens e detalhes
-                        if (room.id != null && suggestion['items'] != null) {
-                          for (var itemData in suggestion['items']) {
-                            final item = await _inspectionService.addItem(
-                              widget.inspectionId,
-                              room.id!,
-                              itemData['item_name'],
-                            );
-
-                            // Criar detalhes
-                            if (item.id != null &&
-                                itemData['details'] != null) {
-                              for (var detailData in itemData['details']) {
-                                await _inspectionService.addDetail(
-                                  widget.inspectionId,
-                                  room.id!,
-                                  item.id!,
-                                  detailData['detail_name'],
-                                  type: detailData['type'],
-                                  options: detailData['options'] != null
-                                      ? List<String>.from(detailData['options'])
-                                      : null,
-                                );
-                              }
-                            }
-                          }
-                        }
-
-                        await _loadRooms();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Sala "${suggestion['room_name']}" criada com sucesso'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Erro ao criar sala: $e'),
-                              backgroundColor: Colors.red),
-                        );
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isLoading = false);
-                        }
-                      }
-                    }
-                  },
                 ),
               ],
             ),

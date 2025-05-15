@@ -38,12 +38,12 @@ class Room {
       isDamaged: json['is_damaged'],
       tags: json['tags'] != null ? List<String>.from(json['tags']) : null,
       createdAt: json['created_at'] != null
-          ? (json['created_at'] is String 
+          ? (json['created_at'] is String
               ? DateTime.parse(json['created_at'])
               : (json['created_at']?.toDate?.call()))
           : null,
       updatedAt: json['updated_at'] != null
-          ? (json['updated_at'] is String 
+          ? (json['updated_at'] is String
               ? DateTime.parse(json['updated_at'])
               : (json['updated_at']?.toDate?.call()))
           : null,
@@ -65,6 +65,9 @@ class Room {
       'updated_at': updatedAt?.toIso8601String(),
     };
   }
+
+  Map<String, dynamic> toMap() => toJson();
+  static Room fromMap(Map<String, dynamic> map) => Room.fromJson(map);
 
   Room copyWith({
     String? id,
