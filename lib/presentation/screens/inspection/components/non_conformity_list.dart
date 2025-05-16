@@ -1,6 +1,4 @@
 // lib/presentation/screens/inspection/components/non_conformity_list.dart
-// Versão atualizada com opções de edição e exclusão de não conformidades
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/widgets/non_conformity_media_widget.dart';
@@ -67,13 +65,13 @@ class NonConformityList extends StatelessWidget {
     // Extract location data
     final topic = item['topics'] is Map
         ? item['topics']
-        : {'topic_name': 'Topic not specified'};
+        : {'topic_name': 'Tópico não especificado'};
     final topicItem = item['topic_items'] is Map
         ? item['topic_items']
-        : {'item_name': 'Item not specified'};
+        : {'item_name': 'Item não especificado'};
     final detail = item['item_details'] is Map
         ? item['item_details']
-        : {'detail_name': 'Detail not specified'};
+        : {'detail_name': 'Detalhe não especificado'};
 
     // Get card color based on severity
     Color cardColor;
@@ -111,16 +109,16 @@ class NonConformityList extends StatelessWidget {
     String statusText;
     switch (item['status']) {
       case 'pendente':
-        statusText = 'Pending';
+        statusText = 'Pendente';
         break;
       case 'em_andamento':
-        statusText = 'In Progress';
+        statusText = 'Em Andamento';
         break;
       case 'resolvido':
-        statusText = 'Resolved';
+        statusText = 'Resolvido';
         break;
       default:
-        statusText = item['status'] ?? 'Unknown';
+        statusText = item['status'] ?? 'Desconhecido';
     }
 
     // Parse created date
@@ -136,6 +134,15 @@ class NonConformityList extends StatelessWidget {
       }
     } catch (e) {
       print('Error parsing date: ${item['created_at']}');
+    }
+
+    // Generate a composite ID for the non-conformity if it doesn't have one
+    String nonConformityId = item['id'] ?? '';
+
+    // If not already in composite format, create it
+    if (!nonConformityId.contains('-')) {
+      nonConformityId =
+          '${inspectionId}-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
     }
 
     return Card(
@@ -177,7 +184,7 @@ class NonConformityList extends StatelessWidget {
                         Border.all(color: _getSeverityColor(item['severity'])),
                   ),
                   child: Text(
-                    item['severity'] ?? 'Medium',
+                    item['severity'] ?? 'Média',
                     style: TextStyle(
                       color: _getSeverityColor(item['severity']),
                       fontWeight: FontWeight.bold,
@@ -210,7 +217,7 @@ class NonConformityList extends StatelessWidget {
 
             // Location
             Text(
-              'Location:',
+              'Localização:',
               style: TextStyle(
                   fontWeight: FontWeight.bold, color: Colors.grey[800]),
             ),
@@ -222,12 +229,12 @@ class NonConformityList extends StatelessWidget {
 
             // Description
             Text(
-              'Description:',
+              'Descrição:',
               style: TextStyle(
                   fontWeight: FontWeight.bold, color: Colors.grey[800]),
             ),
             const SizedBox(height: 4),
-            Text(item['description'] ?? "No description",
+            Text(item['description'] ?? "Sem descrição",
                 style: TextStyle(color: Colors.grey[600], fontSize: 12)),
             const SizedBox(height: 16),
 
@@ -235,7 +242,7 @@ class NonConformityList extends StatelessWidget {
             if (item['corrective_action'] != null) ...[
               const SizedBox(height: 16),
               Text(
-                'Corrective Action:',
+                'Ação Corretiva:',
                 style: TextStyle(
                     fontWeight: FontWeight.bold, color: Colors.grey[800]),
               ),
@@ -247,7 +254,7 @@ class NonConformityList extends StatelessWidget {
             if (item['deadline'] != null) ...[
               const SizedBox(height: 16),
               Text(
-                'Deadline:',
+                'Prazo:',
                 style: TextStyle(
                     fontWeight: FontWeight.bold, color: Colors.grey[800]),
               ),
@@ -258,9 +265,9 @@ class NonConformityList extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Media widget
+            // Media widget - using composite ID for non-conformity
             NonConformityMediaWidget(
-              nonConformityId: item['id'],
+              nonConformityId: nonConformityId,
               inspectionId: inspectionId,
               isReadOnly: item['status'] == 'resolvido',
               onMediaAdded: (_) {},
@@ -269,7 +276,7 @@ class NonConformityList extends StatelessWidget {
             // Created date
             if (createdAt != null)
               Text(
-                'Created on: ${DateFormat('dd/MM/yyyy').format(createdAt)}',
+                'Criado em: ${DateFormat('dd/MM/yyyy').format(createdAt)}',
                 style: TextStyle(color: Colors.grey[600], fontSize: 12),
               ),
 
@@ -282,21 +289,22 @@ class NonConformityList extends StatelessWidget {
                   if (item['status'] == 'pendente')
                     ElevatedButton(
                       onPressed: () =>
-                          onStatusUpdate(item['id'], 'em_andamento'),
+                          onStatusUpdate(nonConformityId, 'em_andamento'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
                       ),
-                      child: const Text('Start Correction'),
+                      child: const Text('Iniciar Correção'),
                     ),
                   if (item['status'] == 'em_andamento') ...[
                     ElevatedButton(
-                      onPressed: () => onStatusUpdate(item['id'], 'resolvido'),
+                      onPressed: () =>
+                          onStatusUpdate(nonConformityId, 'resolvido'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                       ),
-                      child: const Text('Mark as Resolved'),
+                      child: const Text('Marcar como Resolvido'),
                     ),
                   ],
                 ],
@@ -324,6 +332,14 @@ class NonConformityList extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, Map<String, dynamic> item) {
+    String nonConformityId = item['id'] ?? '';
+
+    // If not already in composite format, create it
+    if (!nonConformityId.contains('-')) {
+      nonConformityId =
+          '${inspectionId}-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
+    }
+
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -338,7 +354,7 @@ class NonConformityList extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                onDeleteNonConformity(item['id']);
+                onDeleteNonConformity(nonConformityId);
                 Navigator.of(dialogContext).pop();
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),

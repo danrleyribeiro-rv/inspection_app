@@ -64,7 +64,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         widget.selectedItem == null ||
         widget.selectedDetail == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione um ambiente, item e detalhe')),
+        const SnackBar(content: Text('Selecione um tópico, item e detalhe')),
       );
       return;
     }
@@ -72,45 +72,17 @@ class _NonConformityFormState extends State<NonConformityForm> {
     setState(() => _isCreating = true);
 
     try {
-      // Create composite ID with sequential part
+      // Extract necessary IDs
       final topicId = widget.selectedTopic!.id;
       final itemId = widget.selectedItem!.id;
       final detailId = widget.selectedDetail!.id;
 
-      // Get existing non-conformities to determine the next sequential ID
-      final inspectionDoc = await _inspectionService.firestore
-          .collection('inspections')
-          .doc(widget.inspectionId)
-          .get();
-
-      if (!inspectionDoc.exists) {
-        throw Exception('Inspection not found');
+      if (topicId == null || itemId == null || detailId == null) {
+        throw Exception('Tópico, item ou detalhe sem ID válido');
       }
-
-      final data = inspectionDoc.data() ?? {};
-      final ncArray =
-          List<Map<String, dynamic>>.from(data['non_conformities'] ?? []);
-
-      // Filter to find non-conformities for the same detail
-      final detailNCs = ncArray
-          .where((nc) =>
-              nc['topic_id'] == topicId &&
-              nc['item_id'] == itemId &&
-              nc['detail_id'] == detailId)
-          .toList();
-
-      // Create non-conformity ID with sequential numbering
-      final sequentialPart = detailNCs.length.toString();
-      final nonConformityId =
-          '${widget.inspectionId}-$topicId-$itemId-$detailId-$sequentialPart';
 
       // Prepare non-conformity data
       final nonConformityData = {
-        'id': nonConformityId,
-        'inspection_id': widget.inspectionId,
-        'topic_id': topicId,
-        'item_id': itemId,
-        'detail_id': detailId,
         'description': _descriptionController.text,
         'severity': _severity,
         'corrective_action': _correctiveActionController.text.isEmpty
@@ -122,39 +94,14 @@ class _NonConformityFormState extends State<NonConformityForm> {
         'updated_at': FieldValue.serverTimestamp(),
       };
 
-      // Add to the non-conformities array
-      ncArray.add(nonConformityData);
-
-      // Update the inspection document
-      await _inspectionService.firestore
-          .collection('inspections')
-          .doc(widget.inspectionId)
-          .update({
-        'non_conformities': ncArray,
-        'updated_at': FieldValue.serverTimestamp(),
+      // Add the non-conformity to the appropriate subcollection
+      await _inspectionService.saveNonConformity({
+        'inspection_id': widget.inspectionId,
+        'topic_id': topicId,
+        'item_id': itemId,
+        'detail_id': detailId,
+        ...nonConformityData,
       });
-
-      // Also update the detail to mark as damaged
-      final detailsArray =
-          List<Map<String, dynamic>>.from(data['details'] ?? []);
-
-      // Find the detail
-      final detailIndex = detailsArray.indexWhere((detail) =>
-          detail['topic_id'] == topicId &&
-          detail['item_id'] == itemId &&
-          detail['id'] == detailId);
-
-      if (detailIndex >= 0) {
-        detailsArray[detailIndex]['is_damaged'] = true;
-        detailsArray[detailIndex]['updated_at'] = FieldValue.serverTimestamp();
-
-        await _inspectionService.firestore
-            .collection('inspections')
-            .doc(widget.inspectionId)
-            .update({
-          'details': detailsArray,
-        });
-      }
 
       // Reset the form
       _descriptionController.clear();
@@ -162,6 +109,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
       setState(() {
         _deadline = null;
         _severity = 'Média';
+        _isCreating = false;
       });
 
       // Notify parent
@@ -177,13 +125,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isCreating = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao registrar não conformidade: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isCreating = false);
       }
     }
   }
@@ -194,8 +139,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
       initialDate: _deadline ?? DateTime.now().add(const Duration(days: 7)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      // You might want to localize the date picker too, if needed
-      // locale: const Locale('pt', 'BR'),
     );
 
     if (date != null) {
@@ -324,7 +267,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
             // Topic dropdown
             DropdownButtonFormField<Topic>(
               decoration: const InputDecoration(
-                labelText: 'Ambiente', // Translated
+                labelText: 'Tópico', // Updated from 'Ambiente'
                 border: OutlineInputBorder(),
               ),
               value: widget.selectedTopic,
@@ -340,7 +283,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 }
               },
               validator: (value) =>
-                  value == null ? 'Selecione um ambiente' : null, // Translated
+                  value == null ? 'Selecione um tópico' : null, // Updated
             ),
             const SizedBox(height: 10),
 
@@ -388,7 +331,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
               validator: (value) =>
                   value == null ? 'Selecione um detalhe' : null, // Translated
             ),
-            // Removed duplicate fields from here
           ],
         ),
       ),
