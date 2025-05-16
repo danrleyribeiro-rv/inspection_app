@@ -103,6 +103,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
         checkpoints: _checkpoints,
         isLoading: _isLoading,
         getUserName: _getUserName,
+        comparisons: _comparisons,
         onRefresh: _loadCheckpoints,
         onRestore: widget.onRestore,
       ),
@@ -114,6 +115,7 @@ class ContentBox extends StatelessWidget {
   final List<InspectionCheckpoint> checkpoints;
   final bool isLoading;
   final String Function(String) getUserName;
+  final Map<String, Map<String, dynamic>> comparisons;
   final VoidCallback onRefresh;
   final Function(InspectionCheckpoint) onRestore;
 
@@ -122,6 +124,7 @@ class ContentBox extends StatelessWidget {
     required this.checkpoints,
     required this.isLoading,
     required this.getUserName,
+    required this.comparisons,
     required this.onRefresh,
     required this.onRestore,
   });
@@ -212,6 +215,7 @@ class ContentBox extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final checkpoint = checkpoints[index];
                           final userName = getUserName(checkpoint.createdBy);
+                          final comparison = comparisons[checkpoint.id];
                           
                           return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -267,6 +271,42 @@ class ContentBox extends StatelessWidget {
                                     ),
                                   ],
                                   
+                                  // Informações de comparação
+                                  if (comparison != null) ...[
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 4,
+                                      runSpacing: 4,
+                                      children: [
+                                        _buildComparisonChip(
+                                          'Tópicos', 
+                                          comparison['topics']?['current'] ?? 0, 
+                                          comparison['topics']?['checkpoint'] ?? 0
+                                        ),
+                                        _buildComparisonChip(
+                                          'Itens', 
+                                          comparison['items']?['current'] ?? 0, 
+                                          comparison['items']?['checkpoint'] ?? 0
+                                        ),
+                                        _buildComparisonChip(
+                                          'Detalhes', 
+                                          comparison['details']?['current'] ?? 0, 
+                                          comparison['details']?['checkpoint'] ?? 0
+                                        ),
+                                        _buildComparisonChip(
+                                          'Mídias', 
+                                          comparison['media']?['current'] ?? 0, 
+                                          comparison['media']?['checkpoint'] ?? 0
+                                        ),
+                                        _buildComparisonChip(
+                                          'NCs', 
+                                          comparison['non_conformities']?['current'] ?? 0, 
+                                          comparison['non_conformities']?['checkpoint'] ?? 0
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  
                                   // Botão de restauração
                                   const SizedBox(height: 8),
                                   Row(
@@ -295,6 +335,61 @@ class ContentBox extends StatelessWidget {
                         },
                       ),
           ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildComparisonChip(String label, int current, int checkpoint) {
+    final diff = current - checkpoint;
+    final Color color = diff > 0 
+        ? Colors.green 
+        : diff < 0 
+            ? Colors.red 
+            : Colors.blue;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: color.withOpacity(0.9),
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            '$current / $checkpoint',
+            style: TextStyle(
+              color: color.withOpacity(0.9),
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (diff != 0) ...[
+            const SizedBox(width: 3),
+            Icon(
+              diff > 0 ? Icons.arrow_upward : Icons.arrow_downward,
+              size: 10,
+              color: color,
+            ),
+            Text(
+              '${diff.abs()}',
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ],
       ),
     );

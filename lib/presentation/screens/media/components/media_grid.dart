@@ -176,6 +176,30 @@ class MediaGrid extends StatelessWidget {
                 ),
               ),
               
+             // Informações de tópico/item/detalhe
+              if (mediaItem['topic_name'] != null)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      mediaItem['topic_name'] ?? '',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              
               // Date
               Positioned(
                 bottom: 0,
@@ -205,6 +229,26 @@ class MediaGrid extends StatelessWidget {
                   ),
                 ),
               ),
+              
+              // Observation indicator if available
+              if (mediaItem['observation'] != null && 
+                  (mediaItem['observation'] as String).isNotEmpty)
+                Positioned(
+                  bottom: 16,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.comment,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

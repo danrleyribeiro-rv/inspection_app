@@ -27,59 +27,59 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
     super.dispose();
   }
 
-Future<void> _createCheckpoint() async {
-  if (_isCreating) return;
+  Future<void> _createCheckpoint() async {
+    if (_isCreating) return;
 
-  setState(() => _isCreating = true);
+    setState(() => _isCreating = true);
 
-  try {
-    final message = _messageController.text.trim();
-    
-    // Exibe uma mensagem sobre o salvamento em andamento
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Salvando checkpoint... Aguarde enquanto os dados são capturados.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-    
-    // Criação do checkpoint com tempo suficiente para capturar todos os dados
-    await _checkpointService.createCheckpoint(
-      inspectionId: widget.inspectionId,
-      message: message.isEmpty ? null : message,
-    );
-
-    if (mounted) {
-      Navigator.of(context).pop(true);
-      widget.onCheckpointCreated();
-
-      // Mostrar SnackBar após a criação
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Checkpoint registrado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  } catch (e) {
-    if (mounted) {
-      setState(() => _isCreating = false);
+    try {
+      final message = _messageController.text.trim();
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao registrar checkpoint: $e'),
-          backgroundColor: Colors.red,
-        ),
+      // Exibe uma mensagem sobre o salvamento em andamento
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Salvando checkpoint... Aguarde enquanto os dados são capturados.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      // Criação do checkpoint
+      await _checkpointService.createCheckpoint(
+        inspectionId: widget.inspectionId,
+        message: message.isEmpty ? null : message,
       );
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        widget.onCheckpointCreated();
+
+        // Mostrar SnackBar após a criação
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Checkpoint registrado com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCreating = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao registrar checkpoint: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreating = false);
+      }
     }
-  } finally {
-    if (mounted) {
-      setState(() => _isCreating = false);
-    }
-  } 
-}
+  }
 
   @override
   Widget build(BuildContext context) {

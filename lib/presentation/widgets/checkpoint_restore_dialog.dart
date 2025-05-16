@@ -151,10 +151,10 @@ class CheckpointRestoreDialog extends StatelessWidget {
                             ),
                           ],
 
-                          // Informações do snapshot
-                          const SizedBox(height: 12),
+                          // Informações resumidas do checkpoint
                           if (checkpoint.data != null) ...[
-                            _buildSnapshotInfo(checkpoint.data!),
+                            const SizedBox(height: 12),
+                            _buildCheckpointSummary(checkpoint.data!),
                           ],
                         ],
                       ),
@@ -235,26 +235,24 @@ class CheckpointRestoreDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildSnapshotInfo(Map<String, dynamic> data) {
-    // Extrair informações resumidas do snapshot
-    final topics = data['topics'] as List<dynamic>? ?? [];
-
+  Widget _buildCheckpointSummary(Map<String, dynamic> checkpointData) {
+    // Extrair contagens da estrutura do checkpoint
+    int topicsCount = 0;
     int itemsCount = 0;
     int detailsCount = 0;
+    int mediaCount = 0;
+    int nonConformitiesCount = 0;
 
-    for (final topic in topics) {
-      final items = topic['items'] as List<dynamic>? ?? [];
-      itemsCount += items.length;
-
-      for (final item in items) {
-        // A chave correta deve ser 'details', não 'details'
-        final details = item['details'] as List<dynamic>? ?? [];
-        detailsCount += details.length;
-      }
+    // Em vez de usar listas embutidas, vamos interpretar os dados de contagem
+    // que foram capturados durante a criação do checkpoint
+    if (checkpointData.containsKey('counters')) {
+      final counters = checkpointData['counters'] as Map<String, dynamic>? ?? {};
+      topicsCount = counters['topics'] as int? ?? 0;
+      itemsCount = counters['items'] as int? ?? 0;
+      detailsCount = counters['details'] as int? ?? 0;
+      mediaCount = counters['media'] as int? ?? 0;
+      nonConformitiesCount = counters['non_conformities'] as int? ?? 0;
     }
-
-    final nonConformities = data['non_conformities'] as List<dynamic>? ?? [];
-    final media = data['media'] as List<dynamic>? ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,14 +266,14 @@ class CheckpointRestoreDialog extends StatelessWidget {
         ),
         const SizedBox(height: 8),
 
-        // Informações do snapshot em chips
+        // Exibir as informações em chips
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             _buildInfoChip(
               icon: Icons.topic_outlined,
-              label: '${topics.length} tópicos',
+              label: '$topicsCount tópicos',
               color: Colors.blue,
             ),
             _buildInfoChip(
@@ -290,12 +288,12 @@ class CheckpointRestoreDialog extends StatelessWidget {
             ),
             _buildInfoChip(
               icon: Icons.warning_amber,
-              label: '${nonConformities.length} NCs',
+              label: '$nonConformitiesCount NCs',
               color: Colors.orange,
             ),
             _buildInfoChip(
               icon: Icons.photo_library,
-              label: '${media.length} mídias',
+              label: '$mediaCount mídias',
               color: Colors.indigo,
             ),
           ],

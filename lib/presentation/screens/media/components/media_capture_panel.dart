@@ -300,15 +300,9 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       }
 
       // Prepare media data
-      final mediaId =
-          '${widget.inspectionId}-${_topicId}-${_itemId}-${_detailId}-${_uuid.v4().substring(0, 8)}';
-
+      final mediaId = _uuid.v4();
+      
       Map<String, dynamic> mediaData = {
-        'id': mediaId,
-        'inspection_id': widget.inspectionId,
-        'topic_id': _topicId,
-        'topic_item_id': _itemId,
-        'detail_id': _detailId,
         'type': type,
         'localPath': localPath,
         'is_non_conformity': _isNonConformity,
@@ -320,9 +314,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       // Try to upload to Firebase Storage
       try {
         // Upload to Firebase Storage
-        final storageRef =
-            _storage.ref().child('inspection_media').child(fileName);
-        final uploadTask = await storageRef.putFile(File(localPath));
+        final storageRef = _storage.ref().child('inspection_media').child(fileName);
+        await storageRef.putFile(File(localPath));
         final downloadUrl = await storageRef.getDownloadURL();
 
         mediaData['url'] = downloadUrl;
@@ -331,54 +324,32 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         // Continue without URL, it will be uploaded when online
       }
 
-      // Get the inspection document
-      final inspectionDoc = await _firestore
-          .collection('inspections')
-          .doc(widget.inspectionId)
-          .get();
-
-      if (!inspectionDoc.exists) {
-        throw Exception('Inspection not found');
-      }
-
-      final data = inspectionDoc.data() ?? {};
-      final mediaArray = List<Map<String, dynamic>>.from(data['media'] ?? []);
-
-      // Add to array
-      mediaArray.add(mediaData);
-
-      // Update the inspection document
+      // Salvar na subcoleção 'media' do detalhe
       await _firestore
           .collection('inspections')
           .doc(widget.inspectionId)
-          .update({
-        'media': mediaArray,
-        'updated_at': FieldValue.serverTimestamp(),
-      });
+          .collection('topics')
+          .doc(_topicId)
+          .collection('topic_items')
+          .doc(_itemId)
+          .collection('item_details')
+          .doc(_detailId)
+          .collection('media')
+          .doc(mediaId)
+          .set(mediaData);
 
       // Update detail if it's a non-conformity
-      if (_isNonConformity && _detailId != null) {
-        final detailsArray =
-            List<Map<String, dynamic>>.from(data['details'] ?? []);
-
-        // Find the detail
-        final detailIndex = detailsArray.indexWhere((detail) =>
-            detail['topic_id'] == _topicId &&
-            detail['item_id'] == _itemId &&
-            detail['id'] == _detailId);
-
-        if (detailIndex >= 0) {
-          detailsArray[detailIndex]['is_damaged'] = true;
-          detailsArray[detailIndex]['updated_at'] =
-              FieldValue.serverTimestamp();
-
-          await _firestore
-              .collection('inspections')
-              .doc(widget.inspectionId)
-              .update({
-            'details': detailsArray,
-          });
-        }
+      if (_isNonConformity) {
+        await _firestore
+            .collection('inspections')
+            .doc(widget.inspectionId)
+            .collection('topics')
+            .doc(_topicId)
+            .collection('topic_items')
+            .doc(_itemId)
+            .collection('item_details')
+            .doc(_detailId)
+            .update({'is_damaged': true});
       }
 
       // Call the callback
