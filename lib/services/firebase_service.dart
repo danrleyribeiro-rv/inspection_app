@@ -40,28 +40,47 @@ class FirebaseService {
   }
 
   // Get inspector data
-  Future<Map<String, dynamic>?> getInspectorData() async {
-    final user = currentUser;
-    if (user == null) {
-      return null;
+Future<Map<String, dynamic>?> getInspectorData() async {
+  final user = currentUser;
+  if (user == null) {
+    return null;
+  }
+
+  try {
+    // Primeiro tenta buscar por documento com ID igual ao user_id
+    final inspectorDoc = await firestore
+        .collection('inspectors')
+        .doc(user.uid)
+        .get();
+
+    if (inspectorDoc.exists) {
+      return {
+        'id': inspectorDoc.id,
+        ...inspectorDoc.data() ?? {},
+      };
     }
 
+    // Se não encontrar, busca por consulta
     final inspectorQuery = await firestore
         .collection('inspectors')
         .where('user_id', isEqualTo: user.uid)
         .limit(1)
         .get();
 
-    if (inspectorQuery.docs.isEmpty) {
-      return null;
+    if (inspectorQuery.docs.isNotEmpty) {
+      final inspectorDoc = inspectorQuery.docs.first;
+      return {
+        'id': inspectorDoc.id,
+        ...inspectorDoc.data(),
+      };
     }
 
-    final inspectorDoc = inspectorQuery.docs.first;
-    return {
-      'id': inspectorDoc.id,
-      ...inspectorDoc.data(),
-    };
+    return null;
+  } catch (e) {
+    print('Error getting inspector data: $e');
+    return null;
   }
+}
 
   // Update inspector profile
   Future<void> updateInspectorProfile(

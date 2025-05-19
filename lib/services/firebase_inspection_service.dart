@@ -60,7 +60,8 @@ class FirebaseInspectionService {
   Future<Topic> addTopic(String inspectionId, String topicName,
       {String? label, int? position, String? observation}) async {
     final existingTopics = await getTopics(inspectionId);
-    final newPosition = position ?? (existingTopics.isEmpty ? 0 : existingTopics.last.position + 1);
+    final newPosition = position ??
+        (existingTopics.isEmpty ? 0 : existingTopics.last.position + 1);
 
     final topic = Topic(
       id: null, // Will be set by Firestore
@@ -78,7 +79,9 @@ class FirebaseInspectionService {
         .collection('inspections')
         .doc(inspectionId)
         .collection('topics')
-        .add(topic.toMap()..remove('inspection_id')..remove('id'));
+        .add(topic.toMap()
+          ..remove('inspection_id')
+          ..remove('id'));
 
     // Return the topic with the generated ID
     return topic.copyWith(id: docRef.id);
@@ -97,7 +100,9 @@ class FirebaseInspectionService {
         .doc(inspectionId)
         .collection('topics')
         .doc(topicId)
-        .update(updatedTopic.toMap()..remove('inspection_id')..remove('id'));
+        .update(updatedTopic.toMap()
+          ..remove('inspection_id')
+          ..remove('id'));
   }
 
   Future<void> deleteTopic(String inspectionId, String topicId) async {
@@ -231,7 +236,8 @@ class FirebaseInspectionService {
 
     // Create new topic with duplicated name
     final existingTopics = await getTopics(inspectionId);
-    final newPosition = existingTopics.isEmpty ? 0 : existingTopics.last.position + 1;
+    final newPosition =
+        existingTopics.isEmpty ? 0 : existingTopics.last.position + 1;
     final newTopicName = '$topicName (copy)';
 
     // Create the new topic
@@ -256,7 +262,7 @@ class FirebaseInspectionService {
     // Duplicate all items and their details
     for (var itemDoc in itemsSnapshot.docs) {
       final itemData = itemDoc.data();
-      
+
       // Create new item
       final newItemRef = await firestore
           .collection('inspections')
@@ -285,7 +291,7 @@ class FirebaseInspectionService {
       // Duplicate all details
       for (var detailDoc in detailsSnapshot.docs) {
         final detailData = detailDoc.data();
-        
+
         await firestore
             .collection('inspections')
             .doc(inspectionId)
@@ -333,7 +339,8 @@ class FirebaseInspectionService {
   Future<Item> addItem(String inspectionId, String topicId, String itemName,
       {String? label, String? observation}) async {
     final existingItems = await getItems(inspectionId, topicId);
-    final newPosition = existingItems.isEmpty ? 0 : existingItems.last.position + 1;
+    final newPosition =
+        existingItems.isEmpty ? 0 : existingItems.last.position + 1;
 
     final item = Item(
       id: null, // Will be set by Firestore
@@ -354,7 +361,10 @@ class FirebaseInspectionService {
         .collection('topics')
         .doc(topicId)
         .collection('topic_items')
-        .add(item.toMap()..remove('inspection_id')..remove('id')..remove('topic_id'));
+        .add(item.toMap()
+          ..remove('inspection_id')
+          ..remove('id')
+          ..remove('topic_id'));
 
     // Return the item with the generated ID
     return item.copyWith(id: docRef.id);
@@ -382,7 +392,8 @@ class FirebaseInspectionService {
           ..remove('topic_id'));
   }
 
-  Future<void> deleteItem(String inspectionId, String topicId, String itemId) async {
+  Future<void> deleteItem(
+      String inspectionId, String topicId, String itemId) async {
     // Get all details for this item
     final detailsSnapshot = await firestore
         .collection('inspections')
@@ -465,7 +476,8 @@ class FirebaseInspectionService {
         .delete();
   }
 
-  Future<Item> isItemDuplicate(String inspectionId, String topicId, String itemName) async {
+  Future<Item> isItemDuplicate(
+      String inspectionId, String topicId, String itemName) async {
     // Find the source item
     final querySnapshot = await firestore
         .collection('inspections')
@@ -486,7 +498,8 @@ class FirebaseInspectionService {
 
     // Create new item with duplicated name
     final existingItems = await getItems(inspectionId, topicId);
-    final newPosition = existingItems.isEmpty ? 0 : existingItems.last.position + 1;
+    final newPosition =
+        existingItems.isEmpty ? 0 : existingItems.last.position + 1;
     final newItemName = '$itemName (copy)';
 
     // Create the new item
@@ -513,7 +526,7 @@ class FirebaseInspectionService {
     // Duplicate all details
     for (var detailDoc in detailsSnapshot.docs) {
       final detailData = detailDoc.data();
-      
+
       await firestore
           .collection('inspections')
           .doc(inspectionId)
@@ -533,7 +546,8 @@ class FirebaseInspectionService {
   }
 
   // DETAILS METHODS
-  Future<List<Detail>> getDetails(String inspectionId, String topicId, String itemId) async {
+  Future<List<Detail>> getDetails(
+      String inspectionId, String topicId, String itemId) async {
     final querySnapshot = await firestore
         .collection('inspections')
         .doc(inspectionId)
@@ -572,7 +586,8 @@ class FirebaseInspectionService {
     bool? isDamaged,
   }) async {
     final existingDetails = await getDetails(inspectionId, topicId, itemId);
-    final newPosition = existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
+    final newPosition =
+        existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
 
     final detail = Detail(
       id: null, // Will be set by Firestore
@@ -616,7 +631,8 @@ class FirebaseInspectionService {
     final detailId = updatedDetail.id;
 
     if (topicId == null || itemId == null || detailId == null) {
-      throw Exception('Topic ID, Item ID, and Detail ID are required for updates');
+      throw Exception(
+          'Topic ID, Item ID, and Detail ID are required for updates');
     }
 
     await firestore
@@ -635,7 +651,8 @@ class FirebaseInspectionService {
           ..remove('item_id'));
   }
 
-  Future<void> deleteDetail(String inspectionId, String topicId, String itemId, String detailId) async {
+  Future<void> deleteDetail(String inspectionId, String topicId, String itemId,
+      String detailId) async {
     // Delete media
     final mediaSnapshot = await firestore
         .collection('inspections')
@@ -703,7 +720,8 @@ class FirebaseInspectionService {
         .delete();
   }
 
-  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId, String itemId, String detailName) async {
+  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId,
+      String itemId, String detailName) async {
     // Find the source detail
     final querySnapshot = await firestore
         .collection('inspections')
@@ -726,7 +744,8 @@ class FirebaseInspectionService {
 
     // Get existing details to determine position
     final existingDetails = await getDetails(inspectionId, topicId, itemId);
-    final newPosition = existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
+    final newPosition =
+        existingDetails.isEmpty ? 0 : (existingDetails.last.position ?? 0) + 1;
     final newDetailName = '$detailName (copy)';
 
     // Create options array if needed
@@ -734,11 +753,12 @@ class FirebaseInspectionService {
     if (sourceDetailData['options'] != null) {
       if (sourceDetailData['options'] is List) {
         options = List<String>.from(sourceDetailData['options']);
-      } else if (sourceDetailData['options'] is Map && 
-                 sourceDetailData['options']['arrayValue'] != null &&
-                 sourceDetailData['options']['arrayValue']['values'] != null) {
+      } else if (sourceDetailData['options'] is Map &&
+          sourceDetailData['options']['arrayValue'] != null &&
+          sourceDetailData['options']['arrayValue']['values'] != null) {
         options = [];
-        for (var option in sourceDetailData['options']['arrayValue']['values']) {
+        for (var option in sourceDetailData['options']['arrayValue']
+            ['values']) {
           if (option['stringValue'] != null) {
             options.add(option['stringValue']);
           }
@@ -761,21 +781,22 @@ class FirebaseInspectionService {
   }
 
   // NON-CONFORMITY METHODS
-  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {
+  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
+      String inspectionId) async {
     // First get all topics (topics)
     final topicsSnapshot = await firestore
         .collection('inspections')
         .doc(inspectionId)
         .collection('topics')
         .get();
-    
+
     List<Map<String, dynamic>> nonConformities = [];
-    
+
     // For each topic
     for (var topicDoc in topicsSnapshot.docs) {
       final topicId = topicDoc.id;
       final topicData = topicDoc.data();
-      
+
       // Get all items
       final itemsSnapshot = await firestore
           .collection('inspections')
@@ -784,12 +805,12 @@ class FirebaseInspectionService {
           .doc(topicId)
           .collection('topic_items')
           .get();
-      
+
       // For each item
       for (var itemDoc in itemsSnapshot.docs) {
         final itemId = itemDoc.id;
         final itemData = itemDoc.data();
-        
+
         // Get all details
         final detailsSnapshot = await firestore
             .collection('inspections')
@@ -800,12 +821,12 @@ class FirebaseInspectionService {
             .doc(itemId)
             .collection('item_details')
             .get();
-        
+
         // For each detail
         for (var detailDoc in detailsSnapshot.docs) {
           final detailId = detailDoc.id;
           final detailData = detailDoc.data();
-          
+
           // Get all non-conformities
           final ncSnapshot = await firestore
               .collection('inspections')
@@ -818,11 +839,11 @@ class FirebaseInspectionService {
               .doc(detailId)
               .collection('non_conformities')
               .get();
-          
+
           // For each non-conformity
           for (var ncDoc in ncSnapshot.docs) {
             final ncData = ncDoc.data();
-            
+
             // Add to the list with hierarchy data
             nonConformities.add({
               ...ncData,
@@ -848,7 +869,7 @@ class FirebaseInspectionService {
         }
       }
     }
-    
+
     return nonConformities;
   }
 
@@ -870,14 +891,15 @@ class FirebaseInspectionService {
         .doc(detailId)
         .collection('non_conformities')
         .add({
-      ...nonConformityData,
-      'created_at': FieldValue.serverTimestamp(),
-      'updated_at': FieldValue.serverTimestamp(),
-    }..remove('inspection_id')
-     ..remove('topic_id')
-     ..remove('item_id')
-     ..remove('detail_id')
-     ..remove('id'));
+          ...nonConformityData,
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+        }
+          ..remove('inspection_id')
+          ..remove('topic_id')
+          ..remove('item_id')
+          ..remove('detail_id')
+          ..remove('id'));
 
     // Also update the detail to mark as damaged
     await firestore
@@ -892,7 +914,8 @@ class FirebaseInspectionService {
         .update({'is_damaged': true});
   }
 
-  Future<void> updateNonConformityStatus(String nonConformityId, String newStatus) async {
+  Future<void> updateNonConformityStatus(
+      String nonConformityId, String newStatus) async {
     // Parse the composite ID to extract the hierarchy IDs
     final parts = nonConformityId.split('-');
     if (parts.length < 5) {
@@ -922,7 +945,8 @@ class FirebaseInspectionService {
     });
   }
 
-  Future<void> updateNonConformity(String nonConformityId, Map<String, dynamic> updatedData) async {
+  Future<void> updateNonConformity(
+      String nonConformityId, Map<String, dynamic> updatedData) async {
     // Parse the composite ID to extract the hierarchy IDs
     final parts = nonConformityId.split('-');
     if (parts.length < 5) {
@@ -947,16 +971,18 @@ class FirebaseInspectionService {
         .collection('non_conformities')
         .doc(ncId)
         .update({
-      ...updatedData,
-      'updated_at': FieldValue.serverTimestamp(),
-    }..remove('inspection_id')
-     ..remove('topic_id')
-     ..remove('item_id')
-     ..remove('detail_id')
-     ..remove('id'));
+          ...updatedData,
+          'updated_at': FieldValue.serverTimestamp(),
+        }
+          ..remove('inspection_id')
+          ..remove('topic_id')
+          ..remove('item_id')
+          ..remove('detail_id')
+          ..remove('id'));
   }
 
-  Future<void> deleteNonConformity(String nonConformityId, String inspectionId) async {
+  Future<void> deleteNonConformity(
+      String nonConformityId, String inspectionId) async {
     // Parse the composite ID to extract the hierarchy IDs
     final parts = nonConformityId.split('-');
     if (parts.length < 5) {
@@ -1049,9 +1075,9 @@ class FirebaseInspectionService {
       if (parts.length < 5) {
         throw Exception('Invalid non-conformity ID format');
       }
-      
+
       final ncId = parts[4];
-      
+
       // Save to non-conformity media
       await firestore
           .collection('inspections')
@@ -1067,15 +1093,16 @@ class FirebaseInspectionService {
           .collection('nc_media')
           .doc(mediaId)
           .set({
-        ...mediaData,
-        'id': mediaId,
-        'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-      }..remove('inspection_id')
-       ..remove('topic_id')
-       ..remove('topic_item_id')
-       ..remove('detail_id')
-       ..remove('non_conformity_id'));
+            ...mediaData,
+            'id': mediaId,
+            'created_at': FieldValue.serverTimestamp(),
+            'updated_at': FieldValue.serverTimestamp(),
+          }
+            ..remove('inspection_id')
+            ..remove('topic_id')
+            ..remove('topic_item_id')
+            ..remove('detail_id')
+            ..remove('non_conformity_id'));
     } else {
       // Save to regular media
       await firestore
@@ -1090,15 +1117,16 @@ class FirebaseInspectionService {
           .collection('media')
           .doc(mediaId)
           .set({
-        ...mediaData,
-        'id': mediaId,
-        'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-      }..remove('inspection_id')
-       ..remove('topic_id')
-       ..remove('topic_item_id')
-       ..remove('detail_id')
-       ..remove('non_conformity_id'));
+            ...mediaData,
+            'id': mediaId,
+            'created_at': FieldValue.serverTimestamp(),
+            'updated_at': FieldValue.serverTimestamp(),
+          }
+            ..remove('inspection_id')
+            ..remove('topic_id')
+            ..remove('topic_item_id')
+            ..remove('detail_id')
+            ..remove('non_conformity_id'));
     }
 
     // If marked as non-conformity, update the detail
@@ -1116,7 +1144,8 @@ class FirebaseInspectionService {
     }
   }
 
-  Future<void> deleteMedia(String mediaId, Map<String, dynamic> mediaData) async {
+  Future<void> deleteMedia(
+      String mediaId, Map<String, dynamic> mediaData) async {
     final inspectionId = mediaData['inspection_id'];
     final topicId = mediaData['topic_id'];
     final itemId = mediaData['topic_item_id'];
@@ -1130,9 +1159,9 @@ class FirebaseInspectionService {
       if (parts.length < 5) {
         throw Exception('Invalid non-conformity ID format');
       }
-      
+
       final ncId = parts[4];
-      
+
       // Delete from non-conformity media
       await firestore
           .collection('inspections')
@@ -1165,7 +1194,8 @@ class FirebaseInspectionService {
     }
   }
 
-  Future<void> updateMedia(String mediaId, Map<String, dynamic> mediaData, Map<String, dynamic> updatedData) async {
+  Future<void> updateMedia(String mediaId, Map<String, dynamic> mediaData,
+      Map<String, dynamic> updatedData) async {
     final inspectionId = mediaData['inspection_id'];
     final topicId = mediaData['topic_id'];
     final itemId = mediaData['topic_item_id'];
@@ -1179,9 +1209,9 @@ class FirebaseInspectionService {
       if (parts.length < 5) {
         throw Exception('Invalid non-conformity ID format');
       }
-      
+
       final ncId = parts[4];
-      
+
       // Update in non-conformity media
       await firestore
           .collection('inspections')
@@ -1197,14 +1227,15 @@ class FirebaseInspectionService {
           .collection('nc_media')
           .doc(mediaId)
           .update({
-        ...updatedData,
-        'updated_at': FieldValue.serverTimestamp(),
-      }..remove('inspection_id')
-       ..remove('topic_id')
-       ..remove('topic_item_id')
-       ..remove('detail_id')
-       ..remove('non_conformity_id')
-       ..remove('id'));
+            ...updatedData,
+            'updated_at': FieldValue.serverTimestamp(),
+          }
+            ..remove('inspection_id')
+            ..remove('topic_id')
+            ..remove('topic_item_id')
+            ..remove('detail_id')
+            ..remove('non_conformity_id')
+            ..remove('id'));
     } else {
       // Update in regular media
       await firestore
@@ -1219,20 +1250,21 @@ class FirebaseInspectionService {
           .collection('media')
           .doc(mediaId)
           .update({
-        ...updatedData,
-        'updated_at': FieldValue.serverTimestamp(),
-      }..remove('inspection_id')
-       ..remove('topic_id')
-       ..remove('topic_item_id')
-       ..remove('detail_id')
-       ..remove('non_conformity_id')
-       ..remove('id'));
+            ...updatedData,
+            'updated_at': FieldValue.serverTimestamp(),
+          }
+            ..remove('inspection_id')
+            ..remove('topic_id')
+            ..remove('topic_item_id')
+            ..remove('detail_id')
+            ..remove('non_conformity_id')
+            ..remove('id'));
     }
 
     // If is_non_conformity status changed, update the detail
     if (updatedData.containsKey('is_non_conformity')) {
       bool isNowNonConformity = updatedData['is_non_conformity'] == true;
-      
+
       if (isNowNonConformity) {
         await firestore
             .collection('inspections')
@@ -1247,7 +1279,7 @@ class FirebaseInspectionService {
       } else {
         // Check if there are any other media or non-conformities marking this as damaged
         bool stillDamaged = false;
-        
+
         // Check other media
         final otherMediaSnapshot = await firestore
             .collection('inspections')
@@ -1262,11 +1294,11 @@ class FirebaseInspectionService {
             .where('is_non_conformity', isEqualTo: true)
             .limit(1)
             .get();
-            
+
         if (otherMediaSnapshot.docs.isNotEmpty) {
           stillDamaged = true;
         }
-        
+
         // Check non-conformities
         if (!stillDamaged) {
           final ncSnapshot = await firestore
@@ -1281,12 +1313,12 @@ class FirebaseInspectionService {
               .collection('non_conformities')
               .limit(1)
               .get();
-              
+
           if (ncSnapshot.docs.isNotEmpty) {
             stillDamaged = true;
           }
         }
-        
+
         // Update the detail if no longer damaged
         if (!stillDamaged) {
           await firestore
@@ -1314,12 +1346,12 @@ class FirebaseInspectionService {
         .doc(inspectionId)
         .collection('topics')
         .get();
-    
+
     // For each topic
     for (var topicDoc in topicsSnapshot.docs) {
       final topicId = topicDoc.id;
       final topicData = topicDoc.data();
-      
+
       // Get all items
       final itemsSnapshot = await firestore
           .collection('inspections')
@@ -1328,12 +1360,12 @@ class FirebaseInspectionService {
           .doc(topicId)
           .collection('topic_items')
           .get();
-      
+
       // For each item
       for (var itemDoc in itemsSnapshot.docs) {
         final itemId = itemDoc.id;
         final itemData = itemDoc.data();
-        
+
         // Get all details
         final detailsSnapshot = await firestore
             .collection('inspections')
@@ -1344,12 +1376,12 @@ class FirebaseInspectionService {
             .doc(itemId)
             .collection('item_details')
             .get();
-        
+
         // For each detail
         for (var detailDoc in detailsSnapshot.docs) {
           final detailId = detailDoc.id;
           final detailData = detailDoc.data();
-          
+
           // Get regular media
           final mediaSnapshot = await firestore
               .collection('inspections')
@@ -1362,11 +1394,11 @@ class FirebaseInspectionService {
               .doc(detailId)
               .collection('media')
               .get();
-          
+
           // Add regular media to list
           for (var mediaDoc in mediaSnapshot.docs) {
             final mediaData = mediaDoc.data();
-            
+
             allMedia.add({
               ...mediaData,
               'id': mediaDoc.id,
@@ -1379,7 +1411,7 @@ class FirebaseInspectionService {
               'detail_name': detailData['detail_name'],
             });
           }
-          
+
           // Get non-conformities
           final ncSnapshot = await firestore
               .collection('inspections')
@@ -1392,15 +1424,16 @@ class FirebaseInspectionService {
               .doc(detailId)
               .collection('non_conformities')
               .get();
-          
+
           // For each non-conformity
           for (var ncDoc in ncSnapshot.docs) {
             final ncId = ncDoc.id;
             final ncData = ncDoc.data();
-            
+
             // Build a non-conformity ID
-            final nonConformityId = '$inspectionId-$topicId-$itemId-$detailId-$ncId';
-            
+            final nonConformityId =
+                '$inspectionId-$topicId-$itemId-$detailId-$ncId';
+
             // Get non-conformity media
             final ncMediaSnapshot = await firestore
                 .collection('inspections')
@@ -1415,11 +1448,11 @@ class FirebaseInspectionService {
                 .doc(ncId)
                 .collection('nc_media')
                 .get();
-            
+
             // Add non-conformity media to list
             for (var mediaDoc in ncMediaSnapshot.docs) {
               final mediaData = mediaDoc.data();
-              
+
               allMedia.add({
                 ...mediaData,
                 'id': mediaDoc.id,
@@ -1438,15 +1471,17 @@ class FirebaseInspectionService {
         }
       }
     }
-    
+
     return allMedia;
   }
 
   // TEMPLATE APPLICATION
-  Future<bool> applyTemplateToInspection(String inspectionId, String templateId) async {
+  Future<bool> applyTemplateToInspection(
+      String inspectionId, String templateId) async {
     try {
       // Get the template
-      final templateDoc = await firestore.collection('templates').doc(templateId).get();
+      final templateDoc =
+          await firestore.collection('templates').doc(templateId).get();
       if (!templateDoc.exists) {
         return false;
       }
@@ -1495,7 +1530,8 @@ class FirebaseInspectionService {
             inspectionId,
             topic.id!,
             itemName,
-            observation: _extractStringValueFromTemplate(itemFields, 'description'),
+            observation:
+                _extractStringValueFromTemplate(itemFields, 'description'),
           );
 
           // Extract details
@@ -1519,7 +1555,8 @@ class FirebaseInspectionService {
             // Extract options for select type
             List<String>? options;
             if (detailType == 'select') {
-              final optionsArray = _extractArrayFromTemplate(detailFields, 'options');
+              final optionsArray =
+                  _extractArrayFromTemplate(detailFields, 'options');
               options = [];
 
               for (var option in optionsArray) {
@@ -1537,7 +1574,8 @@ class FirebaseInspectionService {
                     defaultValue: '');
 
                 if (optionsText.isNotEmpty) {
-                  options = optionsText.split(',').map((e) => e.trim()).toList();
+                  options =
+                      optionsText.split(',').map((e) => e.trim()).toList();
                 }
               }
             }
@@ -1566,6 +1604,38 @@ class FirebaseInspectionService {
       print('Error applying template: $e');
       return false;
     }
+  }
+
+  // Check if template is already applied to prevent duplicates
+  Future<bool> isTemplateAlreadyApplied(String inspectionId) async {
+    final inspectionDoc =
+        await firestore.collection('inspections').doc(inspectionId).get();
+    if (inspectionDoc.exists) {
+      final data = inspectionDoc.data() as Map<String, dynamic>;
+      return data['is_templated'] == true;
+    }
+    return false;
+  }
+
+  // Apply template with duplicate prevention
+  Future<bool> applyTemplateToInspectionSafe(
+      String inspectionId, String templateId) async {
+    // First check if template is already applied
+    if (await isTemplateAlreadyApplied(inspectionId)) {
+      print('Template already applied to inspection $inspectionId');
+      return true; // Consider as success since template is already applied
+    }
+
+    // Check if there are already topics in the inspection
+    final existingTopics = await getTopics(inspectionId);
+    if (existingTopics.isNotEmpty) {
+      print(
+          'Inspection $inspectionId already has topics, skipping template application');
+      return true; // Consider as success to prevent blocking
+    }
+
+    // Apply template normally
+    return await applyTemplateToInspection(inspectionId, templateId);
   }
 
   // Helper methods for template handling

@@ -14,12 +14,19 @@ import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/services/firebase_service.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:inspection_app/services/cache_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa o Firebase antes de qualquer uso
+    // Initialize Firebase
   await Firebase.initializeApp();
+  
+  // Initialize Firebase Service
+  await FirebaseService.initialize();
+  
+  // Initialize Cache Service
+  await CacheService.initialize();
 
   // Configurar o estilo da barra de navegação para evitar sobreposição
   SystemChrome.setSystemUIOverlayStyle(

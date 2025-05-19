@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/services/media_service.dart';
+import 'package:inspection_app/services/data/media_data_service.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_grid.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_capture_panel.dart';
@@ -21,7 +21,7 @@ class MediaGalleryScreen extends StatefulWidget {
 
 class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   final _inspectionService = FirebaseInspectionService();
-  final _mediaService = MediaService();
+  final _mediaService = MediaDataService();
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _allMedia = [];
@@ -47,7 +47,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     try {
       // Carrega os tópicos para filtro
       final topics = await _inspectionService.getTopics(widget.inspectionId);
-      
+
       // Carrega todas as mídias usando o novo serviço
       final allMedia = await _mediaService.getAllMedia(widget.inspectionId);
 
@@ -110,7 +110,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   Future<void> _handleMediaAdded(String localPath) async {
     await _loadData(); // Reload all data
   }
-  
+
   void _showMediaDetails(Map<String, dynamic> media) {
     showModalBottomSheet(
       context: context,

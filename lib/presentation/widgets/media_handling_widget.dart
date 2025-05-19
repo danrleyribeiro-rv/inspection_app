@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/firebase_service.dart';
 import 'package:inspection_app/services/image_watermark_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
+import 'package:inspection_app/services/offline_inspection_service.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -897,7 +897,7 @@ class MoveMediaDialog extends StatefulWidget {
 }
 
 class _MoveMediaDialogState extends State<MoveMediaDialog> {
-  final _inspectionService = FirebaseInspectionService();
+  final OfflineInspectionService _offlineService = OfflineInspectionService();
 
   List<Topic> _topics = [];
   List<Item> _items = [];
@@ -912,7 +912,14 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   @override
   void initState() {
     super.initState();
+    _offlineService.initialize();
     _loadTopics();
+  }
+
+  @override
+  void dispose() {
+    _offlineService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTopics() async {
@@ -920,7 +927,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     setState(() => _isLoading = true);
 
     try {
-      final topics = await _inspectionService.getTopics(widget.inspectionId);
+      final topics = await _offlineService.getTopics(widget.inspectionId);
 
       if (!mounted) return;
 
@@ -961,7 +968,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
     try {
       final items =
-          await _inspectionService.getItems(widget.inspectionId, topicId);
+          await _offlineService.getItems(widget.inspectionId, topicId);
 
       if (!mounted) return;
 
@@ -999,7 +1006,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
       setState(() => _isLoading = true);
     }
     try {
-      final details = await _inspectionService.getDetails(
+      final details = await _offlineService.getDetails(
           widget.inspectionId, topicId, itemId);
 
       if (!mounted) return;
