@@ -5,7 +5,7 @@ import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
-import 'package:inspection_app/services/offline_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 import 'dart:async';
 
 class ItemWidget extends StatefulWidget {
@@ -31,7 +31,7 @@ class ItemWidget extends StatefulWidget {
 }
 
 class _ItemWidgetState extends State<ItemWidget> {
-  final OfflineInspectionService _offlineService = OfflineInspectionService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
   List<Detail> _details = [];
   bool _isLoading = true;
   int _expandedDetailIndex = -1;
@@ -42,7 +42,6 @@ class _ItemWidgetState extends State<ItemWidget> {
   @override
   void initState() {
     super.initState();
-    _offlineService.initialize();
     _loadDetails();
     _observationController.text = widget.item.observation ?? '';
     _scrollController = ScrollController();
@@ -50,7 +49,6 @@ class _ItemWidgetState extends State<ItemWidget> {
 
   @override
   void dispose() {
-    _offlineService.dispose();
     _observationController.dispose();
     _debounce?.cancel();
     _scrollController?.dispose();
@@ -61,7 +59,7 @@ class _ItemWidgetState extends State<ItemWidget> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final details = await _offlineService.getDetails(
+      final details = await _serviceFactory.offlineService.getDetails(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -121,8 +119,7 @@ class _ItemWidgetState extends State<ItemWidget> {
         return AlertDialog(
           title: const Text('Editar Observação do Item'),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width *
-                0.8, // 80% da largura da tela
+            width: MediaQuery.of(context).size.width * 0.8,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 220),
               child: TextFormField(
@@ -217,7 +214,7 @@ class _ItemWidgetState extends State<ItemWidget> {
         }
       }
 
-      final newDetail = await _offlineService.addDetail(
+      final newDetail = await _serviceFactory.offlineService.addDetail(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -267,7 +264,7 @@ class _ItemWidgetState extends State<ItemWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final newDetail = await _offlineService.isDetailDuplicate(
+      final newDetail = await _serviceFactory.offlineService.isDetailDuplicate(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -429,13 +426,13 @@ class _ItemWidgetState extends State<ItemWidget> {
                                 .indexWhere((d) => d.id == updatedDetail.id);
                             if (idx >= 0) {
                               setState(() => _details[idx] = updatedDetail);
-                              _offlineService.updateDetail(updatedDetail);
+                              _serviceFactory.offlineService.updateDetail(updatedDetail);
                             }
                           },
                           onDetailDeleted: (detailId) async {
                             if (widget.item.id != null &&
                                 widget.item.topicId != null) {
-                              await _offlineService.deleteDetail(
+                              await _serviceFactory.offlineService.deleteDetail(
                                 widget.item.inspectionId,
                                 widget.item.topicId!,
                                 widget.item.id!,

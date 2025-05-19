@@ -1,11 +1,11 @@
+// lib/presentation/screens/media/media_gallery_screen.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/services/data/media_data_service.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_grid.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_capture_panel.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_details_bottom_sheet.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String inspectionId;
@@ -20,8 +20,7 @@ class MediaGalleryScreen extends StatefulWidget {
 }
 
 class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
-  final _inspectionService = FirebaseInspectionService();
-  final _mediaService = MediaDataService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _allMedia = [];
@@ -45,11 +44,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Carrega os tópicos para filtro
-      final topics = await _inspectionService.getTopics(widget.inspectionId);
+      final topics = await _serviceFactory.coordinator.getTopics(widget.inspectionId);
 
-      // Carrega todas as mídias usando o novo serviço
-      final allMedia = await _mediaService.getAllMedia(widget.inspectionId);
+      final allMedia = await _serviceFactory.coordinator.getAllMedia(widget.inspectionId);
 
       if (mounted) {
         setState(() {
@@ -84,8 +81,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       _isNonConformityOnly = isNonConformityOnly;
       _mediaType = mediaType;
 
-      // Aplica os filtros usando o serviço
-      _filteredMedia = _mediaService.filterMedia(
+      _filteredMedia = _serviceFactory.coordinator.filterMedia(
         allMedia: _allMedia,
         topicId: topicId,
         itemId: itemId,
@@ -108,7 +104,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   Future<void> _handleMediaAdded(String localPath) async {
-    await _loadData(); // Reload all data
+    await _loadData();
   }
 
   void _showMediaDetails(Map<String, dynamic> media) {
@@ -126,8 +122,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // [O resto do código da tela permanece o mesmo]
-    // Basta atualizar as referências aos dados e funções
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
@@ -167,7 +161,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : Column(
               children: [
-                // Filter summary
                 if (_selectedTopicId != null ||
                     _selectedItemId != null ||
                     _selectedDetailId != null ||
@@ -175,7 +168,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                     _mediaType != null)
                   _buildFilterSummary(),
 
-                // Media grid
                 Expanded(
                   child: _filteredMedia.isEmpty
                       ? Center(
@@ -234,10 +226,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   Widget _buildFilterSummary() {
-    // Build summary of active filters
     List<Widget> filterChips = [];
 
-    // Add topic filter chip
     if (_selectedTopicId != null) {
       final topicName = _topics
           .firstWhere(
@@ -269,9 +259,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       );
     }
 
-    // Add item filter chip
     if (_selectedItemId != null) {
-      // Find the item name
       String itemName = 'Item';
       for (var media in _allMedia) {
         if (media['topic_item_id'] == _selectedItemId) {
@@ -299,9 +287,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       );
     }
 
-    // Add detail filter chip
     if (_selectedDetailId != null) {
-      // Find the detail name
       String detailName = 'Detalhe';
       for (var media in _allMedia) {
         if (media['detail_id'] == _selectedDetailId) {
@@ -329,7 +315,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       );
     }
 
-    // Add non-conformity filter chip
     if (_isNonConformityOnly == true) {
       filterChips.add(
         Chip(
@@ -350,7 +335,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       );
     }
 
-    // Add media type filter chip
     if (_mediaType != null) {
       final chipColor =
           _mediaType == 'image' ? Colors.purple.shade900 : Colors.pink.shade900;

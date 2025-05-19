@@ -1,5 +1,5 @@
 import 'package:inspection_app/services/cache_service.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/inspection_service_coordinator.dart';
 import 'package:inspection_app/services/sync_service.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
@@ -9,8 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 class OfflineInspectionService {
   final CacheService _cacheService = CacheService();
-  final FirebaseInspectionService _firebaseService =
-      FirebaseInspectionService();
+  final InspectionServiceCoordinator _coordinator = InspectionServiceCoordinator();
   final SyncService _syncService = SyncService();
   final Connectivity _connectivity = Connectivity();
 
@@ -36,7 +35,7 @@ class OfflineInspectionService {
     try {
       // Try to get from Firebase first if online
       if (await _isOnline()) {
-        final inspection = await _firebaseService.getInspection(inspectionId);
+        final inspection = await _coordinator.getInspection(inspectionId);
         if (inspection != null) {
           await _cacheService.cacheInspection(inspection);
           return inspection;
@@ -66,7 +65,7 @@ class OfflineInspectionService {
       // Try to get from Firebase first if online
       if (await _isOnline()) {
         try {
-          final topics = await _firebaseService.getTopics(inspectionId);
+          final topics = await _coordinator.getTopics(inspectionId);
 
           // Cache the topics
           for (final topic in topics) {
@@ -100,22 +99,10 @@ class OfflineInspectionService {
     String? observation,
   }) async {
     try {
-      // Create topic object
-      final topic = Topic(
-        id: null,
-        inspectionId: inspectionId,
-        topicName: topicName,
-        topicLabel: label,
-        position: position ?? 0,
-        observation: observation,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
       // Try to save to Firebase if online
       if (await _isOnline()) {
         try {
-          final firebaseTopic = await _firebaseService.addTopic(
+          final firebaseTopic = await _coordinator.addTopic(
             inspectionId,
             topicName,
             label: label,
@@ -131,6 +118,18 @@ class OfflineInspectionService {
         }
       }
 
+      // Create topic object for cache
+      final topic = Topic(
+        id: null,
+        inspectionId: inspectionId,
+        topicName: topicName,
+        topicLabel: label,
+        position: position ?? 0,
+        observation: observation,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
       // Save to cache (will be synced later)
       final cachedId = await _cacheService.cacheTopic(topic);
       return topic.copyWith(id: cachedId);
@@ -145,7 +144,7 @@ class OfflineInspectionService {
       // Try to update in Firebase if online
       if (await _isOnline() && updatedTopic.id != null) {
         try {
-          await _firebaseService.updateTopic(updatedTopic);
+          await _coordinator.updateTopic(updatedTopic);
         } catch (e) {
           print('Error updating topic in Firebase: $e');
         }
@@ -166,7 +165,7 @@ class OfflineInspectionService {
       // Try to delete from Firebase if online
       if (await _isOnline()) {
         try {
-          await _firebaseService.deleteTopic(inspectionId, topicId);
+          await _coordinator.deleteTopic(inspectionId, topicId);
         } catch (e) {
           print('Error deleting topic from Firebase: $e');
         }
@@ -187,7 +186,7 @@ class OfflineInspectionService {
       // Try to get from Firebase first if online
       if (await _isOnline()) {
         try {
-          final items = await _firebaseService.getItems(inspectionId, topicId);
+          final items = await _coordinator.getItems(inspectionId, topicId);
 
           // Cache the items
           for (final item in items) {
@@ -226,23 +225,10 @@ class OfflineInspectionService {
       final newPosition =
           existingItems.isEmpty ? 0 : existingItems.last.position + 1;
 
-      // Create item object
-      final item = Item(
-        id: null,
-        topicId: topicId,
-        inspectionId: inspectionId,
-        itemName: itemName,
-        itemLabel: label,
-        observation: observation,
-        position: newPosition,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
       // Try to save to Firebase if online
       if (await _isOnline()) {
         try {
-          final firebaseItem = await _firebaseService.addItem(
+          final firebaseItem = await _coordinator.addItem(
             inspectionId,
             topicId,
             itemName,
@@ -258,6 +244,19 @@ class OfflineInspectionService {
         }
       }
 
+      // Create item object for cache
+      final item = Item(
+        id: null,
+        topicId: topicId,
+        inspectionId: inspectionId,
+        itemName: itemName,
+        itemLabel: label,
+        observation: observation,
+        position: newPosition,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
       // Save to cache (will be synced later)
       final cachedId = await _cacheService.cacheItem(item);
       return item.copyWith(id: cachedId);
@@ -272,7 +271,7 @@ class OfflineInspectionService {
       // Try to update in Firebase if online
       if (await _isOnline() && updatedItem.id != null) {
         try {
-          await _firebaseService.updateItem(updatedItem);
+          await _coordinator.updateItem(updatedItem);
         } catch (e) {
           print('Error updating item in Firebase: $e');
         }
@@ -288,13 +287,12 @@ class OfflineInspectionService {
     }
   }
 
-  Future<void> deleteItem(
-      String inspectionId, String topicId, String itemId) async {
+  Future<void> deleteItem(String inspectionId, String topicId, String itemId) async {
     try {
       // Try to delete from Firebase if online
       if (await _isOnline()) {
         try {
-          await _firebaseService.deleteItem(inspectionId, topicId, itemId);
+          await _coordinator.deleteItem(inspectionId, topicId, itemId);
         } catch (e) {
           print('Error deleting item from Firebase: $e');
         }
@@ -310,14 +308,12 @@ class OfflineInspectionService {
 
   // ======= DETAIL METHODS =======
 
-  Future<List<Detail>> getDetails(
-      String inspectionId, String topicId, String itemId) async {
+  Future<List<Detail>> getDetails(String inspectionId, String topicId, String itemId) async {
     try {
       // Try to get from Firebase first if online
       if (await _isOnline()) {
         try {
-          final details =
-              await _firebaseService.getDetails(inspectionId, topicId, itemId);
+          final details = await _coordinator.getDetails(inspectionId, topicId, itemId);
 
           // Cache the details
           for (final detail in details) {
@@ -361,27 +357,10 @@ class OfflineInspectionService {
           ? 0
           : (existingDetails.last.position ?? 0) + 1;
 
-      // Create detail object
-      final detail = Detail(
-        id: null,
-        topicId: topicId,
-        itemId: itemId,
-        inspectionId: inspectionId,
-        detailName: detailName,
-        type: type ?? 'text',
-        options: options,
-        detailValue: detailValue,
-        observation: observation,
-        isDamaged: isDamaged ?? false,
-        position: newPosition,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
       // Try to save to Firebase if online
       if (await _isOnline()) {
         try {
-          final firebaseDetail = await _firebaseService.addDetail(
+          final firebaseDetail = await _coordinator.addDetail(
             inspectionId,
             topicId,
             itemId,
@@ -401,6 +380,23 @@ class OfflineInspectionService {
         }
       }
 
+      // Create detail object for cache
+      final detail = Detail(
+        id: null,
+        topicId: topicId,
+        itemId: itemId,
+        inspectionId: inspectionId,
+        detailName: detailName,
+        type: type ?? 'text',
+        options: options,
+        detailValue: detailValue,
+        observation: observation,
+        isDamaged: isDamaged ?? false,
+        position: newPosition,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
       // Save to cache (will be synced later)
       final cachedId = await _cacheService.cacheDetail(detail);
       return detail.copyWith(id: cachedId);
@@ -415,7 +411,7 @@ class OfflineInspectionService {
       // Try to update in Firebase if online
       if (await _isOnline() && updatedDetail.id != null) {
         try {
-          await _firebaseService.updateDetail(updatedDetail);
+          await _coordinator.updateDetail(updatedDetail);
         } catch (e) {
           print('Error updating detail in Firebase: $e');
         }
@@ -423,8 +419,7 @@ class OfflineInspectionService {
 
       // Update in cache
       if (updatedDetail.id != null) {
-        await _cacheService.updateCachedDetail(
-            updatedDetail.id!, updatedDetail);
+        await _cacheService.updateCachedDetail(updatedDetail.id!, updatedDetail);
       }
     } catch (e) {
       print('Error updating detail: $e');
@@ -432,14 +427,12 @@ class OfflineInspectionService {
     }
   }
 
-  Future<void> deleteDetail(String inspectionId, String topicId, String itemId,
-      String detailId) async {
+  Future<void> deleteDetail(String inspectionId, String topicId, String itemId, String detailId) async {
     try {
       // Try to delete from Firebase if online
       if (await _isOnline()) {
         try {
-          await _firebaseService.deleteDetail(
-              inspectionId, topicId, itemId, detailId);
+          await _coordinator.deleteDetail(inspectionId, topicId, itemId, detailId);
         } catch (e) {
           print('Error deleting detail from Firebase: $e');
         }
@@ -460,7 +453,7 @@ class OfflineInspectionService {
       // Try to save to Firebase if online
       if (await _isOnline()) {
         try {
-          await _firebaseService.saveMedia(mediaData);
+          await _coordinator.saveMedia(mediaData);
         } catch (e) {
           print('Error saving media to Firebase: $e');
         }
@@ -481,7 +474,7 @@ class OfflineInspectionService {
       // Try to save to Firebase if online
       if (await _isOnline()) {
         try {
-          await _firebaseService.saveNonConformity(nonConformityData);
+          await _coordinator.saveNonConformity(nonConformityData);
         } catch (e) {
           print('Error saving non-conformity to Firebase: $e');
         }
@@ -495,63 +488,52 @@ class OfflineInspectionService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
-      String inspectionId) async {
+  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {
     // This method would need to be implemented to get from cache and Firebase
-    // For now, delegate to Firebase service
-    return await _firebaseService.getNonConformitiesByInspection(inspectionId);
+    // For now, delegate to coordinator
+    return await _coordinator.getNonConformitiesByInspection(inspectionId);
   }
 
   // ======= DUPLICATE CHECK METHODS =======
   Future<Topic> isTopicDuplicate(String inspectionId, String topicName) async {
     if (await _isOnline()) {
-      return await _firebaseService.isTopicDuplicate(inspectionId, topicName);
+      return await _coordinator.duplicateTopic(inspectionId, topicName);
     }
-    throw UnimplementedError(
-        'Duplicate check not implemented for offline mode');
+    throw UnimplementedError('Duplicate check not implemented for offline mode');
   }
 
-  Future<Item> isItemDuplicate(
-      String inspectionId, String topicId, String itemName) async {
+  Future<Item> isItemDuplicate(String inspectionId, String topicId, String itemName) async {
     if (await _isOnline()) {
-      return await _firebaseService.isItemDuplicate(
-          inspectionId, topicId, itemName);
+      return await _coordinator.duplicateItem(inspectionId, topicId, itemName);
     }
-    throw UnimplementedError(
-        'Duplicate check not implemented for offline mode');
+    throw UnimplementedError('Duplicate check not implemented for offline mode');
   }
 
-  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId,
-      String itemId, String detailName) async {
+  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId, String itemId, String detailName) async {
     if (await _isOnline()) {
-      return await _firebaseService.isDetailDuplicate(
-          inspectionId, topicId, itemId, detailName);
+      return await _coordinator.duplicateDetail(inspectionId, topicId, itemId, detailName);
     }
-    throw UnimplementedError(
-        'Duplicate check not implemented for offline mode');
+    throw UnimplementedError('Duplicate check not implemented for offline mode');
   }
 
   // ======= TEMPLATE METHODS =======
   Future<bool> isTemplateAlreadyApplied(String inspectionId) async {
     if (await _isOnline()) {
-      return await _firebaseService.isTemplateAlreadyApplied(inspectionId);
+      return await _coordinator.isTemplateAlreadyApplied(inspectionId);
     }
     throw UnimplementedError('Template check not implemented for offline mode');
   }
 
-  Future<bool> applyTemplateToInspectionSafe(
-      String inspectionId, String templateId) async {
+  Future<bool> applyTemplateToInspectionSafe(String inspectionId, String templateId) async {
     if (await _isOnline()) {
-      return await _firebaseService.applyTemplateToInspectionSafe(
-          inspectionId, templateId);
+      return await _coordinator.applyTemplateToInspectionSafe(inspectionId, templateId);
     }
-    throw UnimplementedError(
-        'Template application not implemented for offline mode');
+    throw UnimplementedError('Template application not implemented for offline mode');
   }
 
   Future<void> saveInspection(Inspection inspection) async {
     if (await _isOnline()) {
-      await _firebaseService.saveInspection(inspection);
+      await _coordinator.saveInspection(inspection);
     }
     // Optionally, cache locally if needed
   }

@@ -109,6 +109,61 @@ class DetailDataService {
 
   Future<void> deleteDetail(String inspectionId, String topicId, String itemId,
       String detailId) async {
+    // Delete media
+    final mediaSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('media')
+        .get();
+
+    for (var mediaDoc in mediaSnapshot.docs) {
+      await mediaDoc.reference.delete();
+    }
+
+    // Delete non-conformities and their media
+    final ncSnapshot = await firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .collection('topics')
+        .doc(topicId)
+        .collection('topic_items')
+        .doc(itemId)
+        .collection('item_details')
+        .doc(detailId)
+        .collection('non_conformities')
+        .get();
+
+    for (var ncDoc in ncSnapshot.docs) {
+      // Delete non-conformity media
+      final ncMediaSnapshot = await firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('topics')
+          .doc(topicId)
+          .collection('topic_items')
+          .doc(itemId)
+          .collection('item_details')
+          .doc(detailId)
+          .collection('non_conformities')
+          .doc(ncDoc.id)
+          .collection('nc_media')
+          .get();
+
+      for (var ncMediaDoc in ncMediaSnapshot.docs) {
+        await ncMediaDoc.reference.delete();
+      }
+
+      // Delete non-conformity
+      await ncDoc.reference.delete();
+    }
+
+    // Delete detail
     await firestore
         .collection('inspections')
         .doc(inspectionId)

@@ -6,155 +6,139 @@ import 'package:inspection_app/models/detail.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_form.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_list.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class NonConformityScreen extends StatefulWidget {
- final String inspectionId;
- final dynamic preSelectedTopic; // Aceita String ou int
- final dynamic preSelectedItem; // Aceita String ou int
- final dynamic preSelectedDetail; // Aceita String ou int
+  final String inspectionId;
+  final dynamic preSelectedTopic;
+  final dynamic preSelectedItem;
+  final dynamic preSelectedDetail;
 
- const NonConformityScreen({
-   super.key,
-   required this.inspectionId,
-   this.preSelectedTopic,
-   this.preSelectedItem,
-   this.preSelectedDetail,
- });
+  const NonConformityScreen({
+    super.key,
+    required this.inspectionId,
+    this.preSelectedTopic,
+    this.preSelectedItem,
+    this.preSelectedDetail,
+  });
 
- @override
- State<NonConformityScreen> createState() => _NonConformityScreenState();
+  @override
+  State<NonConformityScreen> createState() => _NonConformityScreenState();
 }
 
 class _NonConformityScreenState extends State<NonConformityScreen>
-   with SingleTickerProviderStateMixin {
- final _inspectionService = FirebaseInspectionService();
- final _connectivityService = Connectivity();
- late TabController _tabController;
+    with SingleTickerProviderStateMixin {
+  final ServiceFactory _serviceFactory = ServiceFactory();
+  late TabController _tabController;
 
- bool _isLoading = true;
- bool _isOffline = false;
- List<Topic> _topics = [];
- List<Item> _items = [];
- List<Detail> _details = [];
- List<Map<String, dynamic>> _nonConformities = [];
+  bool _isLoading = true;
+  bool _isOffline = false;
+  List<Topic> _topics = [];
+  List<Item> _items = [];
+  List<Detail> _details = [];
+  List<Map<String, dynamic>> _nonConformities = [];
 
- Topic? _selectedTopic;
- Item? _selectedItem;
- Detail? _selectedDetail;
+  Topic? _selectedTopic;
+  Item? _selectedItem;
+  Detail? _selectedDetail;
 
- // Flag para operações de edição/exclusão
- bool _isProcessing = false;
+  bool _isProcessing = false;
 
- @override
- void initState() {
-   super.initState();
-   _tabController = TabController(length: 2, vsync: this);
-   _connectivityService.checkConnectivity().then((result) {
-     if (mounted) {
-       setState(() {
-         _isOffline = result == ConnectivityResult.none;
-       });
-     }
-   });
-   _loadData();
- }
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    Connectivity().checkConnectivity().then((result) {
+      if (mounted) {
+        setState(() {
+          _isOffline = result == ConnectivityResult.none;
+        });
+      }
+    });
+    _loadData();
+  }
 
- @override
- void dispose() {
-   _tabController.dispose();
-   super.dispose();
- }
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
- Future<void> _loadData() async {
-   setState(() => _isLoading = true);
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
 
-   try {
-     // Load topics
-     final topics = await _inspectionService.getTopics(widget.inspectionId);
-     setState(() => _topics = topics);
+    try {
+      final topics = await _serviceFactory.coordinator.getTopics(widget.inspectionId);
+      setState(() => _topics = topics);
 
-     // Se houver pré-seleção, localizar o tópico correspondente
-     if (widget.preSelectedTopic != null) {
-       // Procurar tópico pelo ID usando toString() para comparação segura
-       Topic? selectedTopic;
-       for (var topic in _topics) {
-         if (topic.id != null &&
-             topic.id.toString() == widget.preSelectedTopic.toString()) {
-           selectedTopic = topic;
-           break;
-         }
-       }
+      if (widget.preSelectedTopic != null) {
+        Topic? selectedTopic;
+        for (var topic in _topics) {
+          if (topic.id != null &&
+              topic.id.toString() == widget.preSelectedTopic.toString()) {
+            selectedTopic = topic;
+            break;
+          }
+        }
 
-       // Se encontrou o tópico pré-selecionado, carregá-lo
-       if (selectedTopic != null) {
-         await _topicSelected(selectedTopic);
-       } else if (_topics.isNotEmpty) {
-         // Senão, carrega o primeiro tópico disponível
-         await _topicSelected(_topics.first);
-       }
+        if (selectedTopic != null) {
+          await _topicSelected(selectedTopic);
+        } else if (_topics.isNotEmpty) {
+          await _topicSelected(_topics.first);
+        }
 
-       // Se tiver item pré-selecionado e tiver itens carregados
-       if (widget.preSelectedItem != null && _items.isNotEmpty) {
-         // Procurar item pelo ID
-         Item? selectedItem;
-         for (var item in _items) {
-           if (item.id != null &&
-               item.id.toString() == widget.preSelectedItem.toString()) {
-             selectedItem = item;
-             break;
-           }
-         }
+        if (widget.preSelectedItem != null && _items.isNotEmpty) {
+          Item? selectedItem;
+          for (var item in _items) {
+            if (item.id != null &&
+                item.id.toString() == widget.preSelectedItem.toString()) {
+              selectedItem = item;
+              break;
+            }
+          }
 
-         // Se encontrou o item pré-selecionado, carregá-lo
-         if (selectedItem != null) {
-           await _itemSelected(selectedItem);
-         } else if (_items.isNotEmpty) {
-           // Senão, carrega o primeiro item disponível
-           await _itemSelected(_items.first);
-         }
+          if (selectedItem != null) {
+            await _itemSelected(selectedItem);
+          } else if (_items.isNotEmpty) {
+            await _itemSelected(_items.first);
+          }
 
-         // Se tiver detalhe pré-selecionado e tiver detalhes carregados
-         if (widget.preSelectedDetail != null && _details.isNotEmpty) {
-           // Procurar detalhe pelo ID
-           Detail? selectedDetail;
-           for (var detail in _details) {
-             if (detail.id != null &&
-                 detail.id.toString() == widget.preSelectedDetail.toString()) {
-               selectedDetail = detail;
-               break;
-             }
-           }
+          if (widget.preSelectedDetail != null && _details.isNotEmpty) {
+            Detail? selectedDetail;
+            for (var detail in _details) {
+              if (detail.id != null &&
+                  detail.id.toString() == widget.preSelectedDetail.toString()) {
+                selectedDetail = detail;
+                break;
+              }
+            }
 
-           // Se encontrou o detalhe pré-selecionado, selecioná-lo
-           if (selectedDetail != null) {
-             _detailSelected(selectedDetail);
-           } else if (_details.isNotEmpty) {
-             // Senão, seleciona o primeiro detalhe disponível
-             _detailSelected(_details.first);
-           }
-         }
-       }
-     }
+            if (selectedDetail != null) {
+              _detailSelected(selectedDetail);
+            } else if (_details.isNotEmpty) {
+              _detailSelected(_details.first);
+            }
+          }
+        }
+      }
 
-     // Carregar não conformidades existentes
-     await _loadNonConformities();
+      await _loadNonConformities();
 
-     setState(() => _isLoading = false);
-   } catch (e) {
-     print('Erro ao carregar dados: $e');
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro ao carregar dados: $e')),
-       );
-       setState(() => _isLoading = false);
-     }
-   }
- }
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print('Erro ao carregar dados: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar dados: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+    }
 
  Future<void> _loadNonConformities() async {
    try {
-     final nonConformities = await _inspectionService
+     final nonConformities = await _serviceFactory.coordinator
          .getNonConformitiesByInspection(widget.inspectionId);
 
      if (mounted) {
@@ -183,8 +167,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
    if (topic.id != null) {
      try {
-       final items =
-           await _inspectionService.getItems(widget.inspectionId, topic.id!);
+       final items = await _serviceFactory.coordinator.getItems(
+           widget.inspectionId, topic.id!);
        setState(() => _items = items);
      } catch (e) {
        print('Erro ao carregar itens: $e');
@@ -201,7 +185,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
    if (item.id != null && item.topicId != null) {
      try {
-       final details = await _inspectionService.getDetails(
+       final details = await _serviceFactory.coordinator.getDetails(
            widget.inspectionId, item.topicId!, item.id!);
        setState(() => _details = details);
      } catch (e) {
@@ -214,16 +198,14 @@ class _NonConformityScreenState extends State<NonConformityScreen>
    setState(() => _selectedDetail = detail);
  }
 
- // Método para atualizar status de não conformidade
  Future<void> _updateNonConformityStatus(String id, String newStatus) async {
    if (_isProcessing) return;
 
    setState(() => _isProcessing = true);
 
    try {
-     await _inspectionService.updateNonConformityStatus(id, newStatus);
+     await _serviceFactory.coordinator.updateNonConformityStatus(id, newStatus);
 
-     // Reload list
      await _loadNonConformities();
 
      if (mounted) {
@@ -247,22 +229,19 @@ class _NonConformityScreenState extends State<NonConformityScreen>
    }
  }
 
- // Método para editar uma não conformidade
  Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
    if (_isProcessing) return;
 
    setState(() => _isProcessing = true);
 
    try {
-     // Verifica se já possui ID composto, caso contrário cria
      String nonConformityId = updatedData['id'];
      if (!nonConformityId.contains('-')) {
        nonConformityId = '${widget.inspectionId}-${updatedData['topic_id']}-${updatedData['item_id']}-${updatedData['detail_id']}-$nonConformityId';
      }
      
-     await _inspectionService.updateNonConformity(nonConformityId, updatedData);
+     await _serviceFactory.coordinator.updateNonConformity(nonConformityId, updatedData);
 
-     // Atualizar a lista
      await _loadNonConformities();
 
      if (mounted) {
@@ -286,16 +265,14 @@ class _NonConformityScreenState extends State<NonConformityScreen>
    }
  }
 
- // Método para excluir uma não conformidade
  Future<void> _deleteNonConformity(String id) async {
    if (_isProcessing) return;
 
    setState(() => _isProcessing = true);
 
    try {
-     await _inspectionService.deleteNonConformity(id, widget.inspectionId);
+     await _serviceFactory.coordinator.deleteNonConformity(id, widget.inspectionId);
 
-     // Atualizar a lista
      await _loadNonConformities();
 
      if (mounted) {
@@ -320,10 +297,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
  }
 
  void _onNonConformitySaved() {
-   // Reload the list of non-conformities
    _loadNonConformities();
-
-   // Switch to the list tab
    _tabController.animateTo(1);
  }
 
@@ -340,7 +314,6 @@ class _NonConformityScreenState extends State<NonConformityScreen>
          ],
        ),
        actions: [
-         // Mostrar indicador de carregamento se estiver processando
          if (_isProcessing)
            const Padding(
              padding: EdgeInsets.symmetric(horizontal: 16),

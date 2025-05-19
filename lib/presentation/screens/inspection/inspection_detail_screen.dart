@@ -3,19 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/inspection.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/topics_list.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
-import 'package:inspection_app/services/import_export_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:inspection_app/services/inspection_checkpoint_service.dart';
-import 'package:inspection_app/services/checkpoint_dialog_service.dart';
 import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
-import 'package:inspection_app/services/offline_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/checkpoint_dialog_service.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -27,12 +24,8 @@ class InspectionDetailScreen extends StatefulWidget {
 }
 
 class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
-  // Serviços
-  final OfflineInspectionService _offlineService = OfflineInspectionService();
-  final _connectivityService = Connectivity();
-  final _importExportService = ImportExportService();
-  final _firestore = FirebaseFirestore.instance;
-  final _checkpointService = InspectionCheckpointService();
+  // Services via factory
+  final ServiceFactory _serviceFactory = ServiceFactory();
   late CheckpointDialogService _checkpointDialogService;
 
   // Estados
@@ -48,15 +41,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _offlineService.initialize();
+    _serviceFactory.initialize();
     _listenToConnectivity();
 
-    // Inicializar o serviço de diálogos de checkpoint
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkpointDialogService = CheckpointDialogService(
+      _checkpointDialogService = _serviceFactory.createCheckpointDialogService(
         context,
-        _checkpointService,
-        _loadInspection, // Callback para recarregar dados após restauração
+        _loadInspection,
       );
     });
 
@@ -65,20 +56,18 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   @override
   void dispose() {
-    _offlineService.dispose();
+    _serviceFactory.dispose();
     super.dispose();
   }
 
-  // Monitora o estado de conectividade e reage às mudanças
   void _listenToConnectivity() {
-    _connectivityService.onConnectivityChanged.listen((connectivityResult) {
+    Connectivity().onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
         setState(() {
           _isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
               connectivityResult.contains(ConnectivityResult.mobile);
         });
 
-        // Se estiver online e tiver um template pendente
         if (_isOnline &&
             _inspection != null &&
             _inspection!.templateId != null &&
@@ -88,7 +77,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     });
 
-    _connectivityService.checkConnectivity().then((connectivityResult) {
+    Connectivity().checkConnectivity().then((connectivityResult) {
       if (mounted) {
         setState(() {
           _isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
@@ -98,25 +87,21 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     });
   }
 
-  // Exibe o diálogo para criar um novo checkpoint
   void _showCreateCheckpointDialog() {
     _checkpointDialogService.showCreateCheckpointDialog(widget.inspectionId);
   }
 
-  // Exibe o diálogo com o histórico de checkpoints
   void _showCheckpointHistory() {
     _checkpointDialogService.showCheckpointHistory(widget.inspectionId);
   }
 
-  // Carrega os dados da inspeção
   Future<void> _loadInspection() async {
     if (!mounted) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final inspection =
-          await _offlineService.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.offlineService.getInspection(widget.inspectionId);
 
       if (!mounted) return;
 
@@ -125,13 +110,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           _inspection = inspection;
         });
 
-        // Carrega os tópicos da inspeção
         await _loadTopics();
 
-        // Verifica se há um template para aplicar
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
-            // Se o template não foi aplicado ainda
             await _checkAndApplyTemplate();
           }
         }
@@ -149,14 +131,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Substituir _checkAndApplyTemplate
   Future<void> _checkAndApplyTemplate() async {
     if (_inspection == null) return;
 
-    // Só prossegue se a inspeção tiver um ID de template e não tiver sido aplicada ainda
     if (_inspection!.templateId != null) {
-      final isAlreadyApplied =
-          await _offlineService.isTemplateAlreadyApplied(_inspection!.id);
+      final isAlreadyApplied = await _serviceFactory.coordinator.isTemplateAlreadyApplied(_inspection!.id);
       if (isAlreadyApplied) {
         setState(() {
           _inspection = _inspection!.copyWith(isTemplated: true);
@@ -166,7 +145,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       setState(() => _isApplyingTemplate = true);
 
       try {
-        // Mostra mensagem de carregamento
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -176,13 +154,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           );
         }
 
-        // Aplica o template
-        final success = await _offlineService.applyTemplateToInspectionSafe(
+        final success = await _serviceFactory.coordinator.applyTemplateToInspectionSafe(
             _inspection!.id, _inspection!.templateId!);
 
         if (success) {
-          // Atualiza o status da inspeção localmente E no Firestore
-          await _firestore
+          await FirebaseFirestore.instance
               .collection('inspections')
               .doc(_inspection!.id)
               .update({
@@ -192,7 +168,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           });
 
           if (mounted) {
-            // Atualiza o estado
             final updatedInspection = _inspection!.copyWith(
               isTemplated: true,
               status: 'in_progress',
@@ -204,7 +179,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             });
           }
 
-          // Recarrega os dados da inspeção para obter a estrutura atualizada
           await _loadInspection();
 
           if (mounted) {
@@ -235,13 +209,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Substituir _manuallyApplyTemplate
   Future<void> _manuallyApplyTemplate() async {
     if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
 
-    final isAlreadyApplied =
-        await _offlineService.isTemplateAlreadyApplied(_inspection!.id);
-    // Mostrar diálogo de confirmação
+    final isAlreadyApplied = await _serviceFactory.coordinator.isTemplateAlreadyApplied(_inspection!.id);
+    
     final shouldApply = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -271,8 +243,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
       try {
         if (isAlreadyApplied) {
-          // Forçar redefinição da flag de template no Firestore
-          await _firestore
+          await FirebaseFirestore.instance
               .collection('inspections')
               .doc(_inspection!.id)
               .update({
@@ -301,7 +272,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Carrega os tópicos da inspeção
   Future<void> _loadTopics() async {
     if (_inspection?.id == null) {
       if (mounted) setState(() => _isLoading = false);
@@ -309,7 +279,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
 
     try {
-      final topics = await _offlineService.getTopics(widget.inspectionId);
+      final topics = await _serviceFactory.offlineService.getTopics(widget.inspectionId);
 
       if (!mounted) return;
       setState(() {
@@ -322,7 +292,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Exibe mensagem de erro como SnackBar
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,7 +300,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Adiciona um novo tópico à inspeção
   Future<void> _addTopic() async {
     try {
       final template = await showDialog<Map<String, dynamic>>(
@@ -352,7 +320,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
       try {
         final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
-        await _offlineService.addTopic(
+        await _serviceFactory.offlineService.addTopic(
           widget.inspectionId,
           topicName,
           label: topicLabel,
@@ -361,20 +329,18 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
         await _loadTopics();
 
-        // Expande o tópico recém-adicionado
         if (_topics.isNotEmpty) {
           setState(() {
             _expandedTopicIndex = _topics.length - 1;
           });
         }
 
-        // Atualiza o status da inspeção para in_progress se estava pendente
         if (_inspection?.status == 'pending') {
           final updatedInspection = _inspection!.copyWith(
             status: 'in_progress',
             updatedAt: DateTime.now(),
           );
-          await _offlineService.saveInspection(updatedInspection);
+          await _serviceFactory.offlineService.saveInspection(updatedInspection);
           setState(() {
             _inspection = updatedInspection;
           });
@@ -403,13 +369,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Duplica um tópico existente
   Future<void> _duplicateTopic(Topic topic) async {
     setState(() => _isLoading = true);
 
     try {
-      await _offlineService.isTopicDuplicate(
-          widget.inspectionId, topic.topicName);
+      await _serviceFactory.offlineService.isTopicDuplicate(widget.inspectionId, topic.topicName);
 
       await _loadTopics();
 
@@ -432,10 +396,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Atualiza um tópico existente
   Future<void> _updateTopic(Topic updatedTopic) async {
     try {
-      await _offlineService.updateTopic(updatedTopic);
+      await _serviceFactory.offlineService.updateTopic(updatedTopic);
 
       final index = _topics.indexWhere((r) => r.id == updatedTopic.id);
       if (index >= 0 && mounted) {
@@ -452,12 +415,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Remove um tópico existente
   Future<void> _deleteTopic(dynamic topicId) async {
     setState(() => _isLoading = true);
 
     try {
-      await _offlineService.deleteTopic(widget.inspectionId, topicId);
+      await _serviceFactory.offlineService.deleteTopic(widget.inspectionId, topicId);
 
       await _loadTopics();
 
@@ -480,25 +442,22 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Exporta a inspeção para um arquivo JSON
   Future<void> _exportInspection() async {
-    final confirmed =
-        await _importExportService.showExportConfirmationDialog(context);
+    final confirmed = await _serviceFactory.importExportService.showExportConfirmationDialog(context);
     if (!confirmed) return;
 
     setState(() => _isSyncing = true);
 
     try {
-      final filePath =
-          await _importExportService.exportInspection(widget.inspectionId);
+      final filePath = await _serviceFactory.importExportService.exportInspection(widget.inspectionId);
 
       if (mounted) {
-        _importExportService.showSuccessMessage(
+        _serviceFactory.importExportService.showSuccessMessage(
             context, 'Inspeção exportada com sucesso para:\n$filePath');
       }
     } catch (e) {
       if (mounted) {
-        _importExportService.showErrorMessage(
+        _serviceFactory.importExportService.showErrorMessage(
             context, 'Erro ao exportar inspeção: $e');
       }
     } finally {
@@ -508,16 +467,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Importa a inspeção de um arquivo JSON
   Future<void> _importInspection() async {
-    final confirmed =
-        await _importExportService.showImportConfirmationDialog(context);
+    final confirmed = await _serviceFactory.importExportService.showImportConfirmationDialog(context);
     if (!confirmed) return;
 
     setState(() => _isSyncing = true);
 
     try {
-      final jsonData = await _importExportService.pickJsonFile();
+      final jsonData = await _serviceFactory.importExportService.pickJsonFile();
 
       if (jsonData == null) {
         if (mounted) {
@@ -526,26 +483,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         return;
       }
 
-      final success = await _importExportService.importInspection(
+      final success = await _serviceFactory.importExportService.importInspection(
           widget.inspectionId, jsonData);
 
       if (success) {
-        // Recarrega os dados
         await _loadInspection();
 
         if (mounted) {
-          _importExportService.showSuccessMessage(
+          _serviceFactory.importExportService.showSuccessMessage(
               context, 'Dados da inspeção importados com sucesso');
         }
       } else {
         if (mounted) {
-          _importExportService.showErrorMessage(
+          _serviceFactory.importExportService.showErrorMessage(
               context, 'Falha ao importar dados da inspeção');
         }
       }
     } catch (e) {
       if (mounted) {
-        _importExportService.showErrorMessage(
+        _serviceFactory.importExportService.showErrorMessage(
             context, 'Erro ao importar inspeção: $e');
       }
     } finally {
@@ -555,7 +511,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  // Navega para a tela de galeria de mídia
   void _navigateToMediaGallery() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -568,17 +523,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final screenSize = MediaQuery.of(context).size;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B), // Slate background
+      backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
         title: Text(_inspection?.title ?? 'Inspeção'),
         actions: [
-          // Botão de checkpoint
           IconButton(
             icon: const Icon(Icons.save_outlined, size: 22),
             tooltip: 'Criar Checkpoint',
@@ -587,7 +540,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             visualDensity: VisualDensity.compact,
           ),
 
-          // Botão de aplicar template
           if (_isOnline &&
               _inspection != null &&
               _inspection!.templateId != null)
@@ -601,7 +553,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               visualDensity: VisualDensity.compact,
             ),
 
-          // Indicador de carregamento
           if (_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
@@ -615,7 +566,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               ),
             ),
 
-          // Botão de menu
           if (!(_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint))
             PopupMenuButton<String>(
               padding: const EdgeInsets.all(8),
@@ -646,24 +596,19 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   case 'info':
                     if (_inspection != null) {
                       final inspectionId = _inspection!.id;
-                      final inspectionService = FirebaseInspectionService();
                       int totalTopics = _topics.length;
                       int totalItems = 0;
                       int totalDetails = 0;
                       int totalMedia = 0;
                       for (final topic in _topics) {
-                        final items = await inspectionService.getItems(
-                            inspectionId, topic.id!);
+                        final items = await _serviceFactory.coordinator.getItems(inspectionId, topic.id!);
                         totalItems += items.length;
                         for (final item in items) {
-                          final details = await inspectionService.getDetails(
-                              inspectionId, topic.id!, item.id!);
+                          final details = await _serviceFactory.coordinator.getDetails(inspectionId, topic.id!, item.id!);
                           totalDetails += details.length;
                         }
                       }
-                      // Buscar mídias diretamente do Firestore
-                      final allMedia =
-                          await inspectionService.getAllMedia(inspectionId);
+                      final allMedia = await _serviceFactory.coordinator.getAllMedia(inspectionId);
                       totalMedia = allMedia.length;
 
                       showDialog(
@@ -691,7 +636,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     ],
                   ),
                 ),
-                // Item para histórico de checkpoints
                 const PopupMenuItem(
                   value: 'checkpointHistory',
                   child: Row(
@@ -733,7 +677,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
-  // Constrói o corpo principal da tela
   Widget _buildBody(bool isLandscape, Size screenSize) {
     if (_isLoading) {
       return LoadingState(
@@ -762,7 +705,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       );
     }
 
-    // Calcula a altura disponível
     final double availableHeight = screenSize.height -
         kToolbarHeight -
         MediaQuery.of(context).padding.top -
@@ -770,7 +712,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     return Column(
       children: [
-        // Área de conteúdo principal
         Expanded(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -801,10 +742,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           ),
         ),
 
-        // Espaçamento inferior
         const SizedBox(height: 2),
 
-        // Barra de atalhos para funcionalidades principais
         if (!_isLoading && _topics.isNotEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -821,7 +760,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Atalho para Galeria de Mídia
                 _buildShortcutButton(
                   icon: Icons.photo_library,
                   label: 'Galeria',
@@ -829,7 +767,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   color: Colors.purple,
                 ),
 
-                // Atalho para Não Conformidades
                 _buildShortcutButton(
                   icon: Icons.warning_amber_rounded,
                   label: 'NCs',
@@ -845,7 +782,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   color: const Color.fromARGB(255, 255, 0, 0),
                 ),
 
-                // Atalho para Adicionar Tópico
                 _buildShortcutButton(
                   icon: Icons.add_circle_outline,
                   label: '+ Tópico',
@@ -853,7 +789,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   color: Colors.blue,
                 ),
 
-                // Atalho para Exportar
                 _buildShortcutButton(
                   icon: Icons.download,
                   label: 'Exportar',
@@ -867,7 +802,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
-  // Constrói um botão de atalho para a barra inferior
   Widget _buildShortcutButton({
     required IconData icon,
     required String label,
