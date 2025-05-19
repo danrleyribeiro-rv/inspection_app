@@ -6,10 +6,10 @@ import 'package:inspection_app/models/detail.dart';
 
 class InspectionDataService {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  
 
   Future<Inspection?> getInspection(String inspectionId) async {
-    final docSnapshot = await firestore.collection('inspections').doc(inspectionId).get();
+    final docSnapshot =
+        await firestore.collection('inspections').doc(inspectionId).get();
 
     if (!docSnapshot.exists) {
       return null;
@@ -24,13 +24,16 @@ class InspectionDataService {
   Future<void> saveInspection(Inspection inspection) async {
     final data = inspection.toMap();
     data.remove('id');
-    await firestore.collection('inspections').doc(inspection.id).set(data, SetOptions(merge: true));
+    await firestore
+        .collection('inspections')
+        .doc(inspection.id)
+        .set(data, SetOptions(merge: true));
   }
 
   // Extract topics from inspection structure
   List<Topic> extractTopics(String inspectionId, List<dynamic>? topicsData) {
     if (topicsData == null) return [];
-    
+
     List<Topic> topics = [];
     for (int i = 0; i < topicsData.length; i++) {
       final topicData = topicsData[i];
@@ -51,10 +54,11 @@ class InspectionDataService {
   }
 
   // Extract items from topic structure
-  List<Item> extractItems(String inspectionId, String topicId, Map<String, dynamic> topicData) {
+  List<Item> extractItems(
+      String inspectionId, String topicId, Map<String, dynamic> topicData) {
     final itemsData = topicData['items'] as List<dynamic>? ?? [];
     List<Item> items = [];
-    
+
     for (int i = 0; i < itemsData.length; i++) {
       final itemData = itemsData[i];
       if (itemData is Map<String, dynamic>) {
@@ -75,10 +79,11 @@ class InspectionDataService {
   }
 
   // Extract details from item structure
-  List<Detail> extractDetails(String inspectionId, String topicId, String itemId, Map<String, dynamic> itemData) {
+  List<Detail> extractDetails(String inspectionId, String topicId,
+      String itemId, Map<String, dynamic> itemData) {
     final detailsData = itemData['details'] as List<dynamic>? ?? [];
     List<Detail> details = [];
-    
+
     for (int i = 0; i < detailsData.length; i++) {
       final detailData = detailsData[i];
       if (detailData is Map<String, dynamic>) {
@@ -86,7 +91,7 @@ class InspectionDataService {
         if (detailData['options'] is List) {
           options = List<String>.from(detailData['options']);
         }
-        
+
         details.add(Detail(
           id: 'detail_$i',
           inspectionId: inspectionId,
@@ -105,7 +110,8 @@ class InspectionDataService {
   }
 
   // Update specific topic in inspection
-  Future<void> updateTopic(String inspectionId, int topicIndex, Map<String, dynamic> updatedTopic) async {
+  Future<void> updateTopic(String inspectionId, int topicIndex,
+      Map<String, dynamic> updatedTopic) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -120,14 +126,15 @@ class InspectionDataService {
   }
 
   // Add topic to inspection
-  Future<void> addTopic(String inspectionId, Map<String, dynamic> newTopic) async {
+  Future<void> addTopic(
+      String inspectionId, Map<String, dynamic> newTopic) async {
     final inspection = await getInspection(inspectionId);
-    final topics = inspection?.topics != null 
+    final topics = inspection?.topics != null
         ? List<Map<String, dynamic>>.from(inspection!.topics!)
         : <Map<String, dynamic>>[];
-    
+
     topics.add(newTopic);
-    
+
     await firestore.collection('inspections').doc(inspectionId).update({
       'topics': topics,
       'updated_at': FieldValue.serverTimestamp(),
@@ -150,7 +157,8 @@ class InspectionDataService {
   }
 
   // Update specific item in topic
-  Future<void> updateItem(String inspectionId, int topicIndex, int itemIndex, Map<String, dynamic> updatedItem) async {
+  Future<void> updateItem(String inspectionId, int topicIndex, int itemIndex,
+      Map<String, dynamic> updatedItem) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -161,7 +169,7 @@ class InspectionDataService {
           items[itemIndex] = updatedItem;
           topic['items'] = items;
           topics[topicIndex] = topic;
-          
+
           await firestore.collection('inspections').doc(inspectionId).update({
             'topics': topics,
             'updated_at': FieldValue.serverTimestamp(),
@@ -172,7 +180,8 @@ class InspectionDataService {
   }
 
   // Add item to topic
-  Future<void> addItem(String inspectionId, int topicIndex, Map<String, dynamic> newItem) async {
+  Future<void> addItem(
+      String inspectionId, int topicIndex, Map<String, dynamic> newItem) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -182,7 +191,7 @@ class InspectionDataService {
         items.add(newItem);
         topic['items'] = items;
         topics[topicIndex] = topic;
-        
+
         await firestore.collection('inspections').doc(inspectionId).update({
           'topics': topics,
           'updated_at': FieldValue.serverTimestamp(),
@@ -192,7 +201,8 @@ class InspectionDataService {
   }
 
   // Delete item from topic
-  Future<void> deleteItem(String inspectionId, int topicIndex, int itemIndex) async {
+  Future<void> deleteItem(
+      String inspectionId, int topicIndex, int itemIndex) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -203,7 +213,7 @@ class InspectionDataService {
           items.removeAt(itemIndex);
           topic['items'] = items;
           topics[topicIndex] = topic;
-          
+
           await firestore.collection('inspections').doc(inspectionId).update({
             'topics': topics,
             'updated_at': FieldValue.serverTimestamp(),
@@ -214,7 +224,8 @@ class InspectionDataService {
   }
 
   // Update detail in item
-  Future<void> updateDetail(String inspectionId, int topicIndex, int itemIndex, int detailIndex, Map<String, dynamic> updatedDetail) async {
+  Future<void> updateDetail(String inspectionId, int topicIndex, int itemIndex,
+      int detailIndex, Map<String, dynamic> updatedDetail) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -223,14 +234,15 @@ class InspectionDataService {
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           if (detailIndex < details.length) {
             details[detailIndex] = updatedDetail;
             item['details'] = details;
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            
+
             await firestore.collection('inspections').doc(inspectionId).update({
               'topics': topics,
               'updated_at': FieldValue.serverTimestamp(),
@@ -242,7 +254,8 @@ class InspectionDataService {
   }
 
   // Add detail to item
-  Future<void> addDetail(String inspectionId, int topicIndex, int itemIndex, Map<String, dynamic> newDetail) async {
+  Future<void> addDetail(String inspectionId, int topicIndex, int itemIndex,
+      Map<String, dynamic> newDetail) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -251,13 +264,14 @@ class InspectionDataService {
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           details.add(newDetail);
           item['details'] = details;
           items[itemIndex] = item;
           topic['items'] = items;
           topics[topicIndex] = topic;
-          
+
           await firestore.collection('inspections').doc(inspectionId).update({
             'topics': topics,
             'updated_at': FieldValue.serverTimestamp(),
@@ -268,7 +282,8 @@ class InspectionDataService {
   }
 
   // Delete detail from item
-  Future<void> deleteDetail(String inspectionId, int topicIndex, int itemIndex, int detailIndex) async {
+  Future<void> deleteDetail(String inspectionId, int topicIndex, int itemIndex,
+      int detailIndex) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -277,14 +292,15 @@ class InspectionDataService {
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           if (detailIndex < details.length) {
             details.removeAt(detailIndex);
             item['details'] = details;
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            
+
             await firestore.collection('inspections').doc(inspectionId).update({
               'topics': topics,
               'updated_at': FieldValue.serverTimestamp(),
@@ -296,7 +312,8 @@ class InspectionDataService {
   }
 
   // Add media to detail
-  Future<void> addMedia(String inspectionId, int topicIndex, int itemIndex, int detailIndex, Map<String, dynamic> media) async {
+  Future<void> addMedia(String inspectionId, int topicIndex, int itemIndex,
+      int detailIndex, Map<String, dynamic> media) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -305,10 +322,12 @@ class InspectionDataService {
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           if (detailIndex < details.length) {
             final detail = Map<String, dynamic>.from(details[detailIndex]);
-            final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+            final mediaList =
+                List<Map<String, dynamic>>.from(detail['media'] ?? []);
             mediaList.add(media);
             detail['media'] = mediaList;
             details[detailIndex] = detail;
@@ -316,7 +335,7 @@ class InspectionDataService {
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            
+
             await firestore.collection('inspections').doc(inspectionId).update({
               'topics': topics,
               'updated_at': FieldValue.serverTimestamp(),
@@ -328,7 +347,12 @@ class InspectionDataService {
   }
 
   // Add non-conformity to detail
-  Future<void> addNonConformity(String inspectionId, int topicIndex, int itemIndex, int detailIndex, Map<String, dynamic> nonConformity) async {
+  Future<void> addNonConformity(
+      String inspectionId,
+      int topicIndex,
+      int itemIndex,
+      int detailIndex,
+      Map<String, dynamic> nonConformity) async {
     final inspection = await getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -337,10 +361,12 @@ class InspectionDataService {
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           if (detailIndex < details.length) {
             final detail = Map<String, dynamic>.from(details[detailIndex]);
-            final ncList = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            final ncList = List<Map<String, dynamic>>.from(
+                detail['non_conformities'] ?? []);
             ncList.add(nonConformity);
             detail['non_conformities'] = ncList;
             detail['is_damaged'] = true; // Mark detail as damaged
@@ -349,7 +375,7 @@ class InspectionDataService {
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            
+
             await firestore.collection('inspections').doc(inspectionId).update({
               'topics': topics,
               'updated_at': FieldValue.serverTimestamp(),

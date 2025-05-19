@@ -384,7 +384,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               topic['items'] = items;
               topics[widget.topicIndex] = topic;
               
-              await _inspectionService._firestore.collection('inspections')
+              await _inspectionService.firestore.collection('inspections')
                   .doc(widget.inspectionId).update({
                 'topics': topics,
                 'updated_at': FieldValue.serverTimestamp(),

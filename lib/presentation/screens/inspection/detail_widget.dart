@@ -265,12 +265,11 @@ class _DetailWidgetState extends State<DetailWidget> {
                       widget.detail.itemId != null)
                     MediaHandlingWidget(
                       inspectionId: widget.detail.inspectionId,
-                      topicId: widget.detail.topicId!,
-                      itemId: widget.detail.itemId!,
-                      detailId: widget.detail.id!,
+                      topicIndex: int.parse(widget.detail.topicId!.replaceFirst('topic_', '')),
+                      itemIndex: int.parse(widget.detail.itemId!.replaceFirst('item_', '')),
+                      detailIndex: int.parse(widget.detail.id!.replaceFirst('detail_', '')),
                       onMediaAdded: (_) => setState(() {}),
                       onMediaDeleted: (_) => setState(() {}),
-                      onMediaMoved: (_, __, ___, ____) => setState(() {}),
                     ),
                   const SizedBox(height: 5),
                   ElevatedButton.icon(

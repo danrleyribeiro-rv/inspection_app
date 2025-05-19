@@ -3,12 +3,16 @@ import 'package:inspection_app/services/data/inspection_data_service.dart';
 import 'package:inspection_app/services/sync_service.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:inspection_app/services/inspection_service_coordinator.dart';
+import 'package:inspection_app/models/topic.dart';
 
 class OfflineInspectionService {
   final CacheService _cacheService = CacheService();
   final InspectionDataService _inspectionService = InspectionDataService();
   final SyncService _syncService = SyncService();
   final Connectivity _connectivity = Connectivity();
+  final InspectionServiceCoordinator _serviceFactory =
+      InspectionServiceCoordinator();
 
   void initialize() {
     _syncService.initialize();
@@ -69,13 +73,43 @@ class OfflineInspectionService {
     }
   }
 
-  // Convenience methods para extrair dados da estrutura aninhada
-  List<Map<String, dynamic>> getTopics(String inspectionId) {
-    final cached = _cacheService.getCachedInspection(inspectionId);
-    if (cached?.data['topics'] is List) {
-      return List<Map<String, dynamic>>.from(cached!.data['topics']);
+  Future<List<Topic>> getTopics(String inspectionId) async {
+    try {
+      if (await _isOnline()) {
+        final topics = await _serviceFactory.getTopics(inspectionId);
+        return topics;
+      }
+      final cached = _cacheService.getCachedInspection(inspectionId);
+      if (cached != null) {
+        return _serviceFactory.getTopics(inspectionId);
+      }
+      return [];
+    } catch (e) {
+      print('Error getting topics: $e');
+      return [];
     }
-    return [];
+  }
+
+  Future<Topic> addTopic(String inspectionId, String topicName,
+      {String? label, int? position}) async {
+    return await _serviceFactory.addTopic(
+      inspectionId,
+      topicName,
+      label: label,
+      position: position,
+    );
+  }
+
+  Future<void> updateTopic(Topic updatedTopic) async {
+    await _serviceFactory.updateTopic(updatedTopic);
+  }
+
+  Future<void> deleteTopic(String inspectionId, String topicId) async {
+    await _serviceFactory.deleteTopic(inspectionId, topicId);
+  }
+
+  Future<Topic> duplicateTopic(String inspectionId, String topicName) async {
+    return await _serviceFactory.duplicateTopic(inspectionId, topicName);
   }
 
   Future<void> forceSyncAll() async {

@@ -145,6 +145,13 @@ class NonConformityList extends StatelessWidget {
           '${inspectionId}-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
     }
 
+    // Extrair índices do nonConformityId
+    final parts = nonConformityId.split('-');
+    final topicIndex = int.tryParse(parts[1].replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(parts[2].replaceFirst('item_', ''));
+    final detailIndex = int.tryParse(parts[3].replaceFirst('detail_', ''));
+    final ncIndex = int.tryParse(parts[4].replaceFirst('nc_', ''));
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       color: cardColor,
@@ -267,8 +274,11 @@ class NonConformityList extends StatelessWidget {
 
             // Media widget - using composite ID for non-conformity
             NonConformityMediaWidget(
-              nonConformityId: nonConformityId,
               inspectionId: inspectionId,
+              topicIndex: topicIndex!,
+              itemIndex: itemIndex!,
+              detailIndex: detailIndex!,
+              ncIndex: ncIndex!,
               isReadOnly: item['status'] == 'resolvido',
               onMediaAdded: (_) {},
             ),

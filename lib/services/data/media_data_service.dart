@@ -135,4 +135,71 @@ class MediaDataService {
       });
     }
   }
+
+  Future<void> saveMedia(Map<String, dynamic> mediaData) async {
+    final inspectionId = mediaData['inspection_id'];
+    final topicIndex = mediaData['topic_index'];
+    final itemIndex = mediaData['item_index'];
+    final detailIndex = mediaData['detail_index'];
+    
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null) {
+      final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+      final topic = topics[topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      final item = items[itemIndex];
+      final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+      final detail = Map<String, dynamic>.from(details[detailIndex]);
+      final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+      
+      media.add(mediaData);
+      detail['media'] = media;
+      details[detailIndex] = detail;
+      item['details'] = details;
+      items[itemIndex] = item;
+      topic['items'] = items;
+      topics[topicIndex] = topic;
+      
+      await _firestore.collection('inspections').doc(inspectionId).update({
+        'topics': topics,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  Future<void> updateMedia(String mediaId, Map<String, dynamic> originalData, Map<String, dynamic> updateData) async {
+    // Implementar lógica de atualização de mídia similar
+    // Usar os índices de originalData para localizar e atualizar a mídia
+    final inspectionId = originalData['inspection_id'];
+    final topicIndex = originalData['topic_index'];
+    final itemIndex = originalData['item_index'];
+    final detailIndex = originalData['detail_index'];
+    final mediaIndex = originalData['media_index'];
+    
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null) {
+      final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+      final topic = topics[topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      final item = items[itemIndex];
+      final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+      final detail = Map<String, dynamic>.from(details[detailIndex]);
+      final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+      
+      if (mediaIndex >= 0 && mediaIndex < media.length) {
+        media[mediaIndex] = {...media[mediaIndex], ...updateData};
+        detail['media'] = media;
+        details[detailIndex] = detail;
+        item['details'] = details;
+        items[itemIndex] = item;
+        topic['items'] = items;
+        topics[topicIndex] = topic;
+        
+        await _firestore.collection('inspections').doc(inspectionId).update({
+          'topics': topics,
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
 }

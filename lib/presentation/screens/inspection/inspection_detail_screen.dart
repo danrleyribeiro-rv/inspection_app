@@ -101,7 +101,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection = await _serviceFactory.offlineService.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.offlineService
+          .getInspection(widget.inspectionId);
 
       if (!mounted) return;
 
@@ -135,7 +136,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     if (_inspection == null) return;
 
     if (_inspection!.templateId != null) {
-      final isAlreadyApplied = await _serviceFactory.coordinator.isTemplateAlreadyApplied(_inspection!.id);
+      final isAlreadyApplied = await _serviceFactory.coordinator
+          .isTemplateAlreadyApplied(_inspection!.id);
       if (isAlreadyApplied) {
         setState(() {
           _inspection = _inspection!.copyWith(isTemplated: true);
@@ -154,8 +156,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           );
         }
 
-        final success = await _serviceFactory.coordinator.applyTemplateToInspectionSafe(
-            _inspection!.id, _inspection!.templateId!);
+        final success = await _serviceFactory.coordinator
+            .applyTemplateToInspectionSafe(
+                _inspection!.id, _inspection!.templateId!);
 
         if (success) {
           await FirebaseFirestore.instance
@@ -212,8 +215,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Future<void> _manuallyApplyTemplate() async {
     if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
 
-    final isAlreadyApplied = await _serviceFactory.coordinator.isTemplateAlreadyApplied(_inspection!.id);
-    
+    final isAlreadyApplied = await _serviceFactory.coordinator
+        .isTemplateAlreadyApplied(_inspection!.id);
+
     final shouldApply = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -279,7 +283,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
 
     try {
-      final topics = await _serviceFactory.offlineService.getTopics(widget.inspectionId);
+      final topics =
+          await _serviceFactory.offlineService.getTopics(widget.inspectionId);
 
       if (!mounted) return;
       setState(() {
@@ -340,7 +345,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             status: 'in_progress',
             updatedAt: DateTime.now(),
           );
-          await _serviceFactory.offlineService.saveInspection(updatedInspection);
+          await _serviceFactory.offlineService
+              .saveInspection(updatedInspection);
           setState(() {
             _inspection = updatedInspection;
           });
@@ -373,8 +379,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _serviceFactory.offlineService.isTopicDuplicate(widget.inspectionId, topic.topicName);
-
+      await _serviceFactory.offlineService
+          .duplicateTopic(widget.inspectionId, topic.topicName);
       await _loadTopics();
 
       if (mounted) {
@@ -419,7 +425,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _serviceFactory.offlineService.deleteTopic(widget.inspectionId, topicId);
+      await _serviceFactory.offlineService
+          .deleteTopic(widget.inspectionId, topicId);
 
       await _loadTopics();
 
@@ -443,13 +450,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _exportInspection() async {
-    final confirmed = await _serviceFactory.importExportService.showExportConfirmationDialog(context);
+    final confirmed = await _serviceFactory.importExportService
+        .showExportConfirmationDialog(context);
     if (!confirmed) return;
 
     setState(() => _isSyncing = true);
 
     try {
-      final filePath = await _serviceFactory.importExportService.exportInspection(widget.inspectionId);
+      final filePath = await _serviceFactory.importExportService
+          .exportInspection(widget.inspectionId);
 
       if (mounted) {
         _serviceFactory.importExportService.showSuccessMessage(
@@ -457,8 +466,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _serviceFactory.importExportService.showErrorMessage(
-            context, 'Erro ao exportar inspeção: $e');
+        _serviceFactory.importExportService
+            .showErrorMessage(context, 'Erro ao exportar inspeção: $e');
       }
     } finally {
       if (mounted) {
@@ -468,7 +477,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _importInspection() async {
-    final confirmed = await _serviceFactory.importExportService.showImportConfirmationDialog(context);
+    final confirmed = await _serviceFactory.importExportService
+        .showImportConfirmationDialog(context);
     if (!confirmed) return;
 
     setState(() => _isSyncing = true);
@@ -483,8 +493,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         return;
       }
 
-      final success = await _serviceFactory.importExportService.importInspection(
-          widget.inspectionId, jsonData);
+      final success = await _serviceFactory.importExportService
+          .importInspection(widget.inspectionId, jsonData);
 
       if (success) {
         await _loadInspection();
@@ -495,14 +505,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
       } else {
         if (mounted) {
-          _serviceFactory.importExportService.showErrorMessage(
-              context, 'Falha ao importar dados da inspeção');
+          _serviceFactory.importExportService
+              .showErrorMessage(context, 'Falha ao importar dados da inspeção');
         }
       }
     } catch (e) {
       if (mounted) {
-        _serviceFactory.importExportService.showErrorMessage(
-            context, 'Erro ao importar inspeção: $e');
+        _serviceFactory.importExportService
+            .showErrorMessage(context, 'Erro ao importar inspeção: $e');
       }
     } finally {
       if (mounted) {
@@ -523,7 +533,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     final screenSize = MediaQuery.of(context).size;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
@@ -539,7 +550,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             padding: const EdgeInsets.all(8),
             visualDensity: VisualDensity.compact,
           ),
-
           if (_isOnline &&
               _inspection != null &&
               _inspection!.templateId != null)
@@ -552,7 +562,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               padding: const EdgeInsets.all(8),
               visualDensity: VisualDensity.compact,
             ),
-
           if (_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
@@ -565,7 +574,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 ),
               ),
             ),
-
           if (!(_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint))
             PopupMenuButton<String>(
               padding: const EdgeInsets.all(8),
@@ -601,14 +609,17 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       int totalDetails = 0;
                       int totalMedia = 0;
                       for (final topic in _topics) {
-                        final items = await _serviceFactory.coordinator.getItems(inspectionId, topic.id!);
+                        final items = await _serviceFactory.coordinator
+                            .getItems(inspectionId, topic.id!);
                         totalItems += items.length;
                         for (final item in items) {
-                          final details = await _serviceFactory.coordinator.getDetails(inspectionId, topic.id!, item.id!);
+                          final details = await _serviceFactory.coordinator
+                              .getDetails(inspectionId, topic.id!, item.id!);
                           totalDetails += details.length;
                         }
                       }
-                      final allMedia = await _serviceFactory.coordinator.getAllMedia(inspectionId);
+                      final allMedia = await _serviceFactory.coordinator
+                          .getAllMedia(inspectionId);
                       totalMedia = allMedia.length;
 
                       showDialog(
@@ -741,9 +752,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   ),
           ),
         ),
-
         const SizedBox(height: 2),
-
         if (!_isLoading && _topics.isNotEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -766,7 +775,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   onTap: _navigateToMediaGallery,
                   color: Colors.purple,
                 ),
-
                 _buildShortcutButton(
                   icon: Icons.warning_amber_rounded,
                   label: 'NCs',
@@ -781,14 +789,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   },
                   color: const Color.fromARGB(255, 255, 0, 0),
                 ),
-
                 _buildShortcutButton(
                   icon: Icons.add_circle_outline,
                   label: '+ Tópico',
                   onTap: _addTopic,
                   color: Colors.blue,
                 ),
-
                 _buildShortcutButton(
                   icon: Icons.download,
                   label: 'Exportar',
