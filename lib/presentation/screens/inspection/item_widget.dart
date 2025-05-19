@@ -42,7 +42,6 @@ class _ItemWidgetState extends State<ItemWidget> {
   ScrollController? _scrollController;
   final ServiceFactory _serviceFactory = ServiceFactory();
 
-
   @override
   void initState() {
     super.initState();
@@ -150,7 +149,8 @@ class _ItemWidgetState extends State<ItemWidget> {
   Future<void> _addDetail() async {
     if (widget.item.id == null || widget.item.topicId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro: ID do Item ou do Tópico não encontrado')),
+        const SnackBar(
+            content: Text('Erro: ID do Item ou do Tópico não encontrado')),
       );
       return;
     }
@@ -158,9 +158,11 @@ class _ItemWidgetState extends State<ItemWidget> {
     // Obter nome do tópico através do coordinator
     String topicName = "";
     try {
-      final topics = await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
-      final topic = topics.firstWhere((t) => t.id == widget.item.topicId, 
-                                      orElse: () => Topic(id: '', inspectionId: '', topicName: '', position: 0));
+      final topics =
+          await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
+      final topic = topics.firstWhere((t) => t.id == widget.item.topicId,
+          orElse: () =>
+              Topic(id: '', inspectionId: '', topicName: '', position: 0));
       topicName = topic.topicName;
     } catch (e) {
       print('Erro ao buscar nome do tópico: $e');
@@ -314,7 +316,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                           const SizedBox(height: 4),
                           Text(widget.item.itemLabel!,
                               style: TextStyle(
-                                  color: Colors.grey[600], fontSize: 14)),
+                                  color: Colors.grey[600], fontSize: 12)),
                         ],
                       ],
                     ),
@@ -365,7 +367,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                       const Text(
                         'Detalhes',
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addDetail,

@@ -29,7 +29,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
   final _storageService = FirebaseStorageService();
-  
+
   bool _isLoading = false;
   File? _profileImage;
   String? _profileImageUrl;
@@ -48,7 +48,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _stateController;
   String? _selectedProfession;
 
-
   @override
   void initState() {
     super.initState();
@@ -60,7 +59,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController = TextEditingController(text: widget.profile['name'] ?? '');
     _lastNameController =
         TextEditingController(text: widget.profile['last_name'] ?? '');
-    _emailController = TextEditingController(text: widget.profile['email'] ?? '');
+    _emailController =
+        TextEditingController(text: widget.profile['email'] ?? '');
     _phoneController =
         TextEditingController(text: widget.profile['phonenumber'] ?? '');
     _documentController =
@@ -83,7 +83,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() {
         _hasProfileImage = _profileImageUrl != null;
       });
-      
+
       if (!_hasProfileImage && widget.profile['id'] != null) {
         // Check for profile image in profile_images collection (for backward compatibility)
         final imagesSnapshot = await _firestore
@@ -91,7 +91,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             .where('inspector_id', isEqualTo: widget.profile['id'])
             .limit(1)
             .get();
-            
+
         setState(() {
           _hasProfileImage = imagesSnapshot.docs.isNotEmpty;
         });
@@ -195,7 +195,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'state': _stateController.text,
         'updated_at': FieldValue.serverTimestamp(),
       };
-      
+
       await _firestore.collection('inspectors').doc(userId).update(profileData);
 
       // 2. Process profile image if selected
@@ -205,7 +205,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           file: _profileImage!,
           userId: userId,
         );
-        
+
         // Update profile with image URL
         await _firestore.collection('inspectors').doc(userId).update({
           'profileImageUrl': downloadUrl,
@@ -278,15 +278,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                           width: 120,
                                           height: 120,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              Text(
-                                                _getInitials(),
-                                                style: TextStyle(
-                                                  fontSize: 40,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Theme.of(context).primaryColor,
-                                                ),
-                                              ),
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Text(
+                                            _getInitials(),
+                                            style: TextStyle(
+                                              fontSize: 40,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                          ),
                                         ),
                                       )
                                     : Text(
@@ -323,7 +325,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const Text(
                       'Personal Information',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -365,9 +367,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       onChanged: (String? newValue) {
                         setState(() => _selectedProfession = newValue);
                       },
-                      validator: (value) => value == null
-                          ? 'Select a profession'
-                          : null,
+                      validator: (value) =>
+                          value == null ? 'Select a profession' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -413,7 +414,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const Text(
                       'Address',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

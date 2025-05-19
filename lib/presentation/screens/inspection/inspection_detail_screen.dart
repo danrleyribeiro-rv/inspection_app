@@ -703,7 +703,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             SizedBox(height: 24),
             Text(
               'Restaurando checkpoint...',
-              style: TextStyle(fontSize: 18, color: Colors.white),
+              style: TextStyle(fontSize: 16, color: Colors.white),
             ),
             SizedBox(height: 16),
             Text(

@@ -43,7 +43,7 @@ class NonConformityList extends StatelessWidget {
             Icon(Icons.warning_amber_rounded, size: 64, color: Colors.orange),
             SizedBox(height: 16),
             Text('Nenhuma não conformidade registrada',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
             Text('Cadastre uma nova não conformidade na outra aba'),
           ],

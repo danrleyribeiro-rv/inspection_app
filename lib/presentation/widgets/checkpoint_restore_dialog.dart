@@ -64,7 +64,7 @@ class CheckpointRestoreDialog extends StatelessWidget {
                   child: Text(
                     'Restaurar Inspeção',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -117,7 +117,7 @@ class CheckpointRestoreDialog extends StatelessWidget {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -246,7 +246,8 @@ class CheckpointRestoreDialog extends StatelessWidget {
     // Em vez de usar listas embutidas, vamos interpretar os dados de contagem
     // que foram capturados durante a criação do checkpoint
     if (checkpointData.containsKey('counters')) {
-      final counters = checkpointData['counters'] as Map<String, dynamic>? ?? {};
+      final counters =
+          checkpointData['counters'] as Map<String, dynamic>? ?? {};
       topicsCount = counters['topics'] as int? ?? 0;
       itemsCount = counters['items'] as int? ?? 0;
       detailsCount = counters['details'] as int? ?? 0;

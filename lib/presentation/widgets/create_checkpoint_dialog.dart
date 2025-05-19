@@ -34,17 +34,18 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
 
     try {
       final message = _messageController.text.trim();
-      
+
       // Exibe uma mensagem sobre o salvamento em andamento
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Salvando checkpoint... Aguarde enquanto os dados são capturados.'),
+            content: Text(
+                'Salvando checkpoint... Aguarde enquanto os dados são capturados.'),
             duration: Duration(seconds: 3),
           ),
         );
       }
-      
+
       // Criação do checkpoint
       await _checkpointService.createCheckpoint(
         inspectionId: widget.inspectionId,
@@ -66,7 +67,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
     } catch (e) {
       if (mounted) {
         setState(() => _isCreating = false);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao registrar checkpoint: $e'),
@@ -123,7 +124,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
                     child: Text(
                       'Registrar Novo Checkpoint',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -137,7 +138,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
                 ],
               ),
             ),
-            
+
             // Conteúdo
             Padding(
               padding: const EdgeInsets.all(20),
@@ -179,7 +180,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
                 ],
               ),
             ),
-            
+
             // Botões
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

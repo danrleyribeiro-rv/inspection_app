@@ -31,7 +31,8 @@ class NonConformityMediaWidget extends StatefulWidget {
   });
 
   @override
-  State<NonConformityMediaWidget> createState() => _NonConformityMediaWidgetState();
+  State<NonConformityMediaWidget> createState() =>
+      _NonConformityMediaWidgetState();
 }
 
 class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
@@ -54,8 +55,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     final connectivityResult = await _connectivityService.checkConnectivity();
     if (mounted) {
       setState(() {
-        _isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
-                    connectivityResult.contains(ConnectivityResult.mobile);
+        _isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
+            connectivityResult.contains(ConnectivityResult.mobile);
       });
     }
   }
@@ -66,30 +67,36 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection = await _inspectionService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && 
+      final inspection =
+          await _inspectionService.getInspection(widget.inspectionId);
+      if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
-        
         final topic = inspection.topics![widget.topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        
+
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-          
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
+
           if (widget.detailIndex < details.length) {
             final detail = details[widget.detailIndex];
-            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
-            
+            final nonConformities = List<Map<String, dynamic>>.from(
+                detail['non_conformities'] ?? []);
+
             if (widget.ncIndex < nonConformities.length) {
               final nc = nonConformities[widget.ncIndex];
               final media = List<Map<String, dynamic>>.from(nc['media'] ?? []);
-              
+
               setState(() {
-                _mediaItems = media.asMap().entries.map((entry) => {
-                  ...entry.value,
-                  'nc_media_index': entry.key,
-                }).toList();
+                _mediaItems = media
+                    .asMap()
+                    .entries
+                    .map((entry) => {
+                          ...entry.value,
+                          'nc_media_index': entry.key,
+                        })
+                    .toList();
                 _isLoading = false;
               });
               return;
@@ -145,7 +152,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         // Create media directory
         final mediaDir = await _getMediaDirectory();
         final fileExt = path.extension(pickedFile.path);
-        final filename = 'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
+        final filename =
+            'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
 
         // Copy file to media directory for local access
@@ -163,9 +171,9 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
         // If online, upload to Firebase Storage
         if (_isOnline) {
-          final storagePath = 
-            'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/non_conformities/nc_${widget.ncIndex}/$filename';
-          
+          final storagePath =
+              'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/non_conformities/nc_${widget.ncIndex}/$filename';
+
           final contentType = type == 'image'
               ? 'image/${fileExt.toLowerCase().replaceAll(".", "")}'
               : 'video/${fileExt.toLowerCase().replaceAll(".", "")}';
@@ -180,26 +188,31 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         }
 
         // Save to inspection document
-        final inspection = await _inspectionService.getInspection(widget.inspectionId);
-        if (inspection?.topics != null && 
+        final inspection =
+            await _inspectionService.getInspection(widget.inspectionId);
+        if (inspection?.topics != null &&
             widget.topicIndex < inspection!.topics!.length) {
-          
           final topics = List<Map<String, dynamic>>.from(inspection.topics!);
           final topic = topics[widget.topicIndex];
           final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-          
+
           if (widget.itemIndex < items.length) {
             final item = items[widget.itemIndex];
-            final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-            
+            final details =
+                List<Map<String, dynamic>>.from(item['details'] ?? []);
+
             if (widget.detailIndex < details.length) {
-              final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-              final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
-              
+              final detail =
+                  Map<String, dynamic>.from(details[widget.detailIndex]);
+              final nonConformities = List<Map<String, dynamic>>.from(
+                  detail['non_conformities'] ?? []);
+
               if (widget.ncIndex < nonConformities.length) {
-                final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-                final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
-                
+                final nc =
+                    Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
+                final ncMedia =
+                    List<Map<String, dynamic>>.from(nc['media'] ?? []);
+
                 ncMedia.add(mediaData);
                 nc['media'] = ncMedia;
                 nonConformities[widget.ncIndex] = nc;
@@ -209,9 +222,11 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                 items[widget.itemIndex] = item;
                 topic['items'] = items;
                 topics[widget.topicIndex] = topic;
-                
-await _inspectionService.firestore.collection('inspections')
-                    .doc(widget.inspectionId).update({
+
+                await _inspectionService.firestore
+                    .collection('inspections')
+                    .doc(widget.inspectionId)
+                    .update({
                   'topics': topics,
                   'updated_at': FieldValue.serverTimestamp(),
                 });
@@ -229,7 +244,8 @@ await _inspectionService.firestore.collection('inspections')
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+              content: Text(
+                  '${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
               backgroundColor: Colors.green,
             ),
           );
@@ -239,7 +255,8 @@ await _inspectionService.firestore.collection('inspections')
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erro ao processar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
+              content: Text(
+                  'Erro ao processar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -250,7 +267,8 @@ await _inspectionService.firestore.collection('inspections')
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao capturar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
+            content: Text(
+                'Erro ao capturar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -310,26 +328,31 @@ await _inspectionService.firestore.collection('inspections')
       }
 
       // Remove from inspection document
-      final inspection = await _inspectionService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && 
+      final inspection =
+          await _inspectionService.getInspection(widget.inspectionId);
+      if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
-        
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);
         final topic = topics[widget.topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        
+
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-          
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
+
           if (widget.detailIndex < details.length) {
-            final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
-            
+            final detail =
+                Map<String, dynamic>.from(details[widget.detailIndex]);
+            final nonConformities = List<Map<String, dynamic>>.from(
+                detail['non_conformities'] ?? []);
+
             if (widget.ncIndex < nonConformities.length) {
-              final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-              final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
-              
+              final nc =
+                  Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
+              final ncMedia =
+                  List<Map<String, dynamic>>.from(nc['media'] ?? []);
+
               if (mediaIndex < ncMedia.length) {
                 ncMedia.removeAt(mediaIndex);
                 nc['media'] = ncMedia;
@@ -340,9 +363,11 @@ await _inspectionService.firestore.collection('inspections')
                 items[widget.itemIndex] = item;
                 topic['items'] = items;
                 topics[widget.topicIndex] = topic;
-                
-                await _inspectionService.firestore.collection('inspections')
-                    .doc(widget.inspectionId).update({
+
+                await _inspectionService.firestore
+                    .collection('inspections')
+                    .doc(widget.inspectionId)
+                    .update({
                   'topics': topics,
                   'updated_at': FieldValue.serverTimestamp(),
                 });
@@ -402,8 +427,8 @@ await _inspectionService.firestore.collection('inspections')
               child: Text(
                 'Arquivos de Mídia',
                 style: TextStyle(
-                  fontSize: 14, 
-                  color: Colors.black, 
+                  fontSize: 12,
+                  color: Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -459,20 +484,16 @@ await _inspectionService.firestore.collection('inspections')
           const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                'Nenhum arquivo de mídia adicionado', 
-                style: TextStyle(color: Colors.grey)
-              ),
+              child: Text('Nenhum arquivo de mídia adicionado',
+                  style: TextStyle(color: Colors.grey)),
             ),
           )
         else
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Mídias Salvas:',
-                style: TextStyle(fontWeight: FontWeight.bold)
-              ),
+              const Text('Mídias Salvas:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               SizedBox(
                 height: 120,

@@ -422,7 +422,7 @@ class _TopicWidgetState extends State<TopicWidget> {
                      const Text(
                        'Itens',
                        style: TextStyle(
-                           fontSize: 18, fontWeight: FontWeight.bold),
+                           fontSize: 16, fontWeight: FontWeight.bold),
                      ),
                      ElevatedButton.icon(
                        onPressed: _addItem,

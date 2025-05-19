@@ -207,7 +207,7 @@ class _DetailWidgetState extends State<DetailWidget> {
                           _updateDetail();
                         },
                       ),
-                      const Text('Damaged detail'),
+                      const Text('Com NC'),
                     ],
                   ),
                   const SizedBox(height: 5),
@@ -265,9 +265,12 @@ class _DetailWidgetState extends State<DetailWidget> {
                       widget.detail.itemId != null)
                     MediaHandlingWidget(
                       inspectionId: widget.detail.inspectionId,
-                      topicIndex: int.parse(widget.detail.topicId!.replaceFirst('topic_', '')),
-                      itemIndex: int.parse(widget.detail.itemId!.replaceFirst('item_', '')),
-                      detailIndex: int.parse(widget.detail.id!.replaceFirst('detail_', '')),
+                      topicIndex: int.parse(
+                          widget.detail.topicId!.replaceFirst('topic_', '')),
+                      itemIndex: int.parse(
+                          widget.detail.itemId!.replaceFirst('item_', '')),
+                      detailIndex: int.parse(
+                          widget.detail.id!.replaceFirst('detail_', '')),
                       onMediaAdded: (_) => setState(() {}),
                       onMediaDeleted: (_) => setState(() {}),
                     ),

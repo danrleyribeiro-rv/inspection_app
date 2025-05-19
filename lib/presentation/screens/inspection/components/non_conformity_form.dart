@@ -129,6 +129,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao registrar não conformidade: $e')),
         );
+        print(e);
       }
     }
   }
@@ -260,7 +261,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
           children: [
             const Text(
               'Localização da Não Conformidade', // Translated
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
 

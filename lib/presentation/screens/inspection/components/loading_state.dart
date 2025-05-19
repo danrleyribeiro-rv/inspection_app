@@ -18,29 +18,26 @@ class LoadingState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           CircularProgressIndicator(
-            color: isApplyingTemplate 
-                ? Colors.orange 
+            color: isApplyingTemplate
+                ? Colors.orange
                 : Theme.of(context).primaryColor,
             strokeWidth: 3,
           ),
           const SizedBox(height: 24),
           Text(
-            isApplyingTemplate 
+            isApplyingTemplate
                 ? 'Aplicando template à inspeção...'
-                : isDownloading 
-                    ? 'Baixando dados da inspeção...' 
+                : isDownloading
+                    ? 'Baixando dados da inspeção...'
                     : 'Carregando...',
             style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold
-            ),
+                color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           if (isApplyingTemplate) ...[
             const SizedBox(height: 12),
             const Text(
               'Por favor, aguarde. Isso pode levar alguns instantes...',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: Colors.white70, fontSize: 12),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),

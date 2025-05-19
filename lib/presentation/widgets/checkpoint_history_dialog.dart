@@ -14,13 +14,14 @@ class CheckpointHistoryDialog extends StatefulWidget {
   });
 
   @override
-  State<CheckpointHistoryDialog> createState() => _CheckpointHistoryDialogState();
+  State<CheckpointHistoryDialog> createState() =>
+      _CheckpointHistoryDialogState();
 }
 
 class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
   final _checkpointService = InspectionCheckpointService();
   final _firestore = FirebaseFirestore.instance;
-  
+
   bool _isLoading = true;
   List<InspectionCheckpoint> _checkpoints = [];
   Map<String, String> _userNames = {};
@@ -37,14 +38,16 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
 
     try {
       // Carregar checkpoints
-      final checkpoints = await _checkpointService.getCheckpoints(widget.inspectionId);
-      
+      final checkpoints =
+          await _checkpointService.getCheckpoints(widget.inspectionId);
+
       // Recuperar nomes de usuários
       final userIds = checkpoints.map((c) => c.createdBy).toSet().toList();
-      
+
       for (final userId in userIds) {
         try {
-          final userDoc = await _firestore.collection('inspectors').doc(userId).get();
+          final userDoc =
+              await _firestore.collection('inspectors').doc(userId).get();
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
             final firstName = userData['name'] ?? '';
@@ -56,14 +59,12 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
           _userNames[userId] = 'Usuário não encontrado';
         }
       }
-      
+
       // Para cada checkpoint, obter comparação com o estado atual
       for (final checkpoint in checkpoints) {
         try {
           final comparison = await _checkpointService.compareWithCheckpoint(
-            widget.inspectionId, 
-            checkpoint.id
-          );
+              widget.inspectionId, checkpoint.id);
           _comparisons[checkpoint.id] = comparison;
         } catch (e) {
           print('Erro ao comparar checkpoint ${checkpoint.id}: $e');
@@ -77,7 +78,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
     } catch (e) {
       print('Erro ao carregar checkpoints: $e');
       setState(() => _isLoading = false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar checkpoints: $e')),
@@ -164,7 +165,7 @@ class ContentBox extends StatelessWidget {
                   child: Text(
                     'Histórico de Checkpoints',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -183,7 +184,7 @@ class ContentBox extends StatelessWidget {
               ],
             ),
           ),
-          
+
           // Conteúdo
           ConstrainedBox(
             constraints: BoxConstraints(
@@ -215,9 +216,10 @@ class ContentBox extends StatelessWidget {
                           final checkpoint = checkpoints[index];
                           final userName = getUserName(checkpoint.createdBy);
                           final comparison = comparisons[checkpoint.id];
-                          
+
                           return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade800,
                               borderRadius: BorderRadius.circular(8),
@@ -230,7 +232,8 @@ class ContentBox extends StatelessWidget {
                                 children: [
                                   // Cabeçalho
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
                                         child: Text(
@@ -250,9 +253,10 @@ class ContentBox extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                        
+
                                   // Mensagem do checkpoint
-                                  if (checkpoint.message != null && checkpoint.message!.isNotEmpty) ...[
+                                  if (checkpoint.message != null &&
+                                      checkpoint.message!.isNotEmpty) ...[
                                     const SizedBox(height: 8),
                                     Container(
                                       padding: const EdgeInsets.all(8),
@@ -269,7 +273,7 @@ class ContentBox extends StatelessWidget {
                                       ),
                                     ),
                                   ],
-                                  
+
                                   // Informações de comparação
                                   if (comparison != null) ...[
                                     const SizedBox(height: 8),
@@ -278,34 +282,45 @@ class ContentBox extends StatelessWidget {
                                       runSpacing: 4,
                                       children: [
                                         _buildComparisonChip(
-                                          'Tópicos', 
-                                          comparison['topics']?['current'] ?? 0, 
-                                          comparison['topics']?['checkpoint'] ?? 0
-                                        ),
+                                            'Tópicos',
+                                            comparison['topics']?['current'] ??
+                                                0,
+                                            comparison['topics']
+                                                    ?['checkpoint'] ??
+                                                0),
                                         _buildComparisonChip(
-                                          'Itens', 
-                                          comparison['items']?['current'] ?? 0, 
-                                          comparison['items']?['checkpoint'] ?? 0
-                                        ),
+                                            'Itens',
+                                            comparison['items']?['current'] ??
+                                                0,
+                                            comparison['items']
+                                                    ?['checkpoint'] ??
+                                                0),
                                         _buildComparisonChip(
-                                          'Detalhes', 
-                                          comparison['details']?['current'] ?? 0, 
-                                          comparison['details']?['checkpoint'] ?? 0
-                                        ),
+                                            'Detalhes',
+                                            comparison['details']?['current'] ??
+                                                0,
+                                            comparison['details']
+                                                    ?['checkpoint'] ??
+                                                0),
                                         _buildComparisonChip(
-                                          'Mídias', 
-                                          comparison['media']?['current'] ?? 0, 
-                                          comparison['media']?['checkpoint'] ?? 0
-                                        ),
+                                            'Mídias',
+                                            comparison['media']?['current'] ??
+                                                0,
+                                            comparison['media']
+                                                    ?['checkpoint'] ??
+                                                0),
                                         _buildComparisonChip(
-                                          'NCs', 
-                                          comparison['non_conformities']?['current'] ?? 0, 
-                                          comparison['non_conformities']?['checkpoint'] ?? 0
-                                        ),
+                                            'NCs',
+                                            comparison['non_conformities']
+                                                    ?['current'] ??
+                                                0,
+                                            comparison['non_conformities']
+                                                    ?['checkpoint'] ??
+                                                0),
                                       ],
                                     ),
                                   ],
-                                  
+
                                   // Botão de restauração
                                   const SizedBox(height: 8),
                                   Row(
@@ -313,16 +328,21 @@ class ContentBox extends StatelessWidget {
                                     children: [
                                       ElevatedButton.icon(
                                         onPressed: () {
-                                          Navigator.of(context).pop(); // Fecha o diálogo atual
-                                          onRestore(checkpoint); // Chama callback de restauração
+                                          Navigator.of(context)
+                                              .pop(); // Fecha o diálogo atual
+                                          onRestore(
+                                              checkpoint); // Chama callback de restauração
                                         },
-                                        icon: const Icon(Icons.restore, size: 16),
+                                        icon:
+                                            const Icon(Icons.restore, size: 16),
                                         label: const Text('Restaurar'),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.orange,
                                           foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          textStyle: const TextStyle(fontSize: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6),
+                                          textStyle:
+                                              const TextStyle(fontSize: 12),
                                         ),
                                       ),
                                     ],
@@ -338,15 +358,15 @@ class ContentBox extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildComparisonChip(String label, int current, int checkpoint) {
     final diff = current - checkpoint;
-    final Color color = diff > 0 
-        ? Colors.green 
-        : diff < 0 
-            ? Colors.red 
+    final Color color = diff > 0
+        ? Colors.green
+        : diff < 0
+            ? Colors.red
             : Colors.blue;
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(

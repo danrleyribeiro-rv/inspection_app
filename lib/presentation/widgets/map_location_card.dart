@@ -32,10 +32,10 @@ class MapLocationCard extends StatelessWidget {
     } else if (address.trim().isNotEmpty) {
       final encodedAddress = Uri.encodeComponent(address);
       url = 'https://www.google.com/maps/search/?api=1&query=$encodedAddress';
-       log('[_openMap] Using address URL: $url');
+      log('[_openMap] Using address URL: $url');
     } else {
-        log('[_openMap] Cannot open map: No coordinates and empty address.');
-        return;
+      log('[_openMap] Cannot open map: No coordinates and empty address.');
+      return;
     }
 
     final uri = Uri.parse(url);
@@ -44,7 +44,8 @@ class MapLocationCard extends StatelessWidget {
         log('[_openMap] Launching URL: $uri');
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        log('[_openMap] Could not launch $url', error: 'canLaunchUrl returned false');
+        log('[_openMap] Could not launch $url',
+            error: 'canLaunchUrl returned false');
       }
     } catch (e, s) {
       log('[_openMap] Error launching map', error: e, stackTrace: s);
@@ -84,13 +85,15 @@ class MapLocationCard extends StatelessWidget {
     // --- VERIFICA A CHAVE RECEBIDA ---
     // Verifica se a chave fornecida não está vazia ou é um placeholder óbvio
     if (googleMapsApiKey.isEmpty || googleMapsApiKey == 'SUA_CHAVE_API_AQUI') {
-      log('[_buildStaticMapUrl] ERROR: Google Maps API Key is missing or invalid!', error: 'API Key Missing/Invalid in constructor');
+      log('[_buildStaticMapUrl] ERROR: Google Maps API Key is missing or invalid!',
+          error: 'API Key Missing/Invalid in constructor');
       return null; // Não tenta fazer a chamada sem uma chave válida
     }
     // --- FIM DA VERIFICAÇÃO ---
 
     // Usa a chave API passada via construtor
-    final url = '$baseUrl?center=$centerPath&zoom=$zoom&size=$size&$markerPath&key=$googleMapsApiKey';
+    final url =
+        '$baseUrl?center=$centerPath&zoom=$zoom&size=$size&$markerPath&key=$googleMapsApiKey';
     log('[_buildStaticMapUrl] Generated Static Map URL: $url');
     return url;
   }
@@ -131,8 +134,10 @@ class MapLocationCard extends StatelessWidget {
                       );
                     },
                     errorBuilder: (context, error, stackTrace) {
-                      log('[MapLocationCard Image.network] Error loading map image.', error: error, stackTrace: stackTrace);
-                      return _buildPlaceholderMap(error: true); // Mostra placeholder com erro
+                      log('[MapLocationCard Image.network] Error loading map image.',
+                          error: error, stackTrace: stackTrace);
+                      return _buildPlaceholderMap(
+                          error: true); // Mostra placeholder com erro
                     },
                   )
                 : _buildPlaceholderMap(), // Mostra placeholder se a URL não pôde ser criada
@@ -144,49 +149,52 @@ class MapLocationCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                 // ... (Ícone e Texto do Endereço inalterados) ...
-                 const SizedBox(height: 4),
-                 Row(
-                   children: [
-                     const Icon(
-                       Icons.location_on_outlined,
-                       size: 14,
-                       color: Colors.grey,
-                     ),
-                     const SizedBox(width: 4),
-                     Expanded(
-                       child: Text(
-                         address.trim().isNotEmpty ? address : 'Endereço não fornecido',
-                         style: TextStyle(
-                           fontSize: 14,
-                           color: Colors.grey[400],
-                         ),
-                         maxLines: 2,
-                         overflow: TextOverflow.ellipsis,
-                       ),
-                     ),
-                   ],
-                 ),
-                 const SizedBox(height: 1),
-                 // Botão "Abrir no Google Maps" (inalterado)
-                 Row(
-                   mainAxisAlignment: MainAxisAlignment.end,
-                   children: [
-                     TextButton.icon(
-                       onPressed: (latitude != null && longitude != null) || address.trim().isNotEmpty
-                           ? _openMap
-                           : null,
-                       icon: const Icon(Icons.directions, size: 16),
-                       label: const Text('Abrir no Google Maps'),
-                       style: TextButton.styleFrom(
-                         foregroundColor: Theme.of(context).colorScheme.primary,
-                         padding: const EdgeInsets.symmetric(
-                             horizontal: 8, vertical: 0),
-                         disabledForegroundColor: Colors.grey.withOpacity(0.5),
-                       ),
-                     ),
-                   ],
-                 ),
+                // ... (Ícone e Texto do Endereço inalterados) ...
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        address.trim().isNotEmpty
+                            ? address
+                            : 'Endereço não fornecido',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[400],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 1),
+                // Botão "Abrir no Google Maps" (inalterado)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: (latitude != null && longitude != null) ||
+                              address.trim().isNotEmpty
+                          ? _openMap
+                          : null,
+                      icon: const Icon(Icons.directions, size: 16),
+                      label: const Text('Abrir no Google Maps'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 0),
+                        disabledForegroundColor: Colors.grey.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -200,26 +208,28 @@ class MapLocationCard extends StatelessWidget {
     log('[MapLocationCard _buildPlaceholderMap] Displaying placeholder. Error loading: $error');
     return Container(
       // ... (código do _buildPlaceholderMap inalterado) ...
-       color: Colors.grey[800],
-       child: Column(
-         mainAxisAlignment: MainAxisAlignment.center,
-         children: [
-           Icon(
-              error ? Icons.error_outline : Icons.map_outlined,
-             size: 48,
-             color: Colors.grey[600],
-           ),
-           const SizedBox(height: 8),
-           Text(
-              error ? 'Não foi possível carregar o mapa' : 'Localização indisponível',
-             textAlign: TextAlign.center,
-             style: TextStyle(
-               color: Colors.grey[400],
-               fontSize: 14,
-             ),
-           ),
-         ],
-       ),
+      color: Colors.grey[800],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            error ? Icons.error_outline : Icons.map_outlined,
+            size: 48,
+            color: Colors.grey[600],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error
+                ? 'Não foi possível carregar o mapa'
+                : 'Localização indisponível',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

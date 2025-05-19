@@ -301,7 +301,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
 
       // Prepare media data
       final mediaId = _uuid.v4();
-      
+
       Map<String, dynamic> mediaData = {
         'type': type,
         'localPath': localPath,
@@ -314,7 +314,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       // Try to upload to Firebase Storage
       try {
         // Upload to Firebase Storage
-        final storageRef = _storage.ref().child('inspection_media').child(fileName);
+        final storageRef =
+            _storage.ref().child('inspection_media').child(fileName);
         await storageRef.putFile(File(localPath));
         final downloadUrl = await storageRef.getDownloadURL();
 
@@ -415,7 +416,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                 const Text(
                   'Capturar Nova Mídia',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),

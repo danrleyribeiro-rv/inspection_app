@@ -15,7 +15,7 @@ class ProfileTab extends StatefulWidget {
 class _ProfileTabState extends State<ProfileTab> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  
+
   bool _isLoading = true;
   Map<String, dynamic>? _profile;
   String? _profileImageBase64;
@@ -33,10 +33,7 @@ class _ProfileTabState extends State<ProfileTab> {
       final userId = _auth.currentUser?.uid;
       if (userId == null) return;
 
-      final doc = await _firestore
-          .collection('inspectors')
-          .doc(userId)
-          .get();
+      final doc = await _firestore.collection('inspectors').doc(userId).get();
 
       if (doc.exists) {
         setState(() {
@@ -63,7 +60,8 @@ class _ProfileTabState extends State<ProfileTab> {
 
     try {
       // Check if profile contains a direct imageUrl
-      if (_profile!.containsKey('profileImageUrl') && _profile!['profileImageUrl'] != null) {
+      if (_profile!.containsKey('profileImageUrl') &&
+          _profile!['profileImageUrl'] != null) {
         setState(() {
           // Just store the URL reference, will use CachedNetworkImage to display
           _profileImageBase64 = _profile!['profileImageUrl'];
@@ -81,7 +79,8 @@ class _ProfileTabState extends State<ProfileTab> {
           .limit(1)
           .get();
 
-      if (imagesCollection.docs.isNotEmpty && imagesCollection.docs[0].data()['image_data'] != null) {
+      if (imagesCollection.docs.isNotEmpty &&
+          imagesCollection.docs[0].data()['image_data'] != null) {
         setState(() {
           _profileImageBase64 = imagesCollection.docs[0].data()['image_data'];
         });
@@ -156,7 +155,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Text(
                       'Informações Pessoais',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -178,7 +177,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Text(
                       'Address',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -186,9 +185,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   const Divider(),
 
                   _buildInfoItem(Icons.location_on, 'Rua', _formatAddress()),
-                  _buildInfoItem(
-                      Icons.location_city,
-                      'Cidade/Estado',
+                  _buildInfoItem(Icons.location_city, 'Cidade/Estado',
                       '${_profile?['city'] ?? 'Não fornecido'} - ${_profile?['state'] ?? 'Não fornecido'}'),
                   _buildInfoItem(Icons.markunread_mailbox, 'CEP',
                       _profile?['cep'] ?? 'Não fornecido'),
@@ -307,7 +304,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   label,
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
-                    fontSize: 14,
+                    fontSize: 12,
                     color: Colors.grey,
                   ),
                 ),
