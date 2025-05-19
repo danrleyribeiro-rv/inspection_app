@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/firebase_service.dart';
+import 'package:inspection_app/services/data/inspection_data_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import FieldValue
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -11,62 +11,43 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 
 class NonConformityMediaWidget extends StatefulWidget {
-  final String nonConformityId;
   final String inspectionId;
+  final int topicIndex;
+  final int itemIndex;
+  final int detailIndex;
+  final int ncIndex;
   final bool isReadOnly;
   final Function(String) onMediaAdded;
 
   const NonConformityMediaWidget({
     super.key,
-    required this.nonConformityId,
     required this.inspectionId,
+    required this.topicIndex,
+    required this.itemIndex,
+    required this.detailIndex,
+    required this.ncIndex,
     this.isReadOnly = false,
     required this.onMediaAdded,
   });
 
   @override
-  State<NonConformityMediaWidget> createState() =>
-      _NonConformityMediaWidgetState();
+  State<NonConformityMediaWidget> createState() => _NonConformityMediaWidgetState();
 }
 
 class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   List<Map<String, dynamic>> _mediaItems = [];
   bool _isLoading = true;
   bool _isOnline = false;
-  final _storage = FirebaseService().storage;
-  final _firestore = FirebaseService().firestore;
+  final _storage = FirebaseStorage.instance;
+  final InspectionDataService _inspectionService = InspectionDataService();
   final _connectivityService = Connectivity();
   final _uuid = Uuid();
-
-  // Parse the non-conformity ID to extract component IDs
-  late String _topicId;
-  late String _itemId;
-  late String _detailId;
-  late String _ncId;
 
   @override
   void initState() {
     super.initState();
-    _parseNonConformityId();
     _checkConnectivity();
     _loadMedia();
-  }
-
-  void _parseNonConformityId() {
-    final parts = widget.nonConformityId.split('-');
-    if (parts.length >= 5) {
-      _topicId = parts[1];
-      _itemId = parts[2];
-      _detailId = parts[3];
-      _ncId = parts[4];
-    } else {
-      throw Exception('Invalid non-conformity ID format: ${widget.nonConformityId}');
-    }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _checkConnectivity() async {
@@ -85,31 +66,40 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // Get media collection from the non-conformity document
-      final mediaSnapshot = await _firestore
-          .collection('inspections')
-          .doc(widget.inspectionId)
-          .collection('topics')
-          .doc(_topicId)
-          .collection('topic_items')
-          .doc(_itemId)
-          .collection('item_details')
-          .doc(_detailId)
-          .collection('non_conformities')
-          .doc(_ncId)
-          .collection('nc_media')
-          .orderBy('created_at', descending: true)
-          .get();
-      
-      if (!mounted) return;
+      final inspection = await _inspectionService.getInspection(widget.inspectionId);
+      if (inspection?.topics != null && 
+          widget.topicIndex < inspection!.topics!.length) {
+        
+        final topic = inspection.topics![widget.topicIndex];
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        
+        if (widget.itemIndex < items.length) {
+          final item = items[widget.itemIndex];
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          
+          if (widget.detailIndex < details.length) {
+            final detail = details[widget.detailIndex];
+            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            
+            if (widget.ncIndex < nonConformities.length) {
+              final nc = nonConformities[widget.ncIndex];
+              final media = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+              
+              setState(() {
+                _mediaItems = media.asMap().entries.map((entry) => {
+                  ...entry.value,
+                  'nc_media_index': entry.key,
+                }).toList();
+                _isLoading = false;
+              });
+              return;
+            }
+          }
+        }
+      }
 
       setState(() {
-        _mediaItems = mediaSnapshot.docs.map((doc) {
-          return {
-            'id': doc.id,
-            ...doc.data(),
-          };
-        }).toList();
+        _mediaItems = [];
         _isLoading = false;
       });
     } catch (e) {
@@ -155,7 +145,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         // Create media directory
         final mediaDir = await _getMediaDirectory();
         final fileExt = path.extension(pickedFile.path);
-        final filename = 'nc_${widget.nonConformityId}_${type}_${_uuid.v4()}$fileExt';
+        final filename = 'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
 
         // Copy file to media directory for local access
@@ -164,17 +154,17 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
         // For media tracking
         final mediaData = {
+          'id': _uuid.v4(),
           'type': type,
-          'timestamp': FieldValue.serverTimestamp(),
           'localPath': localPath,
-          'created_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
         };
 
         // If online, upload to Firebase Storage
         if (_isOnline) {
           final storagePath = 
-            'inspections/${widget.inspectionId}/$_topicId/$_itemId/$_detailId/non_conformities/$_ncId/$filename';
+            'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/non_conformities/nc_${widget.ncIndex}/$filename';
           
           final contentType = type == 'image'
               ? 'image/${fileExt.toLowerCase().replaceAll(".", "")}'
@@ -189,20 +179,46 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           mediaData['url'] = downloadUrl;
         }
 
-        // Save to Firestore
-        await _firestore
-            .collection('inspections')
-            .doc(widget.inspectionId)
-            .collection('topics')
-            .doc(_topicId)
-            .collection('topic_items')
-            .doc(_itemId)
-            .collection('item_details')
-            .doc(_detailId)
-            .collection('non_conformities')
-            .doc(_ncId)
-            .collection('nc_media')
-            .add(mediaData);
+        // Save to inspection document
+        final inspection = await _inspectionService.getInspection(widget.inspectionId);
+        if (inspection?.topics != null && 
+            widget.topicIndex < inspection!.topics!.length) {
+          
+          final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+          final topic = topics[widget.topicIndex];
+          final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+          
+          if (widget.itemIndex < items.length) {
+            final item = items[widget.itemIndex];
+            final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+            
+            if (widget.detailIndex < details.length) {
+              final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
+              final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+              
+              if (widget.ncIndex < nonConformities.length) {
+                final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
+                final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+                
+                ncMedia.add(mediaData);
+                nc['media'] = ncMedia;
+                nonConformities[widget.ncIndex] = nc;
+                detail['non_conformities'] = nonConformities;
+                details[widget.detailIndex] = detail;
+                item['details'] = details;
+                items[widget.itemIndex] = item;
+                topic['items'] = items;
+                topics[widget.topicIndex] = topic;
+                
+await _inspectionService.firestore.collection('inspections')
+                    .doc(widget.inspectionId).update({
+                  'topics': topics,
+                  'updated_at': FieldValue.serverTimestamp(),
+                });
+              }
+            }
+          }
+        }
 
         // Notify of addition
         widget.onMediaAdded(localPath);
@@ -246,7 +262,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     }
   }
 
-  Future<void> _removeMedia(Map<String, dynamic> media) async {
+  Future<void> _removeMedia(int mediaIndex, Map<String, dynamic> media) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -271,17 +287,11 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final mediaId = media['id'];
-      
       // Try to delete from storage if URL exists
       if (_isOnline && media['url'] != null) {
         try {
-          // Get storage reference from URL
-          final uri = Uri.parse(media['url']);
-          final pathSegments = uri.pathSegments;
-          final storagePath = pathSegments.skip(1).join('/');
-          
-          await _storage.ref(storagePath).delete();
+          final storageRef = _storage.refFromURL(media['url']);
+          await storageRef.delete();
         } catch (e) {
           print('Error deleting from storage: $e');
         }
@@ -299,21 +309,48 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         }
       }
 
-      // Delete from Firestore
-      await _firestore
-          .collection('inspections')
-          .doc(widget.inspectionId)
-          .collection('topics')
-          .doc(_topicId)
-          .collection('topic_items')
-          .doc(_itemId)
-          .collection('item_details')
-          .doc(_detailId)
-          .collection('non_conformities')
-          .doc(_ncId)
-          .collection('nc_media')
-          .doc(mediaId)
-          .delete();
+      // Remove from inspection document
+      final inspection = await _inspectionService.getInspection(widget.inspectionId);
+      if (inspection?.topics != null && 
+          widget.topicIndex < inspection!.topics!.length) {
+        
+        final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+        final topic = topics[widget.topicIndex];
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        
+        if (widget.itemIndex < items.length) {
+          final item = items[widget.itemIndex];
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          
+          if (widget.detailIndex < details.length) {
+            final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
+            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            
+            if (widget.ncIndex < nonConformities.length) {
+              final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
+              final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+              
+              if (mediaIndex < ncMedia.length) {
+                ncMedia.removeAt(mediaIndex);
+                nc['media'] = ncMedia;
+                nonConformities[widget.ncIndex] = nc;
+                detail['non_conformities'] = nonConformities;
+                details[widget.detailIndex] = detail;
+                item['details'] = details;
+                items[widget.itemIndex] = item;
+                topic['items'] = items;
+                topics[widget.topicIndex] = topic;
+                
+                await _inspectionService.firestore.collection('inspections')
+                    .doc(widget.inspectionId).update({
+                  'topics': topics,
+                  'updated_at': FieldValue.serverTimestamp(),
+                });
+              }
+            }
+          }
+        }
+      }
 
       // Reload
       await _loadMedia();
@@ -365,7 +402,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
               child: Text(
                 'Arquivos de Mídia',
                 style: TextStyle(
-                  fontSize: 14, color: Colors.black, 
+                  fontSize: 14, 
+                  color: Colors.black, 
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -375,7 +413,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
         const SizedBox(height: 12),
 
-        // Add explicitly the media buttons, even if not in read-only mode
+        // Add media buttons if not in read-only mode
         if (!widget.isReadOnly)
           Row(
             children: [
@@ -421,16 +459,20 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('Nenhum arquivo de mídia adicionado', 
-                  style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'Nenhum arquivo de mídia adicionado', 
+                style: TextStyle(color: Colors.grey)
+              ),
             ),
           )
         else
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Mídias Salvas:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Mídias Salvas:',
+                style: TextStyle(fontWeight: FontWeight.bold)
+              ),
               const SizedBox(height: 8),
               SizedBox(
                 height: 120,
@@ -528,7 +570,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                                     minHeight: 24,
                                   ),
                                   padding: EdgeInsets.zero,
-                                  onPressed: () => _removeMedia(media),
+                                  onPressed: () => _removeMedia(index, media),
                                 ),
                               ),
                             ),

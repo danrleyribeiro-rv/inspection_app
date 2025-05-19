@@ -1,5 +1,3 @@
-// lib/models/inspection.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Inspection {
@@ -10,6 +8,8 @@ class Inspection {
   final String? city;
   final String? state;
   final String? zipCode;
+  final String? addressString;
+  final Map<String, dynamic>? address;
   final String status;
   final String? observation;
   final DateTime? scheduledDate;
@@ -20,11 +20,11 @@ class Inspection {
   final String? inspectorId;
   final bool isTemplated;
   final String? templateId;
-
   final DateTime? lastCheckpointAt;
   final String? lastCheckpointBy;
   final String? lastCheckpointMessage;
   final double? lastCheckpointCompletion;
+  final List<Map<String, dynamic>>? topics;
 
   Inspection({
     required this.id,
@@ -34,6 +34,8 @@ class Inspection {
     this.city,
     this.state,
     this.zipCode,
+    this.addressString,
+    this.address,
     required this.status,
     this.observation,
     this.scheduledDate,
@@ -48,9 +50,9 @@ class Inspection {
     this.lastCheckpointBy,
     this.lastCheckpointMessage,
     this.lastCheckpointCompletion,
+    this.topics,
   });
 
-  // Create a copy of this inspection with the given fields replaced
   Inspection copyWith({
     String? id,
     String? title,
@@ -59,6 +61,8 @@ class Inspection {
     String? city,
     String? state,
     String? zipCode,
+    String? addressString,
+    Map<String, dynamic>? address,
     String? status,
     String? observation,
     DateTime? scheduledDate,
@@ -73,6 +77,7 @@ class Inspection {
     String? lastCheckpointBy,
     String? lastCheckpointMessage,
     double? lastCheckpointCompletion,
+    List<Map<String, dynamic>>? topics,
   }) {
     return Inspection(
       id: id ?? this.id,
@@ -82,6 +87,8 @@ class Inspection {
       city: city ?? this.city,
       state: state ?? this.state,
       zipCode: zipCode ?? this.zipCode,
+      addressString: addressString ?? this.addressString,
+      address: address ?? this.address,
       status: status ?? this.status,
       observation: observation ?? this.observation,
       scheduledDate: scheduledDate ?? this.scheduledDate,
@@ -94,16 +101,13 @@ class Inspection {
       templateId: templateId ?? this.templateId,
       lastCheckpointAt: lastCheckpointAt ?? this.lastCheckpointAt,
       lastCheckpointBy: lastCheckpointBy ?? this.lastCheckpointBy,
-      lastCheckpointMessage:
-          lastCheckpointMessage ?? this.lastCheckpointMessage,
-      lastCheckpointCompletion:
-          lastCheckpointCompletion ?? this.lastCheckpointCompletion,
+      lastCheckpointMessage: lastCheckpointMessage ?? this.lastCheckpointMessage,
+      lastCheckpointCompletion: lastCheckpointCompletion ?? this.lastCheckpointCompletion,
+      topics: topics ?? this.topics,
     );
   }
 
-  // Convert to a Map (JSON)
   Map<String, dynamic> toJson() {
-    // Mapa base com todos os campos existentes
     final Map<String, dynamic> data = {
       'id': id,
       'title': title,
@@ -112,6 +116,8 @@ class Inspection {
       'city': city,
       'state': state,
       'zip_code': zipCode,
+      'address_string': addressString,
+      'address': address,
       'status': status,
       'observation': observation,
       'scheduled_date': scheduledDate?.toIso8601String(),
@@ -122,9 +128,9 @@ class Inspection {
       'inspector_id': inspectorId,
       'is_templated': isTemplated,
       'template_id': templateId,
+      'topics': topics,
     };
 
-    // Adicione os novos campos relacionados a checkpoints
     if (lastCheckpointAt != null) {
       data['last_checkpoint_at'] = lastCheckpointAt!.toIso8601String();
     }
@@ -143,9 +149,16 @@ class Inspection {
 
   Map<String, dynamic> toMap() => toJson();
 
-  // Create an Inspection from a Map (JSON)
   factory Inspection.fromJson(Map<String, dynamic> json) {
-    // Processando campos relacionados ao template
+    DateTime? lastCheckpointAt;
+    if (json['last_checkpoint_at'] != null) {
+      if (json['last_checkpoint_at'] is Timestamp) {
+        lastCheckpointAt = (json['last_checkpoint_at'] as Timestamp).toDate();
+      } else if (json['last_checkpoint_at'] is String) {
+        lastCheckpointAt = DateTime.parse(json['last_checkpoint_at']);
+      }
+    }
+
     bool isTemplated = false;
     if (json.containsKey('is_templated')) {
       if (json['is_templated'] is bool) {
@@ -156,16 +169,13 @@ class Inspection {
         isTemplated = true;
       }
     }
-    DateTime? lastCheckpointAt;
-    if (json['last_checkpoint_at'] != null) {
-      if (json['last_checkpoint_at'] is Timestamp) {
-        lastCheckpointAt = (json['last_checkpoint_at'] as Timestamp).toDate();
-      } else if (json['last_checkpoint_at'] is String) {
-        lastCheckpointAt = DateTime.parse(json['last_checkpoint_at']);
+
+    List<Map<String, dynamic>>? topics;
+    if (json['topics'] != null) {
+      if (json['topics'] is List) {
+        topics = List<Map<String, dynamic>>.from(json['topics']);
       }
     }
-
-    String? templateId = json['template_id']?.toString();
 
     return Inspection(
       id: json['id'].toString(),
@@ -175,6 +185,8 @@ class Inspection {
       city: json['city'],
       state: json['state'],
       zipCode: json['zip_code'],
+      addressString: json['address_string'],
+      address: json['address'] is Map ? Map<String, dynamic>.from(json['address']) : null,
       status: json['status'] ?? 'pending',
       observation: json['observation'],
       scheduledDate: _parseDateTime(json['scheduled_date']),
@@ -184,20 +196,19 @@ class Inspection {
       projectId: json['project_id']?.toString(),
       inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,
-      templateId: templateId,
+      templateId: json['template_id']?.toString(),
       lastCheckpointAt: lastCheckpointAt,
       lastCheckpointBy: json['last_checkpoint_by'],
       lastCheckpointMessage: json['last_checkpoint_message'],
       lastCheckpointCompletion: json['last_checkpoint_completion'] != null
           ? (json['last_checkpoint_completion'] as num).toDouble()
           : null,
+      topics: topics,
     );
   }
 
-  static Inspection fromMap(Map<String, dynamic> map) =>
-      Inspection.fromJson(map);
+  static Inspection fromMap(Map<String, dynamic> map) => Inspection.fromJson(map);
 
-  // Helper method to parse DateTime from various formats
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
 
@@ -205,12 +216,8 @@ class Inspection {
       return value;
     } else if (value is String) {
       return DateTime.parse(value);
-    } else if (value is Map &&
-        value['_seconds'] != null &&
-        value['_nanoseconds'] != null) {
-      // Handle Firestore timestamps
+    } else if (value is Map && value['_seconds'] != null && value['_nanoseconds'] != null) {
       try {
-        // Convert Firestore timestamp to DateTime
         int seconds = value['_seconds'];
         int nanoseconds = value['_nanoseconds'];
         return DateTime.fromMillisecondsSinceEpoch(
@@ -222,7 +229,6 @@ class Inspection {
       }
     } else {
       try {
-        // Try to convert to date if it has a toDate() method
         return value.toDate();
       } catch (e) {
         print('Error parsing unknown datetime format: $e');

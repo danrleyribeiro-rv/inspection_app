@@ -1,88 +1,58 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inspection_app/services/data/inspection_data_service.dart';
+import 'package:uuid/uuid.dart';
 
 class NonConformityDataService {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final InspectionDataService _inspectionService = InspectionDataService();
+  final Uuid _uuid = Uuid();
 
-  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
-      String inspectionId) async {
-    final topicsSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .get();
-
+  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics == null) return [];
+    
     List<Map<String, dynamic>> nonConformities = [];
-
-    for (var topicDoc in topicsSnapshot.docs) {
-      final topicId = topicDoc.id;
-      final topicData = topicDoc.data();
-
-      final itemsSnapshot = await firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .collection('topics')
-          .doc(topicId)
-          .collection('topic_items')
-          .get();
-
-      for (var itemDoc in itemsSnapshot.docs) {
-        final itemId = itemDoc.id;
-        final itemData = itemDoc.data();
-
-        final detailsSnapshot = await firestore
-            .collection('inspections')
-            .doc(inspectionId)
-            .collection('topics')
-            .doc(topicId)
-            .collection('topic_items')
-            .doc(itemId)
-            .collection('item_details')
-            .get();
-
-        for (var detailDoc in detailsSnapshot.docs) {
-          final detailId = detailDoc.id;
-          final detailData = detailDoc.data();
-
-          final ncSnapshot = await firestore
-              .collection('inspections')
-              .doc(inspectionId)
-              .collection('topics')
-              .doc(topicId)
-              .collection('topic_items')
-              .doc(itemId)
-              .collection('item_details')
-              .doc(detailId)
-              .collection('non_conformities')
-              .get();
-
-          for (var ncDoc in ncSnapshot.docs) {
-            final ncData = ncDoc.data();
-
+    
+    for (int topicIndex = 0; topicIndex < inspection!.topics!.length; topicIndex++) {
+      final topic = inspection.topics![topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      
+      for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+        final item = items[itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        
+        for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
+          final detail = details[detailIndex];
+          final ncList = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+          
+          for (int ncIndex = 0; ncIndex < ncList.length; ncIndex++) {
+            final nc = ncList[ncIndex];
+            
             nonConformities.add({
-              ...ncData,
-              'id': ncDoc.id,
+              ...nc,
+              'id': 'nc_$ncIndex',
               'inspection_id': inspectionId,
-              'topic_id': topicId,
-              'item_id': itemId,
-              'detail_id': detailId,
+              'topic_id': 'topic_$topicIndex',
+              'item_id': 'item_$itemIndex',
+              'detail_id': 'detail_$detailIndex',
               'topics': {
-                'topic_name': topicData['topic_name'],
-                'id': topicId,
+                'topic_name': topic['name'],
+                'id': 'topic_$topicIndex',
               },
               'topic_items': {
-                'item_name': itemData['item_name'],
-                'id': itemId,
+                'item_name': item['name'],
+                'id': 'item_$itemIndex',
               },
               'item_details': {
-                'detail_name': detailData['detail_name'],
-                'id': detailId,
+                'detail_name': detail['name'],
+                'id': 'detail_$detailIndex',
               },
             });
           }
         }
       }
     }
-
+    
     return nonConformities;
   }
 
@@ -92,156 +62,190 @@ class NonConformityDataService {
     final itemId = nonConformityData['item_id'];
     final detailId = nonConformityData['detail_id'];
 
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('non_conformities')
-        .add({
-          ...nonConformityData,
-          'created_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-        }
-          ..remove('inspection_id')
-          ..remove('topic_id')
-          ..remove('item_id')
-          ..remove('detail_id')
-          ..remove('id'));
+    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
+    final detailIndex = int.tryParse(detailId.replaceFirst('detail_', ''));
 
-    // Also update the detail to mark as damaged
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .update({'is_damaged': true});
-  }
-
-  Future<void> updateNonConformityStatus(
-      String nonConformityId, String newStatus) async {
-    final parts = nonConformityId.split('-');
-    if (parts.length < 5) {
-      throw Exception('Invalid non-conformity ID format');
+    if (topicIndex == null || itemIndex == null || detailIndex == null) {
+      throw Exception('Invalid topic, item, or detail ID');
     }
 
-    final inspectionId = parts[0];
-    final topicId = parts[1];
-    final itemId = parts[2];
-    final detailId = parts[3];
-    final ncId = parts[4];
-
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('non_conformities')
-        .doc(ncId)
-        .update({
-      'status': newStatus,
+    final nonConformityToSave = {
+      'id': _uuid.v4(),
+      'description': nonConformityData['description'],
+      'severity': nonConformityData['severity'] ?? 'Média',
+      'corrective_action': nonConformityData['corrective_action'],
+      'deadline': nonConformityData['deadline'],
+      'status': nonConformityData['status'] ?? 'pendente',
+      'media': <Map<String, dynamic>>[],
+      'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
-    });
+    };
+
+    await _inspectionService.addNonConformity(inspectionId, topicIndex, itemIndex, detailIndex, nonConformityToSave);
   }
 
-  Future<void> updateNonConformity(
-      String nonConformityId, Map<String, dynamic> updatedData) async {
+  Future<void> updateNonConformityStatus(String nonConformityId, String newStatus) async {
     final parts = nonConformityId.split('-');
     if (parts.length < 5) {
       throw Exception('Invalid non-conformity ID format');
     }
 
     final inspectionId = parts[0];
-    final topicId = parts[1];
-    final itemId = parts[2];
-    final detailId = parts[3];
-    final ncId = parts[4];
+    final topicIndex = int.tryParse(parts[1].replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(parts[2].replaceFirst('item_', ''));
+    final detailIndex = int.tryParse(parts[3].replaceFirst('detail_', ''));
+    final ncIndex = int.tryParse(parts[4].replaceFirst('nc_', ''));
 
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('non_conformities')
-        .doc(ncId)
-        .update({
-          ...updatedData,
-          'updated_at': FieldValue.serverTimestamp(),
+    if (topicIndex == null || itemIndex == null || detailIndex == null || ncIndex == null) {
+      throw Exception('Invalid non-conformity ID indices');
+    }
+
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      final topic = topics[topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      
+      if (itemIndex < items.length) {
+        final item = items[itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        
+        if (detailIndex < details.length) {
+          final detail = Map<String, dynamic>.from(details[detailIndex]);
+          final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+          
+          if (ncIndex < nonConformities.length) {
+            final nc = Map<String, dynamic>.from(nonConformities[ncIndex]);
+            nc['status'] = newStatus;
+            nc['updated_at'] = FieldValue.serverTimestamp();
+            
+            nonConformities[ncIndex] = nc;
+            detail['non_conformities'] = nonConformities;
+            details[detailIndex] = detail;
+            item['details'] = details;
+            items[itemIndex] = item;
+            topic['items'] = items;
+            topics[topicIndex] = topic;
+            
+            await firestore.collection('inspections').doc(inspectionId).update({
+              'topics': topics,
+              'updated_at': FieldValue.serverTimestamp(),
+            });
+          }
         }
-          ..remove('inspection_id')
-          ..remove('topic_id')
-          ..remove('item_id')
-          ..remove('detail_id')
-          ..remove('id'));
+      }
+    }
   }
 
-  Future<void> deleteNonConformity(
-      String nonConformityId, String inspectionId) async {
+  Future<void> updateNonConformity(String nonConformityId, Map<String, dynamic> updatedData) async {
     final parts = nonConformityId.split('-');
     if (parts.length < 5) {
       throw Exception('Invalid non-conformity ID format');
     }
 
-    final topicId = parts[1];
-    final itemId = parts[2];
-    final detailId = parts[3];
-    final ncId = parts[4];
+    final inspectionId = parts[0];
+    final topicIndex = int.tryParse(parts[1].replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(parts[2].replaceFirst('item_', ''));
+    final detailIndex = int.tryParse(parts[3].replaceFirst('detail_', ''));
+    final ncIndex = int.tryParse(parts[4].replaceFirst('nc_', ''));
 
-    // Delete non-conformity media and then the non-conformity itself
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('non_conformities')
-        .doc(ncId)
-        .delete();
+    if (topicIndex == null || itemIndex == null || detailIndex == null || ncIndex == null) {
+      throw Exception('Invalid non-conformity ID indices');
+    }
 
-    // Check for remaining non-conformities
-    final otherNcSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('non_conformities')
-        .limit(1)
-        .get();
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      final topic = topics[topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      
+      if (itemIndex < items.length) {
+        final item = items[itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        
+        if (detailIndex < details.length) {
+          final detail = Map<String, dynamic>.from(details[detailIndex]);
+          final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+          
+          if (ncIndex < nonConformities.length) {
+            final nc = Map<String, dynamic>.from(nonConformities[ncIndex]);
+            
+            // Update allowed fields
+            if (updatedData.containsKey('description')) nc['description'] = updatedData['description'];
+            if (updatedData.containsKey('severity')) nc['severity'] = updatedData['severity'];
+            if (updatedData.containsKey('corrective_action')) nc['corrective_action'] = updatedData['corrective_action'];
+            if (updatedData.containsKey('deadline')) nc['deadline'] = updatedData['deadline'];
+            if (updatedData.containsKey('status')) nc['status'] = updatedData['status'];
+            nc['updated_at'] = FieldValue.serverTimestamp();
+            
+            nonConformities[ncIndex] = nc;
+            detail['non_conformities'] = nonConformities;
+            details[detailIndex] = detail;
+            item['details'] = details;
+            items[itemIndex] = item;
+            topic['items'] = items;
+            topics[topicIndex] = topic;
+            
+            await firestore.collection('inspections').doc(inspectionId).update({
+              'topics': topics,
+              'updated_at': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
+    }
+  }
 
-    if (otherNcSnapshot.docs.isEmpty) {
-      await firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .collection('topics')
-          .doc(topicId)
-          .collection('topic_items')
-          .doc(itemId)
-          .collection('item_details')
-          .doc(detailId)
-          .update({'is_damaged': false});
+  Future<void> deleteNonConformity(String nonConformityId, String inspectionId) async {
+    final parts = nonConformityId.split('-');
+    if (parts.length < 5) {
+      throw Exception('Invalid non-conformity ID format');
+    }
+
+    final topicIndex = int.tryParse(parts[1].replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(parts[2].replaceFirst('item_', ''));
+    final detailIndex = int.tryParse(parts[3].replaceFirst('detail_', ''));
+    final ncIndex = int.tryParse(parts[4].replaceFirst('nc_', ''));
+
+    if (topicIndex == null || itemIndex == null || detailIndex == null || ncIndex == null) {
+      throw Exception('Invalid non-conformity ID indices');
+    }
+
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      final topic = topics[topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      
+      if (itemIndex < items.length) {
+        final item = items[itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        
+        if (detailIndex < details.length) {
+          final detail = Map<String, dynamic>.from(details[detailIndex]);
+          final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+          
+          if (ncIndex < nonConformities.length) {
+            nonConformities.removeAt(ncIndex);
+            detail['non_conformities'] = nonConformities;
+            
+            // Update is_damaged status based on remaining non-conformities
+            detail['is_damaged'] = nonConformities.isNotEmpty;
+            
+            details[detailIndex] = detail;
+            item['details'] = details;
+            items[itemIndex] = item;
+            topic['items'] = items;
+            topics[topicIndex] = topic;
+            
+            await firestore.collection('inspections').doc(inspectionId).update({
+              'topics': topics,
+              'updated_at': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
     }
   }
 }

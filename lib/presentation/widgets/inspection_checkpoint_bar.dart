@@ -1,9 +1,8 @@
-// lib/presentation/widgets/inspection_checkpoint_bar.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class InspectionCheckpointBar extends StatelessWidget {
-  static const double HEIGHT = 72.0; // Aumentado para acomodar mais informações
+  static const double HEIGHT = 72.0;
   final DateTime? lastCheckpointAt;
   final String? lastCheckpointMessage;
   final double? lastCheckpointCompletion;
@@ -11,12 +10,10 @@ class InspectionCheckpointBar extends StatelessWidget {
   final VoidCallback onViewHistory;
   
   // Novos campos para exibir progresso detalhado
-  final int? completedItems;
-  final int? totalItems;
-  final int? itemsWithMedia;
-  final int? totalItemsForMedia;
-  final double? detailsScore;
-  final double? mediaScore;
+  final int? completedDetails;
+  final int? totalDetails;
+  final int? totalMedia;
+  final double? overallCompletion;
 
   const InspectionCheckpointBar({
     super.key,
@@ -25,12 +22,10 @@ class InspectionCheckpointBar extends StatelessWidget {
     this.lastCheckpointCompletion,
     required this.onAddCheckpoint,
     required this.onViewHistory,
-    this.completedItems,
-    this.totalItems,
-    this.itemsWithMedia,
-    this.totalItemsForMedia,
-    this.detailsScore,
-    this.mediaScore,
+    this.completedDetails,
+    this.totalDetails,
+    this.totalMedia,
+    this.overallCompletion,
   });
 
   String _formatDate(DateTime date) {
@@ -47,7 +42,6 @@ class InspectionCheckpointBar extends StatelessWidget {
     }
   }
   
-  /// Retorna uma classificação do progresso baseada na porcentagem
   String _getProgressLabel(double percentage) {
     if (percentage < 5) return 'Início';
     if (percentage < 20) return 'Fase inicial';
@@ -61,18 +55,7 @@ class InspectionCheckpointBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool hasLastCheckpoint = lastCheckpointAt != null;
-    // Calcular o progresso atual - pode ser o último checkpoint ou o valor atual
-    final currentCompletion = (completedItems != null && totalItems != null && totalItems! > 0)
-        ? ((completedItems! / totalItems!) * 100)
-        : (lastCheckpointCompletion ?? 0.0);
-        
-    // Calcular progresso de mídia
-    final mediaProgress = (itemsWithMedia != null && totalItemsForMedia != null && totalItemsForMedia! > 0)
-        ? ((itemsWithMedia! / totalItemsForMedia!) * 100)
-        : 0.0;
-
-    // Exibir progresso de mídia no console (ou use conforme necessário)
-    debugPrint('Media Progress: $mediaProgress');
+    final currentCompletion = overallCompletion ?? lastCheckpointCompletion ?? 0.0;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -199,9 +182,9 @@ class InspectionCheckpointBar extends StatelessWidget {
               const SizedBox(width: 8),
               
               // Detalhes numéricos do progresso
-              if (completedItems != null && totalItems != null)
+              if (completedDetails != null && totalDetails != null)
                 Text(
-                  '$completedItems/$totalItems detalhes',
+                  '$completedDetails/$totalDetails detalhes',
                   style: TextStyle(
                     color: Colors.grey.shade300,
                     fontSize: 11,
@@ -210,10 +193,10 @@ class InspectionCheckpointBar extends StatelessWidget {
                 
               const SizedBox(width: 8),
               
-              // Progresso de mídia
-              if (itemsWithMedia != null && totalItemsForMedia != null)
+              // Total de mídias
+              if (totalMedia != null)
                 Text(
-                  '$itemsWithMedia/$totalItemsForMedia com mídia',
+                  '$totalMedia mídias',
                   style: TextStyle(
                     color: Colors.grey.shade300,
                     fontSize: 11,
@@ -245,36 +228,19 @@ class InspectionCheckpointBar extends StatelessWidget {
             child: Row(
               children: [
                 // Progresso de detalhes
-                if (detailsScore != null)
-                  Flexible(
-                    flex: (detailsScore! * 100).round(),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                Flexible(
+                  flex: currentCompletion.round(),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _getProgressColor(currentCompletion),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                
-                // Progresso de mídia
-                if (mediaScore != null)
-                  Flexible(
-                    flex: (mediaScore! * 100).round(),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.purple,
-                        borderRadius: BorderRadius.only(
-                          topRight: Radius.circular(2),
-                          bottomRight: Radius.circular(2),
-                        ),
-                      ),
-                    ),
-                  ),
+                ),
                 
                 // Espaço restante
                 Flexible(
-                  flex: 100 - (detailsScore != null ? (detailsScore! * 100).round() : 0) 
-                          - (mediaScore != null ? (mediaScore! * 100).round() : 0),
+                  flex: (100 - currentCompletion).round(),
                   child: Container(),
                 ),
               ],

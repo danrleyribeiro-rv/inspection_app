@@ -19,7 +19,6 @@ class InspectionCheckpoint {
     this.data,
   });
 
-  // Format date for display
   String get formattedDate {
     final day = createdAt.day.toString().padLeft(2, '0');
     final month = createdAt.month.toString().padLeft(2, '0');
@@ -35,34 +34,26 @@ class InspectionCheckpointService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Create a new checkpoint
   Future<InspectionCheckpoint> createCheckpoint({
     required String inspectionId,
     String? message,
   }) async {
     try {
-      // Get user ID
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('User not logged in');
       }
       
-      // Get the inspection document
+      // Get the complete inspection document with all nested data
       final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
       if (!inspectionDoc.exists) {
         throw Exception('Inspection not found');
       }
       
-      // Create a deep copy of the inspection data
+      // Create a deep copy of the entire inspection data
       final inspectionData = Map<String, dynamic>.from(inspectionDoc.data() ?? {});
       
-      // Get topics, items, details, etc.
-      final topics = await _getAllTopics(inspectionId);
-      
-      // Add topics to the data
-      inspectionData['topics'] = topics;
-      
-      // Create the checkpoint document
+      // Create the checkpoint document with the complete inspection state
       final checkpointRef = _firestore.collection('inspection_checkpoints').doc();
       final timestamp = FieldValue.serverTimestamp();
       
@@ -71,7 +62,7 @@ class InspectionCheckpointService {
         'created_by': user.uid,
         'created_at': timestamp,
         'message': message,
-        'data': inspectionData,
+        'data': inspectionData, // Store the complete inspection state
       };
       
       await checkpointRef.set(checkpointData);
@@ -84,7 +75,6 @@ class InspectionCheckpointService {
         'updated_at': timestamp,
       });
       
-      // Return the checkpoint object
       return InspectionCheckpoint(
         id: checkpointRef.id,
         inspectionId: inspectionId,
@@ -99,7 +89,6 @@ class InspectionCheckpointService {
     }
   }
 
-  // Get all checkpoints for an inspection
   Future<List<InspectionCheckpoint>> getCheckpoints(String inspectionId) async {
     try {
       final snapshot = await _firestore
@@ -112,11 +101,9 @@ class InspectionCheckpointService {
         final data = doc.data();
         DateTime createdAt;
         
-        // Handle Timestamp or DateTime
         if (data['created_at'] is Timestamp) {
           createdAt = (data['created_at'] as Timestamp).toDate();
         } else {
-          // Default to now if timestamp is missing or invalid
           createdAt = DateTime.now();
         }
         
@@ -135,7 +122,6 @@ class InspectionCheckpointService {
     }
   }
 
-  // Restore inspection to a checkpoint
   Future<bool> restoreCheckpoint(String inspectionId, String checkpointId) async {
     try {
       // Get the checkpoint document
@@ -157,124 +143,13 @@ class InspectionCheckpointService {
       // Get the saved inspection data
       final savedData = Map<String, dynamic>.from(checkpointData['data']);
       
-      // Get the topics data
-      final topicsData = savedData['topics'] as List<dynamic>? ?? [];
-      
-      // Remove topics from savedData
-      savedData.remove('topics');
-      
       // Add metadata about the restoration
       savedData['restored_from_checkpoint'] = checkpointId;
       savedData['restored_at'] = FieldValue.serverTimestamp();
+      savedData['updated_at'] = FieldValue.serverTimestamp();
       
-      // Start a batch operation
-      WriteBatch batch = _firestore.batch();
-      
-      // Update the inspection document
-      batch.set(_firestore.collection('inspections').doc(inspectionId), savedData);
-      
-      // Delete existing topics and their children
-      await _deleteAllTopics(inspectionId);
-      
-      // Restore topics from checkpoint
-      for (var topicData in topicsData) {
-        final topicId = topicData['id'];
-        final topicRef = _firestore
-            .collection('inspections')
-            .doc(inspectionId)
-            .collection('topics')
-            .doc(topicId);
-        
-        // Remove nested data and id
-        final cleanTopicData = Map<String, dynamic>.from(topicData);
-        cleanTopicData.remove('id');
-        cleanTopicData.remove('items');
-        
-        // Set topic data
-        batch.set(topicRef, cleanTopicData);
-        
-        // Process items
-        final itemsData = topicData['items'] as List<dynamic>? ?? [];
-        
-        for (var itemData in itemsData) {
-          final itemId = itemData['id'];
-          final itemRef = topicRef.collection('topic_items').doc(itemId);
-          
-          // Remove nested data and id
-          final cleanItemData = Map<String, dynamic>.from(itemData);
-          cleanItemData.remove('id');
-          cleanItemData.remove('details');
-          
-          // Set item data
-          batch.set(itemRef, cleanItemData);
-          
-          // Process details
-          final detailsData = itemData['details'] as List<dynamic>? ?? [];
-          
-          for (var detailData in detailsData) {
-            final detailId = detailData['id'];
-            final detailRef = itemRef.collection('item_details').doc(detailId);
-            
-            // Remove nested data and id
-            final cleanDetailData = Map<String, dynamic>.from(detailData);
-            cleanDetailData.remove('id');
-            cleanDetailData.remove('media');
-            cleanDetailData.remove('non_conformities');
-            
-            // Set detail data
-            batch.set(detailRef, cleanDetailData);
-            
-            // Process media
-            final mediaData = detailData['media'] as List<dynamic>? ?? [];
-            
-            for (var media in mediaData) {
-              final mediaId = media['id'];
-              final mediaRef = detailRef.collection('media').doc(mediaId);
-              
-              // Remove id
-              final cleanMediaData = Map<String, dynamic>.from(media);
-              cleanMediaData.remove('id');
-              
-              // Set media data
-              batch.set(mediaRef, cleanMediaData);
-            }
-            
-            // Process non-conformities
-            final ncData = detailData['non_conformities'] as List<dynamic>? ?? [];
-            
-            for (var nc in ncData) {
-              final ncId = nc['id'];
-              final ncRef = detailRef.collection('non_conformities').doc(ncId);
-              
-              // Remove nested data and id
-              final cleanNcData = Map<String, dynamic>.from(nc);
-              cleanNcData.remove('id');
-              cleanNcData.remove('media');
-              
-              // Set non-conformity data
-              batch.set(ncRef, cleanNcData);
-              
-              // Process non-conformity media
-              final ncMediaData = nc['media'] as List<dynamic>? ?? [];
-              
-              for (var ncMedia in ncMediaData) {
-                final ncMediaId = ncMedia['id'];
-                final ncMediaRef = ncRef.collection('nc_media').doc(ncMediaId);
-                
-                // Remove id
-                final cleanNcMediaData = Map<String, dynamic>.from(ncMedia);
-                cleanNcMediaData.remove('id');
-                
-                // Set non-conformity media data
-                batch.set(ncMediaRef, cleanNcMediaData);
-              }
-            }
-          }
-        }
-      }
-      
-      // Commit the batch
-      await batch.commit();
+      // Replace the entire inspection document with the checkpoint data
+      await _firestore.collection('inspections').doc(inspectionId).set(savedData);
       
       return true;
     } catch (e) {
@@ -283,7 +158,6 @@ class InspectionCheckpointService {
     }
   }
 
-  // Compare current inspection state with a checkpoint
   Future<Map<String, dynamic>> compareWithCheckpoint(String inspectionId, String checkpointId) async {
     try {
       // Get the checkpoint
@@ -297,71 +171,74 @@ class InspectionCheckpointService {
         throw Exception('Checkpoint data is missing');
       }
       
-      final savedData = checkpointData['data'] as Map<String, dynamic>;
-      final savedTopics = savedData['topics'] as List<dynamic>? ?? [];
+      // Get current inspection
+      final currentInspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
+      if (!currentInspectionDoc.exists) {
+        throw Exception('Current inspection not found');
+      }
       
-      // Get current topics, items, details, etc.
-      final currentTopics = await _getAllTopics(inspectionId);
+      final savedInspectionData = checkpointData['data'] as Map<String, dynamic>;
+      final currentInspectionData = currentInspectionDoc.data() as Map<String, dynamic>;
       
-      // Compare counts
-      int currentTopicsCount = currentTopics.length;
+      // Count elements in saved state
+      final savedTopics = List<Map<String, dynamic>>.from(savedInspectionData['topics'] ?? []);
       int savedTopicsCount = savedTopics.length;
-      
-      int currentItemsCount = 0;
       int savedItemsCount = 0;
-      
-      int currentDetailsCount = 0;
       int savedDetailsCount = 0;
-      
-      int currentMediaCount = 0;
       int savedMediaCount = 0;
-      
-      int currentNcCount = 0;
       int savedNcCount = 0;
       
-      // Count current items, details, media, and non-conformities
-      for (var topic in currentTopics) {
-        final items = topic['items'] as List<dynamic>? ?? [];
-        currentItemsCount += items.length;
+      for (final topic in savedTopics) {
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        savedItemsCount += items.length;
         
-        for (var item in items) {
-          final details = item['details'] as List<dynamic>? ?? [];
-          currentDetailsCount += details.length;
+        for (final item in items) {
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          savedDetailsCount += details.length;
           
-          for (var detail in details) {
-            final media = detail['media'] as List<dynamic>? ?? [];
-            currentMediaCount += media.length;
+          for (final detail in details) {
+            final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+            savedMediaCount += media.length;
             
-            final nonConformities = detail['non_conformities'] as List<dynamic>? ?? [];
-            currentNcCount += nonConformities.length;
+            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            savedNcCount += nonConformities.length;
             
-            for (var nc in nonConformities) {
-              final ncMedia = nc['media'] as List<dynamic>? ?? [];
-              currentMediaCount += ncMedia.length;
+            // Count media in non-conformities
+            for (final nc in nonConformities) {
+              final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+              savedMediaCount += ncMedia.length;
             }
           }
         }
       }
       
-      // Count saved items, details, media, and non-conformities
-      for (var topic in savedTopics) {
-        final items = topic['items'] as List<dynamic>? ?? [];
-        savedItemsCount += items.length;
+      // Count elements in current state
+      final currentTopics = List<Map<String, dynamic>>.from(currentInspectionData['topics'] ?? []);
+      int currentTopicsCount = currentTopics.length;
+      int currentItemsCount = 0;
+      int currentDetailsCount = 0;
+      int currentMediaCount = 0;
+      int currentNcCount = 0;
+      
+      for (final topic in currentTopics) {
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        currentItemsCount += items.length;
         
-        for (var item in items) {
-          final details = item['details'] as List<dynamic>? ?? [];
-          savedDetailsCount += details.length;
+        for (final item in items) {
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          currentDetailsCount += details.length;
           
-          for (var detail in details) {
-            final media = detail['media'] as List<dynamic>? ?? [];
-            savedMediaCount += media.length;
+          for (final detail in details) {
+            final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+            currentMediaCount += media.length;
             
-            final nonConformities = detail['non_conformities'] as List<dynamic>? ?? [];
-            savedNcCount += nonConformities.length;
+            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            currentNcCount += nonConformities.length;
             
-            for (var nc in nonConformities) {
-              final ncMedia = nc['media'] as List<dynamic>? ?? [];
-              savedMediaCount += ncMedia.length;
+            // Count media in non-conformities
+            for (final nc in nonConformities) {
+              final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+              currentMediaCount += ncMedia.length;
             }
           }
         }
@@ -400,296 +277,35 @@ class InspectionCheckpointService {
     }
   }
   
-  // Helper to get all topics and their children
-  Future<List<Map<String, dynamic>>> _getAllTopics(String inspectionId) async {
-    final topicsSnapshot = await _firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .get();
-    
-    List<Map<String, dynamic>> topics = [];
-    
-    for (var topicDoc in topicsSnapshot.docs) {
-      final topicId = topicDoc.id;
-      final topicData = topicDoc.data();
-      
-      // Get items for this topic
-      final itemsSnapshot = await _firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .collection('topics')
-          .doc(topicId)
-          .collection('topic_items')
-          .get();
-      
-      List<Map<String, dynamic>> items = [];
-      
-      for (var itemDoc in itemsSnapshot.docs) {
-        final itemId = itemDoc.id;
-        final itemData = itemDoc.data();
-        
-        // Get details for this item
-        final detailsSnapshot = await _firestore
-            .collection('inspections')
-            .doc(inspectionId)
-            .collection('topics')
-            .doc(topicId)
-            .collection('topic_items')
-            .doc(itemId)
-            .collection('item_details')
-            .get();
-        
-        List<Map<String, dynamic>> details = [];
-        
-        for (var detailDoc in detailsSnapshot.docs) {
-          final detailId = detailDoc.id;
-          final detailData = detailDoc.data();
-          
-          // Get media for this detail
-          final mediaSnapshot = await _firestore
-              .collection('inspections')
-              .doc(inspectionId)
-              .collection('topics')
-              .doc(topicId)
-              .collection('topic_items')
-              .doc(itemId)
-              .collection('item_details')
-              .doc(detailId)
-              .collection('media')
-              .get();
-          
-          List<Map<String, dynamic>> media = [];
-          
-          for (var mediaDoc in mediaSnapshot.docs) {
-            media.add({
-              'id': mediaDoc.id,
-              ...mediaDoc.data(),
-            });
-          }
-          
-          // Get non-conformities for this detail
-          final ncSnapshot = await _firestore
-              .collection('inspections')
-              .doc(inspectionId)
-              .collection('topics')
-              .doc(topicId)
-              .collection('topic_items')
-              .doc(itemId)
-              .collection('item_details')
-              .doc(detailId)
-              .collection('non_conformities')
-              .get();
-          
-          List<Map<String, dynamic>> nonConformities = [];
-          
-          for (var ncDoc in ncSnapshot.docs) {
-            final ncId = ncDoc.id;
-            final ncData = ncDoc.data();
-            
-            // Get media for this non-conformity
-            final ncMediaSnapshot = await _firestore
-                .collection('inspections')
-                .doc(inspectionId)
-.collection('topics')
-                .doc(topicId)
-                .collection('topic_items')
-                .doc(itemId)
-                .collection('item_details')
-                .doc(detailId)
-                .collection('non_conformities')
-                .doc(ncId)
-                .collection('nc_media')
-                .get();
-            
-            List<Map<String, dynamic>> ncMedia = [];
-            
-            for (var ncMediaDoc in ncMediaSnapshot.docs) {
-              ncMedia.add({
-                'id': ncMediaDoc.id,
-                ...ncMediaDoc.data(),
-              });
-            }
-            
-            // Add media to non-conformity
-            nonConformities.add({
-              'id': ncId,
-              ...ncData,
-              'media': ncMedia,
-            });
-          }
-          
-          // Add media and non-conformities to detail
-          details.add({
-            'id': detailId,
-            ...detailData,
-            'media': media,
-            'non_conformities': nonConformities,
-          });
-        }
-        
-        // Add details to item
-        items.add({
-          'id': itemId,
-          ...itemData,
-          'details': details,
-        });
-      }
-      
-      // Add items to topic
-      topics.add({
-        'id': topicId,
-        ...topicData,
-        'items': items,
-      });
-    }
-    
-    return topics;
-  }
-  
-  // Helper to delete all topics and their children
-  Future<void> _deleteAllTopics(String inspectionId) async {
-    // Get all topics
-    final topicsSnapshot = await _firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .get();
-    
-    // For each topic
-    for (var topicDoc in topicsSnapshot.docs) {
-      final topicId = topicDoc.id;
-      
-      // Get all items
-      final itemsSnapshot = await _firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .collection('topics')
-          .doc(topicId)
-          .collection('topic_items')
-          .get();
-      
-      // For each item
-      for (var itemDoc in itemsSnapshot.docs) {
-        final itemId = itemDoc.id;
-        
-        // Get all details
-        final detailsSnapshot = await _firestore
-            .collection('inspections')
-            .doc(inspectionId)
-            .collection('topics')
-            .doc(topicId)
-            .collection('topic_items')
-            .doc(itemId)
-            .collection('item_details')
-            .get();
-        
-        // For each detail
-        for (var detailDoc in detailsSnapshot.docs) {
-          final detailId = detailDoc.id;
-          
-          // Delete all media
-          final mediaSnapshot = await _firestore
-              .collection('inspections')
-              .doc(inspectionId)
-              .collection('topics')
-              .doc(topicId)
-              .collection('topic_items')
-              .doc(itemId)
-              .collection('item_details')
-              .doc(detailId)
-              .collection('media')
-              .get();
-          
-          for (var mediaDoc in mediaSnapshot.docs) {
-            await mediaDoc.reference.delete();
-          }
-          
-          // Get all non-conformities
-          final ncSnapshot = await _firestore
-              .collection('inspections')
-              .doc(inspectionId)
-              .collection('topics')
-              .doc(topicId)
-              .collection('topic_items')
-              .doc(itemId)
-              .collection('item_details')
-              .doc(detailId)
-              .collection('non_conformities')
-              .get();
-          
-          // For each non-conformity
-          for (var ncDoc in ncSnapshot.docs) {
-            final ncId = ncDoc.id;
-            
-            // Delete all non-conformity media
-            final ncMediaSnapshot = await _firestore
-                .collection('inspections')
-                .doc(inspectionId)
-                .collection('topics')
-                .doc(topicId)
-                .collection('topic_items')
-                .doc(itemId)
-                .collection('item_details')
-                .doc(detailId)
-                .collection('non_conformities')
-                .doc(ncId)
-                .collection('nc_media')
-                .get();
-            
-            for (var ncMediaDoc in ncMediaSnapshot.docs) {
-              await ncMediaDoc.reference.delete();
-            }
-            
-            // Delete non-conformity
-            await ncDoc.reference.delete();
-          }
-          
-          // Delete detail
-          await detailDoc.reference.delete();
-        }
-        
-        // Delete item
-        await itemDoc.reference.delete();
-      }
-      
-      // Delete topic
-      await topicDoc.reference.delete();
-    }
-  }
-  
-  // Get completion percentage
   Future<double> getCompletionPercentage(String inspectionId) async {
     try {
-      // Get all topics
-      final topics = await _getAllTopics(inspectionId);
+      final inspectionDoc = await _firestore.collection('inspections').doc(inspectionId).get();
+      if (!inspectionDoc.exists) return 0.0;
+      
+      final inspectionData = inspectionDoc.data() as Map<String, dynamic>;
+      final topics = List<Map<String, dynamic>>.from(inspectionData['topics'] ?? []);
       
       int totalDetails = 0;
       int completedDetails = 0;
       
-      // Count details with values
-      for (var topic in topics) {
-        final items = topic['items'] as List<dynamic>? ?? [];
+      for (final topic in topics) {
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         
-        for (var item in items) {
-          final details = item['details'] as List<dynamic>? ?? [];
+        for (final item in items) {
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
           
-          for (var detail in details) {
+          for (final detail in details) {
             totalDetails++;
             
             // Consider a detail completed if it has a value
-            if (detail['detail_value'] != null && detail['detail_value'] != '') {
+            if (detail['value'] != null && detail['value'].toString().isNotEmpty) {
               completedDetails++;
             }
           }
         }
       }
       
-      // Calculate percentage
-      if (totalDetails == 0) {
-        return 0.0;
-      }
-      
+      if (totalDetails == 0) return 0.0;
       return (completedDetails / totalDetails) * 100.0;
     } catch (e) {
       debugPrint('Error calculating completion percentage: $e');
@@ -697,15 +313,14 @@ class InspectionCheckpointService {
     }
   }
   
-  // Update last checkpoint info
   Future<void> updateLastCheckpoint(String inspectionId, double completion) async {
-    try {
-      await _firestore.collection('inspections').doc(inspectionId).update({
-        'last_checkpoint_completion': completion,
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Error updating last checkpoint: $e');
+      try {
+        await _firestore.collection('inspections').doc(inspectionId).update({
+          'last_checkpoint_completion': completion,
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint('Error updating last checkpoint: $e');
+      }
     }
   }
-}

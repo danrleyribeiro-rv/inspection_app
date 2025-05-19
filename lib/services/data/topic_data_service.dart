@@ -1,42 +1,33 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/models/topic.dart';
+import 'package:inspection_app/services/data/inspection_data_service.dart';
 
 class TopicDataService {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final InspectionDataService _inspectionService = InspectionDataService();
 
   Future<List<Topic>> getTopics(String inspectionId) async {
-    final topicsSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .orderBy('position')
-        .get();
-
-    if (topicsSnapshot.docs.isEmpty) {
-      return [];
-    }
-
-    List<Topic> topics = [];
-    for (var doc in topicsSnapshot.docs) {
-      final data = doc.data();
-      topics.add(Topic.fromMap({
-        ...data,
-        'id': doc.id,
-        'inspection_id': inspectionId,
-      }));
-    }
-
-    return topics;
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    return _inspectionService.extractTopics(inspectionId, inspection?.topics);
   }
 
   Future<Topic> addTopic(String inspectionId, String topicName,
       {String? label, int? position, String? observation}) async {
-    final existingTopics = await getTopics(inspectionId);
-    final newPosition = position ??
-        (existingTopics.isEmpty ? 0 : existingTopics.last.position + 1);
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    final existingTopics = inspection?.topics ?? [];
+    final newPosition = position ?? existingTopics.length;
 
-    final topic = Topic(
-      id: null,
+    final newTopicData = {
+      'name': topicName,
+      'description': label,
+      'observation': observation,
+      'items': <Map<String, dynamic>>[],
+    };
+
+    await _inspectionService.addTopic(inspectionId, newTopicData);
+
+    return Topic(
+      id: 'topic_$newPosition',
       inspectionId: inspectionId,
       topicName: topicName,
       topicLabel: label,
@@ -45,199 +36,82 @@ class TopicDataService {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
-
-    final docRef = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .add(topic.toMap()
-          ..remove('inspection_id')
-          ..remove('id'));
-
-    return topic.copyWith(id: docRef.id);
   }
 
   Future<void> updateTopic(Topic updatedTopic) async {
-    final inspectionId = updatedTopic.inspectionId;
-    final topicId = updatedTopic.id;
-
-    if (topicId == null) {
-      throw Exception('Topic ID is required for updates');
+    final inspection = await _inspectionService.getInspection(updatedTopic.inspectionId);
+    if (inspection?.topics != null) {
+      final topicIndex = int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
+      if (topicIndex != null && topicIndex < inspection!.topics!.length) {
+        final currentTopicData = Map<String, dynamic>.from(inspection.topics![topicIndex]);
+        currentTopicData['name'] = updatedTopic.topicName;
+        currentTopicData['description'] = updatedTopic.topicLabel;
+        currentTopicData['observation'] = updatedTopic.observation;
+        
+        await _inspectionService.updateTopic(updatedTopic.inspectionId, topicIndex, currentTopicData);
+      }
     }
-
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .update(updatedTopic.toMap()
-          ..remove('inspection_id')
-          ..remove('id'));
   }
 
   Future<void> deleteTopic(String inspectionId, String topicId) async {
-    // Get all items for this topic
-    final itemsSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .get();
-
-    // Delete all items and their details recursively
-    for (var itemDoc in itemsSnapshot.docs) {
-      await _deleteItemComplete(inspectionId, topicId, itemDoc.id);
+    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+    if (topicIndex != null) {
+      await _inspectionService.deleteTopic(inspectionId, topicIndex);
     }
-
-    // Delete topic
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .delete();
-  }
-
-  Future<void> _deleteItemComplete(String inspectionId, String topicId, String itemId) async {
-    // Get all details for this item
-    final detailsSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .get();
-
-    // Delete all details, media, and non-conformities
-    for (var detailDoc in detailsSnapshot.docs) {
-      await _deleteDetailComplete(inspectionId, topicId, itemId, detailDoc.id);
-    }
-
-    // Delete item
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .delete();
-  }
-
-  Future<void> _deleteDetailComplete(String inspectionId, String topicId, String itemId, String detailId) async {
-    // Delete media
-    final mediaSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('media')
-        .get();
-
-    for (var mediaDoc in mediaSnapshot.docs) {
-      await mediaDoc.reference.delete();
-    }
-
-    // Delete non-conformities and their media
-    final ncSnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .collection('non_conformities')
-        .get();
-
-    for (var ncDoc in ncSnapshot.docs) {
-      // Delete non-conformity media
-      final ncMediaSnapshot = await firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .collection('topics')
-          .doc(topicId)
-          .collection('topic_items')
-          .doc(itemId)
-          .collection('item_details')
-          .doc(detailId)
-          .collection('non_conformities')
-          .doc(ncDoc.id)
-          .collection('nc_media')
-          .get();
-
-      for (var ncMediaDoc in ncMediaSnapshot.docs) {
-        await ncMediaDoc.reference.delete();
-      }
-
-      // Delete non-conformity
-      await ncDoc.reference.delete();
-    }
-
-    // Delete detail
-    await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .doc(topicId)
-        .collection('topic_items')
-        .doc(itemId)
-        .collection('item_details')
-        .doc(detailId)
-        .delete();
   }
 
   Future<void> reorderTopics(String inspectionId, List<String> topicIds) async {
-    WriteBatch batch = firestore.batch();
-
-    for (int i = 0; i < topicIds.length; i++) {
-      final topicRef = firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .collection('topics')
-          .doc(topicIds[i]);
-
-      batch.update(topicRef, {'position': i});
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null) {
+      final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+      final reorderedTopics = <Map<String, dynamic>>[];
+      
+      for (final topicId in topicIds) {
+        final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+        if (topicIndex != null && topicIndex < topics.length) {
+          reorderedTopics.add(topics[topicIndex]);
+        }
+      }
+      
+      await firestore.collection('inspections').doc(inspectionId).update({
+        'topics': reorderedTopics,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
     }
-
-    await batch.commit();
   }
 
   Future<Topic> isTopicDuplicate(String inspectionId, String topicName) async {
-    final querySnapshot = await firestore
-        .collection('inspections')
-        .doc(inspectionId)
-        .collection('topics')
-        .where('topic_name', isEqualTo: topicName)
-        .limit(1)
-        .get();
-
-    if (querySnapshot.docs.isEmpty) {
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    final topics = inspection?.topics ?? [];
+    
+    // Find the source topic
+    Map<String, dynamic>? sourceTopicData;
+    for (final topic in topics) {
+      if (topic['name'] == topicName) {
+        sourceTopicData = Map<String, dynamic>.from(topic);
+        break;
+      }
+    }
+    
+    if (sourceTopicData == null) {
       throw Exception('Source topic not found');
     }
-
-    final sourceTopicDoc = querySnapshot.docs.first;
-    final sourceTopicData = sourceTopicDoc.data();
-
-    final existingTopics = await getTopics(inspectionId);
-    final newPosition =
-        existingTopics.isEmpty ? 0 : existingTopics.last.position + 1;
-    final newTopicName = '$topicName (copy)';
-
-    return await addTopic(
-      inspectionId,
-      newTopicName,
-      label: sourceTopicData['topic_label'],
-      position: newPosition,
-      observation: sourceTopicData['observation'],
+    
+    // Create duplicate
+    final duplicateTopicData = Map<String, dynamic>.from(sourceTopicData);
+    duplicateTopicData['name'] = '$topicName (copy)';
+    
+    await _inspectionService.addTopic(inspectionId, duplicateTopicData);
+    
+    return Topic(
+      id: 'topic_${topics.length}',
+      inspectionId: inspectionId,
+      topicName: '$topicName (copy)',
+      topicLabel: duplicateTopicData['description'],
+      position: topics.length,
+      observation: duplicateTopicData['observation'],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
   }
 }
