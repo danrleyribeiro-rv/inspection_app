@@ -1,10 +1,12 @@
-// lib/presentation/screens/inspection/item_widget.dart
+// lib/presentation/screens/inspection/item_widget.dart (updated with rename)
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
+import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
+import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'dart:async';
 
@@ -31,13 +33,15 @@ class ItemWidget extends StatefulWidget {
 }
 
 class _ItemWidgetState extends State<ItemWidget> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final _inspectionService = FirebaseInspectionService();
   List<Detail> _details = [];
   bool _isLoading = true;
   int _expandedDetailIndex = -1;
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   ScrollController? _scrollController;
+  final ServiceFactory _serviceFactory = ServiceFactory();
+
 
   @override
   void initState() {
@@ -58,23 +62,30 @@ class _ItemWidgetState extends State<ItemWidget> {
   Future<void> _loadDetails() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
+
     try {
-      final details = await _serviceFactory.offlineService.getDetails(
+      if (widget.item.id == null || widget.item.topicId == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      final details = await _inspectionService.getDetails(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
       );
+
       if (!mounted) return;
       setState(() {
         _details = details;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading details: $e');
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar detalhes: $e')),
-      );
     }
   }
 
@@ -110,47 +121,6 @@ class _ItemWidgetState extends State<ItemWidget> {
     }
   }
 
-  Future<void> _editObservationDialog() async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        final controller =
-            TextEditingController(text: _observationController.text);
-        return AlertDialog(
-          title: const Text('Editar Observação do Item'),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: TextFormField(
-                controller: controller,
-                maxLines: 6,
-                decoration:
-                    const InputDecoration(hintText: 'Digite a observação...'),
-                autofocus: true,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Salvar'),
-            ),
-          ],
-        );
-      },
-    );
-    if (result != null) {
-      _observationController.text = result;
-      _updateItem();
-      setState(() {});
-    }
-  }
-
   Future<void> _showDeleteConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -180,10 +150,20 @@ class _ItemWidgetState extends State<ItemWidget> {
   Future<void> _addDetail() async {
     if (widget.item.id == null || widget.item.topicId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Erro: ID do Item ou do Tópico não encontrado')),
+        const SnackBar(content: Text('Erro: ID do Item ou do Tópico não encontrado')),
       );
       return;
+    }
+
+    // Obter nome do tópico através do coordinator
+    String topicName = "";
+    try {
+      final topics = await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
+      final topic = topics.firstWhere((t) => t.id == widget.item.topicId, 
+                                      orElse: () => Topic(id: '', inspectionId: '', topicName: '', position: 0));
+      topicName = topic.topicName;
+    } catch (e) {
+      print('Erro ao buscar nome do tópico: $e');
     }
 
     final template = await showDialog<Map<String, dynamic>>(
@@ -191,7 +171,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       builder: (context) => TemplateSelectorDialog(
         title: 'Adicionar Detalhe',
         type: 'detail',
-        parentName: '',
+        parentName: topicName,
         itemName: widget.item.itemName,
       ),
     );
@@ -214,7 +194,7 @@ class _ItemWidgetState extends State<ItemWidget> {
         }
       }
 
-      final newDetail = await _serviceFactory.offlineService.addDetail(
+      final newDetail = await _inspectionService.addDetail(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -264,7 +244,7 @@ class _ItemWidgetState extends State<ItemWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final newDetail = await _serviceFactory.offlineService.isDetailDuplicate(
+      final newDetail = await _inspectionService.isDetailDuplicate(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -368,19 +348,15 @@ class _ItemWidgetState extends State<ItemWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: _editObservationDialog,
-                    child: AbsorbPointer(
-                      child: TextFormField(
-                        controller: _observationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Observações',
-                          border: OutlineInputBorder(),
-                          hintText: 'Adicione observações sobre este item...',
-                        ),
-                        maxLines: 1,
-                      ),
+                  TextFormField(
+                    controller: _observationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Observações',
+                      border: OutlineInputBorder(),
+                      hintText: 'Adicione observações sobre este item...',
                     ),
+                    maxLines: 1,
+                    onChanged: (_) => _updateItem(),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -426,13 +402,13 @@ class _ItemWidgetState extends State<ItemWidget> {
                                 .indexWhere((d) => d.id == updatedDetail.id);
                             if (idx >= 0) {
                               setState(() => _details[idx] = updatedDetail);
-                              _serviceFactory.offlineService.updateDetail(updatedDetail);
+                              _inspectionService.updateDetail(updatedDetail);
                             }
                           },
                           onDetailDeleted: (detailId) async {
                             if (widget.item.id != null &&
                                 widget.item.topicId != null) {
-                              await _serviceFactory.offlineService.deleteDetail(
+                              await _inspectionService.deleteDetail(
                                 widget.item.inspectionId,
                                 widget.item.topicId!,
                                 widget.item.id!,

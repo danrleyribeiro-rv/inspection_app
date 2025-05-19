@@ -3,126 +3,127 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/presentation/screens/inspection/item_widget.dart';
+import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'dart:async';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
-import 'package:inspection_app/services/service_factory.dart';
 
 class TopicWidget extends StatefulWidget {
-  final Topic topic;
-  final Function(Topic) onTopicUpdated;
-  final Function(String) onTopicDeleted;
-  final Function(Topic) onTopicDuplicated;
-  final bool isExpanded;
-  final VoidCallback onExpansionChanged;
+ final Topic topic;
+ final Function(Topic) onTopicUpdated;
+ final Function(String) onTopicDeleted;
+ final Function(Topic) onTopicDuplicated;
+ final bool isExpanded;
+ final VoidCallback onExpansionChanged;
 
-  const TopicWidget({
-    super.key,
-    required this.topic,
-    required this.onTopicUpdated,
-    required this.onTopicDeleted,
-    required this.onTopicDuplicated,
-    required this.isExpanded,
-    required this.onExpansionChanged,
-  });
+ const TopicWidget({
+   super.key,
+   required this.topic,
+   required this.onTopicUpdated,
+   required this.onTopicDeleted,
+   required this.onTopicDuplicated,
+   required this.isExpanded,
+   required this.onExpansionChanged,
+ });
 
-  @override
-  State<TopicWidget> createState() => _TopicWidgetState();
+ @override
+ State<TopicWidget> createState() => _TopicWidgetState();
 }
 
 class _TopicWidgetState extends State<TopicWidget> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
-  List<Item> _items = [];
-  bool _isLoading = true;
-  int _expandedItemIndex = -1;
-  final TextEditingController _observationController = TextEditingController();
-  Timer? _debounce;
-  ScrollController? _scrollController;
+ final FirebaseInspectionService _inspectionService =
+     FirebaseInspectionService();
+ List<Item> _items = [];
+ bool _isLoading = true;
+ int _expandedItemIndex = -1;
+ final TextEditingController _observationController = TextEditingController();
+ Timer? _debounce;
+ ScrollController? _scrollController;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadItems();
-    _observationController.text = widget.topic.observation ?? '';
-    _scrollController = ScrollController();
-  }
+ @override
+ void initState() {
+   super.initState();
+   _loadItems();
+   _observationController.text = widget.topic.observation ?? '';
+   _scrollController = ScrollController();
+ }
 
-  @override
-  void dispose() {
-    _observationController.dispose();
-    _debounce?.cancel();
-    _scrollController?.dispose();
-    super.dispose();
-  }
+ @override
+ void dispose() {
+   _observationController.dispose();
+   _debounce?.cancel();
+   _scrollController?.dispose();
+   super.dispose();
+ }
 
-  Future<void> _loadItems() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
+ Future<void> _loadItems() async {
+   if (!mounted) return;
+   setState(() => _isLoading = true);
 
-    try {
-      if (widget.topic.id == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+   try {
+     if (widget.topic.id == null) {
+       setState(() => _isLoading = false);
+       return;
+     }
 
-      final items = await _serviceFactory.offlineService.getItems(
-        widget.topic.inspectionId,
-        widget.topic.id!,
-      );
+     final items = await _inspectionService.getItems(
+       widget.topic.inspectionId,
+       widget.topic.id!,
+     );
 
-      if (!mounted) return;
-      setState(() {
-        _items = items;
-        _isLoading = false;
-      });
+     if (!mounted) return;
+     setState(() {
+       _items = items;
+       _isLoading = false;
+     });
 
-      if (_scrollController?.hasClients ?? false) {
-        _scrollController?.animateTo(
-          0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    } catch (e) {
-      debugPrint('Erro ao carregar itens: $e');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar itens: $e')),
-      );
-    }
-  }
+     if (_scrollController?.hasClients ?? false) {
+       _scrollController?.animateTo(
+         0,
+         duration: const Duration(milliseconds: 300),
+         curve: Curves.easeOut,
+       );
+     }
+   } catch (e) {
+     debugPrint('Erro ao carregar itens: $e');
+     if (!mounted) return;
+     setState(() => _isLoading = false);
+     ScaffoldMessenger.of(context).showSnackBar(
+       SnackBar(content: Text('Erro ao carregar itens: $e')),
+     );
+   }
+ }
 
-  void _updateTopic() {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    if (!mounted) return;
+ void _updateTopic() {
+   if (_debounce?.isActive ?? false) _debounce?.cancel();
+   if (!mounted) return;
 
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      final updatedTopic = widget.topic.copyWith(
-        observation: _observationController.text.isEmpty
-            ? null
-            : _observationController.text,
-        updatedAt: DateTime.now(),
-      );
-      widget.onTopicUpdated(updatedTopic);
-    });
-  }
+   _debounce = Timer(const Duration(milliseconds: 500), () {
+     if (!mounted) return;
+     final updatedTopic = widget.topic.copyWith(
+       observation: _observationController.text.isEmpty
+           ? null
+           : _observationController.text,
+       updatedAt: DateTime.now(),
+     );
+     widget.onTopicUpdated(updatedTopic);
+   });
+ }
 
-  Future<void> _renameTopic() async {
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (context) => RenameDialog(
-        title: 'Renomear Tópico',
-        label: 'Nome do Tópico',
-        initialValue: widget.topic.topicName,
-      ),
-    );
+ Future<void> _renameTopic() async {
+   final newName = await showDialog<String>(
+     context: context,
+     builder: (context) => RenameDialog(
+       title: 'Renomear Tópico',
+       label: 'Nome do Tópico',
+       initialValue: widget.topic.topicName,
+     ),
+   );
 
-    if (newName != null && newName != widget.topic.topicName) {
-      final updatedTopic = widget.topic.copyWith(
-        topicName: newName,
-        updatedAt: DateTime.now(),
+   if (newName != null && newName != widget.topic.topicName) {
+     final updatedTopic = widget.topic.copyWith(
+       topicName: newName,
+       updatedAt: DateTime.now(),
      );
      widget.onTopicUpdated(updatedTopic);
    }
@@ -137,7 +138,8 @@ class _TopicWidgetState extends State<TopicWidget> {
        return AlertDialog(
          title: const Text('Editar Observação do Tópico'),
          content: SizedBox(
-           width: MediaQuery.of(context).size.width * 0.8,
+           width: MediaQuery.of(context).size.width *
+               0.8, // 80% da largura da tela
            child: ConstrainedBox(
              constraints: const BoxConstraints(maxHeight: 220),
              child: TextFormField(
@@ -194,7 +196,7 @@ class _TopicWidgetState extends State<TopicWidget> {
      final itemName = template['name'] as String;
      String? itemLabel = template['value'] as String?;
 
-     final newItem = await _serviceFactory.offlineService.addItem(
+     final newItem = await _inspectionService.addItem(
        widget.topic.inspectionId,
        widget.topic.id!,
        itemName,
@@ -206,7 +208,7 @@ class _TopicWidgetState extends State<TopicWidget> {
          itemLabel: itemLabel,
          observation: template['observation'] as String?,
        );
-       await _serviceFactory.offlineService.updateItem(updatedItem);
+       await _inspectionService.updateItem(updatedItem);
      }
 
      await _loadItems();
@@ -241,7 +243,7 @@ class _TopicWidgetState extends State<TopicWidget> {
    setState(() => _isLoading = true);
 
    try {
-     await _serviceFactory.offlineService.isItemDuplicate(
+     await _inspectionService.isItemDuplicate(
        widget.topic.inspectionId,
        widget.topic.id!,
        item.itemName,
@@ -275,7 +277,7 @@ class _TopicWidgetState extends State<TopicWidget> {
    final index = _items.indexWhere((i) => i.id == updatedItem.id);
    if (index >= 0) {
      setState(() => _items[index] = updatedItem);
-     _serviceFactory.offlineService.updateItem(updatedItem);
+     _inspectionService.updateItem(updatedItem);
    }
  }
 
@@ -288,7 +290,7 @@ class _TopicWidgetState extends State<TopicWidget> {
        return;
      }
 
-     await _serviceFactory.offlineService.deleteItem(
+     await _inspectionService.deleteItem(
        widget.topic.inspectionId,
        widget.topic.id!,
        itemId,
