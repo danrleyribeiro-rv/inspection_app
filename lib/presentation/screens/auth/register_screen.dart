@@ -361,7 +361,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 24),
 
               // Address Section
-              const Text('Address',
+              const Text('Endereço',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               TextFormField(

@@ -86,7 +86,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
       ),
       elevation: 0,
       backgroundColor: Colors.transparent,
@@ -94,7 +94,7 @@ class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
         padding: const EdgeInsets.all(0),
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(7),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.3),

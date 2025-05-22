@@ -112,6 +112,10 @@ class _ProfileTabState extends State<ProfileTab> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Perfil'),
+        backgroundColor: const Color(0xFF1E293B),
+        elevation: 0,
+        titleTextStyle: const TextStyle(
+            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),

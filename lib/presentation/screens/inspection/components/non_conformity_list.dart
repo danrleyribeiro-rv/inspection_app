@@ -169,7 +169,7 @@ class NonConformityList extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: statusColor),
                   ),
                   child: Text(
@@ -186,7 +186,7 @@ class NonConformityList extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _getSeverityColor(item['severity']).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(8),
                     border:
                         Border.all(color: _getSeverityColor(item['severity'])),
                   ),

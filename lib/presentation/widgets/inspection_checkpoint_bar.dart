@@ -8,7 +8,7 @@ class InspectionCheckpointBar extends StatelessWidget {
   final double? lastCheckpointCompletion;
   final VoidCallback onAddCheckpoint;
   final VoidCallback onViewHistory;
-  
+
   // Novos campos para exibir progresso detalhado
   final int? completedDetails;
   final int? totalDetails;
@@ -31,7 +31,7 @@ class InspectionCheckpointBar extends StatelessWidget {
   String _formatDate(DateTime date) {
     return DateFormat('dd/MM/yyyy HH:mm').format(date);
   }
-  
+
   Color _getProgressColor(double percentage) {
     if (percentage < 30) {
       return Colors.red;
@@ -41,7 +41,7 @@ class InspectionCheckpointBar extends StatelessWidget {
       return Colors.green;
     }
   }
-  
+
   String _getProgressLabel(double percentage) {
     if (percentage < 5) return 'Início';
     if (percentage < 20) return 'Fase inicial';
@@ -55,8 +55,9 @@ class InspectionCheckpointBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool hasLastCheckpoint = lastCheckpointAt != null;
-    final currentCompletion = overallCompletion ?? lastCheckpointCompletion ?? 0.0;
-    
+    final currentCompletion =
+        overallCompletion ?? lastCheckpointCompletion ?? 0.0;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -84,7 +85,7 @@ class InspectionCheckpointBar extends StatelessWidget {
                         height: 40,
                         width: 40,
                         decoration: BoxDecoration(
-                          color: hasLastCheckpoint 
+                          color: hasLastCheckpoint
                               ? Colors.blue.shade800.withOpacity(0.9)
                               : Colors.grey.shade700,
                           shape: BoxShape.circle,
@@ -101,7 +102,7 @@ class InspectionCheckpointBar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              hasLastCheckpoint 
+                              hasLastCheckpoint
                                   ? 'Checkpoint: ${_formatDate(lastCheckpointAt!)}'
                                   : 'Nenhum checkpoint registrado',
                               style: const TextStyle(
@@ -112,7 +113,9 @@ class InspectionCheckpointBar extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (hasLastCheckpoint && lastCheckpointMessage != null && lastCheckpointMessage!.isNotEmpty)
+                            if (hasLastCheckpoint &&
+                                lastCheckpointMessage != null &&
+                                lastCheckpointMessage!.isNotEmpty)
                               Text(
                                 lastCheckpointMessage!,
                                 style: TextStyle(
@@ -129,7 +132,7 @@ class InspectionCheckpointBar extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               // Botões de ação
               Row(
                 children: [
@@ -140,14 +143,15 @@ class InspectionCheckpointBar extends StatelessWidget {
                       icon: const Icon(Icons.history, color: Colors.white),
                       tooltip: 'Ver histórico',
                     ),
-                  
+
                   // Botão de adicionar checkpoint
                   ElevatedButton.icon(
                     onPressed: onAddCheckpoint,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                     ),
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('Checkpoint'),
@@ -156,7 +160,7 @@ class InspectionCheckpointBar extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Barra de progresso detalhada
           const SizedBox(height: 4),
           Row(
@@ -166,8 +170,9 @@ class InspectionCheckpointBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: _getProgressColor(currentCompletion).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _getProgressColor(currentCompletion)),
+                  borderRadius: BorderRadius.circular(6),
+                  border:
+                      Border.all(color: _getProgressColor(currentCompletion)),
                 ),
                 child: Text(
                   _getProgressLabel(currentCompletion),
@@ -178,9 +183,9 @@ class InspectionCheckpointBar extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(width: 8),
-              
+
               // Detalhes numéricos do progresso
               if (completedDetails != null && totalDetails != null)
                 Text(
@@ -190,9 +195,9 @@ class InspectionCheckpointBar extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-                
+
               const SizedBox(width: 8),
-              
+
               // Total de mídias
               if (totalMedia != null)
                 Text(
@@ -202,9 +207,9 @@ class InspectionCheckpointBar extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-                
+
               const Spacer(),
-              
+
               // Porcentagem de conclusão
               Text(
                 '${currentCompletion.toStringAsFixed(1)}%',
@@ -216,7 +221,7 @@ class InspectionCheckpointBar extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Barra de progresso
           const SizedBox(height: 4),
           Container(
@@ -237,7 +242,7 @@ class InspectionCheckpointBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 // Espaço restante
                 Flexible(
                   flex: (100 - currentCompletion).round(),

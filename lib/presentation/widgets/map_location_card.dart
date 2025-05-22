@@ -109,14 +109,14 @@ class MapLocationCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Seção da Imagem do Mapa
           SizedBox(
-            height: 125,
+            height: 110,
             width: double.infinity,
             child: staticMapUrl != null
                 ? Image.network(
@@ -207,7 +207,6 @@ class MapLocationCard extends StatelessWidget {
   Widget _buildPlaceholderMap({bool error = false}) {
     log('[MapLocationCard _buildPlaceholderMap] Displaying placeholder. Error loading: $error');
     return Container(
-      // ... (código do _buildPlaceholderMap inalterado) ...
       color: Colors.grey[800],
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

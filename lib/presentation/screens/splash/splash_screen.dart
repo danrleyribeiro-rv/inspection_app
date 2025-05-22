@@ -11,7 +11,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _animation;
   final _auth = FirebaseService().auth;
@@ -33,7 +34,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
 
     _animationController.forward();
-    _checkConnectivityAndProceed(delaySeconds: 4); // GIF is ~4s, let it play a bit
+    _checkConnectivityAndProceed(
+        delaySeconds: 4); // GIF is ~4s, let it play a bit
   }
 
   @override
@@ -63,7 +65,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _tryToSyncPendingData() async {
     try {
-      print('Conexão online detectada. O Firebase irá sincronizar automaticamente as alterações pendentes.');
+      print(
+          'Conexão online detectada. O Firebase irá sincronizar automaticamente as alterações pendentes.');
     } catch (e) {
       print('Erro ao tentar sincronizar: $e');
     }
@@ -90,7 +93,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 // Height is intentionally omitted here.
                 // BoxFit.contain will use the width and the image's aspect ratio
                 // to determine the correct height to display the entire image.
-                fit: BoxFit.contain, // Ensures the entire GIF is visible and scaled proportionally
+                fit: BoxFit
+                    .contain, // Ensures the entire GIF is visible and scaled proportionally
               ),
             ),
             // You might need to adjust the spacing below if the GIF becomes very tall
@@ -106,17 +110,22 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               opacity: _animation,
               child: StreamBuilder<ConnectivityResult>(
                 stream: _connectivityService.onConnectivityChanged.map(
-                    (results) => results.firstWhere((r) => true, orElse: () => ConnectivityResult.none)),
-                initialData: _isOnline ? ConnectivityResult.wifi : ConnectivityResult.none,
+                    (results) => results.firstWhere((r) => true,
+                        orElse: () => ConnectivityResult.none)),
+                initialData: _isOnline
+                    ? ConnectivityResult.wifi
+                    : ConnectivityResult.none,
                 builder: (context, snapshot) {
                   final currentConnectivity = snapshot.data;
-                  final isOnlineNow = currentConnectivity != ConnectivityResult.none;
+                  final isOnlineNow =
+                      currentConnectivity != ConnectivityResult.none;
 
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: isOnlineNow ? Colors.green : Colors.orange,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,

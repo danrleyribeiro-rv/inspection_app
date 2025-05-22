@@ -69,11 +69,11 @@ class InspectionCard extends StatelessWidget {
       color: Colors.grey[850],
       elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: InkWell(
         onTap: onViewDetails,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -103,8 +103,7 @@ class InspectionCard extends StatelessWidget {
 
               // Date
               Padding(
-                // ... (Date formatting code remains the same) ...
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
                 child: Text(
                   'Data: $scheduledDate', // Changed 'Date' to 'Data'
                   style: const TextStyle(fontSize: 12, color: Colors.white70),
@@ -122,7 +121,6 @@ class InspectionCard extends StatelessWidget {
               // --- End Map card ---
 
               // Action buttons
-              const SizedBox(height: 16),
               Row(
                 // ... (Button logic remains the same) ...
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -288,7 +286,7 @@ class InspectionCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color),
       ),
       child: Text(

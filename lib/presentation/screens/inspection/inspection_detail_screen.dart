@@ -11,6 +11,7 @@ import 'package:inspection_app/presentation/widgets/template_selector_dialog.dar
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
+import 'package:inspection_app/services/chat_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/checkpoint_dialog_service.dart';
 
@@ -275,6 +276,27 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     }
   }
+
+  Future<void> _openInspectionChat() async {
+  try {
+    final chatService = ChatService();
+    final chatId = await chatService.createOrGetChat(widget.inspectionId);
+    
+    if (mounted) {
+      Navigator.pushNamed(
+        context,
+        '/chat-detail',
+        arguments: {'chatId': chatId},
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao abrir chat: $e')),
+      );
+    }
+  }
+}
 
   Future<void> _loadTopics() async {
     if (_inspection?.id == null) {
@@ -601,6 +623,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   case 'refresh':
                     await _loadInspection();
                     break;
+                  case 'chat':
+                    await _openInspectionChat();
+                    break;
                   case 'info':
                     if (_inspection != null) {
                       final inspectionId = _inspection!.id;
@@ -664,6 +689,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       Icon(Icons.refresh),
                       SizedBox(width: 8),
                       Text('Atualizar Dados'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'chat',
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat),
+                      SizedBox(width: 8),
+                      Text('Abrir Chat'),
                     ],
                   ),
                 ),

@@ -32,12 +32,15 @@ class MediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildMediaGridItem(BuildContext context, Map<String, dynamic> mediaItem) {
+  Widget _buildMediaGridItem(
+      BuildContext context, Map<String, dynamic> mediaItem) {
     final bool isImage = mediaItem['type'] == 'image';
     final bool isNonConformity = mediaItem['is_non_conformity'] == true;
-    final bool hasUrl = mediaItem['url'] != null && (mediaItem['url'] as String).isNotEmpty;
-    final bool hasLocalPath = mediaItem['localPath'] != null && (mediaItem['localPath'] as String).isNotEmpty;
-    
+    final bool hasUrl =
+        mediaItem['url'] != null && (mediaItem['url'] as String).isNotEmpty;
+    final bool hasLocalPath = mediaItem['localPath'] != null &&
+        (mediaItem['localPath'] as String).isNotEmpty;
+
     // Format date
     String formattedDate = '';
     if (mediaItem['created_at'] != null) {
@@ -55,15 +58,15 @@ class MediaGrid extends StatelessWidget {
         print('Error formatting date: $e');
       }
     }
-    
+
     // Create a decoration for the card with consistent dark theme colors
     BoxDecoration decoration = BoxDecoration(
       borderRadius: BorderRadius.circular(8),
-      border: isNonConformity 
-          ? Border.all(color: Colors.red, width: 2) 
+      border: isNonConformity
+          ? Border.all(color: Colors.red, width: 2)
           : Border.all(color: Colors.grey.shade700),
     );
-    
+
     // Choose display widget
     Widget displayWidget;
     if (isImage) {
@@ -101,7 +104,8 @@ class MediaGrid extends StatelessWidget {
       } else {
         displayWidget = _buildNoSourcePlaceholder('image');
       }
-    } else { // Video
+    } else {
+      // Video
       displayWidget = Stack(
         fit: StackFit.expand,
         children: [
@@ -117,7 +121,7 @@ class MediaGrid extends StatelessWidget {
         ],
       );
     }
-    
+
     return InkWell(
       onTap: () => onTap(mediaItem),
       child: Card(
@@ -133,10 +137,11 @@ class MediaGrid extends StatelessWidget {
             children: [
               // Main media display
               ClipRRect(
-                borderRadius: BorderRadius.circular(7), // Slightly smaller to show border
+                borderRadius:
+                    BorderRadius.circular(7), // Slightly smaller to show border
                 child: displayWidget,
               ),
-              
+
               // Indicators and badges
               Positioned(
                 top: 4,
@@ -149,7 +154,7 @@ class MediaGrid extends StatelessWidget {
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: Colors.red.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Icon(
                           Icons.warning_amber_rounded,
@@ -161,10 +166,10 @@ class MediaGrid extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: isImage 
-                            ? Colors.blue.withOpacity(0.8) 
+                        color: isImage
+                            ? Colors.blue.withOpacity(0.8)
                             : Colors.purple.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
                         isImage ? Icons.photo : Icons.videocam,
@@ -175,14 +180,15 @@ class MediaGrid extends StatelessWidget {
                   ],
                 ),
               ),
-              
-             // Informações de tópico/item/detalhe
+
+              // Informações de tópico/item/detalhe
               if (mediaItem['topic_name'] != null)
                 Positioned(
                   top: 4,
                   left: 4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(8),
@@ -199,14 +205,15 @@ class MediaGrid extends StatelessWidget {
                     ),
                   ),
                 ),
-              
+
               // Date
               Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
@@ -229,9 +236,9 @@ class MediaGrid extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               // Observation indicator if available
-              if (mediaItem['observation'] != null && 
+              if (mediaItem['observation'] != null &&
                   (mediaItem['observation'] as String).isNotEmpty)
                 Positioned(
                   bottom: 16,
@@ -255,7 +262,7 @@ class MediaGrid extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildLoadingIndicator() {
     return const Center(
       child: SizedBox(
@@ -268,7 +275,7 @@ class MediaGrid extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildErrorPlaceholder() {
     return Container(
       color: Colors.grey.shade800,
@@ -281,7 +288,7 @@ class MediaGrid extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildNoSourcePlaceholder(String type) {
     return Container(
       color: Colors.grey.shade800,

@@ -55,26 +55,32 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection = await _inspectionService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && 
+      final inspection =
+          await _inspectionService.getInspection(widget.inspectionId);
+      if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
-        
         final topic = inspection.topics![widget.topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        
+
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-          
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
+
           if (widget.detailIndex < details.length) {
             final detail = details[widget.detailIndex];
-            final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
-            
+            final media =
+                List<Map<String, dynamic>>.from(detail['media'] ?? []);
+
             setState(() {
-              _mediaItems = media.asMap().entries.map((entry) => {
-                ...entry.value,
-                'media_index': entry.key,
-              }).toList();
+              _mediaItems = media
+                  .asMap()
+                  .entries
+                  .map((entry) => {
+                        ...entry.value,
+                        'media_index': entry.key,
+                      })
+                  .toList();
               _isLoading = false;
             });
             return;
@@ -116,7 +122,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
-      final newFilename = 'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+      final newFilename =
+          'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
       final localPath = '${mediaDir.path}/$newFilename';
 
       final file = File(pickedFile.path);
@@ -149,14 +156,17 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       // Try to upload to Firebase Storage
       final connectivityResult = await _connectivity.checkConnectivity();
       final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-                      connectivityResult.contains(ConnectivityResult.mobile);
+          connectivityResult.contains(ConnectivityResult.mobile);
 
       if (isOnline) {
         try {
-          final storagePath = 'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
+          final storagePath =
+              'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
           final uploadTask = await _storage.ref(storagePath).putFile(
                 File(localPath),
-                SettableMetadata(contentType: 'image/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
+                SettableMetadata(
+                    contentType:
+                        'image/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
               );
 
           final downloadUrl = await uploadTask.ref.getDownloadURL();
@@ -232,7 +242,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
-      final newFilename = 'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+      final newFilename =
+          'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
       final localPath = '${mediaDir.path}/$newFilename';
 
       final file = File(pickedFile.path);
@@ -259,14 +270,17 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       // Try to upload to Firebase Storage
       final connectivityResult = await _connectivity.checkConnectivity();
       final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-                      connectivityResult.contains(ConnectivityResult.mobile);
+          connectivityResult.contains(ConnectivityResult.mobile);
 
       if (isOnline) {
         try {
-          final storagePath = 'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
+          final storagePath =
+              'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
           final uploadTask = await _storage.ref(storagePath).putFile(
                 File(localPath),
-                SettableMetadata(contentType: 'video/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
+                SettableMetadata(
+                    contentType:
+                        'video/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
               );
 
           final downloadUrl = await uploadTask.ref.getDownloadURL();
@@ -316,7 +330,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Mídia'),
-        content: const Text('Tem certeza que deseja excluir este arquivo de mídia?'),
+        content:
+            const Text('Tem certeza que deseja excluir este arquivo de mídia?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -359,22 +374,25 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       }
 
       // Remove from inspection document
-      final inspection = await _inspectionService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && 
+      final inspection =
+          await _inspectionService.getInspection(widget.inspectionId);
+      if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
-        
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);
         final topic = topics[widget.topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        
+
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-          
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
+
           if (widget.detailIndex < details.length) {
-            final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-            final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
-            
+            final detail =
+                Map<String, dynamic>.from(details[widget.detailIndex]);
+            final mediaList =
+                List<Map<String, dynamic>>.from(detail['media'] ?? []);
+
             if (mediaIndex < mediaList.length) {
               mediaList.removeAt(mediaIndex);
               detail['media'] = mediaList;
@@ -383,9 +401,11 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               items[widget.itemIndex] = item;
               topic['items'] = items;
               topics[widget.topicIndex] = topic;
-              
-              await _inspectionService.firestore.collection('inspections')
-                  .doc(widget.inspectionId).update({
+
+              await _inspectionService.firestore
+                  .collection('inspections')
+                  .doc(widget.inspectionId)
+                  .update({
                 'topics': topics,
                 'updated_at': FieldValue.serverTimestamp(),
               });
@@ -442,7 +462,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickImage(ImageSource.camera),
+                onPressed:
+                    _isLoading ? null : () => _pickImage(ImageSource.camera),
                 icon: const Icon(Icons.camera_alt),
                 label: const Text('Tirar Foto'),
               ),
@@ -450,7 +471,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
             const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickVideo(ImageSource.camera),
+                onPressed:
+                    _isLoading ? null : () => _pickVideo(ImageSource.camera),
                 icon: const Icon(Icons.videocam),
                 label: const Text('Gravar Vídeo'),
               ),
@@ -462,7 +484,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           children: [
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickImage(ImageSource.gallery),
+                onPressed:
+                    _isLoading ? null : () => _pickImage(ImageSource.gallery),
                 icon: const Icon(Icons.photo_library),
                 label: const Text('Da Galeria'),
                 style: ElevatedButton.styleFrom(
@@ -473,7 +496,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
             const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _isLoading ? null : () => _pickVideo(ImageSource.gallery),
+                onPressed:
+                    _isLoading ? null : () => _pickVideo(ImageSource.gallery),
                 icon: const Icon(Icons.video_library),
                 label: const Text('Vídeo Galeria'),
                 style: ElevatedButton.styleFrom(
@@ -527,8 +551,10 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                   itemBuilder: (context, index) {
                     final media = _mediaItems[index];
                     final isImage = media['type'] == 'image';
-                    final hasUrl = media['url'] != null && (media['url'] as String).isNotEmpty;
-                    final hasLocalPath = media['localPath'] != null && (media['localPath'] as String).isNotEmpty;
+                    final hasUrl = media['url'] != null &&
+                        (media['url'] as String).isNotEmpty;
+                    final hasLocalPath = media['localPath'] != null &&
+                        (media['localPath'] as String).isNotEmpty;
 
                     Widget displayWidget;
                     if (isImage) {
@@ -540,7 +566,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                             fit: BoxFit.cover,
                             errorBuilder: (ctx, error, _) => Container(
                               color: Colors.grey[300],
-                              child: const Icon(Icons.broken_image, color: Colors.red),
+                              child: const Icon(Icons.broken_image,
+                                  color: Colors.red),
                             ),
                           );
                         } else if (hasUrl) {
@@ -549,24 +576,26 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                             fit: BoxFit.cover,
                             loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) return child;
-                              return const Center(child: CircularProgressIndicator());
+                              return const Center(
+                                  child: CircularProgressIndicator());
                             },
                             errorBuilder: (ctx, error, _) => Container(
                               color: Colors.grey[300],
-                              child: const Icon(Icons.error_outline, color: Colors.red),
+                              child: const Icon(Icons.error_outline,
+                                  color: Colors.red),
                             ),
                           );
                         } else {
                           displayWidget = Container(
                             color: Colors.grey[300],
                             child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.image_not_supported),
-                                SizedBox(height: 4),
-                                Text('Sem Imagem', style: TextStyle(fontSize: 10))
-                              ]
-                            ),
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.image_not_supported),
+                                  SizedBox(height: 4),
+                                  Text('Sem Imagem',
+                                      style: TextStyle(fontSize: 10))
+                                ]),
                           );
                         }
                       } else if (hasUrl) {
@@ -575,45 +604,48 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                                child: CircularProgressIndicator());
                           },
                           errorBuilder: (ctx, error, _) => Container(
                             color: Colors.grey[300],
-                            child: const Icon(Icons.cloud_off, color: Colors.orange),
+                            child: const Icon(Icons.cloud_off,
+                                color: Colors.orange),
                           ),
                         );
                       } else {
                         displayWidget = Container(
                           color: Colors.grey[300],
                           child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.image),
-                              SizedBox(height: 4),
-                              Text('Sem Fonte', style: TextStyle(fontSize: 10))
-                            ]
-                          ),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.image),
+                                SizedBox(height: 4),
+                                Text('Sem Fonte',
+                                    style: TextStyle(fontSize: 10))
+                              ]),
                         );
                       }
                     } else {
                       displayWidget = Container(
                         color: Colors.grey[800],
                         child: const Center(
-                          child: Icon(Icons.video_file, size: 50, color: Colors.grey),
+                          child: Icon(Icons.video_file,
+                              size: 50, color: Colors.grey),
                         ),
                       );
-                      
+
                       if (!hasLocalPath && !hasUrl) {
                         displayWidget = Container(
                           color: Colors.grey[300],
                           child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.videocam_off),
-                              SizedBox(height: 4),
-                              Text('Sem Fonte', style: TextStyle(fontSize: 10))
-                            ]
-                          ),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.videocam_off),
+                                SizedBox(height: 4),
+                                Text('Sem Fonte',
+                                    style: TextStyle(fontSize: 10))
+                              ]),
                         );
                       }
                     }
@@ -645,10 +677,12 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                                 shape: BoxShape.circle,
                               ),
                               child: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.white, size: 20),
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.white, size: 20),
                                 onPressed: () => _deleteMedia(index, media),
                                 tooltip: 'Excluir Mídia',
-                                constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+                                constraints: const BoxConstraints.tightFor(
+                                    width: 30, height: 30),
                                 padding: EdgeInsets.zero,
                               ),
                             ),
@@ -659,14 +693,16 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                             bottom: 5,
                             left: 5,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.black.withOpacity(0.6),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 isImage ? 'Foto' : 'Vídeo',
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12),
                               ),
                             ),
                           ),

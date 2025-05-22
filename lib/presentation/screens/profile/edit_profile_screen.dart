@@ -344,7 +344,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _lastNameController,
                       decoration: const InputDecoration(
-                        labelText: 'Last Name',
+                        labelText: 'Sobrenome',
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) => value == null || value.isEmpty
@@ -410,9 +410,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Address
+                    // Endereço
                     const Text(
-                      'Address',
+                      'Endereço',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -422,7 +422,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _cepController,
                       decoration: const InputDecoration(
-                        labelText: 'ZIP Code',
+                        labelText: 'CEP',
                         border: OutlineInputBorder(),
                         hintText: '00.000-000',
                       ),
@@ -443,7 +443,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _streetController,
                       decoration: const InputDecoration(
-                        labelText: 'Street',
+                        labelText: 'Rua',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -451,7 +451,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _neighborhoodController,
                       decoration: const InputDecoration(
-                        labelText: 'Neighborhood',
+                        labelText: 'Bairro',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -463,7 +463,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: TextFormField(
                             controller: _cityController,
                             decoration: const InputDecoration(
-                              labelText: 'City',
+                              labelText: 'Cidade',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -473,7 +473,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: TextFormField(
                             controller: _stateController,
                             decoration: const InputDecoration(
-                              labelText: 'State',
+                              labelText: 'Estado',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -491,7 +491,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         onPressed: _isLoading ? null : _saveProfile,
                         child: _isLoading
                             ? const CircularProgressIndicator()
-                            : const Text('Save Changes'),
+                            : const Text('Salvar Alterações'),
                       ),
                     ),
                   ],

@@ -6,7 +6,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
 import 'package:inspection_app/presentation/screens/inspection/inspection_detail_screen.dart';
 import 'package:inspection_app/presentation/widgets/inspection_card.dart';
-import 'package:intl/intl.dart';
 
 // Função auxiliar para formatação de data em pt-BR
 String formatDateBR(DateTime date) {
@@ -282,7 +281,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                   ),
                 ),
               )
-            : const Text('Vistorias'),
+            : const Text('Inspeções'),
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
         titleTextStyle: const TextStyle(
@@ -384,73 +383,81 @@ class _InspectionsTabState extends State<InspectionsTab> {
                       ),
                       const SizedBox(width: 8),
                       // Na função que mostra o DatePicker, modifique para:
-                        IconButton(
-                          icon: const Icon(Icons.calendar_today, color: Colors.white),
-                          onPressed: () async {
-                            // Use showDialog em vez de showDatePicker
-                            final DateTime? selectedDate = await showDialog<DateTime>(
-                              context: context,
-                              builder: (BuildContext context) {
-                                DateTime currentDate = _selectedDateFilter ?? DateTime.now();
-                                return Dialog(
-                                  backgroundColor: const Color(0xFF2A3749),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Text(
-                                          'Selecionar Data',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today,
+                            color: Colors.white),
+                        onPressed: () async {
+                          // Use showDialog em vez de showDatePicker
+                          final DateTime? selectedDate =
+                              await showDialog<DateTime>(
+                            context: context,
+                            builder: (BuildContext context) {
+                              DateTime currentDate =
+                                  _selectedDateFilter ?? DateTime.now();
+                              return Dialog(
+                                backgroundColor: const Color(0xFF2A3749),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'Selecionar Data',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      CalendarDatePicker(
+                                        initialDate: currentDate,
+                                        firstDate: DateTime(2020),
+                                        lastDate: DateTime(2030),
+                                        onDateChanged: (date) {
+                                          currentDate = date;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            child: const Text(
+                                              'Cancelar',
+                                              style: TextStyle(
+                                                  color: Colors.white70),
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        CalendarDatePicker(
-                                          initialDate: currentDate,
-                                          firstDate: DateTime(2020),
-                                          lastDate: DateTime(2030),
-                                          onDateChanged: (date) {
-                                            currentDate = date;
-                                          },
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.end,
-                                          children: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(context),
-                                              child: const Text(
-                                                'Cancelar',
-                                                style: TextStyle(color: Colors.white70),
-                                              ),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(
+                                                context, currentDate),
+                                            child: const Text(
+                                              'Confirmar',
+                                              style:
+                                                  TextStyle(color: Colors.blue),
                                             ),
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(context, currentDate),
-                                              child: const Text(
-                                                'Confirmar',
-                                                style: TextStyle(color: Colors.blue),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
-                                );
-                              },
-                            );
-                            
-                            if (selectedDate != null) {
-                              setState(() {
-                                _selectedDateFilter = selectedDate;
-                                _applyFilters();
-                              });
-                            }
-                          },
-                        ),
+                                ),
+                              );
+                            },
+                          );
+
+                          if (selectedDate != null) {
+                            setState(() {
+                              _selectedDateFilter = selectedDate;
+                              _applyFilters();
+                            });
+                          }
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
