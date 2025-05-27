@@ -14,9 +14,8 @@ import 'package:inspection_app/presentation/screens/auth/reset_password_screen.d
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/presentation/screens/chat/chat_detail_screen.dart';
-import 'package:inspection_app/services/firebase_service.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:inspection_app/services/cache_service.dart';
+import 'package:inspection_app/services/service_locator.dart';
 import 'package:inspection_app/models/chat.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -26,34 +25,24 @@ Future<void> main() async {
   // Initialize Firebase
   await Firebase.initializeApp();
 
-  // Initialize Firebase Service
-  await FirebaseService.initialize();
+  // Initialize services
+  await ServiceLocator.initialize();
 
-  // Initialize Cache Service
-  await CacheService.initialize();
-
-  // Configurar o estilo da barra de navegação para evitar sobreposição
+  // Configure system UI
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.black, // Cor da barra de navegação
-      systemNavigationBarIconBrightness: Brightness.light, // Ícones claros
+      systemNavigationBarColor: Colors.black,
+      systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
 
-  // Habilitar o novo callback de retorno do Android 14+
   if (!kIsWeb) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   await dotenv.load(fileName: ".env");
 
-  try {
-    await FirebaseService.initialize();
-  } catch (e) {
-    print('Erro ao inicializar Firebase: $e');
-  }
-
-  // Solicitar permissões ao iniciar o app
+  // Request initial permissions
   await _requestInitialPermissions();
 
   runApp(const MyApp());
@@ -68,6 +57,7 @@ Future<void> _requestInitialPermissions() async {
   ].request();
 }
 
+// Rest of the code remains the same...
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -138,17 +128,14 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/media-gallery': (context) {
-          // Recuperar o parâmetro inspectionId dos argumentos
           final args = ModalRoute.of(context)?.settings.arguments
               as Map<String, dynamic>?;
           final inspectionId = args?['inspectionId'] as String?;
 
           if (inspectionId == null) {
-            // Redirecionar para home se não houver inspectionId
             Future.microtask(
                 () => Navigator.pushReplacementNamed(context, '/home'));
-            return const SizedBox
-                .shrink(); // Widget temporário até o redirecionamento
+            return const SizedBox.shrink();
           }
 
           return MediaGalleryScreen(inspectionId: inspectionId);
@@ -170,7 +157,6 @@ class MyApp extends StatelessWidget {
             );
           }
 
-          // Buscar o chat pelo ID e navegar
           return FutureBuilder<Chat?>(
             future: _getChatById(chatId),
             builder: (context, snapshot) {
@@ -202,11 +188,9 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Função auxiliar para buscar chat
 Future<Chat?> _getChatById(String chatId) async {
   try {
-    final doc =
-        await FirebaseFirestore.instance.collection('chats').doc(chatId).get();
+    final doc = await FirebaseFirestore.instance.collection('chats').doc(chatId).get();
     if (doc.exists) {
       return Chat.fromFirestore(doc);
     }

@@ -1,3 +1,4 @@
+// lib/services/import_export_service.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,23 +7,26 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
+import 'package:inspection_app/services/firebase_service.dart';
 
 class ImportExportService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final _instance = ImportExportService._internal();
+  factory ImportExportService() => _instance;
+  ImportExportService._internal();
 
-// lib/services/import_export_service.dart
-Future<String> exportInspection(String inspectionId) async {
-  try {
-    final inspection = await _firestore.collection('inspections').doc(inspectionId).get();
+  final _firebase = FirebaseService();
 
-    if (!inspection.exists) {
-      throw Exception('Inspection not found');
-    }
+  Future<String> exportInspection(String inspectionId) async {
+    final inspection = await _firebase.firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .get();
+
+    if (!inspection.exists) throw Exception('Inspection not found');
 
     Map<String, dynamic> inspectionData = inspection.data() ?? {};
     inspectionData['id'] = inspectionId;
 
-    // Converter Timestamps para strings
     inspectionData = _convertTimestampsToStrings(inspectionData);
 
     final String jsonContent = json.encode(inspectionData);
@@ -45,119 +49,47 @@ Future<String> exportInspection(String inspectionId) async {
     await file.writeAsString(jsonContent);
 
     return filePath;
-  } catch (e) {
-    throw Exception('Failed to export inspection: $e');
   }
-}
-
-// Método corrigido para retornar dynamic
-dynamic _convertTimestampsToStrings(dynamic data) {
-  if (data is Map<String, dynamic>) {
-    return data.map((key, value) => MapEntry(key, _convertTimestampsToStrings(value)));
-  } else if (data is List) {
-    return data.map((item) => _convertTimestampsToStrings(item)).toList();
-  } else if (data is Timestamp) {
-    return data.toDate().toIso8601String();
-  } else {
-    return data;
-  }
-}
 
   Future<bool> importInspection(String inspectionId, Map<String, dynamic> jsonData) async {
-    try {
-      // Validate the data
-      if (jsonData.isEmpty) {
-        throw Exception('Invalid JSON data');
-      }
+    if (jsonData.isEmpty) throw Exception('Invalid JSON data');
 
-      // Remove the ID from jsonData if it exists
-      jsonData.remove('id');
+    jsonData.remove('id');
+    jsonData['updated_at'] = FieldValue.serverTimestamp();
+    jsonData['imported_at'] = FieldValue.serverTimestamp();
 
-      // Update the timestamp
-      jsonData['updated_at'] = FieldValue.serverTimestamp();
-      jsonData['imported_at'] = FieldValue.serverTimestamp();
+    await _firebase.firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .set(jsonData, SetOptions(merge: false));
 
-      // Replace the entire inspection document with the imported data
-      await _firestore.collection('inspections').doc(inspectionId).set(jsonData, SetOptions(merge: false));
-
-      return true;
-    } catch (e) {
-      throw Exception('Failed to import inspection: $e');
-    }
+    return true;
   }
 
   Future<Map<String, dynamic>?> pickJsonFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
 
-      if (result == null || result.files.isEmpty) {
-        return null;
-      }
+    if (result == null || result.files.isEmpty) return null;
 
-      final file = File(result.files.single.path!);
-      final jsonString = await file.readAsString();
+    final file = File(result.files.single.path!);
+    final jsonString = await file.readAsString();
 
-      return json.decode(jsonString);
-    } catch (e) {
-      throw Exception('Failed to read JSON file: $e');
+    return json.decode(jsonString);
+  }
+
+  dynamic _convertTimestampsToStrings(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data.map((key, value) => MapEntry(key, _convertTimestampsToStrings(value)));
+    } else if (data is List) {
+      return data.map((item) => _convertTimestampsToStrings(item)).toList();
+    } else if (data is Timestamp) {
+      return data.toDate().toIso8601String();
+    } else {
+      return data;
     }
-  }
-
-  Future<bool> showExportConfirmationDialog(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Export Inspection'),
-            content: const Text(
-                'This will export the inspection data to a JSON file. '
-                'Continue?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.blue,
-                ),
-                child: const Text('Export'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  Future<bool> showImportConfirmationDialog(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Import Inspection'),
-            content: const Text(
-                'This will replace all current inspection data with the imported data. '
-                'This action cannot be undone. Continue?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.red,
-                ),
-                child: const Text('Import'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
   }
 
   void showSuccessMessage(BuildContext context, String message) {

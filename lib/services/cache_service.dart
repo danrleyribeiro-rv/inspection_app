@@ -1,52 +1,62 @@
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:inspection_app/models/cached_inspection.dart';
+// lib/services/cache_service.dart
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class CacheService {
-  static const String _inspectionsBoxName = 'inspections';
+  static final _instance = CacheService._internal();
+  factory CacheService() => _instance;
+  CacheService._internal();
 
-  static Future<void> initialize() async {
-    await Hive.initFlutter();
-    Hive.registerAdapter(CachedInspectionAdapter());
-    await Hive.openBox<CachedInspection>(_inspectionsBoxName);
-  }
-
-  Box<CachedInspection> get _inspectionsBox => Hive.box<CachedInspection>(_inspectionsBoxName);
+  static const String _inspectionsKey = 'cached_inspections';
+  static const String _syncQueueKey = 'sync_queue';
 
   Future<void> cacheInspection(String id, Map<String, dynamic> data) async {
-    final cached = CachedInspection(
-      id: id,
-      data: data,
-      lastUpdated: DateTime.now(),
-      needsSync: false,
-    );
-    await _inspectionsBox.put(id, cached);
+    final prefs = await SharedPreferences.getInstance();
+    final cached = await getCachedInspections();
+    cached[id] = {
+      'data': data,
+      'lastUpdated': DateTime.now().toIso8601String(),
+      'needsSync': false,
+    };
+    await prefs.setString(_inspectionsKey, json.encode(cached));
   }
 
-  CachedInspection? getCachedInspection(String id) {
-    return _inspectionsBox.get(id);
+  Future<Map<String, dynamic>?> getCachedInspection(String id) async {
+    final cached = await getCachedInspections();
+    return cached[id]?['data'];
   }
 
-  Future<void> markForSync(String id) async {
-    final cached = _inspectionsBox.get(id);
-    if (cached != null) {
-      cached.needsSync = true;
-      await cached.save();
-    }
+  Future<Map<String, dynamic>> getCachedInspections() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedString = prefs.getString(_inspectionsKey) ?? '{}';
+    return Map<String, dynamic>.from(json.decode(cachedString));
   }
 
-  List<CachedInspection> getInspectionsNeedingSync() {
-    return _inspectionsBox.values.where((inspection) => inspection.needsSync).toList();
-  }
+// lib/services/cache_service.dart (continuação)
+ Future<void> markForSync(String id) async {
+   final prefs = await SharedPreferences.getInstance();
+   final syncQueue = await getSyncQueue();
+   if (!syncQueue.contains(id)) {
+     syncQueue.add(id);
+     await prefs.setStringList(_syncQueueKey, syncQueue);
+   }
+ }
 
-  Future<void> markSynced(String id) async {
-    final cached = _inspectionsBox.get(id);
-    if (cached != null) {
-      cached.needsSync = false;
-      await cached.save();
-    }
-  }
+ Future<List<String>> getSyncQueue() async {
+   final prefs = await SharedPreferences.getInstance();
+   return prefs.getStringList(_syncQueueKey) ?? [];
+ }
 
-  Future<void> clearCache() async {
-    await _inspectionsBox.clear();
-  }
+ Future<void> markSynced(String id) async {
+   final prefs = await SharedPreferences.getInstance();
+   final syncQueue = await getSyncQueue();
+   syncQueue.remove(id);
+   await prefs.setStringList(_syncQueueKey, syncQueue);
+ }
+
+ Future<void> clearCache() async {
+   final prefs = await SharedPreferences.getInstance();
+   await prefs.remove(_inspectionsKey);
+   await prefs.remove(_syncQueueKey);
+ }
 }
