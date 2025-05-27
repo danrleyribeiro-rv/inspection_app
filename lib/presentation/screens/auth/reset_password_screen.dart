@@ -1,6 +1,6 @@
 // lib/presentation/screens/auth/reset_password_screen.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/firebase_auth_service.dart';
+import 'package:inspection_app/services/auth_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -13,7 +13,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _authService = FirebaseAuthService();
+  final _authService = AuthService();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
