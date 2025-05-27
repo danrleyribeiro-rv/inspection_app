@@ -40,9 +40,12 @@ class _TopicWidgetState extends State<TopicWidget> {
   Timer? _debounce;
   ScrollController? _scrollController;
 
+  late Topic _localTopic;
+
   @override
   void initState() {
     super.initState();
+    _localTopic = widget.topic;
     _loadItems();
     _observationController.text = widget.topic.observation ?? '';
     _scrollController = ScrollController();
@@ -100,12 +103,15 @@ class _TopicWidgetState extends State<TopicWidget> {
 
     _debounce = Timer(const Duration(milliseconds: 500), () {
       if (!mounted) return;
-      final updatedTopic = widget.topic.copyWith(
+      final updatedTopic = _localTopic.copyWith(
         observation: _observationController.text.isEmpty
             ? null
             : _observationController.text,
         updatedAt: DateTime.now(),
       );
+      setState(() {
+        _localTopic = updatedTopic;
+      });
       widget.onTopicUpdated(updatedTopic);
     });
   }
@@ -116,40 +122,19 @@ class _TopicWidgetState extends State<TopicWidget> {
       builder: (context) => RenameDialog(
         title: 'Renomear Tópico',
         label: 'Nome do Tópico',
-        initialValue: widget.topic.topicName,
+        initialValue: _localTopic.topicName,
       ),
     );
 
-    if (newName != null &&
-        newName.trim().isNotEmpty &&
-        newName.trim() != widget.topic.topicName) {
-      final updatedTopic = widget.topic.copyWith(
-        topicName: newName.trim(),
+    if (newName != null && newName != _localTopic.topicName) {
+      final updatedTopic = _localTopic.copyWith(
+        topicName: newName,
         updatedAt: DateTime.now(),
       );
-
-      try {
-        widget.onTopicUpdated(updatedTopic);
-
-        // Mostrar feedback de sucesso
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Tópico renomeado para "$newName"'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao renomear tópico: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
+      setState(() {
+        _localTopic = updatedTopic;
+      });
+      widget.onTopicUpdated(updatedTopic);
     }
   }
 
@@ -365,7 +350,7 @@ class _TopicWidgetState extends State<TopicWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
@@ -376,7 +361,7 @@ class _TopicWidgetState extends State<TopicWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
                   Expanded(
@@ -384,15 +369,14 @@ class _TopicWidgetState extends State<TopicWidget> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.topic.topicName,
+                          _localTopic.topicName,
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.bold),
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        if (widget.topic.topicLabel != null) ...[
-                          const SizedBox(height: 1),
-                          Text(widget.topic.topicLabel!,
-                              style: TextStyle(
-                                  color: Colors.grey[600], fontSize: 12)),
+                        if (_localTopic.topicLabel != null) ...[
+                          const SizedBox(height: 2),
+                          Text(_localTopic.topicLabel!,
+                              style: TextStyle(color: Colors.grey[600])),
                         ],
                       ],
                     ),
@@ -422,7 +406,7 @@ class _TopicWidgetState extends State<TopicWidget> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -435,37 +419,31 @@ class _TopicWidgetState extends State<TopicWidget> {
                           labelText: 'Observações',
                           border: OutlineInputBorder(),
                           hintText: 'Adicione observações sobre este tópico...',
-                          isDense: true,
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         ),
                         maxLines: 1,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
                         'Itens',
                         style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.bold),
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton.icon(
                         onPressed: _addItem,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Adicionar Item',
-                            style: TextStyle(fontSize: 13)),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar Item'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_items.isEmpty)
