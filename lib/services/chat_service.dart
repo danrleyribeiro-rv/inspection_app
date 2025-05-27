@@ -30,7 +30,7 @@ class ChatService {
     return _firestore
         .collection('chat_messages')
         .where('chat_id', isEqualTo: chatId)
-        .orderBy('timestamp', descending: false)
+        .orderBy('timestamp', descending: false) // Manter ascendente para ordem cronológica
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
@@ -103,62 +103,61 @@ class ChatService {
     }
   }
   
-Future<void> sendTextMessage(String chatId, String content) async {
-  final userId = _auth.currentUser?.uid;
-  if (userId == null) throw Exception('Usuário não autenticado');
-  
-  try {
-    // Buscar participantes do chat
-    final chatDoc = await _firestore.collection('chats').doc(chatId).get();
-    final participants = List<String>.from(chatDoc.data()?['participants'] ?? []);
+  Future<void> sendTextMessage(String chatId, String content) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Usuário não autenticado');
     
-    await _firestore.collection('chat_messages').add({
-      'chat_id': chatId,
-      'sender_id': userId,
-      'content': content,
-      'timestamp': FieldValue.serverTimestamp(),
-      'type': 'text',
-      'received_by': [userId], // Apenas o remetente recebeu inicialmente
-      'read_by': [userId], // Apenas o remetente leu inicialmente
-    });
-    
-    // Calcular mensagens não lidas para outros participantes
-    int unreadCount = 0;
-    for (String participantId in participants) {
-      if (participantId != userId) {
-        // Contar mensagens não lidas para este participante
-        final unreadMessages = await _firestore
-            .collection('chat_messages')
-            .where('chat_id', isEqualTo: chatId)
-            .where('sender_id', isNotEqualTo: participantId)
-            .get();
-        
-        int count = 0;
-        for (var doc in unreadMessages.docs) {
-          final readBy = List<String>.from(doc.data()['read_by'] ?? []);
-          if (!readBy.contains(participantId)) {
-            count++;
-          }
-        }
-        unreadCount = count + 1; // +1 pela nova mensagem
-        break; // Por enquanto só suportamos 2 participantes
-      }
-    }
-    
-    await _firestore.collection('chats').doc(chatId).update({
-      'last_message': {
-        'text': content,
+    try {
+      // Buscar participantes do chat
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      final participants = List<String>.from(chatDoc.data()?['participants'] ?? []);
+      
+      await _firestore.collection('chat_messages').add({
+        'chat_id': chatId,
         'sender_id': userId,
+        'content': content,
         'timestamp': FieldValue.serverTimestamp(),
-        'type': 'text'
-      },
-      'updated_at': FieldValue.serverTimestamp(),
-      'unread_count': unreadCount,
-    });
-  } catch (e) {
-    throw Exception('Erro ao enviar mensagem: $e');
+        'type': 'text',
+        'received_by': [userId],
+        'read_by': [userId],
+      });
+      
+      // Calcular mensagens não lidas para outros participantes
+      int unreadCount = 0;
+      for (String participantId in participants) {
+        if (participantId != userId) {
+          final unreadMessages = await _firestore
+              .collection('chat_messages')
+              .where('chat_id', isEqualTo: chatId)
+              .where('sender_id', isNotEqualTo: participantId)
+              .get();
+          
+          int count = 0;
+          for (var doc in unreadMessages.docs) {
+            final readBy = List<String>.from(doc.data()['read_by'] ?? []);
+            if (!readBy.contains(participantId)) {
+              count++;
+            }
+          }
+          unreadCount = count + 1;
+          break;
+        }
+      }
+      
+      await _firestore.collection('chats').doc(chatId).update({
+        'last_message': {
+          'text': content,
+          'sender_id': userId,
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'text'
+        },
+        'updated_at': FieldValue.serverTimestamp(),
+        'unread_count': unreadCount,
+      });
+    } catch (e) {
+      throw Exception('Erro ao enviar mensagem: $e');
+    }
   }
-}
   
   Future<void> sendFileMessage(String chatId, File file, String type) async {
     final userId = _auth.currentUser?.uid;
@@ -210,107 +209,104 @@ Future<void> sendTextMessage(String chatId, String content) async {
     }
   }
 
-Future<int> getUnreadMessagesCount() async {
-  final userId = _auth.currentUser?.uid;
-  if (userId == null) return 0;
-  
-  try {
-    final chatsSnapshot = await _firestore
+  Future<int> getUnreadMessagesCount() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return 0;
+    
+    try {
+      final chatsSnapshot = await _firestore
+          .collection('chats')
+          .where('participants', arrayContains: userId)
+          .get();
+      
+      int totalUnread = 0;
+      
+      for (final chatDoc in chatsSnapshot.docs) {
+        final messagesSnapshot = await _firestore
+            .collection('chat_messages')
+            .where('chat_id', isEqualTo: chatDoc.id)
+            .where('sender_id', isNotEqualTo: userId)
+            .get();
+        
+        for (final messageDoc in messagesSnapshot.docs) {
+          final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
+          if (!readBy.contains(userId)) {
+            totalUnread++;
+          }
+        }
+      }
+      
+      return totalUnread;
+    } catch (e) {
+      print('Erro ao contar mensagens não lidas: $e');
+      return 0;
+    }
+  }
+
+  Stream<int> getUnreadMessagesCountStream() {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return Stream.value(0);
+    
+    return _firestore
         .collection('chats')
         .where('participants', arrayContains: userId)
-        .get();
+        .snapshots()
+        .asyncMap((chatsSnapshot) async {
+      int totalUnread = 0;
+      
+      for (final chatDoc in chatsSnapshot.docs) {
+        final messagesSnapshot = await _firestore
+            .collection('chat_messages')
+            .where('chat_id', isEqualTo: chatDoc.id)
+            .where('sender_id', isNotEqualTo: userId)
+            .get();
+        
+        for (final messageDoc in messagesSnapshot.docs) {
+          final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
+          if (!readBy.contains(userId)) {
+            totalUnread++;
+          }
+        }
+      }
+      
+      return totalUnread;
+    });
+  }
+
+  Future<void> markMessagesAsRead(String chatId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
     
-    int totalUnread = 0;
-    
-    for (final chatDoc in chatsSnapshot.docs) {
-      // Contar mensagens não lidas para este chat específico
-      final messagesSnapshot = await _firestore
+    try {
+      final snapshot = await _firestore
           .collection('chat_messages')
-          .where('chat_id', isEqualTo: chatDoc.id)
+          .where('chat_id', isEqualTo: chatId)
           .where('sender_id', isNotEqualTo: userId)
           .get();
       
-      for (final messageDoc in messagesSnapshot.docs) {
-        final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
-        if (!readBy.contains(userId)) {
-          totalUnread++;
+      final batch = _firestore.batch();
+      bool hasUnreadMessages = false;
+      
+      for (final doc in snapshot.docs) {
+        final message = ChatMessage.fromFirestore(doc);
+        if (!message.readBy.contains(userId)) {
+          hasUnreadMessages = true;
+          final updatedReadBy = [...message.readBy, userId];
+          batch.update(doc.reference, {'read_by': updatedReadBy});
         }
       }
-    }
-    
-    return totalUnread;
-  } catch (e) {
-    print('Erro ao contar mensagens não lidas: $e');
-    return 0;
-  }
-}
-
-Stream<int> getUnreadMessagesCountStream() {
-  final userId = _auth.currentUser?.uid;
-  if (userId == null) return Stream.value(0);
-  
-  return _firestore
-      .collection('chats')
-      .where('participants', arrayContains: userId)
-      .snapshots()
-      .asyncMap((chatsSnapshot) async {
-    int totalUnread = 0;
-    
-    for (final chatDoc in chatsSnapshot.docs) {
-      final messagesSnapshot = await _firestore
-          .collection('chat_messages')
-          .where('chat_id', isEqualTo: chatDoc.id)
-          .where('sender_id', isNotEqualTo: userId)
-          .get();
       
-      for (final messageDoc in messagesSnapshot.docs) {
-        final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
-        if (!readBy.contains(userId)) {
-          totalUnread++;
-        }
+      if (hasUnreadMessages) {
+        await batch.commit();
+        
+        await _firestore.collection('chats').doc(chatId).update({
+          'unread_count': 0
+        });
       }
+    } catch (e) {
+      throw Exception('Erro ao marcar mensagens como lidas: $e');
     }
-    
-    return totalUnread;
-  });
-}
-
-Future<void> markMessagesAsRead(String chatId) async {
-  final userId = _auth.currentUser?.uid;
-  if (userId == null) return;
-  
-  try {
-    // Buscar mensagens não lidas do usuário atual
-    final snapshot = await _firestore
-        .collection('chat_messages')
-        .where('chat_id', isEqualTo: chatId)
-        .where('sender_id', isNotEqualTo: userId)
-        .get();
-    
-    final batch = _firestore.batch();
-    bool hasUnreadMessages = false;
-    
-    for (final doc in snapshot.docs) {
-      final message = ChatMessage.fromFirestore(doc);
-      if (!message.readBy.contains(userId)) {
-        hasUnreadMessages = true;
-        final updatedReadBy = [...message.readBy, userId];
-        batch.update(doc.reference, {'read_by': updatedReadBy});
-      }
-    }
-    
-    if (hasUnreadMessages) {
-      await batch.commit();
-      
-      // Resetar contador de não lidas
-      await _firestore.collection('chats').doc(chatId).update({
-        'unread_count': 0
-      });
-    }
-  } catch (e) {
-    throw Exception('Erro ao marcar mensagens como lidas: $e');
   }
-}
 
   String _getFileType(String extension) {
     if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].contains(extension)) {

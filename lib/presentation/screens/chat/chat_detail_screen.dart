@@ -24,7 +24,7 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver {
   final ChatService _chatService = ChatService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -33,6 +33,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isLoading = false;
   String _currentUserId = '';
   List<ChatMessage> _messages = [];
+  bool _hasScrolledToBottom = false;
+  StreamSubscription<List<ChatMessage>>? _messagesSubscription;
+  bool _isFirstLoad = true;
+  bool _keyboardVisible = false;
 
   @override
   void initState() {
@@ -40,16 +44,70 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _currentUserId = _auth.currentUser?.uid ?? '';
     _markMessagesAsRead();
     
+    // Adicionar observer para detectar mudanças de teclado
+    WidgetsBinding.instance.addObserver(this);
+    
     _messageController.addListener(() {
       setState(() {});
     });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    _forceScrollToBottom();
-  });
-}
+      _setupMessagesStream();
+    });
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    
+    // Detectar mudança do teclado
+    final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
+    final newKeyboardVisible = bottomInset > 0;
+    
+    if (_keyboardVisible != newKeyboardVisible) {
+      setState(() {
+        _keyboardVisible = newKeyboardVisible;
+      });
+      
+      // Scroll para o final quando o teclado aparecer
+      if (newKeyboardVisible) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom(animate: true);
+        });
+      }
+    }
+  }
+
+  void _setupMessagesStream() {
+    _messagesSubscription = _chatService.getChatMessages(widget.chat.id).listen((messages) {
+      if (mounted) {
+        setState(() {
+          _messages = messages;
+        });
+        
+        if (_isFirstLoad || _shouldScrollToBottom()) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToBottom(animate: !_isFirstLoad);
+            _isFirstLoad = false;
+          });
+        }
+      }
+    });
+  }
+
+  bool _shouldScrollToBottom() {
+    if (!_scrollController.hasClients) return true;
+    
+    final isNearBottom = _scrollController.position.pixels >= 
+        _scrollController.position.maxScrollExtent - 100;
+    
+    return isNearBottom;
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _messagesSubscription?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -65,27 +123,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   
   void _scrollToBottom({bool animate = true}) {
     if (_scrollController.hasClients) {
+      final maxScroll = _scrollController.position.maxScrollExtent;
       if (animate) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          maxScroll,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       } else {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        _scrollController.jumpTo(maxScroll);
       }
     }
   }
-
-  void _forceScrollToBottom() {
-  if (_scrollController.hasClients) {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-    });
-  }
-}
   
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
@@ -99,7 +148,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await _chatService.sendTextMessage(widget.chat.id, message);
       _messageController.clear();
       
-      // Scroll para baixo após enviar mensagem
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBottom();
       });
@@ -119,128 +167,143 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _pickAndSendImage() async {
-  try {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    
-    if (image != null) {
-      setState(() => _isLoading = true);
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
       
-      final file = File(image.path);
-      await _chatService.sendFileMessage(widget.chat.id, file, 'image');
-      
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      if (image != null) {
+        setState(() => _isLoading = true);
+        
+        final file = File(image.path);
+        await _chatService.sendFileMessage(widget.chat.id, file, 'image');
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao enviar imagem: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Erro ao enviar imagem: $e')),
-    );
-  } finally {
-    setState(() => _isLoading = false);
   }
-}
 
-Future<void> _pickAndSendFile() async {
-  try {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      type: FileType.any,
-    );
-    
-    if (result != null && result.files.single.path != null) {
-      setState(() => _isLoading = true);
+  Future<void> _pickAndSendFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        type: FileType.any,
+      );
       
-      final file = File(result.files.single.path!);
-      await _chatService.sendFileMessage(widget.chat.id, file, 'file');
-      
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      if (result != null && result.files.single.path != null) {
+        setState(() => _isLoading = true);
+        
+        final file = File(result.files.single.path!);
+        await _chatService.sendFileMessage(widget.chat.id, file, 'file');
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao enviar arquivo: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Erro ao enviar arquivo: $e')),
-    );
-  } finally {
-    setState(() => _isLoading = false);
   }
-}
 
-void _showMessageOptions(ChatMessage message) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.grey[900],
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (context) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.info_outline, color: Colors.grey),
-              title: const Text('Detalhes', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                _showMessageDetails(message);
-              },
+  void _showMessageOptions(ChatMessage message) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Colors.grey),
+                title: const Text('Detalhes', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showMessageDetails(message);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatDateSeparator(DateTime messageDate) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDay = DateTime(messageDate.year, messageDate.month, messageDate.day);
+    
+    if (messageDay == today) {
+      return 'Hoje';
+    } else if (messageDay == today.subtract(const Duration(days: 1))) {
+      return 'Ontem';
+    } else {
+      return DateFormat('dd/MM/yyyy').format(messageDate);
+    }
+  }
+
+  void _showMessageDetails(ChatMessage message) {
+    final readBy = message.readBy.where((id) => id != message.senderId).toList();
+    final sentTime = DateFormat('dd/MM/yyyy HH:mm').format(message.timestamp);
+    String readTime = '';
+    
+    if (message.readByTimestamp != null) {
+      readTime = DateFormat('dd/MM/yyyy HH:mm').format(message.readByTimestamp!);
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text('Detalhes da mensagem', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Enviada: $sentTime', style: const TextStyle(color: Colors.white)),
+              const SizedBox(height: 8),
+              
+              if (readBy.isNotEmpty && readTime.isNotEmpty) ...[
+                Text('Lida em: $readTime', style: const TextStyle(color: Colors.green)),
+              ] else ...[
+                const Text('Status: Não lida', style: TextStyle(color: Colors.grey)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
             ),
           ],
-        ),
-      );
-    },
-  );
-}
-
-void _showMessageDetails(ChatMessage message) {
-  final readBy = message.readBy.where((id) => id != message.senderId).toList();
-  final sentTime = DateFormat('dd/MM/yyyy HH:mm').format(message.timestamp);
-  String readTime = '';
-  
-  if (message.readByTimestamp != null) {
-    readTime = DateFormat('dd/MM/yyyy HH:mm').format(message.readByTimestamp!);
+        );
+      },
+    );
   }
-  
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: const Text('Detalhes da mensagem', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Enviada: $sentTime', style: const TextStyle(color: Colors.white)),
-            const SizedBox(height: 8),
-            
-            if (readBy.isNotEmpty && readTime.isNotEmpty) ...[
-              Text('Lida em: $readTime', style: const TextStyle(color: Colors.green)),
-            ] else ...[
-              const Text('Status: Não lida', style: TextStyle(color: Colors.grey)),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fechar'),
-          ),
-        ],
-      );
-    },
-  );
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
+      resizeToAvoidBottomInset: true, // Permitir que o scaffold se redimensione
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
@@ -272,123 +335,96 @@ void _showMessageDetails(ChatMessage message) {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          // Lista de mensagens
-          Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: _chatService.getChatMessages(widget.chat.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Erro: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
-                  );
-                }
-                
-                final messages = snapshot.data ?? [];
-                _messages = messages; // Armazenar mensagens
-                
-                if (messages.isEmpty) {
-                  return const Center(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Lista de mensagens com Flexible em vez de Expanded
+            Flexible(
+              child: _messages.isEmpty 
+                ? const Center(
                     child: Text(
                       'Nenhuma mensagem ainda. Comece a conversar!',
                       style: TextStyle(color: Colors.grey),
                     ),
-                  );
-                }
-                
-                // Scroll para o final quando novas mensagens chegarem
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    // Verificar se estamos perto do final antes de fazer scroll automático
-                    final isAtBottom = _scrollController.position.pixels >= 
-                        _scrollController.position.maxScrollExtent - 100;
-                    
-                    if (isAtBottom || messages.length == 1) {
-                      _scrollToBottom(animate: false);
-                    }
-                  }
-                });
-                
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isCurrentUser = message.senderId == _currentUserId;
-                    final previousIsSameSender = index > 0 && 
-                        messages[index - 1].senderId == message.senderId;
-                    
-                    // Mostrar data se for uma nova data
-                    bool showDateSeparator = false;
-                    if (index == 0) {
-                      showDateSeparator = true;
-                    } else {
-                      final currentDate = DateTime(
-                        message.timestamp.year,
-                        message.timestamp.month,
-                        message.timestamp.day,
-                      );
-                      final previousDate = DateTime(
-                        messages[index - 1].timestamp.year,
-                        messages[index - 1].timestamp.month,
-                        messages[index - 1].timestamp.day,
-                      );
-                      showDateSeparator = !currentDate.isAtSameMomentAs(previousDate);
-                    }
-                    
-                    return Column(
-                      children: [
-                        if (showDateSeparator)
-                          Center(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 16),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[800],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                DateFormat('dd/MM/yyyy').format(message.timestamp),
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
-                              ),
-                            ),
-                          ),
+                  )
+                : NotificationListener<ScrollNotification>(
+                    onNotification: (scrollNotification) {
+                      // Opcional: detectar quando o usuário rola manualmente
+                      return true;
+                    },
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        final isCurrentUser = message.senderId == _currentUserId;
+                        final previousIsSameSender = index > 0 && 
+                            _messages[index - 1].senderId == message.senderId;
                         
-                        ChatMessageItem(
-                          message: message,
-                          isCurrentUser: isCurrentUser,
-                          onLongPress: () => _showMessageOptions(message),
-                          previousIsSameSender: previousIsSameSender,
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
+                        bool showDateSeparator = false;
+                        if (index == 0) {
+                          showDateSeparator = true;
+                        } else {
+                          final currentDate = DateTime(
+                            message.timestamp.year,
+                            message.timestamp.month,
+                            message.timestamp.day,
+                          );
+                          final previousDate = DateTime(
+                            _messages[index - 1].timestamp.year,
+                            _messages[index - 1].timestamp.month,
+                            _messages[index - 1].timestamp.day,
+                          );
+                          showDateSeparator = !currentDate.isAtSameMomentAs(previousDate);
+                        }
+                        
+                        return Column(
+                          children: [
+                            if (showDateSeparator)
+                              Center(
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[800],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    _formatDateSeparator(message.timestamp),
+                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                            
+                            ChatMessageItem(
+                              message: message,
+                              isCurrentUser: isCurrentUser,
+                              onLongPress: () => _showMessageOptions(message),
+                              previousIsSameSender: previousIsSameSender,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
             ),
-          ),
-          
-          // Campo de entrada de mensagem
-          Container(
-            padding: const EdgeInsets.all(8.0),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
+            
+            // Campo de entrada de mensagem
+            Container(
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   // Botão de anexo
                   IconButton(
@@ -398,25 +434,34 @@ void _showMessageDetails(ChatMessage message) {
                   
                   // Campo de texto
                   Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: 'Digite uma mensagem...',
-                        hintStyle: TextStyle(color: Colors.grey[500]),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
+                    child: Container(
+                      constraints: const BoxConstraints(maxHeight: 120),
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: InputDecoration(
+                          hintText: 'Digite uma mensagem...',
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[800],
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[800],
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        style: const TextStyle(color: Colors.white),
+                        minLines: 1,
+                        maxLines: 5,
+                        textCapitalization: TextCapitalization.sentences,
+                        enabled: !_isLoading,
+                        onSubmitted: (_) => _sendMessage(),
+                        onTap: () {
+                          // Scroll para o final quando o campo de texto for tocado
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            _scrollToBottom(animate: true);
+                          });
+                        },
                       ),
-                      style: const TextStyle(color: Colors.white),
-                      minLines: 1,
-                      maxLines: 5,
-                      textCapitalization: TextCapitalization.sentences,
-                      enabled: !_isLoading,
-                      onSubmitted: (_) => _sendMessage(), // Adicionar para enviar com Enter
                     ),
                   ),
                   
@@ -439,12 +484,11 @@ void _showMessageDetails(ChatMessage message) {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-
 
   void _showAttachmentOptions() {
     showModalBottomSheet(
@@ -460,8 +504,7 @@ void _showMessageDetails(ChatMessage message) {
             children: [
               ListTile(
                 leading: const Icon(Icons.image, color: Colors.blue),
-                title:
-                    const Text('Imagem', style: TextStyle(color: Colors.white)),
+                title: const Text('Imagem', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickAndSendImage();
@@ -469,8 +512,7 @@ void _showMessageDetails(ChatMessage message) {
               ),
               ListTile(
                 leading: const Icon(Icons.attach_file, color: Colors.orange),
-                title: const Text('Arquivo',
-                    style: TextStyle(color: Colors.white)),
+                title: const Text('Arquivo', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickAndSendFile();
