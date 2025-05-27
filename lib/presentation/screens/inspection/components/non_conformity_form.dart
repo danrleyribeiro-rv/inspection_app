@@ -228,7 +228,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 ),
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 2),
             SizedBox(
               // Save Button
               width: double.infinity,
@@ -244,6 +244,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                     : const Text('Registrar Não Conformidade'), // Translated
               ),
             ),
+            const SizedBox(height: 10),
           ],
         ),
       ),

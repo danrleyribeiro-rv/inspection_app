@@ -1,9 +1,11 @@
 // lib/presentation/screens/settings/settings_screen.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/services/firebase_auth_service.dart';
+import 'package:inspection_app/services/settings_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:inspection_app/services/cache_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
   final _authService = FirebaseAuthService();
+  final _settingsService = SettingsService();
 
   bool _notificationsEnabled = true;
   bool _locationPermission = true;
@@ -29,19 +32,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final settings = await _settingsService.loadSettings();
     setState(() {
-      _notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
-      _locationPermission = prefs.getBool('locationPermission') ?? true;
-      _cameraPermission = prefs.getBool('cameraPermission') ?? true;
+      _notificationsEnabled = settings['notificationsEnabled'] ?? true;
+      _locationPermission = settings['locationPermission'] ?? true;
+      _cameraPermission = settings['cameraPermission'] ?? true;
     });
   }
 
   Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notificationsEnabled', _notificationsEnabled);
-    await prefs.setBool('locationPermission', _locationPermission);
-    await prefs.setBool('cameraPermission', _cameraPermission);
+    await _settingsService.saveSettings(
+      notificationsEnabled: _notificationsEnabled,
+      locationPermission: _locationPermission,
+      cameraPermission: _cameraPermission,
+    );
   }
 
   Future<void> _signOut() async {
@@ -153,9 +157,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   value: _notificationsEnabled,
                   activeColor: Colors.blue,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() => _notificationsEnabled = value);
-                    _saveSettings();
+                    await _saveSettings();
+                    if (value) {
+                      await Permission.notification.request();
+                    } else {
+                      await openAppSettings();
+                    }
                   },
                 ),
                 _buildSectionHeader('Permissões'),
@@ -167,9 +176,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   value: _locationPermission,
                   activeColor: Colors.blue,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() => _locationPermission = value);
-                    _saveSettings();
+                    await _saveSettings();
+                    if (value) {
+                      await Permission.location.request();
+                    } else {
+                      await openAppSettings();
+                    }
                   },
                 ),
                 SwitchListTile(
@@ -180,9 +194,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   value: _cameraPermission,
                   activeColor: Colors.blue,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() => _cameraPermission = value);
-                    _saveSettings();
+                    await _saveSettings();
+                    if (value) {
+                      await Permission.camera.request();
+                    } else {
+                      await openAppSettings();
+                    }
                   },
                 ),
                 _buildSectionHeader('Armazenamento'),
@@ -193,12 +212,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   leading:
                       const Icon(Icons.cleaning_services, color: Colors.white),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Cache limpo com sucesso'),
-                      ),
-                    );
+                  onTap: () async {
+                    setState(() => _isLoading = true);
+                    try {
+                      await CacheService().clearCache();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Cache limpo com sucesso'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Erro ao limpar cache: $e')),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isLoading = false);
+                    }
                   },
                 ),
                 _buildSectionHeader('Conta'),

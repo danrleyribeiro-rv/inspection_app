@@ -68,7 +68,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     setState(() => _isLoading = true);
 
     try {
-      final topics = await _serviceFactory.coordinator.getTopics(widget.inspectionId);
+      final topics =
+          await _serviceFactory.coordinator.getTopics(widget.inspectionId);
       setState(() => _topics = topics);
 
       if (widget.preSelectedTopic != null) {
@@ -134,228 +135,270 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _loadNonConformities() async {
+    try {
+      final nonConformities = await _serviceFactory.coordinator
+          .getNonConformitiesByInspection(widget.inspectionId);
+
+      if (mounted) {
+        setState(() {
+          _nonConformities = nonConformities;
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar não conformidades: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar não conformidades: $e')),
+        );
+      }
     }
+  }
 
- Future<void> _loadNonConformities() async {
-   try {
-     final nonConformities = await _serviceFactory.coordinator
-         .getNonConformitiesByInspection(widget.inspectionId);
+  Future<void> _topicSelected(Topic topic) async {
+    setState(() {
+      _selectedTopic = topic;
+      _selectedItem = null;
+      _selectedDetail = null;
+      _items = [];
+      _details = [];
+    });
 
-     if (mounted) {
-       setState(() {
-         _nonConformities = nonConformities;
-       });
-     }
-   } catch (e) {
-     print('Erro ao carregar não conformidades: $e');
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro ao carregar não conformidades: $e')),
-       );
-     }
-   }
- }
+    if (topic.id != null) {
+      try {
+        final items = await _serviceFactory.coordinator
+            .getItems(widget.inspectionId, topic.id!);
+        setState(() => _items = items);
+      } catch (e) {
+        print('Erro ao carregar itens: $e');
+      }
+    }
+  }
 
- Future<void> _topicSelected(Topic topic) async {
-   setState(() {
-     _selectedTopic = topic;
-     _selectedItem = null;
-     _selectedDetail = null;
-     _items = [];
-     _details = [];
-   });
+  Future<void> _itemSelected(Item item) async {
+    setState(() {
+      _selectedItem = item;
+      _selectedDetail = null;
+      _details = [];
+    });
 
-   if (topic.id != null) {
-     try {
-       final items = await _serviceFactory.coordinator.getItems(
-           widget.inspectionId, topic.id!);
-       setState(() => _items = items);
-     } catch (e) {
-       print('Erro ao carregar itens: $e');
-     }
-   }
- }
+    if (item.id != null && item.topicId != null) {
+      try {
+        final details = await _serviceFactory.coordinator
+            .getDetails(widget.inspectionId, item.topicId!, item.id!);
+        setState(() => _details = details);
+      } catch (e) {
+        print('Erro ao carregar detalhes: $e');
+      }
+    }
+  }
 
- Future<void> _itemSelected(Item item) async {
-   setState(() {
-     _selectedItem = item;
-     _selectedDetail = null;
-     _details = [];
-   });
+  void _detailSelected(Detail detail) {
+    setState(() => _selectedDetail = detail);
+  }
 
-   if (item.id != null && item.topicId != null) {
-     try {
-       final details = await _serviceFactory.coordinator.getDetails(
-           widget.inspectionId, item.topicId!, item.id!);
-       setState(() => _details = details);
-     } catch (e) {
-       print('Erro ao carregar detalhes: $e');
-     }
-   }
- }
+  Future<void> _updateNonConformityStatus(String id, String newStatus) async {
+    if (_isProcessing) return;
 
- void _detailSelected(Detail detail) {
-   setState(() => _selectedDetail = detail);
- }
+    setState(() => _isProcessing = true);
 
- Future<void> _updateNonConformityStatus(String id, String newStatus) async {
-   if (_isProcessing) return;
+    try {
+      await _serviceFactory.coordinator
+          .updateNonConformityStatus(id, newStatus);
 
-   setState(() => _isProcessing = true);
+      await _loadNonConformities();
 
-   try {
-     await _serviceFactory.coordinator.updateNonConformityStatus(id, newStatus);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Status atualizado com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar status: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
 
-     await _loadNonConformities();
+  Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
+    if (_isProcessing) return;
 
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(
-           content: Text('Status atualizado com sucesso!'),
-           backgroundColor: Colors.green,
-         ),
-       );
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro ao atualizar status: $e')),
-       );
-     }
-   } finally {
-     if (mounted) {
-       setState(() => _isProcessing = false);
-     }
-   }
- }
+    setState(() => _isProcessing = true);
 
- Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
-   if (_isProcessing) return;
+    try {
+      String nonConformityId = updatedData['id'];
+      if (!nonConformityId.contains('-')) {
+        nonConformityId =
+            '${widget.inspectionId}-${updatedData['topic_id']}-${updatedData['item_id']}-${updatedData['detail_id']}-$nonConformityId';
+      }
 
-   setState(() => _isProcessing = true);
+      await _serviceFactory.coordinator
+          .updateNonConformity(nonConformityId, updatedData);
 
-   try {
-     String nonConformityId = updatedData['id'];
-     if (!nonConformityId.contains('-')) {
-       nonConformityId = '${widget.inspectionId}-${updatedData['topic_id']}-${updatedData['item_id']}-${updatedData['detail_id']}-$nonConformityId';
-     }
-     
-     await _serviceFactory.coordinator.updateNonConformity(nonConformityId, updatedData);
+      await _loadNonConformities();
 
-     await _loadNonConformities();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade atualizada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar não conformidade: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
 
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(
-           content: Text('Não conformidade atualizada com sucesso!'),
-           backgroundColor: Colors.green,
-         ),
-       );
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro ao atualizar não conformidade: $e')),
-       );
-     }
-   } finally {
-     if (mounted) {
-       setState(() => _isProcessing = false);
-     }
-   }
- }
+  Future<void> _deleteNonConformity(String id) async {
+    if (_isProcessing) return;
 
- Future<void> _deleteNonConformity(String id) async {
-   if (_isProcessing) return;
+    setState(() => _isProcessing = true);
 
-   setState(() => _isProcessing = true);
+    try {
+      await _serviceFactory.coordinator
+          .deleteNonConformity(id, widget.inspectionId);
 
-   try {
-     await _serviceFactory.coordinator.deleteNonConformity(id, widget.inspectionId);
+      await _loadNonConformities();
 
-     await _loadNonConformities();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade excluída com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir não conformidade: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
 
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(
-           content: Text('Não conformidade excluída com sucesso!'),
-           backgroundColor: Colors.green,
-         ),
-       );
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro ao excluir não conformidade: $e')),
-       );
-     }
-   } finally {
-     if (mounted) {
-       setState(() => _isProcessing = false);
-     }
-   }
- }
+  void _onNonConformitySaved() {
+    _loadNonConformities();
+    _tabController.animateTo(1);
+  }
 
- void _onNonConformitySaved() {
-   _loadNonConformities();
-   _tabController.animateTo(1);
- }
-
- @override
- Widget build(BuildContext context) {
-   return Scaffold(
-     appBar: AppBar(
-       title: const Text('Não Conformidades'),
-       bottom: TabBar(
-         controller: _tabController,
-         tabs: const [
-           Tab(text: 'Nova Não Conformidade'),
-           Tab(text: 'Não Conformidades'),
-         ],
-       ),
-       actions: [
-         if (_isProcessing)
-           const Padding(
-             padding: EdgeInsets.symmetric(horizontal: 16),
-             child: SizedBox(
-               width: 24,
-               height: 24,
-               child: CircularProgressIndicator(
-                 color: Colors.white,
-                 strokeWidth: 2,
-               ),
-             ),
-           ),
-       ],
-     ),
-     body: _isLoading
-         ? const Center(child: CircularProgressIndicator())
-         : TabBarView(
-             controller: _tabController,
-             children: [
-               NonConformityForm(
-                 topics: _topics,
-                 items: _items,
-                 details: _details,
-                 selectedTopic: _selectedTopic,
-                 selectedItem: _selectedItem,
-                 selectedDetail: _selectedDetail,
-                 inspectionId: widget.inspectionId,
-                 isOffline: _isOffline,
-                 onTopicSelected: _topicSelected,
-                 onItemSelected: _itemSelected,
-                 onDetailSelected: _detailSelected,
-                 onNonConformitySaved: _onNonConformitySaved,
-               ),
-               NonConformityList(
-                 nonConformities: _nonConformities,
-                 inspectionId: widget.inspectionId,
-                 onStatusUpdate: _updateNonConformityStatus,
-                 onDeleteNonConformity: _deleteNonConformity,
-                 onEditNonConformity: _updateNonConformity,
-               ),
-             ],
-           ),
-   );
- }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E293B),
+      appBar: AppBar(
+        title: const Text('Não Conformidades'),
+        backgroundColor: const Color(0xFF1E293B),
+        elevation: 0,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                NonConformityForm(
+                  topics: _topics,
+                  items: _items,
+                  details: _details,
+                  selectedTopic: _selectedTopic,
+                  selectedItem: _selectedItem,
+                  selectedDetail: _selectedDetail,
+                  inspectionId: widget.inspectionId,
+                  isOffline: _isOffline,
+                  onTopicSelected: _topicSelected,
+                  onItemSelected: _itemSelected,
+                  onDetailSelected: _detailSelected,
+                  onNonConformitySaved: _onNonConformitySaved,
+                ),
+                NonConformityList(
+                  nonConformities: _nonConformities,
+                  inspectionId: widget.inspectionId,
+                  onStatusUpdate: _updateNonConformityStatus,
+                  onDeleteNonConformity: _deleteNonConformity,
+                  onEditNonConformity: _updateNonConformity,
+                ),
+              ],
+            ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _tabController.index,
+            onTap: (index) {
+              setState(() {
+                _tabController.index = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Colors.grey[400],
+            selectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            unselectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            showUnselectedLabels: true,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.add_box_outlined),
+                label: 'Nova NC',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.list_alt_outlined),
+                label: 'Listagem',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

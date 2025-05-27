@@ -235,7 +235,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: const Text('Editar Perfil'),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -323,7 +323,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                     // Personal data
                     const Text(
-                      'Personal Information',
+                      'Informações Pessoais',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -333,11 +333,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _nameController,
                       decoration: const InputDecoration(
-                        labelText: 'First Name',
+                        labelText: 'Primeiro Nome',
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) => value == null || value.isEmpty
-                          ? 'Required field'
+                          ? 'Campo obrigatório'
                           : null,
                     ),
                     const SizedBox(height: 16),
@@ -348,14 +348,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) => value == null || value.isEmpty
-                          ? 'Required field'
+                          ? 'Campo obrigatório'
                           : null,
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: _selectedProfession,
                       decoration: const InputDecoration(
-                        labelText: 'Profession',
+                        labelText: 'Profissão',
                         border: OutlineInputBorder(),
                       ),
                       items: Constants.professions.map((String value) {
@@ -368,7 +368,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         setState(() => _selectedProfession = newValue);
                       },
                       validator: (value) =>
-                          value == null ? 'Select a profession' : null,
+                          value == null ? 'Selecione uma profissão' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -383,7 +383,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _phoneController,
                       decoration: const InputDecoration(
-                        labelText: 'Phone',
+                        labelText: 'Telefone',
                         border: OutlineInputBorder(),
                         hintText: '(99) 99999-9999',
                       ),
@@ -399,7 +399,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       decoration: const InputDecoration(
                         labelText: 'CNPJ/CPF',
                         border: OutlineInputBorder(),
-                        hintText: 'Enter CNPJ or CPF',
+                        hintText: 'Digite o CNPJ ou CPF',
                       ),
                       keyboardType: TextInputType.number,
                       inputFormatters: [
@@ -481,7 +481,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
 
                     // Save button
                     SizedBox(

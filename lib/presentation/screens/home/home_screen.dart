@@ -22,8 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<int>? _unreadCountSubscription;
   int _unreadMessagesCount = 0;
 
-
-
   final List<Widget> _tabs = [
     const InspectionsTab(),
     const ChatsScreen(),
@@ -40,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _unreadCountSubscription?.cancel(); 
+    _unreadCountSubscription?.cancel();
     super.dispose();
   }
 
@@ -53,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-    void _loadUnreadMessagesCount() async {
+  void _loadUnreadMessagesCount() async {
     try {
       final count = await _chatService.getUnreadMessagesCount();
       if (mounted) {
@@ -66,8 +64,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-    void _setupUnreadMessagesListener() {
-    _unreadCountSubscription = _chatService.getUnreadMessagesCountStream().listen((count) {
+  void _setupUnreadMessagesListener() {
+    _unreadCountSubscription =
+        _chatService.getUnreadMessagesCountStream().listen((count) {
       if (mounted) {
         setState(() {
           _unreadMessagesCount = count;
@@ -80,60 +79,126 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _tabs[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: Colors.grey,
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.check_box),
-            label: 'Inspeções',
-          ),
-          BottomNavigationBarItem(
-            icon: Stack(
-              children: [
-                const Icon(Icons.chat),
-                if (_unreadMessagesCount > 0)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        _unreadMessagesCount > 99 ? '99+' : _unreadMessagesCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              offset: const Offset(0, -4),
             ),
-            label: 'Conversas',
+          ],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(23),
+            topRight: Radius.circular(24),
           ),
-        ],
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Colors.grey[400],
+            selectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            unselectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            showUnselectedLabels: true,
+            items: [
+              BottomNavigationBarItem(
+                icon: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: _currentIndex == 0
+                      ? BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        )
+                      : null,
+                  child: const Icon(Icons.check_box),
+                ),
+                label: 'Inspeções',
+              ),
+              BottomNavigationBarItem(
+                icon: Stack(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: _currentIndex == 1
+                          ? BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            )
+                          : null,
+                      child: const Icon(Icons.chat),
+                    ),
+                    if (_unreadMessagesCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            _unreadMessagesCount > 99
+                                ? '99+'
+                                : _unreadMessagesCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                label: 'Conversas',
+              ),
+              BottomNavigationBarItem(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: _currentIndex == 2
+                      ? BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        )
+                      : null,
+                  child: const Icon(Icons.person),
+                ),
+                label: 'Perfil',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

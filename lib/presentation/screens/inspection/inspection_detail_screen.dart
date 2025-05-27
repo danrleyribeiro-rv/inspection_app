@@ -789,16 +789,21 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ),
         if (!_isLoading && _topics.isNotEmpty)
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+            margin: const EdgeInsets.only(top: 2),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.grey[850],
+              color: Colors.grey[900],
               boxShadow: [
                 BoxShadow(
                   color: Colors.black26,
-                  blurRadius: 4,
+                  blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),
               ],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -851,24 +856,29 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.zero,
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
                 color: color,
-                size: 26,
+                size: 28,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,
               ),
