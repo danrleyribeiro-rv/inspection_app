@@ -101,8 +101,10 @@ class Inspection {
       templateId: templateId ?? this.templateId,
       lastCheckpointAt: lastCheckpointAt ?? this.lastCheckpointAt,
       lastCheckpointBy: lastCheckpointBy ?? this.lastCheckpointBy,
-      lastCheckpointMessage: lastCheckpointMessage ?? this.lastCheckpointMessage,
-      lastCheckpointCompletion: lastCheckpointCompletion ?? this.lastCheckpointCompletion,
+      lastCheckpointMessage:
+          lastCheckpointMessage ?? this.lastCheckpointMessage,
+      lastCheckpointCompletion:
+          lastCheckpointCompletion ?? this.lastCheckpointCompletion,
       topics: topics ?? this.topics,
     );
   }
@@ -186,7 +188,9 @@ class Inspection {
       state: json['state'],
       zipCode: json['zip_code'],
       addressString: json['address_string'],
-      address: json['address'] is Map ? Map<String, dynamic>.from(json['address']) : null,
+      address: json['address'] is Map
+          ? Map<String, dynamic>.from(json['address'])
+          : null,
       status: json['status'] ?? 'pending',
       observation: json['observation'],
       scheduledDate: _parseDateTime(json['scheduled_date']),
@@ -207,7 +211,8 @@ class Inspection {
     );
   }
 
-  static Inspection fromMap(Map<String, dynamic> map) => Inspection.fromJson(map);
+  static Inspection fromMap(Map<String, dynamic> map) =>
+      Inspection.fromJson(map);
 
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
@@ -216,10 +221,26 @@ class Inspection {
       return value;
     } else if (value is String) {
       return DateTime.parse(value);
-    } else if (value is Map && value['_seconds'] != null && value['_nanoseconds'] != null) {
+    } else if (value is Map<String, dynamic>) {
       try {
-        int seconds = value['_seconds'];
-        int nanoseconds = value['_nanoseconds'];
+        int seconds;
+        int nanoseconds;
+
+        // Handle new Firestore Timestamp format
+        if (value.containsKey('seconds') && value.containsKey('nanoseconds')) {
+          seconds = value['seconds'] as int;
+          nanoseconds = value['nanoseconds'] as int;
+        }
+        // Handle legacy format
+        else if (value.containsKey('_seconds') &&
+            value.containsKey('_nanoseconds')) {
+          seconds = value['_seconds'] as int;
+          nanoseconds = value['_nanoseconds'] as int;
+        } else {
+          print('Invalid Timestamp map format');
+          return null;
+        }
+
         return DateTime.fromMillisecondsSinceEpoch(
           seconds * 1000 + (nanoseconds / 1000000).round(),
         );
@@ -227,13 +248,22 @@ class Inspection {
         print('Error parsing Firestore timestamp: $e');
         return null;
       }
-    } else {
+    } else if (value.runtimeType.toString().contains('Timestamp')) {
       try {
-        return value.toDate();
+        // Use dynamic invocation for Timestamp.toDate()
+        final toDateMethod = (value as dynamic).toDate;
+        if (toDateMethod != null) {
+          return toDateMethod();
+        }
+        print('Invalid Timestamp object: missing toDate method');
+        return null;
       } catch (e) {
-        print('Error parsing unknown datetime format: $e');
+        print('Error parsing Timestamp object: $e');
         return null;
       }
+    } else {
+      print('Unsupported datetime format: ${value.runtimeType}');
+      return null;
     }
   }
 }

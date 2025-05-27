@@ -29,12 +29,12 @@ class ChatMessage {
     List<String>? readBy,
     List<String>? receivedBy,
     this.readByTimestamp, // Adicionar aqui
-  }) : readBy = readBy ?? [],
-       receivedBy = receivedBy ?? [];
+  })  : readBy = readBy ?? [],
+        receivedBy = receivedBy ?? [];
 
   factory ChatMessage.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return ChatMessage(
       id: doc.id,
       chatId: data['chat_id'] ?? '',
@@ -46,15 +46,56 @@ class ChatMessage {
       fileName: data['file_name'],
       fileSize: data['file_size'],
       readBy: data['read_by'] != null ? List<String>.from(data['read_by']) : [],
-      receivedBy: data['received_by'] != null ? List<String>.from(data['received_by']) : [],
-      readByTimestamp: _parseTimestamp(data['read_by_timestamp']), 
+      receivedBy: data['received_by'] != null
+          ? List<String>.from(data['received_by'])
+          : [],
+      readByTimestamp: _parseTimestamp(data['read_by_timestamp']),
     );
   }
 
   static DateTime? _parseTimestamp(dynamic timestamp) {
     if (timestamp == null) return null;
-    if (timestamp is Timestamp) return timestamp.toDate();
-    if (timestamp is String) return DateTime.parse(timestamp);
+
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    } else if (timestamp is String) {
+      return DateTime.parse(timestamp);
+    } else if (timestamp is Map<String, dynamic>) {
+      try {
+        int seconds;
+        int nanoseconds;
+
+        // Handle new Firestore Timestamp format
+        if (timestamp.containsKey('seconds') &&
+            timestamp.containsKey('nanoseconds')) {
+          seconds = timestamp['seconds'] as int;
+          nanoseconds = timestamp['nanoseconds'] as int;
+        }
+        // Handle legacy format
+        else if (timestamp.containsKey('_seconds') &&
+            timestamp.containsKey('_nanoseconds')) {
+          seconds = timestamp['_seconds'] as int;
+          nanoseconds = timestamp['_nanoseconds'] as int;
+        } else {
+          return null;
+        }
+
+        return DateTime.fromMillisecondsSinceEpoch(
+          seconds * 1000 + (nanoseconds / 1000000).round(),
+        );
+      } catch (e) {
+        print('Error parsing Firestore timestamp map: $e');
+        return null;
+      }
+    } else if (timestamp.runtimeType.toString().contains('Timestamp')) {
+      try {
+        final toDateMethod = (timestamp as dynamic).toDate;
+        return toDateMethod?.call();
+      } catch (e) {
+        print('Error parsing Timestamp object: $e');
+        return null;
+      }
+    }
     return null;
   }
 
@@ -75,7 +116,7 @@ class ChatMessage {
 
   String getFormattedFileSize() {
     if (fileSize == null) return '';
-    
+
     if (fileSize! < 1024) {
       return '$fileSize B';
     } else if (fileSize! < 1024 * 1024) {

@@ -153,10 +153,10 @@ class NonConformityList extends StatelessWidget {
     final ncIndex = int.tryParse(parts[4].replaceFirst('nc_', ''));
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 8),
       color: cardColor,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -166,27 +166,30 @@ class NonConformityList extends StatelessWidget {
                 // Status chip
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: statusColor),
                   ),
                   child: Text(
                     statusText,
                     style: TextStyle(
-                        color: statusColor, fontWeight: FontWeight.bold),
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
 
                 // Severity chip
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     color: _getSeverityColor(item['severity']).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                     border:
                         Border.all(color: _getSeverityColor(item['severity'])),
                   ),
@@ -195,6 +198,7 @@ class NonConformityList extends StatelessWidget {
                     style: TextStyle(
                       color: _getSeverityColor(item['severity']),
                       fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -203,7 +207,7 @@ class NonConformityList extends StatelessWidget {
 
                 // Edit button
                 IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
+                  icon: const Icon(Icons.edit, size: 18),
                   color: Colors.blue,
                   onPressed: () => _showEditDialog(context, item),
                   tooltip: 'Editar não conformidade',
@@ -212,7 +216,7 @@ class NonConformityList extends StatelessWidget {
 
                 // Delete button
                 IconButton(
-                  icon: const Icon(Icons.delete, size: 20),
+                  icon: const Icon(Icons.delete, size: 18),
                   color: Colors.red,
                   onPressed: () => _confirmDelete(context, item),
                   tooltip: 'Excluir não conformidade',
@@ -220,54 +224,87 @@ class NonConformityList extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // Location
             Text(
               'Localização:',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+                fontSize: 13,
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
-                '${topic['topic_name'] ?? "N/A"} > ${topicItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-            const SizedBox(height: 16),
+              '${topic['topic_name'] ?? "N/A"} > ${topicItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 10),
 
             // Description
             Text(
               'Descrição:',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+                fontSize: 13,
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(item['description'] ?? "Sem descrição",
-                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            const SizedBox(height: 3),
+            Text(
+              item['description'] ?? "Sem descrição",
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 11,
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Corrective action if available
             if (item['corrective_action'] != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text(
                 'Ação Corretiva:',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                  fontSize: 13,
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(item['corrective_action']),
+              const SizedBox(height: 3),
+              Text(
+                item['corrective_action'],
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 11,
+                ),
+              ),
             ],
 
             // Deadline if available
             if (item['deadline'] != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text(
                 'Prazo:',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                  fontSize: 13,
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(DateFormat('dd/MM/yyyy')
-                  .format(DateTime.parse(item['deadline']))),
+              const SizedBox(height: 3),
+              Text(
+                DateFormat('dd/MM/yyyy')
+                    .format(DateTime.parse(item['deadline'])),
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 11,
+                ),
+              ),
             ],
 
             const SizedBox(height: 16),

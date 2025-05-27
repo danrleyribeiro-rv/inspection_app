@@ -212,32 +212,50 @@ class InspectionCard extends StatelessWidget {
   }
 
   String _formatDate(dynamic dateValue) {
-    // ... (implementation unchanged) ...
     if (dateValue == null) return 'Data não definida';
 
     try {
       DateTime date;
-      if (dateValue is Map && dateValue.containsKey('_seconds')) {
-        // Handle Firestore Timestamp Map
-        final seconds = dateValue['_seconds'] as int;
-        final nanoseconds = dateValue['_nanoseconds'] as int? ?? 0;
-        date = DateTime.fromMillisecondsSinceEpoch(
-          seconds * 1000 + (nanoseconds / 1000000).round(),
-          isUtc: false, // Assuming local time, adjust if needed
-        ).toLocal();
+      if (dateValue is Map<String, dynamic>) {
+        // Handle Firestore Timestamp Map format
+        if (dateValue.containsKey('seconds') &&
+            dateValue.containsKey('nanoseconds')) {
+          // New Firestore Timestamp format
+          final seconds = dateValue['seconds'] as int;
+          final nanoseconds = dateValue['nanoseconds'] as int;
+          date = DateTime.fromMillisecondsSinceEpoch(
+            seconds * 1000 + (nanoseconds / 1000000).round(),
+          ).toLocal();
+        } else if (dateValue.containsKey('_seconds')) {
+          // Legacy format support
+          final seconds = dateValue['_seconds'] as int;
+          final nanoseconds = dateValue['_nanoseconds'] as int? ?? 0;
+          date = DateTime.fromMillisecondsSinceEpoch(
+            seconds * 1000 + (nanoseconds / 1000000).round(),
+          ).toLocal();
+        } else {
+          log('[_formatDate] Invalid Timestamp map format: $dateValue');
+          return 'Data inválida (Formato)';
+        }
       } else if (dateValue is int) {
         // Handle timestamp as int (milliseconds)
         date = DateTime.fromMillisecondsSinceEpoch(dateValue).toLocal();
       } else if (dateValue is String) {
         // Handle ISO 8601 String
         date = DateTime.parse(dateValue).toLocal();
-      } else if (dateValue.runtimeType.toString() == 'Timestamp') {
-        // Basic check for actual Timestamp
+      } else if (dateValue.runtimeType.toString().contains('Timestamp')) {
         // Handle actual Firestore Timestamp object
         try {
-          date = dateValue.toDate().toLocal();
-        } catch (_) {
-          log('[_formatDate] Error calling toDate() on presumed Timestamp: $dateValue');
+          // Use dynamic invocation for Timestamp.toDate()
+          final toDateMethod = (dateValue as dynamic).toDate;
+          if (toDateMethod != null) {
+            date = toDateMethod().toLocal();
+          } else {
+            throw Exception('Invalid Timestamp object: missing toDate method');
+          }
+        } catch (e) {
+          log('[_formatDate] Error calling toDate() on Timestamp: $dateValue',
+              error: e);
           return 'Data inválida (TS)';
         }
       } else {
@@ -245,8 +263,8 @@ class InspectionCard extends StatelessWidget {
         return 'Data inválida (Tipo)';
       }
 
-      // Format to Brazilian standard
-      return DateFormat('dd/MM/yyyy HH:mm').format(date); // Added time
+      // Format to Brazilian standard with time
+      return DateFormat('dd/MM/yyyy HH:mm').format(date);
     } catch (e, s) {
       log('[_formatDate] Error formatting date: $dateValue',
           error: e, stackTrace: s);

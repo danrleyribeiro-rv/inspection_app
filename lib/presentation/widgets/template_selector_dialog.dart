@@ -362,8 +362,8 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
                           : null,
                       onTap: () {
                         Navigator.of(context).pop({
-                          ...template,
-                          _isCustom: false,
+                          ...Map<String, dynamic>.from(template),
+                          'isCustom': false,
                         });
                       },
                     );
@@ -388,7 +388,7 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
                 );
                 return;
               }
-              Navigator.of(context).pop({
+              Navigator.of(context).pop(<String, dynamic>{
                 'name': _nameController.text,
                 'value': _valueController.text.isEmpty
                     ? null

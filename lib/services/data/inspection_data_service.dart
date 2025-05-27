@@ -86,23 +86,20 @@ class InspectionDataService {
     );
   }
 
-  Future<void> updateTopic(Topic updatedTopic) async {
-    final inspection = await getInspection(updatedTopic.inspectionId);
-    if (inspection?.topics != null) {
-      final topicIndex =
-          int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
-      if (topicIndex != null && topicIndex < inspection!.topics!.length) {
-        final currentTopicData =
-            Map<String, dynamic>.from(inspection.topics![topicIndex]);
-        currentTopicData['name'] = updatedTopic.topicName;
-        currentTopicData['description'] = updatedTopic.topicLabel;
-        currentTopicData['observation'] = updatedTopic.observation;
+Future<void> updateTopic(Topic updatedTopic) async {
+  final inspection = await getInspection(updatedTopic.inspectionId);
+  if (inspection?.topics != null) {
+    final topicIndex = int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
+    if (topicIndex != null && topicIndex < inspection!.topics!.length) {
+      final currentTopicData = Map<String, dynamic>.from(inspection.topics![topicIndex]);
+      currentTopicData['name'] = updatedTopic.topicName; // Certifique-se que está salvando o nome
+      currentTopicData['description'] = updatedTopic.topicLabel;
+      currentTopicData['observation'] = updatedTopic.observation;
 
-        await _updateTopicAtIndex(
-            updatedTopic.inspectionId, topicIndex, currentTopicData);
-      }
+      await _updateTopicAtIndex(updatedTopic.inspectionId, topicIndex, currentTopicData);
     }
   }
+}
 
   Future<void> deleteTopic(String inspectionId, String topicId) async {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));

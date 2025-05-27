@@ -63,16 +63,15 @@ class MyApp extends StatelessWidget {
    return MaterialApp(
      title: 'Inspection App',
      debugShowCheckedModeBanner: false,
-     theme: ThemeData(
-       primaryColor: Colors.blue,
-       scaffoldBackgroundColor:
-           const Color(0xFF1E293B), // Slate background color
-       colorScheme: const ColorScheme.dark(
-         primary: Colors.blue,
-         secondary: Colors.orange,
-         surface: Color(0xFF1E293B),
-         error: Colors.red,
-       ),
+      theme: ThemeData(
+        primaryColor: Colors.blue,
+        scaffoldBackgroundColor: const Color(0xFF1E293B),
+        colorScheme: const ColorScheme.dark(
+          primary: Colors.blue,
+          secondary: Colors.orange,
+          surface: Color(0xFF1E293B),
+          error: Colors.red,
+        ),
        appBarTheme: const AppBarTheme(
          backgroundColor: Color(0xFF1E293B),
          foregroundColor: Colors.white,
@@ -110,7 +109,7 @@ class MyApp extends StatelessWidget {
            borderRadius: BorderRadius.circular(8),
          ),
        ),
-       fontFamily: 'Roboto',
+       fontFamily: 'Inter',
        dividerTheme: DividerThemeData(
          color: Colors.grey[700],
        ),

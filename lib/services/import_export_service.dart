@@ -10,50 +10,58 @@ import 'package:intl/intl.dart';
 class ImportExportService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<String> exportInspection(String inspectionId) async {
-    try {
-      // Get the complete inspection document
-      final inspection = await _firestore.collection('inspections').doc(inspectionId).get();
+// lib/services/import_export_service.dart
+Future<String> exportInspection(String inspectionId) async {
+  try {
+    final inspection = await _firestore.collection('inspections').doc(inspectionId).get();
 
-      if (!inspection.exists) {
-        throw Exception('Inspection not found');
-      }
-
-      // Get the inspection data with all nested structure
-      final Map<String, dynamic> inspectionData = inspection.data() ?? {};
-      inspectionData['id'] = inspectionId;
-
-      // Convert to JSON
-      final String jsonContent = json.encode(inspectionData);
-
-      // Get storage permission
-      if (Platform.isAndroid) {
-        final status = await Permission.storage.request();
-        if (!status.isGranted) {
-          throw Exception('Storage permission not granted');
-        }
-      }
-
-      // Get directory for saving file
-      final directory = await getExternalStorageDirectory() ??
-          await getApplicationDocumentsDirectory();
-
-      // Format the timestamp for the filename
-      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-
-      // Generate a filename
-      final fileName = 'inspection_${inspectionId}_$timestamp.json';
-      final filePath = '${directory.path}/$fileName';
-
-      // Write to file
-      final file = File(filePath);
-      await file.writeAsString(jsonContent);
-
-      return filePath;
-    } catch (e) {
-      throw Exception('Failed to export inspection: $e');
+    if (!inspection.exists) {
+      throw Exception('Inspection not found');
     }
+
+    Map<String, dynamic> inspectionData = inspection.data() ?? {};
+    inspectionData['id'] = inspectionId;
+
+    // Converter Timestamps para strings
+    inspectionData = _convertTimestampsToStrings(inspectionData);
+
+    final String jsonContent = json.encode(inspectionData);
+
+    if (Platform.isAndroid) {
+      final status = await Permission.storage.request();
+      if (!status.isGranted) {
+        throw Exception('Storage permission not granted');
+      }
+    }
+
+    final directory = await getExternalStorageDirectory() ??
+        await getApplicationDocumentsDirectory();
+
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = 'inspection_${inspectionId}_$timestamp.json';
+    final filePath = '${directory.path}/$fileName';
+
+    final file = File(filePath);
+    await file.writeAsString(jsonContent);
+
+    return filePath;
+  } catch (e) {
+    throw Exception('Failed to export inspection: $e');
   }
+}
+
+// Método corrigido para retornar dynamic
+dynamic _convertTimestampsToStrings(dynamic data) {
+  if (data is Map<String, dynamic>) {
+    return data.map((key, value) => MapEntry(key, _convertTimestampsToStrings(value)));
+  } else if (data is List) {
+    return data.map((item) => _convertTimestampsToStrings(item)).toList();
+  } else if (data is Timestamp) {
+    return data.toDate().toIso8601String();
+  } else {
+    return data;
+  }
+}
 
   Future<bool> importInspection(String inspectionId, Map<String, dynamic> jsonData) async {
     try {

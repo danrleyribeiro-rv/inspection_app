@@ -49,27 +49,27 @@ class _TopicsListState extends State<TopicsList> {
    }
  }
 
- @override
- Widget build(BuildContext context) {
-   return ReorderableListView.builder(
-     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-     itemCount: _localTopics.length,
-     onReorder: _onReorder,
-     itemBuilder: (context, index) {
-       final topic = _localTopics[index];
+@override
+Widget build(BuildContext context) {
+  return ReorderableListView.builder(
+    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0), // Reduzido de 8 para 4
+    itemCount: _localTopics.length,
+    onReorder: _onReorder,
+    itemBuilder: (context, index) {
+      final topic = _localTopics[index];
 
-       return TopicWidget(
-         key: ValueKey(topic.id),
-         topic: topic,
-         onTopicUpdated: widget.onTopicUpdated,
-         onTopicDeleted: widget.onTopicDeleted,
-         onTopicDuplicated: widget.onTopicDuplicated,
-         isExpanded: index == widget.expandedTopicIndex,
-         onExpansionChanged: () => widget.onExpansionChanged(index),
-       );
-     },
-   );
- }
+      return TopicWidget(
+        key: ValueKey(topic.id),
+        topic: topic,
+        onTopicUpdated: widget.onTopicUpdated,
+        onTopicDeleted: widget.onTopicDeleted,
+        onTopicDuplicated: widget.onTopicDuplicated,
+        isExpanded: index == widget.expandedTopicIndex,
+        onExpansionChanged: () => widget.onExpansionChanged(index),
+      );
+    },
+  );
+}
 
  void _onReorder(int oldIndex, int newIndex) async {
    if (_isReordering) return;

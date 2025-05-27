@@ -278,25 +278,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _openInspectionChat() async {
-  try {
-    final chatService = ChatService();
-    final chatId = await chatService.createOrGetChat(widget.inspectionId);
-    
-    if (mounted) {
-      Navigator.pushNamed(
-        context,
-        '/chat-detail',
-        arguments: {'chatId': chatId},
-      );
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao abrir chat: $e')),
-      );
+    try {
+      final chatService = ChatService();
+      final chatId = await chatService.createOrGetChat(widget.inspectionId);
+
+      if (mounted) {
+        Navigator.pushNamed(
+          context,
+          '/chat-detail',
+          arguments: {'chatId': chatId},
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao abrir chat: $e')),
+        );
+      }
     }
   }
-}
 
   Future<void> _loadTopics() async {
     if (_inspection?.id == null) {
@@ -787,10 +787,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   ),
           ),
         ),
-        const SizedBox(height: 2),
         if (!_isLoading && _topics.isNotEmpty)
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.grey[850],
               boxShadow: [
@@ -855,21 +854,21 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         borderRadius: BorderRadius.zero,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
                 color: color,
-                size: 30,
+                size: 26,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 12,
+                  fontSize: 11,
                 ),
                 textAlign: TextAlign.center,
               ),
