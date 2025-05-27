@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
-import 'package:uuid/uuid.dart';
 import 'package:inspection_app/models/chat.dart';
 import 'package:inspection_app/models/chat_message.dart';
 
@@ -170,7 +169,6 @@ class ChatService {
     
     try {
       final fileName = path.basename(file.path);
-      final uniqueId = const Uuid().v4();
       final storagePath = 'chats/$chatId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
       
       final storageRef = _storage.ref().child(storagePath);

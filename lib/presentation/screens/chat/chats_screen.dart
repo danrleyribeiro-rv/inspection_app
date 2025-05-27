@@ -17,7 +17,6 @@ class ChatsScreen extends StatefulWidget {
 
 class _ChatsScreenState extends State<ChatsScreen> {
   final ChatService _chatService = ChatService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   String _searchQuery = '';
   List<Chat> _allChats = [];
   List<Chat> _filteredChats = [];

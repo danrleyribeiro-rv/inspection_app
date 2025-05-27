@@ -54,9 +54,9 @@ class ChatMessageItem extends StatelessWidget {
 
     // Indicador de status
     IconData? statusIcon;
-    if (message.readBy != null && message.readBy!.isNotEmpty) {
+    if (message.readBy.isNotEmpty) {
       statusIcon = Icons.done_all;
-    } else if (message.receivedBy != null && message.receivedBy!.isNotEmpty) {
+    } else if (message.receivedBy.isNotEmpty) {
       statusIcon = Icons.done;
     } else {
       statusIcon = Icons.schedule;
@@ -139,7 +139,7 @@ class ChatMessageItem extends StatelessWidget {
                         statusIcon,
                         size: 12,
                         color:
-                            message.readBy != null && message.readBy!.isNotEmpty
+                            message.readBy.isNotEmpty
                                 ? Colors.blue[300]
                                 : Colors.white70,
                       ),
@@ -210,9 +210,9 @@ class ChatMessageItem extends StatelessWidget {
                         statusIcon,
                         size: 12,
                         color:
-                            message.readBy != null && message.readBy!.isNotEmpty
-                                ? Colors.blue[300]
-                                : Colors.white70,
+                          message.readBy.isNotEmpty
+                              ? Colors.blue[300]
+                              : Colors.white70,
                       ),
                     ],
                   ],
@@ -303,7 +303,7 @@ class ChatMessageItem extends StatelessWidget {
                         statusIcon,
                         size: 12,
                         color:
-                            message.readBy != null && message.readBy!.isNotEmpty
+                            message.readBy.isNotEmpty
                                 ? Colors.blue[300]
                                 : Colors.white70,
                       ),
@@ -363,7 +363,7 @@ class ChatMessageItem extends StatelessWidget {
                       statusIcon,
                       size: 12,
                       color:
-                          message.readBy != null && message.readBy!.isNotEmpty
+                          message.readBy.isNotEmpty
                               ? Colors.blue[300]
                               : Colors.white70,
                     ),

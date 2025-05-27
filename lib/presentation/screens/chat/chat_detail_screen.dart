@@ -33,7 +33,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   bool _isLoading = false;
   String _currentUserId = '';
   List<ChatMessage> _messages = [];
-  bool _hasScrolledToBottom = false;
   StreamSubscription<List<ChatMessage>>? _messagesSubscription;
   bool _isFirstLoad = true;
   bool _keyboardVisible = false;

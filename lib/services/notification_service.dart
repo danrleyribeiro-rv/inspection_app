@@ -14,7 +14,7 @@ class NotificationService {
     return _chatService.getUserChats().map((chats) {
       int totalUnread = 0;
       for (final chat in chats) {
-        totalUnread += chat.unreadCount ?? 0;
+        totalUnread += chat.unreadCount;
       }
       return totalUnread;
     });
