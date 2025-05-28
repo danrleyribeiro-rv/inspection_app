@@ -6,7 +6,7 @@ import 'package:brasil_fields/brasil_fields.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:inspection_app/utils/constants.dart';
-import 'package:inspection_app/services/auth_service.dart';
+import 'package:inspection_app/services/firebase_auth_service.dart';
 import 'package:cpf_cnpj_validator/cpf_validator.dart' as cpf_validator;
 import 'package:cpf_cnpj_validator/cnpj_validator.dart' as cnpj_validator;
 
@@ -33,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _stateController = TextEditingController();
 
   String? _selectedProfession; // For profession dropdown
-  final _authService = AuthService();
+  final _authService = FirebaseAuthService();
   bool _isLoading = false;
 
   Future<void> _fetchCepData(String cep) async {

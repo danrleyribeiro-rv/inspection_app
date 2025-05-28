@@ -1,7 +1,7 @@
 // lib/presentation/screens/auth/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:inspection_app/services/auth_service.dart';
+import 'package:inspection_app/services/firebase_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _authService = FirebaseAuthService();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
 
