@@ -1,6 +1,6 @@
 // lib/presentation/widgets/checkpoint_history_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/inspection_checkpoint_service.dart';
+import 'package:inspection_app/services/features/checkpoint_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CheckpointHistoryDialog extends StatefulWidget {
@@ -19,7 +19,7 @@ class CheckpointHistoryDialog extends StatefulWidget {
 }
 
 class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
-  final _checkpointService = InspectionCheckpointService();
+  final _checkpointService = CheckpointService();
   final _firestore = FirebaseFirestore.instance;
 
   bool _isLoading = true;

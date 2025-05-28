@@ -1,6 +1,6 @@
 // lib/presentation/widgets/create_checkpoint_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/inspection_checkpoint_service.dart';
+import 'package:inspection_app/services/features/checkpoint_service.dart';
 
 class CreateCheckpointDialog extends StatefulWidget {
   final String inspectionId;
@@ -17,7 +17,7 @@ class CreateCheckpointDialog extends StatefulWidget {
 }
 
 class _CreateCheckpointDialogState extends State<CreateCheckpointDialog> {
-  final _checkpointService = InspectionCheckpointService();
+  final _checkpointService = CheckpointService();
   final _messageController = TextEditingController();
   bool _isCreating = false;
 

@@ -1,6 +1,5 @@
-// lib/presentation/widgets/chat_notification_badge.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/notification_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class ChatNotificationBadge extends StatelessWidget {
   final Widget child;
@@ -13,7 +12,7 @@ class ChatNotificationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<int>(
-      stream: NotificationService().unreadMessagesStream,
+      stream: ServiceFactory().notificationService.unreadMessagesStream,
       builder: (context, snapshot) {
         final unreadCount = snapshot.data ?? 0;
         

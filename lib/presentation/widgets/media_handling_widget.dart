@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/data/inspection_data_service.dart';
-import 'package:inspection_app/services/image_watermark_service.dart';
+import 'package:inspection_app/services/features/media_service.dart';
+import 'package:inspection_app/services/features/watermark_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -36,7 +36,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   final InspectionDataService _inspectionService = InspectionDataService();
   final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
-  final _watermarkService = ImageWatermarkService();
+  final _watermarkService = WatermarkService();
   final _connectivity = Connectivity();
 
   List<Map<String, dynamic>> _mediaItems = [];

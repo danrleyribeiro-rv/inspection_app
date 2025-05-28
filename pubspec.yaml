@@ -71,6 +71,7 @@ dependencies:
   hive_flutter: ^1.1.0
   hive_generator: ^2.0.1
   firebase_messaging: ^15.2.6
+  image: ^4.5.4
 
 dev_dependencies:
   flutter_test:

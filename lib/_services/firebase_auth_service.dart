@@ -111,19 +111,7 @@ class FirebaseAuthService {
     }
   }
 
-  // Check if a user is an inspector
-  Future<bool> isUserInspector(String userId) async {
-    return await checkUserRole(userId, 'inspector');
-  }
 
-  // Sign out
-  Future<void> signOut() async {
-    try {
-      await _auth.signOut();
-    } catch (e) {
-      rethrow;
-    }
-  }
 
   // Reset password
   Future<void> resetPassword(String email) async {

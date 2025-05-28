@@ -1,7 +1,7 @@
 // lib/presentation/widgets/checkpoint_restore_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:inspection_app/services/inspection_checkpoint_service.dart';
+import 'package:inspection_app/services/features/checkpoint_service.dart';
 
 class CheckpointRestoreDialog extends StatelessWidget {
   final InspectionCheckpoint checkpoint;

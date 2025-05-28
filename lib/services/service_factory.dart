@@ -1,10 +1,17 @@
-import 'package:inspection_app/services/inspection_service_coordinator.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/services/offline_inspection_service.dart';
-import 'package:inspection_app/services/import_export_service.dart';
-import 'package:inspection_app/services/checkpoint_dialog_service.dart';
-import 'package:inspection_app/services/inspection_checkpoint_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:inspection_app/services/inspection_coordinator.dart';
+import 'package:inspection_app/services/core/auth_service.dart';
+import 'package:inspection_app/services/features/chat_service.dart';
+import 'package:inspection_app/services/features/media_service.dart';
+import 'package:inspection_app/services/features/checkpoint_service.dart';
+import 'package:inspection_app/services/features/template_service.dart';
+import 'package:inspection_app/services/utils/cache_service.dart';
+import 'package:inspection_app/services/utils/settings_service.dart';
+import 'package:inspection_app/services/utils/sync_service.dart';
+import 'package:inspection_app/services/utils/notification_service.dart';
+import 'package:inspection_app/services/utils/import_export_service.dart';
+import 'package:inspection_app/services/features/watermark_service.dart';
+
 
 class ServiceFactory {
   static final ServiceFactory _instance = ServiceFactory._internal();
@@ -12,26 +19,68 @@ class ServiceFactory {
   ServiceFactory._internal();
 
   // Singletons
-  InspectionServiceCoordinator? _coordinator;
-  FirebaseInspectionService? _firebaseService;
-  OfflineInspectionService? _offlineService;
+  InspectionCoordinator? _coordinator;
+  AuthService? _authService;
+  ChatService? _chatService;
+  MediaService? _mediaService;
+  CheckpointService? _checkpointService;
+  TemplateService? _templateService;
+  CacheService? _cacheService;
+  SettingsService? _settingsService;
+  SyncService? _syncService;
+  NotificationService? _notificationService;
   ImportExportService? _importExportService;
-  InspectionCheckpointService? _checkpointService;
+  WatermarkService? _watermarkService;
 
   // Get services (singleton pattern)
-  InspectionServiceCoordinator get coordinator {
-    _coordinator ??= InspectionServiceCoordinator();
+  InspectionCoordinator get coordinator {
+    _coordinator ??= InspectionCoordinator();
     return _coordinator!;
   }
 
-  FirebaseInspectionService get firebaseService {
-    _firebaseService ??= FirebaseInspectionService();
-    return _firebaseService!;
+  AuthService get authService {
+    _authService ??= AuthService();
+    return _authService!;
   }
 
-  OfflineInspectionService get offlineService {
-    _offlineService ??= OfflineInspectionService();
-    return _offlineService!;
+  ChatService get chatService {
+    _chatService ??= ChatService();
+    return _chatService!;
+  }
+
+  MediaService get mediaService {
+    _mediaService ??= MediaService();
+    return _mediaService!;
+  }
+
+  CheckpointService get checkpointService {
+    _checkpointService ??= CheckpointService();
+    return _checkpointService!;
+  }
+
+  TemplateService get templateService {
+    _templateService ??= TemplateService();
+    return _templateService!;
+  }
+
+  CacheService get cacheService {
+    _cacheService ??= CacheService();
+    return _cacheService!;
+  }
+
+  SettingsService get settingsService {
+    _settingsService ??= SettingsService();
+    return _settingsService!;
+  }
+
+  SyncService get syncService {
+    _syncService ??= SyncService();
+    return _syncService!;
+  }
+
+  NotificationService get notificationService {
+    _notificationService ??= NotificationService();
+    return _notificationService!;
   }
 
   ImportExportService get importExportService {
@@ -39,31 +88,20 @@ class ServiceFactory {
     return _importExportService!;
   }
 
-  InspectionCheckpointService get checkpointService {
-    _checkpointService ??= InspectionCheckpointService();
-    return _checkpointService!;
+    WatermarkService get watermarkService {
+    _watermarkService ??= WatermarkService();
+    return _watermarkService!;
   }
 
-  // Create configured services
-  CheckpointDialogService createCheckpointDialogService(
-    context,
-    Function() onReloadData,
-  ) {
-    return CheckpointDialogService(
-      context,
-      checkpointService,
-      onReloadData,
-    );
-  }
 
   // Initialize all services
   void initialize() {
-    offlineService.initialize();
+    syncService.initialize();
   }
 
   // Dispose all services
   void dispose() {
-    _offlineService?.dispose();
+    _syncService?.dispose();
   }
 
   // Check if online
