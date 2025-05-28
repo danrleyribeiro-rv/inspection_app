@@ -26,7 +26,12 @@ Future<void> main() async {
   await Firebase.initializeApp();
 
   // Initialize services
+<<<<<<< HEAD
   await ServiceLocator.initialize();
+=======
+  final serviceLocator = ServiceLocator();
+  await serviceLocator.initialize();
+>>>>>>> de0814d (Mudanças de arquiterura)
 
   // Configure system UI
   SystemChrome.setSystemUIOverlayStyle(
