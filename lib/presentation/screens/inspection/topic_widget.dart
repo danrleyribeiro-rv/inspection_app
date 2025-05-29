@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/presentation/screens/inspection/item_widget.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 import 'dart:async';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
@@ -31,8 +31,7 @@ class TopicWidget extends StatefulWidget {
 }
 
 class _TopicWidgetState extends State<TopicWidget> {
-  final FirebaseInspectionService _inspectionService =
-      FirebaseInspectionService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
   List<Item> _items = [];
   bool _isLoading = true;
   int _expandedItemIndex = -1;
@@ -69,7 +68,7 @@ class _TopicWidgetState extends State<TopicWidget> {
         return;
       }
 
-      final items = await _inspectionService.getItems(
+      final items = await _serviceFactory.coordinator.getItems(
         widget.topic.inspectionId,
         widget.topic.id!,
       );
@@ -205,7 +204,7 @@ class _TopicWidgetState extends State<TopicWidget> {
       final itemName = template['name'] as String;
       String? itemLabel = template['value'] as String?;
 
-      final newItem = await _inspectionService.addItem(
+      final newItem = await _serviceFactory.coordinator.addItem(
         widget.topic.inspectionId,
         widget.topic.id!,
         itemName,
@@ -217,7 +216,7 @@ class _TopicWidgetState extends State<TopicWidget> {
           itemLabel: itemLabel,
           observation: template['observation'] as String?,
         );
-        await _inspectionService.updateItem(updatedItem);
+        await _serviceFactory.coordinator.updateItem(updatedItem);
       }
 
       await _loadItems();
@@ -252,7 +251,7 @@ class _TopicWidgetState extends State<TopicWidget> {
     setState(() => _isLoading = true);
 
     try {
-      await _inspectionService.isItemDuplicate(
+      await _serviceFactory.coordinator.isItemDuplicate(
         widget.topic.inspectionId,
         widget.topic.id!,
         item.itemName,
@@ -286,7 +285,7 @@ class _TopicWidgetState extends State<TopicWidget> {
     final index = _items.indexWhere((i) => i.id == updatedItem.id);
     if (index >= 0) {
       setState(() => _items[index] = updatedItem);
-      _inspectionService.updateItem(updatedItem);
+      _serviceFactory.coordinator.updateItem(updatedItem);
     }
   }
 
@@ -299,7 +298,7 @@ class _TopicWidgetState extends State<TopicWidget> {
         return;
       }
 
-      await _inspectionService.deleteItem(
+      await _serviceFactory.coordinator.deleteItem(
         widget.topic.inspectionId,
         widget.topic.id!,
         itemId,

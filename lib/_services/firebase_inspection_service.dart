@@ -104,9 +104,7 @@ class FirebaseInspectionService {
     await _coordinator.deleteDetail(inspectionId, topicId, itemId, detailId);
   }
 
-  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId, String itemId, String detailName) async {
-    return await _coordinator.duplicateDetail(inspectionId, topicId, itemId, detailName);
-  }
+
 
   // NON-CONFORMITY METHODS
   Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {

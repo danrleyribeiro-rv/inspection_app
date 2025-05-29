@@ -2,10 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/services/firebase_auth_service.dart';
-import 'package:inspection_app/services/settings_service.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:inspection_app/services/cache_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,8 +16,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _authService = FirebaseAuthService();
-  final _settingsService = SettingsService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
 
   bool _notificationsEnabled = true;
   bool _locationPermission = true;
@@ -32,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final settings = await _settingsService.loadSettings();
+    final settings = await _serviceFactory.settingsService.loadSettings();
     setState(() {
       _notificationsEnabled = settings['notificationsEnabled'] ?? true;
       _locationPermission = settings['locationPermission'] ?? true;
@@ -41,7 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    await _settingsService.saveSettings(
+    await _serviceFactory.settingsService.saveSettings(
       notificationsEnabled: _notificationsEnabled,
       locationPermission: _locationPermission,
       cameraPermission: _cameraPermission,
@@ -52,7 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _authService.signOut();
+      await _serviceFactory.authService.signOut();
 
       if (mounted) {
         Navigator.of(context)
@@ -118,7 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
 
         // Sign out
-        await _authService.signOut();
+        await _serviceFactory.authService.signOut();
 
         if (mounted) {
           Navigator.of(context)
@@ -215,7 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () async {
                     setState(() => _isLoading = true);
                     try {
-                      await CacheService().clearCache();
+                      await _serviceFactory.cacheService.clearCache();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(

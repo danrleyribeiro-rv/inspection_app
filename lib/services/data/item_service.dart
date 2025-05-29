@@ -153,4 +153,34 @@ class ItemService {
       }
     }
   }
+
+  Future<Item?> isItemDuplicate(String inspectionId, String topicId, String itemName) async {
+    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+    if (topicIndex == null) return null;
+
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final topic = inspection.topics![topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        if (item['name'] == itemName) {
+          return Item(
+            id: 'item_$i',
+            inspectionId: inspectionId,
+            topicId: topicId,
+            itemName: item['name'] ?? 'Item ${i + 1}',
+            itemLabel: item['description'],
+            position: i,
+            observation: item['observation'],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+        }
+      }
+    }
+
+    return null;
+  }
 }

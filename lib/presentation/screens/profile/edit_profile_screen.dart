@@ -8,9 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:brasil_fields/brasil_fields.dart';
-
 import 'package:inspection_app/utils/constants.dart';
-import 'package:inspection_app/services/firebase_storage_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> profile;
@@ -28,7 +27,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _storageService = FirebaseStorageService();
+  final _serviceFactory = ServiceFactory();
 
   bool _isLoading = false;
   File? _profileImage;
@@ -201,7 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // 2. Process profile image if selected
       if (_profileImage != null) {
         // Upload to Firebase Storage
-        final downloadUrl = await _storageService.uploadProfileImage(
+        final downloadUrl = await _serviceFactory.mediaService.uploadProfileImage(
           file: _profileImage!,
           userId: userId,
         );

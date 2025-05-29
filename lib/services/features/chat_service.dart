@@ -1,12 +1,17 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path/path.dart' as path;
 import 'package:inspection_app/models/chat.dart';
 import 'package:inspection_app/models/chat_message.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
 
+
 class ChatService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseService _firebase = FirebaseService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
 
   Stream<List<Chat>> getUserChats() {
     final userId = _firebase.currentUser?.uid;
@@ -207,5 +212,69 @@ class ChatService {
       case 'file': return 'arquivo';
       default: return 'arquivo';
     }
+  }
+
+    Future<int> getUnreadMessagesCount() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return 0;
+    
+    try {
+      final chatsSnapshot = await _firestore
+          .collection('chats')
+          .where('participants', arrayContains: userId)
+          .get();
+      
+      int totalUnread = 0;
+      
+      for (final chatDoc in chatsSnapshot.docs) {
+        final messagesSnapshot = await _firestore
+            .collection('chat_messages')
+            .where('chat_id', isEqualTo: chatDoc.id)
+            .where('sender_id', isNotEqualTo: userId)
+            .get();
+        
+        for (final messageDoc in messagesSnapshot.docs) {
+          final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
+          if (!readBy.contains(userId)) {
+            totalUnread++;
+          }
+        }
+      }
+      
+      return totalUnread;
+    } catch (e) {
+      print('Erro ao contar mensagens não lidas: $e');
+      return 0;
+    }
+  }
+
+  Stream<int> getUnreadMessagesCountStream() {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return Stream.value(0);
+    
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .asyncMap((chatsSnapshot) async {
+      int totalUnread = 0;
+      
+      for (final chatDoc in chatsSnapshot.docs) {
+        final messagesSnapshot = await _firestore
+            .collection('chat_messages')
+            .where('chat_id', isEqualTo: chatDoc.id)
+            .where('sender_id', isNotEqualTo: userId)
+            .get();
+        
+        for (final messageDoc in messagesSnapshot.docs) {
+          final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
+          if (!readBy.contains(userId)) {
+            totalUnread++;
+          }
+        }
+      }
+      
+      return totalUnread;
+    });
   }
 }

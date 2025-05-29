@@ -11,9 +11,9 @@ import 'package:inspection_app/presentation/widgets/template_selector_dialog.dar
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
-import 'package:inspection_app/services/chat_service.dart';
+import 'package:inspection_app/services/features/chat_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/services/checkpoint_dialog_service.dart';
+import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;

@@ -160,6 +160,85 @@ class DetailService {
     }
   }
 
+  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId, String itemId, String detailName) async {
+    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
+
+    if (topicIndex == null || itemIndex == null) return null;
+
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final topic = inspection.topics![topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      if (itemIndex < items.length) {
+        final item = items[itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        
+        for (int i = 0; i < details.length; i++) {
+          final detail = details[i];
+          if (detail['name'] == detailName) {
+            List<String>? options;
+            if (detail['options'] is List) {
+              options = List<String>.from(detail['options']);
+            }
+
+            return Detail(
+              id: 'detail_$i',
+              inspectionId: inspectionId,
+              topicId: topicId,
+              itemId: itemId,
+              detailName: detail['name'] ?? 'Detalhe ${i + 1}',
+              type: detail['type'] ?? 'text',
+              options: options,
+              detailValue: detail['value'],
+              observation: detail['observation'],
+              isDamaged: detail['is_damaged'] ?? false,
+              position: i,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            );
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> deleteDetail(String inspectionId, String topicId, String itemId, String detailId) async {
+    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
+    final detailIndex = int.tryParse(detailId.replaceFirst('detail_', ''));
+
+    if (topicIndex != null && itemIndex != null && detailIndex != null) {
+      await _deleteDetailAtIndex(inspectionId, topicIndex, itemIndex, detailIndex);
+    }
+  }
+
+  Future<void> _deleteDetailAtIndex(String inspectionId, int topicIndex,int itemIndex, int detailIndex) async {
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection != null && inspection.topics != null) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      if (topicIndex < topics.length) {
+        final topic = Map<String, dynamic>.from(topics[topicIndex]);
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        if (itemIndex < items.length) {
+          final item = Map<String, dynamic>.from(items[itemIndex]);
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          if (detailIndex < details.length) {
+            details.removeAt(detailIndex);
+            item['details'] = details;
+            items[itemIndex] = item;
+            topic['items'] = items;
+            topics[topicIndex] = topic;
+
+            await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+          }
+        }
+      }
+    }
+  }
+
   Future<void> _updateDetailAtIndex(
       String inspectionId,
       int topicIndex,

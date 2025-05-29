@@ -41,6 +41,31 @@ class MediaService {
     return await ref.getDownloadURL();
   }
 
+  Future<String> uploadProfileImage({
+    required File file,
+    required String userId,
+  }) async {
+    final fileExt = path.extension(file.path);
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final filename = 'profile_$timestamp$fileExt';
+
+    final storagePath = 'profile_images/$userId/$filename';
+
+    String? contentType;
+    if (fileExt.toLowerCase().contains(RegExp(r'jpg|jpeg|png|gif|webp'))) {
+      contentType = 'image/${fileExt.toLowerCase().replaceAll('.', '')}';
+    }
+
+    final ref = _firebase.storage.ref().child(storagePath);
+    SettableMetadata? metadata;
+    if (contentType != null) {
+      metadata = SettableMetadata(contentType: contentType);
+    }
+
+    await ref.putFile(file, metadata);
+    return await ref.getDownloadURL();
+  }
+
   Future<String?> uploadNonConformityMedia(
       String localPath, String inspectionId, String topicId, String itemId, 
       String detailId, String nonConformityId) async {

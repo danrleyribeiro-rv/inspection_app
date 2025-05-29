@@ -6,7 +6,6 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'dart:async';
 
@@ -33,14 +32,13 @@ class ItemWidget extends StatefulWidget {
 }
 
 class _ItemWidgetState extends State<ItemWidget> {
-  final _inspectionService = FirebaseInspectionService();
+  final _serviceFactory = ServiceFactory();
   List<Detail> _details = [];
   bool _isLoading = true;
   int _expandedDetailIndex = -1;
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   ScrollController? _scrollController;
-  final ServiceFactory _serviceFactory = ServiceFactory();
 
   @override
   void initState() {
@@ -70,7 +68,7 @@ class _ItemWidgetState extends State<ItemWidget> {
         return;
       }
 
-      final details = await _inspectionService.getDetails(
+      final details = await _serviceFactory.coordinator.getDetails(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -196,7 +194,7 @@ class _ItemWidgetState extends State<ItemWidget> {
         }
       }
 
-      final newDetail = await _inspectionService.addDetail(
+      final newDetail = await _serviceFactory.coordinator.addDetail(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -246,7 +244,7 @@ class _ItemWidgetState extends State<ItemWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final newDetail = await _inspectionService.isDetailDuplicate(
+      final newDetail = await _serviceFactory.coordinator.isDetailDuplicate(
         widget.item.inspectionId,
         widget.item.topicId!,
         widget.item.id!,
@@ -404,13 +402,13 @@ class _ItemWidgetState extends State<ItemWidget> {
                                 .indexWhere((d) => d.id == updatedDetail.id);
                             if (idx >= 0) {
                               setState(() => _details[idx] = updatedDetail);
-                              _inspectionService.updateDetail(updatedDetail);
+                              _serviceFactory.coordinator.updateDetail(updatedDetail);
                             }
                           },
                           onDetailDeleted: (detailId) async {
                             if (widget.item.id != null &&
                                 widget.item.topicId != null) {
-                              await _inspectionService.deleteDetail(
+                              await _serviceFactory.coordinator.deleteDetail(
                                 widget.item.inspectionId,
                                 widget.item.topicId!,
                                 widget.item.id!,

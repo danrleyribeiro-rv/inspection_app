@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
 import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
 import 'package:inspection_app/presentation/screens/chat/chats_screen.dart';
-import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/chat_service.dart';
+import 'package:inspection_app/services/core/firebase_service.dart';
+import 'package:inspection_app/services/features/chat_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

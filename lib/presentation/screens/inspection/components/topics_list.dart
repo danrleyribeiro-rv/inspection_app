@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/presentation/screens/inspection/topic_widget.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class TopicsList extends StatefulWidget {
  final List<Topic> topics;
@@ -31,7 +31,7 @@ class TopicsList extends StatefulWidget {
 }
 
 class _TopicsListState extends State<TopicsList> {
- final _inspectionService = FirebaseInspectionService();
+ final ServiceFactory _serviceFactory = ServiceFactory();
  bool _isReordering = false;
  late List<Topic> _localTopics;
 
@@ -94,7 +94,7 @@ Widget build(BuildContext context) {
          .toList();
 
      // Atualizar no Firestore
-     await _inspectionService.reorderTopics(widget.inspectionId, topicIds);
+     await _serviceFactory.coordinator.reorderTopics(widget.inspectionId, topicIds);
 
      // Chamar o callback para atualizar os dados
      widget.onTopicsReordered?.call();

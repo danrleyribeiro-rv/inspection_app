@@ -6,9 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
-import 'package:inspection_app/services/firebase_service.dart';
-import 'package:inspection_app/services/image_watermark_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/core/firebase_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
@@ -38,8 +37,7 @@ class MediaCapturePanel extends StatefulWidget {
 
 class _MediaCapturePanelState extends State<MediaCapturePanel> {
   final _firestore = FirebaseService().firestore;
-  final _inspectionService = FirebaseInspectionService();
-  final _watermarkService = ImageWatermarkService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
   final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
 
@@ -96,7 +94,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     setState(() => _isLoadingItems = true);
 
     try {
-      final items = await _inspectionService.getItems(
+      final items = await _serviceFactory.coordinator.getItems(
         widget.inspectionId,
         topicId,
       );
@@ -115,7 +113,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     setState(() => _isLoadingDetails = true);
 
     try {
-      final details = await _inspectionService.getDetails(
+      final details = await _serviceFactory.coordinator.getDetails(
         widget.inspectionId,
         topicId,
         itemId,
@@ -289,7 +287,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       if (type == 'image') {
         // Optionally apply watermark
         final watermarkedFile =
-            await _watermarkService.applyWatermark(filePath, localPath);
+            await _serviceFactory.watermarkService.applyWatermark(filePath, localPath);
         // If watermarking failed, fallback to copy
         if (watermarkedFile == null) {
           await File(filePath).copy(localPath);

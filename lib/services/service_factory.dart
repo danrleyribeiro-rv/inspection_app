@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:inspection_app/services/inspection_coordinator.dart';
 import 'package:inspection_app/services/core/auth_service.dart';
 import 'package:inspection_app/services/features/chat_service.dart';
@@ -11,6 +12,9 @@ import 'package:inspection_app/services/utils/sync_service.dart';
 import 'package:inspection_app/services/utils/notification_service.dart';
 import 'package:inspection_app/services/utils/import_export_service.dart';
 import 'package:inspection_app/services/features/watermark_service.dart';
+import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
+import 'package:inspection_app/services/features/offline_service.dart';
+
 
 
 class ServiceFactory {
@@ -31,6 +35,8 @@ class ServiceFactory {
   NotificationService? _notificationService;
   ImportExportService? _importExportService;
   WatermarkService? _watermarkService;
+  OfflineService? _offlineService;
+
 
   // Get services (singleton pattern)
   InspectionCoordinator get coordinator {
@@ -88,19 +94,36 @@ class ServiceFactory {
     return _importExportService!;
   }
 
-    WatermarkService get watermarkService {
+  WatermarkService get watermarkService {
     _watermarkService ??= WatermarkService();
     return _watermarkService!;
   }
 
+  OfflineService get offlineService {
+  _offlineService ??= OfflineService();
+  return _offlineService!;
+  }
+
+  CheckpointDialogService createCheckpointDialogService(
+    BuildContext context,
+    Function() onReloadData,
+  ) {
+    return CheckpointDialogService(
+      context,
+      checkpointService,
+      onReloadData,
+    );
+  }
 
   // Initialize all services
   void initialize() {
+    offlineService.initialize();
     syncService.initialize();
   }
 
   // Dispose all services
   void dispose() {
+    _offlineService?.dispose();
     _syncService?.dispose();
   }
 

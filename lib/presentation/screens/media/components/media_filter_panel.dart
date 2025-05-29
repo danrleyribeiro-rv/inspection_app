@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class MediaFilterPanel extends StatefulWidget {
   final String inspectionId;
@@ -40,7 +40,7 @@ class MediaFilterPanel extends StatefulWidget {
 }
 
 class _MediaFilterPanelState extends State<MediaFilterPanel> {
-  final _inspectionService = FirebaseInspectionService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
 
   // Local state
   String? _topicId;
@@ -82,7 +82,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
     setState(() => _isLoadingItems = true);
 
     try {
-      final items = await _inspectionService.getItems(
+      final items = await _serviceFactory.coordinator.getItems(
         widget.inspectionId,
         topicId,
       );
@@ -101,7 +101,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
     setState(() => _isLoadingDetails = true);
 
     try {
-      final details = await _inspectionService.getDetails(
+      final details = await _serviceFactory.coordinator.getDetails(
         widget.inspectionId,
         topicId,
         itemId,

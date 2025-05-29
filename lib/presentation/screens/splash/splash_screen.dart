@@ -1,6 +1,6 @@
 // lib/presentation/screens/splash/splash_screen.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/firebase_service.dart'; // Assuming this path is correct
+import 'package:inspection_app/services/service_factory.dart';
 import 'dart:async';
 
 class SplashScreen extends StatefulWidget {
@@ -11,10 +11,10 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _animation;
-  final _auth = FirebaseService().auth;
+  final ServiceFactory _serviceFactory = ServiceFactory();
 
   @override
   void initState() {
@@ -44,7 +44,7 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _proceedToNextScreen() async {
     if (!mounted) return;
 
-    final currentUser = _auth.currentUser;
+    final currentUser = _serviceFactory.authService.currentUser;
     if (currentUser != null) {
       Navigator.of(context).pushReplacementNamed('/home');
     } else {

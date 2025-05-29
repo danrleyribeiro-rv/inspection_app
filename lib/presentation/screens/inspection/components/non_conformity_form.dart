@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/firebase_inspection_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -45,7 +45,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _correctiveActionController = TextEditingController();
-  final _inspectionService = FirebaseInspectionService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
 
   bool _isCreating = false;
   DateTime? _deadline;
@@ -95,7 +95,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
       };
 
       // Add the non-conformity to the appropriate subcollection
-      await _inspectionService.saveNonConformity({
+      await _serviceFactory.coordinator.saveNonConformity({
         'inspection_id': widget.inspectionId,
         'topic_id': topicId,
         'item_id': itemId,

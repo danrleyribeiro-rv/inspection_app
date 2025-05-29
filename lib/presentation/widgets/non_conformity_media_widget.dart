@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/data/inspection_data_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import FieldValue
 import 'package:flutter/services.dart';
@@ -40,7 +40,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   bool _isLoading = true;
   bool _isOnline = false;
   final _storage = FirebaseStorage.instance;
-  final InspectionDataService _inspectionService = InspectionDataService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
   final _connectivityService = Connectivity();
   final _uuid = Uuid();
 
@@ -68,7 +68,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
     try {
       final inspection =
-          await _inspectionService.getInspection(widget.inspectionId);
+          await _serviceFactory.coordinator.getInspection(widget.inspectionId);
       if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
         final topic = inspection.topics![widget.topicIndex];
@@ -189,7 +189,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
         // Save to inspection document
         final inspection =
-            await _inspectionService.getInspection(widget.inspectionId);
+            await _serviceFactory.coordinator.getInspection(widget.inspectionId);
         if (inspection?.topics != null &&
             widget.topicIndex < inspection!.topics!.length) {
           final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -329,7 +329,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
       // Remove from inspection document
       final inspection =
-          await _inspectionService.getInspection(widget.inspectionId);
+          await _serviceFactory.coordinator.getInspection(widget.inspectionId);
       if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);

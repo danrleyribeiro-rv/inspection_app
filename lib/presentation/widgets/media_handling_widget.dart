@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -33,7 +34,7 @@ class MediaHandlingWidget extends StatefulWidget {
 }
 
 class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
-  final InspectionDataService _inspectionService = InspectionDataService();
+  final ServiceFactory _serviceFactory = ServiceFactory();
   final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
   final _watermarkService = WatermarkService();
@@ -56,7 +57,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
     try {
       final inspection =
-          await _inspectionService.getInspection(widget.inspectionId);
+          await _serviceFactory.coordinator.getInspection(widget.inspectionId);
       if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
         final topic = inspection.topics![widget.topicIndex];
@@ -112,11 +113,11 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final position = await _watermarkService.getCurrentLocation();
+      final position = await _serviceFactory.coordinator.getCurrentLocation();
       String? address;
 
       if (position != null) {
-        address = await _watermarkService.getAddressFromPosition(position);
+        address = await _serviceFactory.coordinator.getAddressFromPosition(position);
       }
 
       final mediaDir = await getMediaDirectory();
@@ -176,7 +177,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         }
       }
 
-      await _inspectionService.addMedia(
+      await _serviceFactory.coordinator.addMedia(
         widget.inspectionId,
         widget.topicIndex,
         widget.itemIndex,

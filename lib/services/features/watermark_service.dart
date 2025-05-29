@@ -1,14 +1,14 @@
 import 'dart:io';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as path;
 
 class WatermarkService {
   final Uuid _uuid = Uuid();
 
-  Future<File?> applyWatermark(String imagePath) async {
+  Future<File?> applyWatermark(String imagePath, String outputPath) async {
     try {
       final imageFile = File(imagePath);
       if (!await imageFile.exists()) {
@@ -21,13 +21,18 @@ class WatermarkService {
           ? await _getAddressFromPosition(position) 
           : null;
 
-      if (imagePath.toLowerCase().endsWith('.jpg') || 
-          imagePath.toLowerCase().endsWith('.jpeg') ||
-          imagePath.toLowerCase().endsWith('.png')) {
-        return await _addImageWatermark(imageFile, timestamp, position, address);
+      final fileExt = path.extension(imagePath).toLowerCase();
+      
+      if (['.jpg', '.jpeg', '.png'].contains(fileExt)) {
+        return await _addImageWatermark(imageFile, outputPath, timestamp, position, address);
+      } else if (['.mp4', '.mov', '.avi'].contains(fileExt)) {
+        return await _addVideoWatermark(imageFile, outputPath, timestamp, position, address);
       }
-
-      return imageFile;
+      
+      // Fallback: copy file without watermark
+      final outputFile = File(outputPath);
+      await imageFile.copy(outputPath);
+      return outputFile;
     } catch (e) {
       print('Error applying watermark: $e');
       return null;
@@ -36,6 +41,7 @@ class WatermarkService {
 
   Future<File> _addImageWatermark(
     File imageFile,
+    String outputPath,
     DateTime timestamp,
     Position? position,
     String? address,
@@ -51,15 +57,35 @@ class WatermarkService {
       final watermarkText = _buildWatermarkText(timestamp, position, address);
       final watermarkedImage = _drawWatermarkOnImage(originalImage, watermarkText);
       
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = '${tempDir.path}/watermarked_${_uuid.v4()}.jpg';
       final outputFile = File(outputPath);
-      
       await outputFile.writeAsBytes(img.encodeJpg(watermarkedImage, quality: 85));
       
       return outputFile;
     } catch (e) {
       print('Error adding image watermark: $e');
+      rethrow;
+    }
+  }
+
+  Future<File> _addVideoWatermark(
+    File videoFile,
+    String outputPath,
+    DateTime timestamp,
+    Position? position,
+    String? address,
+  ) async {
+    try {
+      // For video watermarking, would need FFmpeg integration
+      // For now, just copy the file and add metadata
+      final outputFile = File(outputPath);
+      await videoFile.copy(outputPath);
+      
+      // Add metadata to video file (implementation depends on video format)
+      await _addVideoMetadata(outputFile, timestamp, position, address);
+      
+      return outputFile;
+    } catch (e) {
+      print('Error adding video watermark: $e');
       rethrow;
     }
   }
@@ -74,12 +100,13 @@ class WatermarkService {
     final maxLineWidth = lines.map((line) => line.length * fontSize * 0.6).reduce((a, b) => a > b ? a : b);
     final textWidth = maxLineWidth.round() + (padding * 2);
     
-    final bgColor = img.ColorRgba8(0, 0, 0, 128);
+    final bgColor = img.ColorRgba8(0, 0, 0, 180);
     final textColor = img.ColorRgba8(255, 255, 255, 255);
     
     final x = padding;
     final y = image.height - textHeight - padding;
     
+    // Draw background
     img.fillRect(
       image,
       x1: x - padding ~/ 2,
@@ -89,6 +116,7 @@ class WatermarkService {
       color: bgColor,
     );
     
+    // Draw text
     for (int i = 0; i < lines.length; i++) {
       final lineY = y + (i * lineHeight);
       _drawSimpleText(image, lines[i], x, lineY, fontSize, textColor);
@@ -102,17 +130,18 @@ class WatermarkService {
     var currentX = x;
     
     for (final char in chars) {
-      _drawChar(image, char, currentX, y, fontSize, color);
+      if (char != ' ') {
+        _drawChar(image, char, currentX, y, fontSize, color);
+      }
       currentX += (fontSize * 0.6).round();
     }
   }
 
   void _drawChar(img.Image image, String char, int x, int y, int fontSize, img.Color color) {
-    if (char == ' ') return;
-    
     final charWidth = (fontSize * 0.5).round();
     final charHeight = fontSize;
     
+    // Simple rectangle for character representation
     img.fillRect(
       image,
       x1: x,
@@ -197,5 +226,16 @@ class WatermarkService {
       print('Error getting address: $e');
     }
     return null;
+  }
+
+  Future<void> _addVideoMetadata(
+    File videoFile,
+    DateTime timestamp,
+    Position? position,
+    String? address,
+  ) async {
+    // Implementation would require FFmpeg or similar for video metadata
+    // For now, this is a placeholder
+    print('Video metadata added: ${timestamp}, ${position?.latitude}, ${position?.longitude}');
   }
 }

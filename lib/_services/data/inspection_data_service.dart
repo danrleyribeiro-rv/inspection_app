@@ -701,35 +701,7 @@ Future<void> updateTopic(Topic updatedTopic) async {
     }
   }
 
-  Future<void> _deleteDetailAtIndex(String inspectionId, int topicIndex,
-      int itemIndex, int detailIndex) async {
-    final inspection = await getInspection(inspectionId);
-    if (inspection != null && inspection.topics != null) {
-      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-      if (topicIndex < topics.length) {
-        final topic = Map<String, dynamic>.from(topics[topicIndex]);
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        if (itemIndex < items.length) {
-          final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details =
-              List<Map<String, dynamic>>.from(item['details'] ?? []);
-          if (detailIndex < details.length) {
-            details.removeAt(detailIndex);
-            item['details'] = details;
-            items[itemIndex] = item;
-            topic['items'] = items;
-            topics[topicIndex] = topic;
 
-            await firestore.collection('inspections').doc(inspectionId).update({
-              'topics': topics,
-              'updated_at': DateTime.now()
-                  .toIso8601String(), // Use DateTime.now() for arrays/aninhados
-            });
-          }
-        }
-      }
-    }
-  }
 
   // Add media to detail
   Future<void> addMedia(String inspectionId, int topicIndex, int itemIndex,
