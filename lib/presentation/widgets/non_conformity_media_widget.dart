@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import FieldValue
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -121,7 +120,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     if (!mounted) return;
 
     try {
-      // Force landscape mode for capture
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
@@ -140,7 +138,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
               maxDuration: const Duration(minutes: 1),
             );
 
-      // Restore orientations
       await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
 
       if (pickedFile == null) return;
@@ -149,18 +146,15 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       setState(() => _isLoading = true);
 
       try {
-        // Create media directory
         final mediaDir = await _getMediaDirectory();
         final fileExt = path.extension(pickedFile.path);
         final filename =
             'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
 
-        // Copy file to media directory for local access
         final file = File(pickedFile.path);
         await file.copy(localPath);
 
-        // For media tracking
         final mediaData = {
           'id': _uuid.v4(),
           'type': type,
@@ -169,7 +163,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           'updated_at': DateTime.now().toIso8601String(),
         };
 
-        // If online, upload to Firebase Storage
         if (_isOnline) {
           final storagePath =
               'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/non_conformities/nc_${widget.ncIndex}/$filename';
@@ -187,58 +180,9 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           mediaData['url'] = downloadUrl;
         }
 
-        // Save to inspection document
-        final inspection =
-            await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-        if (inspection?.topics != null &&
-            widget.topicIndex < inspection!.topics!.length) {
-          final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-          final topic = topics[widget.topicIndex];
-          final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        await _saveMediaToInspection(mediaData);
 
-          if (widget.itemIndex < items.length) {
-            final item = items[widget.itemIndex];
-            final details =
-                List<Map<String, dynamic>>.from(item['details'] ?? []);
-
-            if (widget.detailIndex < details.length) {
-              final detail =
-                  Map<String, dynamic>.from(details[widget.detailIndex]);
-              final nonConformities = List<Map<String, dynamic>>.from(
-                  detail['non_conformities'] ?? []);
-
-              if (widget.ncIndex < nonConformities.length) {
-                final nc =
-                    Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-                final ncMedia =
-                    List<Map<String, dynamic>>.from(nc['media'] ?? []);
-
-                ncMedia.add(mediaData);
-                nc['media'] = ncMedia;
-                nonConformities[widget.ncIndex] = nc;
-                detail['non_conformities'] = nonConformities;
-                details[widget.detailIndex] = detail;
-                item['details'] = details;
-                items[widget.itemIndex] = item;
-                topic['items'] = items;
-                topics[widget.topicIndex] = topic;
-
-                await _inspectionService.firestore
-                    .collection('inspections')
-                    .doc(widget.inspectionId)
-                    .update({
-                  'topics': topics,
-                  'updated_at': FieldValue.serverTimestamp(),
-                });
-              }
-            }
-          }
-        }
-
-        // Notify of addition
         widget.onMediaAdded(localPath);
-
-        // Reload media
         await _loadMedia();
 
         if (mounted) {
@@ -280,6 +224,50 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     }
   }
 
+  Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
+    final inspection =
+        await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+    if (inspection?.topics != null &&
+        widget.topicIndex < inspection!.topics!.length) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      final topic = topics[widget.topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+
+      if (widget.itemIndex < items.length) {
+        final item = items[widget.itemIndex];
+        final details =
+            List<Map<String, dynamic>>.from(item['details'] ?? []);
+
+        if (widget.detailIndex < details.length) {
+          final detail =
+              Map<String, dynamic>.from(details[widget.detailIndex]);
+          final nonConformities = List<Map<String, dynamic>>.from(
+              detail['non_conformities'] ?? []);
+
+          if (widget.ncIndex < nonConformities.length) {
+            final nc =
+                Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
+            final ncMedia =
+                List<Map<String, dynamic>>.from(nc['media'] ?? []);
+
+            ncMedia.add(mediaData);
+            nc['media'] = ncMedia;
+            nonConformities[widget.ncIndex] = nc;
+            detail['non_conformities'] = nonConformities;
+            details[widget.detailIndex] = detail;
+            item['details'] = details;
+            items[widget.itemIndex] = item;
+            topic['items'] = items;
+            topics[widget.topicIndex] = topic;
+
+            final updatedInspection = inspection.copyWith(topics: topics);
+            await _serviceFactory.coordinator.saveInspection(updatedInspection);
+          }
+        }
+      }
+    }
+  }
+
   Future<void> _removeMedia(int mediaIndex, Map<String, dynamic> media) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -305,7 +293,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // Try to delete from storage if URL exists
       if (_isOnline && media['url'] != null) {
         try {
           final storageRef = _storage.refFromURL(media['url']);
@@ -315,7 +302,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         }
       }
 
-      // Try to delete local file
       if (media['localPath'] != null) {
         try {
           final file = File(media['localPath']);
@@ -327,7 +313,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         }
       }
 
-      // Remove from inspection document
       final inspection =
           await _serviceFactory.coordinator.getInspection(widget.inspectionId);
       if (inspection?.topics != null &&
@@ -364,20 +349,14 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                 topic['items'] = items;
                 topics[widget.topicIndex] = topic;
 
-                await _inspectionService.firestore
-                    .collection('inspections')
-                    .doc(widget.inspectionId)
-                    .update({
-                  'topics': topics,
-                  'updated_at': FieldValue.serverTimestamp(),
-                });
+                final updatedInspection = inspection.copyWith(topics: topics);
+                await _serviceFactory.coordinator.saveInspection(updatedInspection);
               }
             }
           }
         }
       }
 
-      // Reload
       await _loadMedia();
 
       if (mounted) {
@@ -420,7 +399,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title and media buttons
         Row(
           children: [
             const Expanded(
@@ -438,7 +416,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
         const SizedBox(height: 12),
 
-        // Add media buttons if not in read-only mode
         if (!widget.isReadOnly)
           Row(
             children: [
@@ -472,12 +449,10 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             ),
           ),
 
-        // Separator
         const SizedBox(height: 16),
         const Divider(),
         const SizedBox(height: 8),
 
-        // Loading indicator
         if (_isLoading)
           const Center(child: CircularProgressIndicator())
         else if (_mediaItems.isEmpty)
@@ -506,12 +481,10 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                     final bool hasUrl = media['url'] != null;
                     final bool hasLocalPath = media['localPath'] != null;
 
-                    // Determine the widget to show (image local, image remote, video, etc.)
                     Widget mediaWidget;
 
                     if (isImage) {
                       if (hasLocalPath) {
-                        // Local image
                         mediaWidget = Image.file(
                           File(media['localPath']),
                           fit: BoxFit.cover,
@@ -525,7 +498,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                           ),
                         );
                       } else if (hasUrl) {
-                        // Remote image
                         mediaWidget = Image.network(
                           media['url'],
                           width: 120,
@@ -539,7 +511,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                           ),
                         );
                       } else {
-                        // Fallback
                         mediaWidget = Container(
                           width: 120,
                           height: 120,
@@ -548,7 +519,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                         );
                       }
                     } else {
-                      // Video (icon with background)
                       mediaWidget = Container(
                         width: 120,
                         height: 120,
@@ -561,19 +531,33 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                           ),
                         ),
                       );
+
+                      if (!hasLocalPath && !hasUrl) {
+                        mediaWidget = Container(
+                          width: 120,
+                          height: 120,
+                          color: Colors.grey[300],
+                          child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.videocam_off),
+                                SizedBox(height: 4),
+                                Text('Sem Fonte',
+                                    style: TextStyle(fontSize: 10))
+                              ]),
+                        );
+                      }
                     }
 
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Stack(
                         children: [
-                          // Media content
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: mediaWidget,
                           ),
 
-                          // Remove button
                           if (!widget.isReadOnly)
                             Positioned(
                               top: 4,
@@ -596,7 +580,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                               ),
                             ),
 
-                          // Media type indicator
                           Positioned(
                             bottom: 4,
                             left: 4,

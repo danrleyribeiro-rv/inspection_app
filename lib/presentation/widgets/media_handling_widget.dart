@@ -1,14 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/features/media_service.dart';
 import 'package:inspection_app/services/features/watermark_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/services/service_factory.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
@@ -113,13 +111,6 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final position = await _serviceFactory.coordinator.getCurrentLocation();
-      String? address;
-
-      if (position != null) {
-        address = await _serviceFactory.coordinator.getAddressFromPosition(position);
-      }
-
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
@@ -128,23 +119,15 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final localPath = '${mediaDir.path}/$newFilename';
 
       final file = File(pickedFile.path);
-      final watermarkedFile = await _watermarkService.addWatermarkToImage(
-        file,
-        isFromGallery: source == ImageSource.gallery,
-        timestamp: timestamp,
-        location: position,
-        locationAddress: address,
+      final watermarkedFile = await _watermarkService.applyWatermark(
+        file.path,
+        localPath,
       );
 
-      final finalFile = await _watermarkService.addMetadataToImage(
-        watermarkedFile,
-        source == ImageSource.gallery,
-        timestamp,
-        location: position,
-        locationAddress: address,
-      );
-
-      await finalFile.copy(localPath);
+      if (watermarkedFile == null) {
+        // Fallback: copy original file
+        await file.copy(localPath);
+      }
 
       final mediaData = <String, dynamic>{
         'id': _uuid.v4(),
@@ -177,13 +160,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         }
       }
 
-      await _serviceFactory.coordinator.addMedia(
-        widget.inspectionId,
-        widget.topicIndex,
-        widget.itemIndex,
-        widget.detailIndex,
-        mediaData,
-      );
+      await _addMediaToInspection(mediaData);
 
       widget.onMediaAdded(localPath);
       await _loadMedia();
@@ -233,13 +210,6 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     });
 
     try {
-      final position = await _watermarkService.getCurrentLocation();
-      String? address;
-
-      if (position != null) {
-        address = await _watermarkService.getAddressFromPosition(position);
-      }
-
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
@@ -248,15 +218,15 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final localPath = '${mediaDir.path}/$newFilename';
 
       final file = File(pickedFile.path);
-      final watermarkedFile = await _watermarkService.addWatermarkToVideo(
-        file,
-        isFromGallery: source == ImageSource.gallery,
-        timestamp: timestamp,
-        location: position,
-        locationAddress: address,
+      final watermarkedFile = await _watermarkService.applyWatermark(
+        file.path,
+        localPath,
       );
 
-      if (watermarkedFile.path != localPath) {
+      if (watermarkedFile == null) {
+        // Fallback: copy original file
+        await file.copy(localPath);
+      } else if (watermarkedFile.path != localPath) {
         await watermarkedFile.copy(localPath);
       }
 
@@ -291,13 +261,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         }
       }
 
-      await _inspectionService.addMedia(
-        widget.inspectionId,
-        widget.topicIndex,
-        widget.itemIndex,
-        widget.detailIndex,
-        mediaData,
-      );
+      await _addMediaToInspection(mediaData);
 
       widget.onMediaAdded(localPath);
       await _loadMedia();
@@ -322,6 +286,41 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           _isLoading = false;
           _isProcessingVideo = false;
         });
+      }
+    }
+  }
+
+  Future<void> _addMediaToInspection(Map<String, dynamic> mediaData) async {
+    final inspection =
+        await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+    if (inspection?.topics != null &&
+        widget.topicIndex < inspection!.topics!.length) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      final topic = topics[widget.topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+
+      if (widget.itemIndex < items.length) {
+        final item = items[widget.itemIndex];
+        final details =
+            List<Map<String, dynamic>>.from(item['details'] ?? []);
+
+        if (widget.detailIndex < details.length) {
+          final detail =
+              Map<String, dynamic>.from(details[widget.detailIndex]);
+          final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+
+          media.add(mediaData);
+          detail['media'] = media;
+          details[widget.detailIndex] = detail;
+          item['details'] = details;
+          items[widget.itemIndex] = item;
+          topic['items'] = items;
+          topics[widget.topicIndex] = topic;
+
+          await _serviceFactory.coordinator.saveInspection(
+            inspection.copyWith(topics: topics)
+          );
+        }
       }
     }
   }
@@ -376,7 +375,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
 
       // Remove from inspection document
       final inspection =
-          await _inspectionService.getInspection(widget.inspectionId);
+          await _serviceFactory.coordinator.getInspection(widget.inspectionId);
       if (inspection?.topics != null &&
           widget.topicIndex < inspection!.topics!.length) {
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -403,13 +402,9 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               topic['items'] = items;
               topics[widget.topicIndex] = topic;
 
-              await _inspectionService.firestore
-                  .collection('inspections')
-                  .doc(widget.inspectionId)
-                  .update({
-                'topics': topics,
-                'updated_at': FieldValue.serverTimestamp(),
-              });
+              await _serviceFactory.coordinator.saveInspection(
+                inspection.copyWith(topics: topics)
+              );
             }
           }
         }
