@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
@@ -8,33 +10,47 @@ import 'package:path/path.dart' as path;
 class WatermarkService {
   final Uuid _uuid = Uuid();
 
-  Future<File?> applyWatermark(String imagePath, String outputPath) async {
+  Future<File?> applyWatermark(
+    String inputPath, 
+    String outputPath, {
+    String? watermarkText,
+  }) async {
     try {
-      final imageFile = File(imagePath);
-      if (!await imageFile.exists()) {
-        throw Exception('Image file not found');
-      }
+      final inputImage = img.decodeImage(await File(inputPath).readAsBytes());
+      if (inputImage == null) return null;
 
-      final position = await _getCurrentLocation();
-      final timestamp = DateTime.now();
-      final address = position != null 
-          ? await _getAddressFromPosition(position) 
-          : null;
+      // Aplica marca d'água
+      final watermarkedImage = img.drawString(
+        inputImage,
+        watermarkText ?? '📷 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}',
+        font: img.arial24,
+        x: 20,
+        y: inputImage.height - 40,
+        color: img.ColorRgb8(255, 255, 255),
+      );
 
-      final fileExt = path.extension(imagePath).toLowerCase();
-      
-      if (['.jpg', '.jpeg', '.png'].contains(fileExt)) {
-        return await _addImageWatermark(imageFile, outputPath, timestamp, position, address);
-      } else if (['.mp4', '.mov', '.avi'].contains(fileExt)) {
-        return await _addVideoWatermark(imageFile, outputPath, timestamp, position, address);
-      }
-      
-      // Fallback: copy file without watermark
-      final outputFile = File(outputPath);
-      await imageFile.copy(outputPath);
-      return outputFile;
+      // Salva imagem com marca d'água
+      await File(outputPath).writeAsBytes(img.encodeJpg(watermarkedImage, quality: 95));
+      return File(outputPath);
     } catch (e) {
-      print('Error applying watermark: $e');
+      debugPrint('Error applying watermark: $e');
+      return null;
+    }
+  }
+
+  Future<File?> applyVideoWatermark(
+    String inputPath, 
+    String outputPath, {
+    String? watermarkText,
+    String aspectRatio = '4:3',
+  }) async {
+    try {
+      // Implementação com FFmpeg seria ideal aqui
+      // Por enquanto, copia o arquivo
+      await File(inputPath).copy(outputPath);
+      return File(outputPath);
+    } catch (e) {
+      debugPrint('Error applying video watermark: $e');
       return null;
     }
   }

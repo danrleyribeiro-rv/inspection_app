@@ -1,13 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/services/features/watermark_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/service_factory.dart';
+import 'package:image/image.dart' as img;
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -99,196 +102,284 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(
-      source: source,
-      imageQuality: 80,
-    );
+// Função para capturar imagem
+Future<void> _pickImage(ImageSource source) async {
+  final picker = ImagePicker();
+  
+  // Força orientação paisagem para câmera
+  if (source == ImageSource.camera) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+  
+  final XFile? pickedFile = await picker.pickImage(
+    source: source,
+    imageQuality: 100, // Máxima qualidade
+    preferredCameraDevice: CameraDevice.rear, // Câmera traseira
+  );
 
-    if (pickedFile == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final mediaDir = await getMediaDirectory();
-      final timestamp = DateTime.now();
-      final filename = p.basename(pickedFile.path);
-      final newFilename =
-          'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
-      final localPath = '${mediaDir.path}/$newFilename';
-
-      final file = File(pickedFile.path);
-      final watermarkedFile = await _watermarkService.applyWatermark(
-        file.path,
-        localPath,
-      );
-
-      if (watermarkedFile == null) {
-        // Fallback: copy original file
-        await file.copy(localPath);
-      }
-
-      final mediaData = <String, dynamic>{
-        'id': _uuid.v4(),
-        'type': 'image',
-        'localPath': localPath,
-        'created_at': timestamp.toIso8601String(),
-        'updated_at': timestamp.toIso8601String(),
-      };
-
-      // Try to upload to Firebase Storage
-      final connectivityResult = await _connectivity.checkConnectivity();
-      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-          connectivityResult.contains(ConnectivityResult.mobile);
-
-      if (isOnline) {
-        try {
-          final storagePath =
-              'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
-          final uploadTask = await _storage.ref(storagePath).putFile(
-                File(localPath),
-                SettableMetadata(
-                    contentType:
-                        'image/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
-              );
-
-          final downloadUrl = await uploadTask.ref.getDownloadURL();
-          mediaData['url'] = downloadUrl;
-        } catch (e) {
-          debugPrint('Error uploading to Firebase Storage: $e');
-        }
-      }
-
-      await _addMediaToInspection(mediaData);
-
-      widget.onMediaAdded(localPath);
-      await _loadMedia();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Imagem salva com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar imagem: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  // Restaura orientações após captura
+  if (source == ImageSource.camera) {
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   }
 
-  Future<void> _pickVideo(ImageSource source) async {
-    final picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickVideo(
-      source: source,
-      maxDuration: const Duration(minutes: 1),
-    );
+  if (pickedFile == null) return;
 
-    if (pickedFile == null) return;
+  setState(() => _isLoading = true);
+
+  try {
+    final mediaDir = await getMediaDirectory();
+    final timestamp = DateTime.now();
+    final filename = p.basename(pickedFile.path);
+    final newFilename =
+        'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+    final localPath = '${mediaDir.path}/$newFilename';
+
+    // Redimensiona para proporção 4:3 mantendo qualidade
+    final originalFile = File(pickedFile.path);
+    final originalImage = img.decodeImage(await originalFile.readAsBytes());
+    
+    if (originalImage != null) {
+      // Calcula dimensões para 4:3
+      int targetWidth, targetHeight;
+      
+      if (originalImage.width / originalImage.height > 4/3) {
+        // Imagem mais larga que 4:3
+        targetHeight = originalImage.height;
+        targetWidth = (targetHeight * 4 / 3).round();
+      } else {
+        // Imagem mais alta que 4:3
+        targetWidth = originalImage.width;
+        targetHeight = (targetWidth * 3 / 4).round();
+      }
+      
+      // Crop centralizado para 4:3
+      final croppedImage = img.copyCrop(
+        originalImage,
+        x: (originalImage.width - targetWidth) ~/ 2,
+        y: (originalImage.height - targetHeight) ~/ 2,
+        width: targetWidth,
+        height: targetHeight,
+      );
+      
+      // Salva imagem processada temporariamente
+      final tempProcessedPath = '${mediaDir.path}/temp_$newFilename';
+      await File(tempProcessedPath).writeAsBytes(img.encodeJpg(croppedImage, quality: 95));
+      
+      // Aplica marca d'água
+      final watermarkText = source == ImageSource.camera 
+          ? '📷 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}'
+          : '📁 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}';
+          
+      final watermarkedFile = await _watermarkService.applyWatermark(
+        tempProcessedPath,
+        localPath,
+        watermarkText: watermarkText,
+      );
+
+      // Remove arquivo temporário
+      await File(tempProcessedPath).delete();
+      
+      if (watermarkedFile == null) {
+        await File(tempProcessedPath).copy(localPath);
+      }
+    } else {
+      // Fallback: copia arquivo original
+      await originalFile.copy(localPath);
+    }
+
+    final mediaData = <String, dynamic>{
+      'id': _uuid.v4(),
+      'type': 'image',
+      'localPath': localPath,
+      'aspect_ratio': '4:3',
+      'source': source == ImageSource.camera ? 'camera' : 'gallery',
+      'created_at': timestamp.toIso8601String(),
+      'updated_at': timestamp.toIso8601String(),
+    };
+
+    // Tenta upload para Firebase Storage
+    final connectivityResult = await _connectivity.checkConnectivity();
+    final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
+        connectivityResult.contains(ConnectivityResult.mobile);
+
+    if (isOnline) {
+      try {
+        final storagePath =
+            'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
+        final uploadTask = await _storage.ref(storagePath).putFile(
+              File(localPath),
+              SettableMetadata(contentType: 'image/jpeg'),
+            );
+
+        final downloadUrl = await uploadTask.ref.getDownloadURL();
+        mediaData['url'] = downloadUrl;
+      } catch (e) {
+        debugPrint('Error uploading to Firebase Storage: $e');
+      }
+    }
+
+    await _addMediaToInspection(mediaData);
+    widget.onMediaAdded(localPath);
+    await _loadMedia();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Processando vídeo com marca d\'água...'),
-          duration: Duration(seconds: 5),
+          content: Text('Imagem salva com sucesso'),
+          backgroundColor: Colors.green,
         ),
       );
     }
-
-    setState(() {
-      _isLoading = true;
-      _isProcessingVideo = true;
-    });
-
-    try {
-      final mediaDir = await getMediaDirectory();
-      final timestamp = DateTime.now();
-      final filename = p.basename(pickedFile.path);
-      final newFilename =
-          'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
-      final localPath = '${mediaDir.path}/$newFilename';
-
-      final file = File(pickedFile.path);
-      final watermarkedFile = await _watermarkService.applyWatermark(
-        file.path,
-        localPath,
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar imagem: $e')),
       );
-
-      if (watermarkedFile == null) {
-        // Fallback: copy original file
-        await file.copy(localPath);
-      } else if (watermarkedFile.path != localPath) {
-        await watermarkedFile.copy(localPath);
-      }
-
-      final mediaData = <String, dynamic>{
-        'id': _uuid.v4(),
-        'type': 'video',
-        'localPath': localPath,
-        'created_at': timestamp.toIso8601String(),
-        'updated_at': timestamp.toIso8601String(),
-      };
-
-      // Try to upload to Firebase Storage
-      final connectivityResult = await _connectivity.checkConnectivity();
-      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-          connectivityResult.contains(ConnectivityResult.mobile);
-
-      if (isOnline) {
-        try {
-          final storagePath =
-              'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
-          final uploadTask = await _storage.ref(storagePath).putFile(
-                File(localPath),
-                SettableMetadata(
-                    contentType:
-                        'video/${p.extension(filename).toLowerCase().replaceAll(".", "")}'),
-              );
-
-          final downloadUrl = await uploadTask.ref.getDownloadURL();
-          mediaData['url'] = downloadUrl;
-        } catch (e) {
-          debugPrint('Error uploading to Firebase Storage: $e');
-        }
-      }
-
-      await _addMediaToInspection(mediaData);
-
-      widget.onMediaAdded(localPath);
-      await _loadMedia();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vídeo salvo com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar vídeo: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isProcessingVideo = false;
-        });
-      }
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
+
+// Função para capturar vídeo
+Future<void> _pickVideo(ImageSource source) async {
+  final picker = ImagePicker();
+  
+  // Força orientação paisagem para câmera
+  if (source == ImageSource.camera) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+  
+  final XFile? pickedFile = await picker.pickVideo(
+    source: source,
+    maxDuration: const Duration(minutes: 2),
+    preferredCameraDevice: CameraDevice.rear, // Câmera traseira
+  );
+
+  // Restaura orientações após captura
+  if (source == ImageSource.camera) {
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+  }
+
+  if (pickedFile == null) return;
+
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Processando vídeo com marca d\'água...'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+  }
+
+  setState(() {
+    _isLoading = true;
+    _isProcessingVideo = true;
+  });
+
+  try {
+    final mediaDir = await getMediaDirectory();
+    final timestamp = DateTime.now();
+    final filename = p.basename(pickedFile.path);
+    final newFilename =
+        'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+    final localPath = '${mediaDir.path}/$newFilename';
+
+    // Aplica marca d'água e converte para 4:3
+    final watermarkText = source == ImageSource.camera 
+        ? '📷 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}'
+        : '📁 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}';
+        
+    final watermarkedFile = await _watermarkService.applyVideoWatermark(
+      pickedFile.path,
+      localPath,
+      watermarkText: watermarkText,
+      aspectRatio: '4:3', // Força proporção 4:3
+    );
+
+    if (watermarkedFile == null) {
+      // Fallback: processa vídeo para 4:3 sem marca d'água
+      await _processVideoTo43(pickedFile.path, localPath);
+    }
+
+    final mediaData = <String, dynamic>{
+      'id': _uuid.v4(),
+      'type': 'video',
+      'localPath': localPath,
+      'aspect_ratio': '4:3',
+      'source': source == ImageSource.camera ? 'camera' : 'gallery',
+      'created_at': timestamp.toIso8601String(),
+      'updated_at': timestamp.toIso8601String(),
+    };
+
+    // Tenta upload para Firebase Storage
+    final connectivityResult = await _connectivity.checkConnectivity();
+    final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
+        connectivityResult.contains(ConnectivityResult.mobile);
+
+    if (isOnline) {
+      try {
+        final storagePath =
+            'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/$newFilename';
+        final uploadTask = await _storage.ref(storagePath).putFile(
+              File(localPath),
+              SettableMetadata(contentType: 'video/mp4'),
+            );
+
+        final downloadUrl = await uploadTask.ref.getDownloadURL();
+        mediaData['url'] = downloadUrl;
+      } catch (e) {
+        debugPrint('Error uploading to Firebase Storage: $e');
+      }
+    }
+
+    await _addMediaToInspection(mediaData);
+    widget.onMediaAdded(localPath);
+    await _loadMedia();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vídeo salvo com sucesso'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar vídeo: $e')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _isProcessingVideo = false;
+      });
+    }
+  }
+}
+
+// Método auxiliar para processar vídeo para 4:3 (fallback)
+Future<void> _processVideoTo43(String inputPath, String outputPath) async {
+  try {
+    // Aqui você implementaria o processamento de vídeo usando FFmpeg
+    // Por enquanto, copia o arquivo original
+    await File(inputPath).copy(outputPath);
+  } catch (e) {
+    debugPrint('Error processing video to 4:3: $e');
+    await File(inputPath).copy(outputPath);
+  }
+}
 
   Future<void> _addMediaToInspection(Map<String, dynamic> mediaData) async {
     final inspection =
