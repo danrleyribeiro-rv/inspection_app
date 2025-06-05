@@ -97,6 +97,7 @@ flutter:
   assets:
     - assets/images/
     - assets/gifs/
+    - assets/icons/
     - .env
     
   # Adicione suas fontes se necessário

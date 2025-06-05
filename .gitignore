@@ -17,11 +17,7 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+.firebase/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -48,3 +44,31 @@ app.*.map.json
 /.env
 /.firebaserc
 .firebaserc
+
+/firebase.json
+firebase.json
+firestore.indexes.json
+storage.rules
+
+google-services.json
+google-services.json.*
+google-services.json.*
+google-services.json.*.*
+google-services.json.*.*.*
+google-services.json.*.*.*.*
+google-services.json.*.*.*.*.*
+google-services.json.*.*.*.*.*.*
+
+
+/android/app/google-services.json
+/android/app/google-services.json.*
+/android/app/google-services.json.*.*
+/android/app/google-services.json.*.*.*
+/android/app/google-services.json.*.*.*.*
+/android/app/google-services.json.*.*.*.*.* .*
+/android/app/google-services.json.*.*.*.*.*.*
+/android/app/google-services.json.*.*.*.*.*.*.*
+/android/app/google-services.json.*.*.*.*.*.*.*.*
+/android/app/google-services.json.*.*.*.*.*.*.*.*
+/android/app/google-services.json.*.*.*.*.*.*.*.*.*
+/android/app/google-services.json.*.*.*.*.*.*.*.*.*

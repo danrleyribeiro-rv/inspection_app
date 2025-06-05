@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Inspection {
   final String id;
   final String title;
+  final String? cod;
   final String? street;
   final String? neighborhood;
   final String? city;
@@ -29,6 +30,7 @@ class Inspection {
   Inspection({
     required this.id,
     required this.title,
+    this.cod,
     this.street,
     this.neighborhood,
     this.city,
@@ -56,6 +58,7 @@ class Inspection {
   Inspection copyWith({
     String? id,
     String? title,
+    String? cod,
     String? street,
     String? neighborhood,
     String? city,
@@ -82,6 +85,7 @@ class Inspection {
     return Inspection(
       id: id ?? this.id,
       title: title ?? this.title,
+      cod: cod ?? this.cod,
       street: street ?? this.street,
       neighborhood: neighborhood ?? this.neighborhood,
       city: city ?? this.city,
@@ -113,6 +117,7 @@ class Inspection {
     final Map<String, dynamic> data = {
       'id': id,
       'title': title,
+      'cod': cod,
       'street': street,
       'neighborhood': neighborhood,
       'city': city,
@@ -181,6 +186,7 @@ class Inspection {
 
     return Inspection(
       id: json['id'].toString(),
+      cod: json['cod']?.toString(),
       title: json['title'] ?? 'Untitled',
       street: json['street'],
       neighborhood: json['neighborhood'],

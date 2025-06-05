@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/services/features/watermark_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -168,16 +167,12 @@ Future<void> _pickImage(ImageSource source) async {
       final tempProcessedPath = '${mediaDir.path}/temp_$newFilename';
       await File(tempProcessedPath).writeAsBytes(img.encodeJpg(croppedImage, quality: 95));
       
-      // Aplica marca d'água
-      final watermarkText = source == ImageSource.camera 
-          ? '📷 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}'
-          : '📁 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}';
-          
-      final watermarkedFile = await _watermarkService.applyWatermark(
-        tempProcessedPath,
-        localPath,
-        watermarkText: watermarkText,
-      );
+
+    final watermarkedFile = await _watermarkService.applyWatermark(
+      tempProcessedPath,
+      localPath,
+      isFromCamera: source == ImageSource.camera,
+    );
 
       // Remove arquivo temporário
       await File(tempProcessedPath).delete();
@@ -293,17 +288,13 @@ Future<void> _pickVideo(ImageSource source) async {
         'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
     final localPath = '${mediaDir.path}/$newFilename';
 
-    // Aplica marca d'água e converte para 4:3
-    final watermarkText = source == ImageSource.camera 
-        ? '📷 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}'
-        : '📁 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp)}';
-        
     final watermarkedFile = await _watermarkService.applyVideoWatermark(
       pickedFile.path,
       localPath,
-      watermarkText: watermarkText,
-      aspectRatio: '4:3', // Força proporção 4:3
+      aspectRatio: '4:3',
+      isFromCamera: source == ImageSource.camera,
     );
+
 
     if (watermarkedFile == null) {
       // Fallback: processa vídeo para 4:3 sem marca d'água

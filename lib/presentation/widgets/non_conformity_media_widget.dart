@@ -148,17 +148,30 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       try {
         final mediaDir = await _getMediaDirectory();
         final fileExt = path.extension(pickedFile.path);
-        final filename =
-            'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
+        final filename = 'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
 
-        final file = File(pickedFile.path);
-        await file.copy(localPath);
+        // Aplica marca d'água se for imagem
+        if (type == 'image') {
+          final watermarkedFile = await _serviceFactory.watermarkService.applyWatermark(
+            pickedFile.path,
+            localPath,
+            isFromCamera: source == ImageSource.camera,
+          );
+          
+          if (watermarkedFile == null) {
+            await File(pickedFile.path).copy(localPath);
+          }
+        } else {
+          // Para vídeo, apenas copia
+          await File(pickedFile.path).copy(localPath);
+        }
 
         final mediaData = {
           'id': _uuid.v4(),
           'type': type,
           'localPath': localPath,
+          'source': source == ImageSource.camera ? 'camera' : 'gallery',
           'created_at': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         };
@@ -181,42 +194,22 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         }
 
         await _saveMediaToInspection(mediaData);
-
         widget.onMediaAdded(localPath);
         await _loadMedia();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                  '${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
               backgroundColor: Colors.green,
             ),
           );
         }
       } catch (e) {
-        print('Error processing media: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Erro ao processar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        // erro handling...
       }
     } catch (e) {
-      print('Error capturing media: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Erro ao capturar ${type == 'image' ? 'foto' : 'vídeo'}: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      // erro handling...
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -235,20 +228,17 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
       if (widget.itemIndex < items.length) {
         final item = items[widget.itemIndex];
-        final details =
-            List<Map<String, dynamic>>.from(item['details'] ?? []);
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
 
         if (widget.detailIndex < details.length) {
-          final detail =
-              Map<String, dynamic>.from(details[widget.detailIndex]);
-          final nonConformities = List<Map<String, dynamic>>.from(
-              detail['non_conformities'] ?? []);
+          final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
+          final nonConformities =
+              List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
 
           if (widget.ncIndex < nonConformities.length) {
             final nc =
                 Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-            final ncMedia =
-                List<Map<String, dynamic>>.from(nc['media'] ?? []);
+            final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
 
             ncMedia.add(mediaData);
             nc['media'] = ncMedia;
@@ -350,7 +340,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                 topics[widget.topicIndex] = topic;
 
                 final updatedInspection = inspection.copyWith(topics: topics);
-                await _serviceFactory.coordinator.saveInspection(updatedInspection);
+                await _serviceFactory.coordinator
+                    .saveInspection(updatedInspection);
               }
             }
           }
@@ -394,6 +385,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     return mediaDir;
   }
 
+// lib/presentation/widgets/non_conformity_media_widget.dart (substitua o método build)
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -413,46 +406,52 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             ),
           ],
         ),
-
         const SizedBox(height: 12),
-
         if (!widget.isReadOnly)
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('Foto'),
+                  icon: const Icon(Icons.camera_alt, size: 18),
+                  label: const Text('Foto', style: TextStyle(fontSize: 12)),
                   onPressed: () => _pickMedia(ImageSource.camera, 'image'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.videocam),
-                  label: const Text('Vídeo'),
+                  icon: const Icon(Icons.videocam, size: 18),
+                  label: const Text('Vídeo', style: TextStyle(fontSize: 12)),
                   onPressed: () => _pickMedia(ImageSource.camera, 'video'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
                 ),
               ),
             ],
           ),
-
         const SizedBox(height: 8),
-
         if (!widget.isReadOnly)
           ElevatedButton.icon(
-            icon: const Icon(Icons.photo_library),
-            label: const Text('Galeria'),
+            icon: const Icon(Icons.photo_library, size: 18),
+            label: const Text('Galeria', style: TextStyle(fontSize: 12)),
             onPressed: () => _pickMedia(ImageSource.gallery, 'image'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 8),
             ),
           ),
-
         const SizedBox(height: 16),
         const Divider(),
         const SizedBox(height: 8),
-
         if (_isLoading)
           const Center(child: CircularProgressIndicator())
         else if (_mediaItems.isEmpty)
@@ -531,22 +530,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                           ),
                         ),
                       );
-
-                      if (!hasLocalPath && !hasUrl) {
-                        mediaWidget = Container(
-                          width: 120,
-                          height: 120,
-                          color: Colors.grey[300],
-                          child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.videocam_off),
-                                SizedBox(height: 4),
-                                Text('Sem Fonte',
-                                    style: TextStyle(fontSize: 10))
-                              ]),
-                        );
-                      }
                     }
 
                     return Padding(
@@ -557,7 +540,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                             borderRadius: BorderRadius.circular(8),
                             child: mediaWidget,
                           ),
-
                           if (!widget.isReadOnly)
                             Positioned(
                               top: 4,
@@ -579,7 +561,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                                 ),
                               ),
                             ),
-
                           Positioned(
                             bottom: 4,
                             left: 4,

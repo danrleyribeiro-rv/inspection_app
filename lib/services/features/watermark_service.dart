@@ -1,36 +1,87 @@
+// lib/services/features/watermark_service.dart
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 import 'package:image/image.dart' as img;
-import 'package:path/path.dart' as path;
 
 class WatermarkService {
-  final Uuid _uuid = Uuid();
-
   Future<File?> applyWatermark(
     String inputPath, 
     String outputPath, {
     String? watermarkText,
+    bool isFromCamera = true,
   }) async {
     try {
       final inputImage = img.decodeImage(await File(inputPath).readAsBytes());
       if (inputImage == null) return null;
 
-      // Aplica marca d'água
+      final position = await _getCurrentLocation();
+
+      // Carrega ícone
+      final iconPath = isFromCamera 
+          ? 'assets/icons/camera_watermark.png'
+          : 'assets/icons/galery_watermark.png';
+      
+      img.Image? watermarkIcon;
+      try {
+        final iconBytes = await rootBundle.load(iconPath);
+        watermarkIcon = img.decodeImage(iconBytes.buffer.asUint8List());
+      } catch (e) {
+        debugPrint('Could not load watermark icon: $e');
+      }
+
+      // Data/hora na marca d'água
+      final timestamp = DateTime.now();
+      final dateTimeText = DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp);
+      
+      final baseFontSize = (inputImage.width * 0.015).round();
+      final padding = 15;
+      
+      // Desenha fundo
+      final textWidth = dateTimeText.length * baseFontSize * 0.6;
+      final iconSize = watermarkIcon != null ? (baseFontSize * 1.5).round() : 0;
+      final totalWidth = textWidth + iconSize + (iconSize > 0 ? 8 : 0) + (padding * 2);
+      
+      img.fillRect(
+        inputImage,
+        x1: 10,
+        y1: inputImage.height - 40,
+        x2: 10 + totalWidth.round(),
+        y2: inputImage.height - 10,
+        color: img.ColorRgba8(0, 0, 0, 150),
+      );
+
+      // Desenha ícone
+      int textStartX = padding + 10;
+      if (watermarkIcon != null) {
+        final resizedIcon = img.copyResize(watermarkIcon, width: iconSize, height: iconSize);
+        img.compositeImage(
+          inputImage,
+          resizedIcon,
+          dstX: padding + 10,
+          dstY: inputImage.height - 35,
+        );
+        textStartX += iconSize + 8;
+      }
+
+      // Desenha texto
       final watermarkedImage = img.drawString(
         inputImage,
-        watermarkText ?? '📷 ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}',
-        font: img.arial24,
-        x: 20,
-        y: inputImage.height - 40,
+        dateTimeText,
+        font: img.arial14,
+        x: textStartX,
+        y: inputImage.height - 30,
         color: img.ColorRgb8(255, 255, 255),
       );
 
-      // Salva imagem com marca d'água
       await File(outputPath).writeAsBytes(img.encodeJpg(watermarkedImage, quality: 95));
+      
+      // Salva metadados em arquivo JSON
+      await _saveMetadata(outputPath, timestamp, position, isFromCamera);
+      
       return File(outputPath);
     } catch (e) {
       debugPrint('Error applying watermark: $e');
@@ -38,163 +89,17 @@ class WatermarkService {
     }
   }
 
-  Future<File?> applyVideoWatermark(
-    String inputPath, 
-    String outputPath, {
-    String? watermarkText,
-    String aspectRatio = '4:3',
-  }) async {
-    try {
-      // Implementação com FFmpeg seria ideal aqui
-      // Por enquanto, copia o arquivo
-      await File(inputPath).copy(outputPath);
-      return File(outputPath);
-    } catch (e) {
-      debugPrint('Error applying video watermark: $e');
-      return null;
-    }
-  }
-
-  Future<File> _addImageWatermark(
-    File imageFile,
-    String outputPath,
-    DateTime timestamp,
-    Position? position,
-    String? address,
-  ) async {
-    try {
-      final imageBytes = await imageFile.readAsBytes();
-      final originalImage = img.decodeImage(imageBytes);
-      
-      if (originalImage == null) {
-        throw Exception('Could not decode image');
-      }
-
-      final watermarkText = _buildWatermarkText(timestamp, position, address);
-      final watermarkedImage = _drawWatermarkOnImage(originalImage, watermarkText);
-      
-      final outputFile = File(outputPath);
-      await outputFile.writeAsBytes(img.encodeJpg(watermarkedImage, quality: 85));
-      
-      return outputFile;
-    } catch (e) {
-      print('Error adding image watermark: $e');
-      rethrow;
-    }
-  }
-
-  Future<File> _addVideoWatermark(
-    File videoFile,
-    String outputPath,
-    DateTime timestamp,
-    Position? position,
-    String? address,
-  ) async {
-    try {
-      // For video watermarking, would need FFmpeg integration
-      // For now, just copy the file and add metadata
-      final outputFile = File(outputPath);
-      await videoFile.copy(outputPath);
-      
-      // Add metadata to video file (implementation depends on video format)
-      await _addVideoMetadata(outputFile, timestamp, position, address);
-      
-      return outputFile;
-    } catch (e) {
-      print('Error adding video watermark: $e');
-      rethrow;
-    }
-  }
-
-  img.Image _drawWatermarkOnImage(img.Image image, String text) {
-    final lines = text.split('\n');
-    final fontSize = (image.width * 0.025).round();
-    final padding = fontSize;
+  Future<void> _saveMetadata(String imagePath, DateTime timestamp, Position? position, bool isFromCamera) async {
+    final metadataPath = '${imagePath}.json';
+    final metadata = {
+      'timestamp': timestamp.toIso8601String(),
+      'source': isFromCamera ? 'camera' : 'gallery',
+      'latitude': position?.latitude,
+      'longitude': position?.longitude,
+      'accuracy': position?.accuracy,
+    };
     
-    final lineHeight = (fontSize * 1.2).round();
-    final textHeight = lines.length * lineHeight + (padding * 2);
-    final maxLineWidth = lines.map((line) => line.length * fontSize * 0.6).reduce((a, b) => a > b ? a : b);
-    final textWidth = maxLineWidth.round() + (padding * 2);
-    
-    final bgColor = img.ColorRgba8(0, 0, 0, 180);
-    final textColor = img.ColorRgba8(255, 255, 255, 255);
-    
-    final x = padding;
-    final y = image.height - textHeight - padding;
-    
-    // Draw background
-    img.fillRect(
-      image,
-      x1: x - padding ~/ 2,
-      y1: y - padding ~/ 2,
-      x2: x + textWidth,
-      y2: y + textHeight,
-      color: bgColor,
-    );
-    
-    // Draw text
-    for (int i = 0; i < lines.length; i++) {
-      final lineY = y + (i * lineHeight);
-      _drawSimpleText(image, lines[i], x, lineY, fontSize, textColor);
-    }
-    
-    return image;
-  }
-
-  void _drawSimpleText(img.Image image, String text, int x, int y, int fontSize, img.Color color) {
-    final chars = text.split('');
-    var currentX = x;
-    
-    for (final char in chars) {
-      if (char != ' ') {
-        _drawChar(image, char, currentX, y, fontSize, color);
-      }
-      currentX += (fontSize * 0.6).round();
-    }
-  }
-
-  void _drawChar(img.Image image, String char, int x, int y, int fontSize, img.Color color) {
-    final charWidth = (fontSize * 0.5).round();
-    final charHeight = fontSize;
-    
-    // Simple rectangle for character representation
-    img.fillRect(
-      image,
-      x1: x,
-      y1: y,
-      x2: x + charWidth,
-      y2: y + charHeight,
-      color: color,
-    );
-  }
-
-  String _buildWatermarkText(DateTime timestamp, Position? position, String? address) {
-    final dateStr = '${timestamp.day.toString().padLeft(2, '0')}/'
-                   '${timestamp.month.toString().padLeft(2, '0')}/'
-                   '${timestamp.year}';
-    final timeStr = '${timestamp.hour.toString().padLeft(2, '0')}:'
-                   '${timestamp.minute.toString().padLeft(2, '0')}';
-    
-    final lines = <String>[
-      'Data: $dateStr',
-      'Hora: $timeStr',
-    ];
-    
-    if (position != null) {
-      lines.addAll([
-        'Lat: ${position.latitude.toStringAsFixed(6)}',
-        'Lng: ${position.longitude.toStringAsFixed(6)}',
-      ]);
-    }
-    
-    if (address != null && address.isNotEmpty) {
-      final shortAddress = address.length > 40 
-          ? '${address.substring(0, 37)}...' 
-          : address;
-      lines.add('Local: $shortAddress');
-    }
-    
-    return lines.join('\n');
+    await File(metadataPath).writeAsString(jsonEncode(metadata));
   }
 
   Future<Position?> _getCurrentLocation() async {
@@ -212,46 +117,27 @@ class WatermarkService {
 
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        timeLimit: const Duration(seconds: 5),
       );
     } catch (e) {
-      print('Error getting location: $e');
+      debugPrint('Error getting location: $e');
       return null;
     }
   }
 
-  Future<String?> _getAddressFromPosition(Position position) async {
+  Future<File?> applyVideoWatermark(
+    String inputPath, 
+    String outputPath, {
+    String? watermarkText,
+    String aspectRatio = '4:3',
+    bool isFromCamera = true,
+  }) async {
     try {
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      if (placemarks.isNotEmpty) {
-        final place = placemarks.first;
-        final addressParts = [
-          place.street,
-          place.subLocality,
-          place.locality,
-          place.administrativeArea,
-        ].where((part) => part != null && part.isNotEmpty);
-
-        return addressParts.join(', ');
-      }
+      await File(inputPath).copy(outputPath);
+      return File(outputPath);
     } catch (e) {
-      print('Error getting address: $e');
+      debugPrint('Error applying video watermark: $e');
+      return null;
     }
-    return null;
-  }
-
-  Future<void> _addVideoMetadata(
-    File videoFile,
-    DateTime timestamp,
-    Position? position,
-    String? address,
-  ) async {
-    // Implementation would require FFmpeg or similar for video metadata
-    // For now, this is a placeholder
-    print('Video metadata added: ${timestamp}, ${position?.latitude}, ${position?.longitude}');
   }
 }
