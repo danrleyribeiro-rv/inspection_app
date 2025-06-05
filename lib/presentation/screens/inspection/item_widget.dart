@@ -398,18 +398,22 @@ class _ItemWidgetState extends State<ItemWidget> {
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start, // Align items to the top
                 children: [
-                  // Círculo de progresso
+                  // Círculo de progresso (à esquerda)
                   ProgressCircle(
                     progress: _itemProgress,
                     size: 28,
                     showPercentage: false,
                   ),
                   const SizedBox(width: 12),
+
+                  // Seção central expandida para textos e botões
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Textos (acima)
                         Row(
                           children: [
                             Expanded(
@@ -417,54 +421,71 @@ class _ItemWidgetState extends State<ItemWidget> {
                                 widget.item.itemName,
                                 style: const TextStyle(
                                     fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Text(
-                              '${_itemProgress.toStringAsFixed(1)}%',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: ProgressCalculationService.getProgressColor(_itemProgress),
+                                maxLines: 2, // Allow for slightly longer names
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
                         if (widget.item.itemLabel != null) ...[
                           const SizedBox(height: 4),
-                          Text(widget.item.itemLabel!,
-                              style: TextStyle(
-                                  color: Colors.grey[600], fontSize: 12)),
+                          Text(
+                            widget.item.itemLabel!,
+                            style: TextStyle(
+                                color: Colors.grey[600], fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ],
+
+                        const SizedBox(height: 8), // Espaçador entre textos e botões
+
+                        // Botões de ação (abaixo e centralizados)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center, // <<-- ADICIONADO PARA CENTRALIZAR OS BOTÕES
+                          children: [
+                            IconButton(
+                              icon: _isAddingMedia
+                                  ? const SizedBox(
+                                      width: 20, // Consistente com o tamanho do ícone
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.camera_alt, size: 18),
+                              onPressed: _isAddingMedia ? null : () => _captureItemImage(ImageSource.camera),
+                              tooltip: 'Tirar foto do item',
+                              padding: const EdgeInsets.all(8.0),
+                              constraints: const BoxConstraints(),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              onPressed: _renameItem,
+                              tooltip: 'Renomear Item',
+                              padding: const EdgeInsets.all(8.0),
+                              constraints: const BoxConstraints(),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 20),
+                              onPressed: () => widget.onItemDuplicated(widget.item),
+                              tooltip: 'Duplicar Item',
+                              padding: const EdgeInsets.all(8.0),
+                              constraints: const BoxConstraints(),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20),
+                              onPressed: _showDeleteConfirmation,
+                              tooltip: 'Excluir Item',
+                              padding: const EdgeInsets.all(8.0),
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                  // Botão de captura de imagem
-                  IconButton(
-                    icon: _isAddingMedia 
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.camera_alt, size: 16),
-                    onPressed: _isAddingMedia ? null : () => _captureItemImage(ImageSource.camera),
-                    tooltip: 'Tirar foto do item',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit),
-                    onPressed: _renameItem,
-                    tooltip: 'Renomear Item',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: () => widget.onItemDuplicated(widget.item),
-                    tooltip: 'Duplicar Item',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: _showDeleteConfirmation,
-                    tooltip: 'Excluir Item',
-                  ),
+                  const SizedBox(width: 8), // Espaçador antes do ícone de expandir
+
+                  // Ícone de expandir/recolher (à direita)
                   Icon(widget.isExpanded
                       ? Icons.expand_less
                       : Icons.expand_more),

@@ -445,173 +445,185 @@ class _TopicWidgetState extends State<TopicWidget> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-        side: BorderSide(color: Colors.grey.shade300, width: 0),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: widget.onExpansionChanged,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Row(
-                children: [
-                  // Círculo de progresso
-                  ProgressCircle(
-                    progress: _topicProgress,
-                    size: 32,
-                    showPercentage: false,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _localTopic.topicName,
-                                style: const TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                            ),
+@override
+Widget build(BuildContext context) {
+  return Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    elevation: 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.zero,
+      side: BorderSide(color: Colors.grey.shade300, width: 0),
+    ),
+    child: Column(
+      children: [
+        InkWell(
+          onTap: widget.onExpansionChanged,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            // Use a Column to stack the two rows for the header
+            child: Column(
+              children: [
+                // --- TOP ROW: Progress, Topic Info, Expand Icon ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center, // Align items vertically in the center
+                  children: [
+                    // Círculo de progresso (Left)
+                    ProgressCircle(
+                      progress: _topicProgress,
+                      size: 25, // Or your desired size, can be larger if it shows percentage
+                      showPercentage: true, // As requested
+                    ),
+                    const SizedBox(width: 12),
+                    // Topic Name and Label (Center, Expanded)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _localTopic.topicName,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis, // Prevent overflow
+                          ),
+                          if (_localTopic.topicLabel != null && _localTopic.topicLabel!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
                             Text(
-                              '${_topicProgress.toStringAsFixed(1)}%',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: ProgressCalculationService.getProgressColor(_topicProgress),
-                              ),
+                              _localTopic.topicLabel!,
+                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              overflow: TextOverflow.ellipsis, // Prevent overflow
                             ),
                           ],
-                        ),
-                        if (_localTopic.topicLabel != null) ...[
-                          const SizedBox(height: 2),
-                          Text(_localTopic.topicLabel!,
-                              style: TextStyle(color: Colors.grey[600])),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  // Botão de captura de imagem
-                  IconButton(
-                    icon: _isAddingMedia 
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.camera_alt, size: 18),
-                    onPressed: _isAddingMedia ? null : () => _captureTopicImage(ImageSource.camera),
-                    tooltip: 'Tirar foto do tópico',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit),
-                    onPressed: _renameTopic,
-                    tooltip: 'Renomear Tópico',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: _duplicateTopic,
-                    tooltip: 'Duplicar Tópico',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: _showDeleteConfirmation,
-                    tooltip: 'Excluir Tópico',
-                  ),
-                  Icon(widget.isExpanded
-                      ? Icons.expand_less
-                      : Icons.expand_more),
-                ],
-              ),
+                    // Expand/Collapse Icon (Right)
+                    // The original percentage text is removed as ProgressCircle now shows it.
+                    // If you still want the text version, you can add it back here or near the topic name.
+                    Icon(widget.isExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more),
+                  ],
+                ),
+                const SizedBox(height: 8), // Spacer between top row and icon row
+
+                // --- BOTTOM ROW: Action Icons (Centered) ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center, // Center the icons
+                  children: [
+                    // Botão de captura de imagem
+                    IconButton(
+                      icon: _isAddingMedia
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.camera_alt, size: 18),
+                      onPressed: _isAddingMedia ? null : () => _captureTopicImage(ImageSource.camera),
+                      tooltip: 'Tirar foto do tópico',
+                    ),
+                    const SizedBox(width: 8), // Spacing between icons
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: _renameTopic,
+                      tooltip: 'Renomear Tópico',
+                    ),
+                    const SizedBox(width: 8), // Spacing between icons
+                    IconButton(
+                      icon: const Icon(Icons.copy),
+                      onPressed: _duplicateTopic,
+                      tooltip: 'Duplicar Tópico',
+                    ),
+                    const SizedBox(width: 8), // Spacing between icons
+                    IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: _showDeleteConfirmation,
+                      tooltip: 'Excluir Tópico',
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          if (widget.isExpanded) ...[
-            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: _editObservationDialog,
-                    child: AbsorbPointer(
-                      child: TextFormField(
-                        controller: _observationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Observações',
-                          border: OutlineInputBorder(),
-                          hintText: 'Adicione observações sobre este tópico...',
-                        ),
-                        maxLines: 1,
+        ),
+        if (widget.isExpanded) ...[
+          Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: _editObservationDialog,
+                  child: AbsorbPointer(
+                    child: TextFormField(
+                      controller: _observationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Observações',
+                        border: OutlineInputBorder(),
+                        hintText: 'Adicione observações sobre este tópico...',
                       ),
+                      maxLines: 1, // Keep it to 1, as it's just a trigger
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Itens',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _addItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Adicionar Item'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_items.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Text('Nenhum item adicionado ainda'),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      controller: _scrollController,
-                      itemCount: _items.length,
-                      itemBuilder: (context, index) {
-                        return ItemWidget(
-                          item: _items[index],
-                          onItemUpdated: _handleItemUpdate,
-                          onItemDeleted: _handleItemDelete,
-                          onItemDuplicated: _duplicateItem,
-                          isExpanded: index == _expandedItemIndex,
-                          onExpansionChanged: () {
-                            setState(() {
-                              _expandedItemIndex =
-                                  _expandedItemIndex == index ? -1 : index;
-                            });
-                          },
-                        );
-                      },
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Itens',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                ],
-              ),
+                    ElevatedButton.icon(
+                      onPressed: _addItem,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Adicionar Item'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_isLoading)
+                  const Center(child: CircularProgressIndicator())
+                else if (_items.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Nenhum item adicionado ainda'),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    controller: _scrollController,
+                    itemCount: _items.length,
+                    itemBuilder: (context, index) {
+                      return ItemWidget(
+                        item: _items[index],
+                        onItemUpdated: _handleItemUpdate,
+                        onItemDeleted: _handleItemDelete,
+                        onItemDuplicated: _duplicateItem,
+                        isExpanded: index == _expandedItemIndex,
+                        onExpansionChanged: () {
+                          setState(() {
+                            _expandedItemIndex =
+                                _expandedItemIndex == index ? -1 : index;
+                          });
+                        },
+                      );
+                    },
+                  ),
+              ],
             ),
-          ],
+          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 }

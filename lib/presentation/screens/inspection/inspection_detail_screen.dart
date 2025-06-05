@@ -38,7 +38,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   bool _isApplyingTemplate = false;
   bool _isRestoringCheckpoint = false;
   double _overallProgress = 0.0;
-  Map<String, int>? _inspectionStats;
   Inspection? _inspection;
   List<Topic> _topics = [];
   int _expandedTopicIndex = -1;
@@ -141,12 +140,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Future<void> _loadProgress() async {
     if (_inspection != null) {
       final progress = ProgressCalculationService.calculateOverallProgress(_inspection!.toMap());
-      final stats = ProgressCalculationService.getInspectionStats(_inspection!.toMap());
+      ProgressCalculationService.getInspectionStats(_inspection!.toMap());
       
       if (mounted) {
         setState(() {
           _overallProgress = progress;
-          _inspectionStats = stats;
         });
       }
     }
@@ -585,24 +583,22 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         title: Row(
           children: [
             Expanded(
-              child: Text(_inspection?.title ?? 'Inspeção'),
+              child: Text(_inspection?.cod ?? 'Inspeção',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
             ),
             if (!_isLoading && _inspection != null) ...[
               const SizedBox(width: 8),
               ProgressCircle(
                 progress: _overallProgress,
                 size: 24,
-                showPercentage: false,
+                showPercentage: true,
               ),
-              const SizedBox(width: 4),
-              Text(
-                '${_overallProgress.toStringAsFixed(1)}%',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: ProgressCalculationService.getProgressColor(_overallProgress),
-                ),
-              ),
+              const SizedBox(width: 1), 
             ],
           ],
         ),
@@ -623,7 +619,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   ? 'Reaplicar Template'
                   : 'Aplicar Template',
               onPressed: _isApplyingTemplate ? null : _manuallyApplyTemplate,
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(5),
               visualDensity: VisualDensity.compact,
             ),
           if (_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint)
@@ -640,7 +636,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             ),
           if (!(_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint))
             PopupMenuButton<String>(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(5),
               icon: const Icon(Icons.more_vert, size: 22),
               onSelected: (value) async {
                 switch (value) {
