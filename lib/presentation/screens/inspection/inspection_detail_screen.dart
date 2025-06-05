@@ -7,6 +7,7 @@ import 'package:inspection_app/presentation/screens/inspection/components/topics
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
+import 'package:inspection_app/presentation/widgets/progress_circle.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
@@ -14,6 +15,7 @@ import 'package:inspection_app/presentation/screens/inspection/inspection_info_d
 import 'package:inspection_app/services/features/chat_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
+import 'package:inspection_app/services/utils/progress_calculation_service.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -35,6 +37,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
   bool _isRestoringCheckpoint = false;
+  double _overallProgress = 0.0;
+  Map<String, int>? _inspectionStats;
   Inspection? _inspection;
   List<Topic> _topics = [];
   int _expandedTopicIndex = -1;
@@ -113,6 +117,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         });
 
         await _loadTopics();
+        await _loadProgress(); // Adicione esta linha
 
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
@@ -129,6 +134,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadProgress() async {
+    if (_inspection != null) {
+      final progress = ProgressCalculationService.calculateOverallProgress(_inspection!.toMap());
+      final stats = ProgressCalculationService.getInspectionStats(_inspection!.toMap());
+      
+      if (mounted) {
+        setState(() {
+          _overallProgress = progress;
+          _inspectionStats = stats;
+        });
       }
     }
   }
@@ -562,8 +581,31 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
-      appBar: AppBar(
-        title: Text(_inspection?.title ?? 'Inspeção'),
+        appBar: AppBar(
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(_inspection?.title ?? 'Inspeção'),
+            ),
+            if (!_isLoading && _inspection != null) ...[
+              const SizedBox(width: 8),
+              ProgressCircle(
+                progress: _overallProgress,
+                size: 24,
+                showPercentage: false,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${_overallProgress.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: ProgressCalculationService.getProgressColor(_overallProgress),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.save_outlined, size: 22),
@@ -702,10 +744,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                     ],
                   ),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem(
                   value: 'info',
                   child: Row(
-                    children: const [
+                    children: [
                       Icon(Icons.info_outline),
                       SizedBox(width: 8),
                       Text('Informações'),
@@ -715,7 +757,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               ],
             ),
         ],
-      ),
+        ),
+
       body: Padding(
         padding: EdgeInsets.only(bottom: bottomPadding),
         child: _buildBody(isLandscape, screenSize),

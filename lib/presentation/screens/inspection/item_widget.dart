@@ -1,4 +1,4 @@
-// lib/presentation/screens/inspection/item_widget.dart (updated with rename)
+// lib/presentation/screens/inspection/item_widget.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
@@ -6,8 +6,17 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/presentation/screens/inspection/detail_widget.dart';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
+import 'package:inspection_app/presentation/widgets/progress_circle.dart';
 import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/utils/progress_calculation_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:inspection_app/services/features/watermark_service.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 import 'dart:async';
+import 'dart:io';
 
 class ItemWidget extends StatefulWidget {
   final Item item;
@@ -33,9 +42,15 @@ class ItemWidget extends StatefulWidget {
 
 class _ItemWidgetState extends State<ItemWidget> {
   final _serviceFactory = ServiceFactory();
+  final _watermarkService = WatermarkService();
+  final _storage = FirebaseStorage.instance;
+  final _uuid = Uuid();
+  
   List<Detail> _details = [];
   bool _isLoading = true;
+  bool _isAddingMedia = false;
   int _expandedDetailIndex = -1;
+  double _itemProgress = 0.0;
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   ScrollController? _scrollController;
@@ -75,8 +90,20 @@ class _ItemWidgetState extends State<ItemWidget> {
       );
 
       if (!mounted) return;
+
+      // Calcular progresso do item
+      final inspection = await _serviceFactory.coordinator.getInspection(widget.item.inspectionId);
+      final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
+      final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
+      final progress = ProgressCalculationService.calculateItemProgress(
+        inspection?.toMap(),
+        topicIndex,
+        itemIndex,
+      );
+
       setState(() {
         _details = details;
+        _itemProgress = progress;
         _isLoading = false;
       });
     } catch (e) {
@@ -97,6 +124,79 @@ class _ItemWidgetState extends State<ItemWidget> {
       );
       widget.onItemUpdated(updatedItem);
     });
+  }
+
+  Future<void> _captureItemImage(ImageSource source) async {
+    setState(() => _isAddingMedia = true);
+
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        imageQuality: 100,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+
+      if (pickedFile == null) {
+        setState(() => _isAddingMedia = false);
+        return;
+      }
+
+      final mediaDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now();
+      final filename = 'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
+      final localPath = '${mediaDir.path}/$filename';
+
+      // Aplicar marca d'água
+      final watermarkedFile = await _watermarkService.applyWatermark(
+        pickedFile.path,
+        localPath,
+        isFromCamera: source == ImageSource.camera,
+      );
+
+      if (watermarkedFile == null) {
+        await File(pickedFile.path).copy(localPath);
+      }
+
+      // Upload para Firebase Storage
+      try {
+        final storagePath = 'inspections/${widget.item.inspectionId}/topics/${widget.item.topicId}/items/${widget.item.id}/$filename';
+        final uploadTask = await _storage.ref(storagePath).putFile(
+          File(localPath),
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+        final downloadUrl = await uploadTask.ref.getDownloadURL();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Imagem do item salva com sucesso'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Erro no upload: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Imagem salva localmente (será sincronizada quando online)'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAddingMedia = false);
+      }
+    }
   }
 
   Future<void> _renameItem() async {
@@ -153,7 +253,6 @@ class _ItemWidgetState extends State<ItemWidget> {
       return;
     }
 
-    // Obter nome do tópico através do coordinator
     String topicName = "";
     try {
       final topics =
@@ -186,7 +285,6 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       String? detailType = 'text';
       List<String>? options;
-
       if (!isCustom) {
         detailType = template['type'] as String?;
         if (template['options'] is List) {
@@ -301,14 +399,35 @@ class _ItemWidgetState extends State<ItemWidget> {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
+                  // Círculo de progresso
+                  ProgressCircle(
+                    progress: _itemProgress,
+                    size: 28,
+                    showPercentage: false,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.item.itemName,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                widget.item.itemName,
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Text(
+                              '${_itemProgress.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: ProgressCalculationService.getProgressColor(_itemProgress),
+                              ),
+                            ),
+                          ],
                         ),
                         if (widget.item.itemLabel != null) ...[
                           const SizedBox(height: 4),
@@ -318,6 +437,18 @@ class _ItemWidgetState extends State<ItemWidget> {
                         ],
                       ],
                     ),
+                  ),
+                  // Botão de captura de imagem
+                  IconButton(
+                    icon: _isAddingMedia 
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.camera_alt, size: 16),
+                    onPressed: _isAddingMedia ? null : () => _captureItemImage(ImageSource.camera),
+                    tooltip: 'Tirar foto do item',
                   ),
                   IconButton(
                     icon: const Icon(Icons.edit),
@@ -403,6 +534,8 @@ class _ItemWidgetState extends State<ItemWidget> {
                             if (idx >= 0) {
                               setState(() => _details[idx] = updatedDetail);
                               _serviceFactory.coordinator.updateDetail(updatedDetail);
+                              // Recarregar para atualizar progresso
+                              _loadDetails();
                             }
                           },
                           onDetailDeleted: (detailId) async {

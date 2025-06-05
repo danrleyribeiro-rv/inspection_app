@@ -4,9 +4,18 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/presentation/screens/inspection/item_widget.dart';
 import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/utils/progress_calculation_service.dart';
+import 'package:inspection_app/presentation/widgets/progress_circle.dart';
 import 'dart:async';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:inspection_app/services/features/watermark_service.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:io';
 
 class TopicWidget extends StatefulWidget {
   final Topic topic;
@@ -32,9 +41,15 @@ class TopicWidget extends StatefulWidget {
 
 class _TopicWidgetState extends State<TopicWidget> {
   final ServiceFactory _serviceFactory = ServiceFactory();
+  final _watermarkService = WatermarkService();
+  final _storage = FirebaseStorage.instance;
+  final _uuid = Uuid();
+  
   List<Item> _items = [];
   bool _isLoading = true;
+  bool _isAddingMedia = false;
   int _expandedItemIndex = -1;
+  double _topicProgress = 0.0;
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   ScrollController? _scrollController;
@@ -74,8 +89,18 @@ class _TopicWidgetState extends State<TopicWidget> {
       );
 
       if (!mounted) return;
+      
+      // Calcular progresso do tópico
+      final inspection = await _serviceFactory.coordinator.getInspection(widget.topic.inspectionId);
+      final topicIndex = int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
+      final progress = ProgressCalculationService.calculateTopicProgress(
+        inspection?.toMap(),
+        topicIndex,
+      );
+
       setState(() {
         _items = items;
+        _topicProgress = progress;
         _isLoading = false;
       });
 
@@ -115,6 +140,79 @@ class _TopicWidgetState extends State<TopicWidget> {
     });
   }
 
+  Future<void> _captureTopicImage(ImageSource source) async {
+    setState(() => _isAddingMedia = true);
+
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        imageQuality: 100,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+
+      if (pickedFile == null) {
+        setState(() => _isAddingMedia = false);
+        return;
+      }
+
+      final mediaDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now();
+      final filename = 'topic_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
+      final localPath = '${mediaDir.path}/$filename';
+
+      // Aplicar marca d'água
+      final watermarkedFile = await _watermarkService.applyWatermark(
+        pickedFile.path,
+        localPath,
+        isFromCamera: source == ImageSource.camera,
+      );
+
+      if (watermarkedFile == null) {
+        await File(pickedFile.path).copy(localPath);
+      }
+
+      // Upload para Firebase Storage
+      try {
+        final storagePath = 'inspections/${widget.topic.inspectionId}/topics/${widget.topic.id}/$filename';
+        final uploadTask = await _storage.ref(storagePath).putFile(
+          File(localPath),
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+        final downloadUrl = await uploadTask.ref.getDownloadURL();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Imagem do tópico salva com sucesso'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Erro no upload: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Imagem salva localmente (será sincronizada quando online)'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAddingMedia = false);
+      }
+    }
+  }
+
   Future<void> _renameTopic() async {
     final newName = await showDialog<String>(
       context: context,
@@ -146,8 +244,7 @@ class _TopicWidgetState extends State<TopicWidget> {
         return AlertDialog(
           title: const Text('Editar Observação do Tópico'),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width *
-                0.8, // 80% da largura da tela
+            width: MediaQuery.of(context).size.width * 0.8,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 220),
               child: TextFormField(
@@ -286,6 +383,8 @@ class _TopicWidgetState extends State<TopicWidget> {
     if (index >= 0) {
       setState(() => _items[index] = updatedItem);
       _serviceFactory.coordinator.updateItem(updatedItem);
+      // Recarregar para atualizar progresso
+      _loadItems();
     }
   }
 
@@ -363,14 +462,35 @@ class _TopicWidgetState extends State<TopicWidget> {
               padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
+                  // Círculo de progresso
+                  ProgressCircle(
+                    progress: _topicProgress,
+                    size: 32,
+                    showPercentage: false,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _localTopic.topicName,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _localTopic.topicName,
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Text(
+                              '${_topicProgress.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: ProgressCalculationService.getProgressColor(_topicProgress),
+                              ),
+                            ),
+                          ],
                         ),
                         if (_localTopic.topicLabel != null) ...[
                           const SizedBox(height: 2),
@@ -379,6 +499,18 @@ class _TopicWidgetState extends State<TopicWidget> {
                         ],
                       ],
                     ),
+                  ),
+                  // Botão de captura de imagem
+                  IconButton(
+                    icon: _isAddingMedia 
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.camera_alt, size: 18),
+                    onPressed: _isAddingMedia ? null : () => _captureTopicImage(ImageSource.camera),
+                    tooltip: 'Tirar foto do tópico',
                   ),
                   IconButton(
                     icon: const Icon(Icons.edit),
