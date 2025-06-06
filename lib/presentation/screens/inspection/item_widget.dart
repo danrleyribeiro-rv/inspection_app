@@ -10,9 +10,6 @@ import 'package:inspection_app/presentation/widgets/progress_circle.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/utils/progress_calculation_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/features/watermark_service.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
@@ -42,8 +39,6 @@ class ItemWidget extends StatefulWidget {
 
 class _ItemWidgetState extends State<ItemWidget> {
   final _serviceFactory = ServiceFactory();
-  final _watermarkService = WatermarkService();
-  final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
   
   List<Detail> _details = [];
@@ -91,7 +86,6 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       if (!mounted) return;
 
-      // Calcular progresso do item
       final inspection = await _serviceFactory.coordinator.getInspection(widget.item.inspectionId);
       final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
       final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
@@ -147,44 +141,68 @@ class _ItemWidgetState extends State<ItemWidget> {
       final filename = 'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
       final localPath = '${mediaDir.path}/$filename';
 
-      // Aplicar marca d'água
-      final watermarkedFile = await _watermarkService.applyWatermark(
+      // Processar imagem para 4:3 em background
+      final processedFile = await _serviceFactory.mediaService.processImage43(
         pickedFile.path,
         localPath,
-        isFromCamera: source == ImageSource.camera,
       );
 
-      if (watermarkedFile == null) {
+      if (processedFile == null) {
         await File(pickedFile.path).copy(localPath);
       }
 
-      // Upload para Firebase Storage
+      // Obter localização
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
+
+      // Criar dados da mídia
+      final mediaData = {
+        'id': _uuid.v4(),
+        'type': 'image',
+        'localPath': localPath,
+        'aspect_ratio': '4:3',
+        'source': source == ImageSource.camera ? 'camera' : 'gallery',
+        'created_at': timestamp.toIso8601String(),
+        'updated_at': timestamp.toIso8601String(),
+        'topic_id': widget.item.topicId,
+        'topic_name': null,
+        'item_id': widget.item.id,
+        'item_name': widget.item.itemName,
+        'detail_id': null,
+        'detail_name': null,
+        'is_non_conformity': false,
+        'metadata': {
+          'location': position != null ? {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'accuracy': position.accuracy,
+          } : null,
+          'source': source == ImageSource.camera ? 'camera' : 'gallery',
+        },
+      };
+
+      // Upload para Firebase Storage se online
       try {
-        final storagePath = 'inspections/${widget.item.inspectionId}/topics/${widget.item.topicId}/items/${widget.item.id}/$filename';
-        final uploadTask = await _storage.ref(storagePath).putFile(
-          File(localPath),
-          SettableMetadata(contentType: 'image/jpeg'),
+        final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
+          file: File(localPath),
+          inspectionId: widget.item.inspectionId,
+          type: 'image',
+          topicId: widget.item.topicId,
+          itemId: widget.item.id,
         );
-        final downloadUrl = await uploadTask.ref.getDownloadURL();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Imagem do item salva com sucesso'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        mediaData['url'] = downloadUrl;
       } catch (e) {
         debugPrint('Erro no upload: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Imagem salva localmente (será sincronizada quando online)'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+      }
+
+      await _saveItemMediaToInspection(mediaData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagem do item salva com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -195,6 +213,40 @@ class _ItemWidgetState extends State<ItemWidget> {
     } finally {
       if (mounted) {
         setState(() => _isAddingMedia = false);
+      }
+    }
+  }
+
+  Future<void> _saveItemMediaToInspection(Map<String, dynamic> mediaData) async {
+    final inspection = await _serviceFactory.coordinator.getInspection(widget.item.inspectionId);
+    if (inspection?.topics != null) {
+      final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+      final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
+      
+      if (topicIndex < topics.length) {
+        final topic = Map<String, dynamic>.from(topics[topicIndex]);
+        mediaData['topic_name'] = topic['name'];
+        
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
+        
+        if (itemIndex < items.length) {
+          final item = Map<String, dynamic>.from(items[itemIndex]);
+          
+          if (!item.containsKey('media')) {
+            item['media'] = <Map<String, dynamic>>[];
+          }
+          
+          final itemMedia = List<Map<String, dynamic>>.from(item['media'] ?? []);
+          itemMedia.add(mediaData);
+          item['media'] = itemMedia;
+          items[itemIndex] = item;
+          topic['items'] = items;
+          topics[topicIndex] = topic;
+
+          final updatedInspection = inspection.copyWith(topics: topics);
+          await _serviceFactory.coordinator.saveInspection(updatedInspection);
+        }
       }
     }
   }
@@ -398,22 +450,18 @@ class _ItemWidgetState extends State<ItemWidget> {
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start, // Align items to the top
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Círculo de progresso (à esquerda)
                   ProgressCircle(
                     progress: _itemProgress,
                     size: 28,
                     showPercentage: false,
                   ),
                   const SizedBox(width: 12),
-
-                  // Seção central expandida para textos e botões
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Textos (acima)
                         Row(
                           children: [
                             Expanded(
@@ -421,7 +469,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                                 widget.item.itemName,
                                 style: const TextStyle(
                                     fontSize: 16, fontWeight: FontWeight.bold),
-                                maxLines: 2, // Allow for slightly longer names
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -437,17 +485,14 @@ class _ItemWidgetState extends State<ItemWidget> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
-
-                        const SizedBox(height: 8), // Espaçador entre textos e botões
-
-                        // Botões de ação (abaixo e centralizados)
+                        const SizedBox(height: 8),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.center, // <<-- ADICIONADO PARA CENTRALIZAR OS BOTÕES
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             IconButton(
                               icon: _isAddingMedia
                                   ? const SizedBox(
-                                      width: 20, // Consistente com o tamanho do ícone
+                                      width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(strokeWidth: 2),
                                     )
@@ -483,9 +528,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8), // Espaçador antes do ícone de expandir
-
-                  // Ícone de expandir/recolher (à direita)
+                  const SizedBox(width: 8),
                   Icon(widget.isExpanded
                       ? Icons.expand_less
                       : Icons.expand_more),
@@ -555,7 +598,6 @@ class _ItemWidgetState extends State<ItemWidget> {
                             if (idx >= 0) {
                               setState(() => _details[idx] = updatedDetail);
                               _serviceFactory.coordinator.updateDetail(updatedDetail);
-                              // Recarregar para atualizar progresso
                               _loadDetails();
                             }
                           },

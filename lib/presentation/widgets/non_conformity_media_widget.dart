@@ -1,9 +1,8 @@
+// lib/presentation/widgets/non_conformity_media_widget.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -38,7 +37,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   List<Map<String, dynamic>> _mediaItems = [];
   bool _isLoading = true;
   bool _isOnline = false;
-  final _storage = FirebaseStorage.instance;
   final ServiceFactory _serviceFactory = ServiceFactory();
   final _connectivityService = Connectivity();
   final _uuid = Uuid();
@@ -120,25 +118,17 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     if (!mounted) return;
 
     try {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-
       final picker = ImagePicker();
       final XFile? pickedFile = type == 'image'
           ? await picker.pickImage(
               source: source,
-              maxWidth: 1200,
-              maxHeight: 800,
-              imageQuality: 80,
+              imageQuality: 100,
+              preferredCameraDevice: CameraDevice.rear,
             )
           : await picker.pickVideo(
               source: source,
               maxDuration: const Duration(minutes: 1),
             );
-
-      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
 
       if (pickedFile == null) return;
       if (!mounted) return;
@@ -151,15 +141,14 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         final filename = 'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
 
-        // Aplica marca d'água se for imagem
         if (type == 'image') {
-          final watermarkedFile = await _serviceFactory.watermarkService.applyWatermark(
+          // Processar imagem para 4:3
+          final processedFile = await _serviceFactory.mediaService.processImage43(
             pickedFile.path,
             localPath,
-            isFromCamera: source == ImageSource.camera,
           );
           
-          if (watermarkedFile == null) {
+          if (processedFile == null) {
             await File(pickedFile.path).copy(localPath);
           }
         } else {
@@ -167,30 +156,41 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           await File(pickedFile.path).copy(localPath);
         }
 
+        // Obter localização
+        final position = await _serviceFactory.mediaService.getCurrentLocation();
+
         final mediaData = {
           'id': _uuid.v4(),
           'type': type,
           'localPath': localPath,
+          'aspect_ratio': type == 'image' ? '4:3' : '16:9',
           'source': source == ImageSource.camera ? 'camera' : 'gallery',
           'created_at': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
+          'metadata': {
+            'location': position != null ? {
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'accuracy': position.accuracy,
+            } : null,
+            'source': source == ImageSource.camera ? 'camera' : 'gallery',
+          },
         };
 
         if (_isOnline) {
-          final storagePath =
-              'inspections/${widget.inspectionId}/topic_${widget.topicIndex}/item_${widget.itemIndex}/detail_${widget.detailIndex}/non_conformities/nc_${widget.ncIndex}/$filename';
-
-          final contentType = type == 'image'
-              ? 'image/${fileExt.toLowerCase().replaceAll(".", "")}'
-              : 'video/${fileExt.toLowerCase().replaceAll(".", "")}';
-
-          final uploadTask = await _storage.ref(storagePath).putFile(
-                File(localPath),
-                SettableMetadata(contentType: contentType),
-              );
-
-          final downloadUrl = await uploadTask.ref.getDownloadURL();
-          mediaData['url'] = downloadUrl;
+          try {
+            final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
+              file: File(localPath),
+              inspectionId: widget.inspectionId,
+              type: type,
+              topicId: 'topic_${widget.topicIndex}',
+              itemId: 'item_${widget.itemIndex}',
+              detailId: 'detail_${widget.detailIndex}',
+            );
+            mediaData['url'] = downloadUrl;
+          } catch (e) {
+            print('Error uploading to Firebase Storage: $e');
+          }
         }
 
         await _saveMediaToInspection(mediaData);
@@ -206,10 +206,18 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           );
         }
       } catch (e) {
-        // erro handling...
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao processar mídia: $e')),
+          );
+        }
       }
     } catch (e) {
-      // erro handling...
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao capturar mídia: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -285,8 +293,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     try {
       if (_isOnline && media['url'] != null) {
         try {
-          final storageRef = _storage.refFromURL(media['url']);
-          await storageRef.delete();
+          await _serviceFactory.mediaService.deleteFile(media['url']);
         } catch (e) {
           print('Error deleting from storage: $e');
         }
@@ -384,8 +391,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
     return mediaDir;
   }
-
-// lib/presentation/widgets/non_conformity_media_widget.dart (substitua o método build)
 
   @override
   Widget build(BuildContext context) {

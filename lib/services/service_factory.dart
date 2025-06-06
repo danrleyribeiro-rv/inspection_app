@@ -11,7 +11,6 @@ import 'package:inspection_app/services/utils/settings_service.dart';
 import 'package:inspection_app/services/utils/sync_service.dart';
 import 'package:inspection_app/services/utils/notification_service.dart';
 import 'package:inspection_app/services/utils/import_export_service.dart';
-import 'package:inspection_app/services/features/watermark_service.dart';
 import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
 import 'package:inspection_app/services/features/offline_service.dart';
 
@@ -34,7 +33,6 @@ class ServiceFactory {
   SyncService? _syncService;
   NotificationService? _notificationService;
   ImportExportService? _importExportService;
-  WatermarkService? _watermarkService;
   OfflineService? _offlineService;
 
 
@@ -92,11 +90,6 @@ class ServiceFactory {
   ImportExportService get importExportService {
     _importExportService ??= ImportExportService();
     return _importExportService!;
-  }
-
-  WatermarkService get watermarkService {
-    _watermarkService ??= WatermarkService();
-    return _watermarkService!;
   }
 
   OfflineService get offlineService {

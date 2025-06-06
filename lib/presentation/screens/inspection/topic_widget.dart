@@ -10,9 +10,6 @@ import 'dart:async';
 import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/features/watermark_service.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
@@ -41,8 +38,6 @@ class TopicWidget extends StatefulWidget {
 
 class _TopicWidgetState extends State<TopicWidget> {
   final ServiceFactory _serviceFactory = ServiceFactory();
-  final _watermarkService = WatermarkService();
-  final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
   
   List<Item> _items = [];
@@ -90,7 +85,6 @@ class _TopicWidgetState extends State<TopicWidget> {
 
       if (!mounted) return;
       
-      // Calcular progresso do tópico
       final inspection = await _serviceFactory.coordinator.getInspection(widget.topic.inspectionId);
       final topicIndex = int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
       final progress = ProgressCalculationService.calculateTopicProgress(
@@ -161,44 +155,67 @@ class _TopicWidgetState extends State<TopicWidget> {
       final filename = 'topic_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
       final localPath = '${mediaDir.path}/$filename';
 
-      // Aplicar marca d'água
-      final watermarkedFile = await _watermarkService.applyWatermark(
+      // Processar imagem para 4:3 em background
+      final processedFile = await _serviceFactory.mediaService.processImage43(
         pickedFile.path,
         localPath,
-        isFromCamera: source == ImageSource.camera,
       );
 
-      if (watermarkedFile == null) {
+      if (processedFile == null) {
         await File(pickedFile.path).copy(localPath);
       }
 
-      // Upload para Firebase Storage
+      // Obter localização
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
+
+      // Criar dados da mídia
+      final mediaData = {
+        'id': _uuid.v4(),
+        'type': 'image',
+        'localPath': localPath,
+        'aspect_ratio': '4:3',
+        'source': source == ImageSource.camera ? 'camera' : 'gallery',
+        'created_at': timestamp.toIso8601String(),
+        'updated_at': timestamp.toIso8601String(),
+        'topic_id': widget.topic.id,
+        'topic_name': widget.topic.topicName,
+        'item_id': null,
+        'item_name': null,
+        'detail_id': null,
+        'detail_name': null,
+        'is_non_conformity': false,
+        'metadata': {
+          'location': position != null ? {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'accuracy': position.accuracy,
+          } : null,
+          'source': source == ImageSource.camera ? 'camera' : 'gallery',
+        },
+      };
+
+      // Upload para Firebase Storage se online
       try {
-        final storagePath = 'inspections/${widget.topic.inspectionId}/topics/${widget.topic.id}/$filename';
-        final uploadTask = await _storage.ref(storagePath).putFile(
-          File(localPath),
-          SettableMetadata(contentType: 'image/jpeg'),
+        final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
+          file: File(localPath),
+          inspectionId: widget.topic.inspectionId,
+          type: 'image',
+          topicId: widget.topic.id,
         );
-        final downloadUrl = await uploadTask.ref.getDownloadURL();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Imagem do tópico salva com sucesso'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        mediaData['url'] = downloadUrl;
       } catch (e) {
         debugPrint('Erro no upload: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Imagem salva localmente (será sincronizada quando online)'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+      }
+
+      await _saveTopicMediaToInspection(mediaData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagem do tópico salva com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -209,6 +226,30 @@ class _TopicWidgetState extends State<TopicWidget> {
     } finally {
       if (mounted) {
         setState(() => _isAddingMedia = false);
+      }
+    }
+  }
+
+  Future<void> _saveTopicMediaToInspection(Map<String, dynamic> mediaData) async {
+    final inspection = await _serviceFactory.coordinator.getInspection(widget.topic.inspectionId);
+    if (inspection?.topics != null) {
+      final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+      final topicIndex = int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
+      
+      if (topicIndex < topics.length) {
+        final topic = Map<String, dynamic>.from(topics[topicIndex]);
+        
+        if (!topic.containsKey('media')) {
+          topic['media'] = <Map<String, dynamic>>[];
+        }
+        
+        final topicMedia = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+        topicMedia.add(mediaData);
+        topic['media'] = topicMedia;
+        topics[topicIndex] = topic;
+
+        final updatedInspection = inspection.copyWith(topics: topics);
+        await _serviceFactory.coordinator.saveInspection(updatedInspection);
       }
     }
   }
@@ -383,7 +424,6 @@ class _TopicWidgetState extends State<TopicWidget> {
     if (index >= 0) {
       setState(() => _items[index] = updatedItem);
       _serviceFactory.coordinator.updateItem(updatedItem);
-      // Recarregar para atualizar progresso
       _loadItems();
     }
   }
@@ -445,185 +485,175 @@ class _TopicWidgetState extends State<TopicWidget> {
     }
   }
 
-@override
-Widget build(BuildContext context) {
-  return Card(
-    margin: const EdgeInsets.only(bottom: 10),
-    elevation: 2,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.zero,
-      side: BorderSide(color: Colors.grey.shade300, width: 0),
-    ),
-    child: Column(
-      children: [
-        InkWell(
-          onTap: widget.onExpansionChanged,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            // Use a Column to stack the two rows for the header
-            child: Column(
-              children: [
-                // --- TOP ROW: Progress, Topic Info, Expand Icon ---
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center, // Align items vertically in the center
-                  children: [
-                    // Círculo de progresso (Left)
-                    ProgressCircle(
-                      progress: _topicProgress,
-                      size: 25, // Or your desired size, can be larger if it shows percentage
-                      showPercentage: true, // As requested
-                    ),
-                    const SizedBox(width: 12),
-                    // Topic Name and Label (Center, Expanded)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _localTopic.topicName,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis, // Prevent overflow
-                          ),
-                          if (_localTopic.topicLabel != null && _localTopic.topicLabel!.isNotEmpty) ...[
-                            const SizedBox(height: 2),
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+        side: BorderSide(color: Colors.grey.shade300, width: 0),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      ProgressCircle(
+                        progress: _topicProgress,
+                        size: 25,
+                        showPercentage: true,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              _localTopic.topicLabel!,
-                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                              overflow: TextOverflow.ellipsis, // Prevent overflow
+                              _localTopic.topicName,
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            if (_localTopic.topicLabel != null && _localTopic.topicLabel!.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                _localTopic.topicLabel!,
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    // Expand/Collapse Icon (Right)
-                    // The original percentage text is removed as ProgressCircle now shows it.
-                    // If you still want the text version, you can add it back here or near the topic name.
-                    Icon(widget.isExpanded
-                        ? Icons.expand_less
-                        : Icons.expand_more),
-                  ],
-                ),
-                const SizedBox(height: 8), // Spacer between top row and icon row
-
-                // --- BOTTOM ROW: Action Icons (Centered) ---
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center, // Center the icons
-                  children: [
-                    // Botão de captura de imagem
-                    IconButton(
-                      icon: _isAddingMedia
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.camera_alt, size: 18),
-                      onPressed: _isAddingMedia ? null : () => _captureTopicImage(ImageSource.camera),
-                      tooltip: 'Tirar foto do tópico',
-                    ),
-                    const SizedBox(width: 8), // Spacing between icons
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: _renameTopic,
-                      tooltip: 'Renomear Tópico',
-                    ),
-                    const SizedBox(width: 8), // Spacing between icons
-                    IconButton(
-                      icon: const Icon(Icons.copy),
-                      onPressed: _duplicateTopic,
-                      tooltip: 'Duplicar Tópico',
-                    ),
-                    const SizedBox(width: 8), // Spacing between icons
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: _showDeleteConfirmation,
-                      tooltip: 'Excluir Tópico',
-                    ),
-                  ],
-                ),
-              ],
+                      Icon(widget.isExpanded
+                          ? Icons.expand_less
+                          : Icons.expand_more),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: _isAddingMedia
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.camera_alt, size: 18),
+                        onPressed: _isAddingMedia ? null : () => _captureTopicImage(ImageSource.camera),
+                        tooltip: 'Tirar foto do tópico',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: _renameTopic,
+                        tooltip: 'Renomear Tópico',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.copy),
+                        onPressed: _duplicateTopic,
+                        tooltip: 'Duplicar Tópico',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: _showDeleteConfirmation,
+                        tooltip: 'Excluir Tópico',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        if (widget.isExpanded) ...[
-          Divider(height: 1, thickness: 1, color: Colors.grey[300]),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: _editObservationDialog,
-                  child: AbsorbPointer(
-                    child: TextFormField(
-                      controller: _observationController,
-                      decoration: const InputDecoration(
-                        labelText: 'Observações',
-                        border: OutlineInputBorder(),
-                        hintText: 'Adicione observações sobre este tópico...',
-                      ),
-                      maxLines: 1, // Keep it to 1, as it's just a trigger
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Itens',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _addItem,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar Item'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (_isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else if (_items.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Text('Nenhum item adicionado ainda'),
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    controller: _scrollController,
-                    itemCount: _items.length,
-                    itemBuilder: (context, index) {
-                      return ItemWidget(
-                        item: _items[index],
-                        onItemUpdated: _handleItemUpdate,
-                        onItemDeleted: _handleItemDelete,
-                        onItemDuplicated: _duplicateItem,
-                        isExpanded: index == _expandedItemIndex,
-                        onExpansionChanged: () {
-                          setState(() {
-                            _expandedItemIndex =
-                                _expandedItemIndex == index ? -1 : index;
-                          });
-                        },
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    ),
-  );
-}
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            Padding(
+padding: const EdgeInsets.all(8),
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+                 GestureDetector(
+                   onTap: _editObservationDialog,
+                   child: AbsorbPointer(
+                     child: TextFormField(
+                       controller: _observationController,
+                       decoration: const InputDecoration(
+                         labelText: 'Observações',
+                         border: OutlineInputBorder(),
+                         hintText: 'Adicione observações sobre este tópico...',
+                       ),
+                       maxLines: 1,
+                     ),
+                   ),
+                 ),
+                 const SizedBox(height: 10),
+                 Row(
+                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                   children: [
+                     const Text(
+                       'Itens',
+                       style:
+                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                     ),
+                     ElevatedButton.icon(
+                       onPressed: _addItem,
+                       icon: const Icon(Icons.add),
+                       label: const Text('Adicionar Item'),
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: Theme.of(context).primaryColor,
+                       ),
+                     ),
+                   ],
+                 ),
+                 const SizedBox(height: 8),
+                 if (_isLoading)
+                   const Center(child: CircularProgressIndicator())
+                 else if (_items.isEmpty)
+                   const Center(
+                     child: Padding(
+                       padding: EdgeInsets.all(8),
+                       child: Text('Nenhum item adicionado ainda'),
+                     ),
+                   )
+                 else
+                   ListView.builder(
+                     shrinkWrap: true,
+                     physics: const NeverScrollableScrollPhysics(),
+                     controller: _scrollController,
+                     itemCount: _items.length,
+                     itemBuilder: (context, index) {
+                       return ItemWidget(
+                         item: _items[index],
+                         onItemUpdated: _handleItemUpdate,
+                         onItemDeleted: _handleItemDelete,
+                         onItemDuplicated: _duplicateItem,
+                         isExpanded: index == _expandedItemIndex,
+                         onExpansionChanged: () {
+                           setState(() {
+                             _expandedItemIndex =
+                                 _expandedItemIndex == index ? -1 : index;
+                           });
+                         },
+                       );
+                     },
+                   ),
+               ],
+             ),
+           ),
+         ],
+       ],
+     ),
+   );
+ }
 }

@@ -42,18 +42,16 @@ class MediaFilterPanel extends StatefulWidget {
 class _MediaFilterPanelState extends State<MediaFilterPanel> {
   final ServiceFactory _serviceFactory = ServiceFactory();
 
-  // Local state
   String? _topicId;
   String? _itemId;
   String? _detailId;
   bool _isNonConformityOnly = false;
   String? _mediaType;
+  bool _topicOnly = false;
 
-  // Data lists
   List<Item> _items = [];
   List<Detail> _details = [];
 
-  // Loading flags
   bool _isLoadingItems = false;
   bool _isLoadingDetails = false;
 
@@ -61,14 +59,12 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   void initState() {
     super.initState();
 
-    // Initialize with provided values
     _topicId = widget.selectedTopicId;
     _itemId = widget.selectedItemId;
     _detailId = widget.selectedDetailId;
     _isNonConformityOnly = widget.isNonConformityOnly ?? false;
     _mediaType = widget.mediaType;
 
-    // Load items and details if topic/item is selected
     if (_topicId != null) {
       _loadItems(_topicId!);
     }
@@ -118,11 +114,10 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   }
 
   void _applyFilters() {
-    // Call the parent function with the selected filters
     widget.onApplyFilters(
       topicId: _topicId,
-      itemId: _itemId,
-      detailId: _detailId,
+      itemId: _topicOnly ? null : _itemId,
+      detailId: _topicOnly ? null : _detailId,
       isNonConformityOnly: _isNonConformityOnly,
       mediaType: _mediaType,
     );
@@ -137,6 +132,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
       _detailId = null;
       _isNonConformityOnly = false;
       _mediaType = null;
+      _topicOnly = false;
       _items = [];
       _details = [];
     });
@@ -214,6 +210,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                   _detailId = null;
                   _items = [];
                   _details = [];
+                  _topicOnly = false;
                 });
 
                 if (value != null) {
@@ -224,89 +221,115 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
           ),
           const SizedBox(height: 10),
 
+          // Checkbox para "Apenas Tópico"
+          if (_topicId != null)
+            CheckboxListTile(
+              title: const Text(
+                'Apenas do Tópico',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                'Incluir mídias apenas do tópico selecionado',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              value: _topicOnly,
+              onChanged: (value) {
+                setState(() {
+                  _topicOnly = value ?? false;
+                  if (_topicOnly) {
+                    _itemId = null;
+                    _detailId = null;
+                  }
+                });
+              },
+              activeColor: Colors.blue,
+            ),
+
           // Item filter
-          const Text('Item', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 5),
-          _isLoadingItems
-              ? const LinearProgressIndicator(backgroundColor: Colors.grey)
-              : Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[700]!),
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: _itemId,
-                    isExpanded: true,
-                    dropdownColor: Colors.grey[800],
-                    decoration: const InputDecoration(
-                      hintText: 'Selecione um item',
-                      hintStyle: TextStyle(color: Colors.white70),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                      border: InputBorder.none,
+          if (!_topicOnly) ...[
+            const Text('Item', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 5),
+            _isLoadingItems
+                ? const LinearProgressIndicator(backgroundColor: Colors.grey)
+                : Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
                     ),
-                    style: const TextStyle(color: Colors.white),
-                    items: _items.map((item) {
-                      return DropdownMenuItem<String>(
-                        value: item.id,
-                        child: Text(item.itemName),
-                      );
-                    }).toList(),
-                    onChanged: _topicId == null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _itemId = value;
-                              _detailId = null;
-                              _details = [];
-                            });
+                    child: DropdownButtonFormField<String>(
+                      value: _itemId,
+                      isExpanded: true,
+                      dropdownColor: Colors.grey[800],
+                      decoration: const InputDecoration(
+                        hintText: 'Selecione um item',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                        border: InputBorder.none,
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      items: _items.map((item) {
+                        return DropdownMenuItem<String>(
+                          value: item.id,
+                          child: Text(item.itemName),
+                        );
+                      }).toList(),
+                      onChanged: _topicId == null
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _itemId = value;
+                                _detailId = null;
+                                _details = [];
+                              });
 
-                            if (value != null && _topicId != null) {
-                              _loadDetails(_topicId!, value);
-                            }
-                          },
-                  ),
-                ),
-          const SizedBox(height: 10),
-
-          // Detail filter
-          const Text('Detalhe', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 5),
-          _isLoadingDetails
-              ? const LinearProgressIndicator(backgroundColor: Colors.grey)
-              : Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[700]!),
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: _detailId,
-                    isExpanded: true,
-                    dropdownColor: Colors.grey[800],
-                    decoration: const InputDecoration(
-                      hintText: 'Selecione um detalhe',
-                      hintStyle: TextStyle(color: Colors.white70),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                      border: InputBorder.none,
+                              if (value != null && _topicId != null) {
+                                _loadDetails(_topicId!, value);
+                              }
+                            },
                     ),
-                    style: const TextStyle(color: Colors.white),
-                    items: _details.map((detail) {
-                      return DropdownMenuItem<String>(
-                        value: detail.id,
-                        child: Text(detail.detailName),
-                      );
-                    }).toList(),
-                    onChanged: _itemId == null
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _detailId = value;
-                            });
-                          },
                   ),
-                ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
+
+            // Detail filter
+            const Text('Detalhe', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 5),
+            _isLoadingDetails
+                ? const LinearProgressIndicator(backgroundColor: Colors.grey)
+                : Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
+                    ),
+                    child: DropdownButtonFormField<String>(
+                      value: _detailId,
+                      isExpanded: true,
+                      dropdownColor: Colors.grey[800],
+                      decoration: const InputDecoration(
+                        hintText: 'Selecione um detalhe',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                        border: InputBorder.none,
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      items: _details.map((detail) {
+                        return DropdownMenuItem<String>(
+                          value: detail.id,
+                          child: Text(detail.detailName),
+                        );
+                      }).toList(),
+                      onChanged: _itemId == null
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _detailId = value;
+                              });
+                            },
+                    ),
+                  ),
+            const SizedBox(height: 10),
+          ],
 
           // Non-conformity filter
           SwitchListTile(
@@ -323,7 +346,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             activeColor: Colors.orange,
           ),
 
-          // Media type filter - using proper colors
+          // Media type filter
           const Text('Tipo de Mídia', style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 5),
           Container(
@@ -378,29 +401,29 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
           const SizedBox(height: 20),
 
           // Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: _clearFilters,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Limpar Filtros'),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: _applyFilters,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Aplicar Filtros'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+         Row(
+           mainAxisAlignment: MainAxisAlignment.end,
+           children: [
+             TextButton(
+               onPressed: _clearFilters,
+               style: TextButton.styleFrom(
+                 foregroundColor: Colors.white,
+               ),
+               child: const Text('Limpar Filtros'),
+             ),
+             const SizedBox(width: 10),
+             ElevatedButton(
+               onPressed: _applyFilters,
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: Colors.blue,
+                 foregroundColor: Colors.white,
+               ),
+               child: const Text('Aplicar Filtros'),
+             ),
+           ],
+         ),
+       ],
+     ),
+   );
+ }
 }

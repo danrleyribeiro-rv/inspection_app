@@ -1,17 +1,15 @@
 // lib/presentation/screens/media/components/media_capture_panel.dart
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class MediaCapturePanel extends StatefulWidget {
   final String inspectionId;
@@ -36,23 +34,19 @@ class MediaCapturePanel extends StatefulWidget {
 }
 
 class _MediaCapturePanelState extends State<MediaCapturePanel> {
-  final _firestore = FirebaseService().firestore;
   final ServiceFactory _serviceFactory = ServiceFactory();
-  final _storage = FirebaseStorage.instance;
   final _uuid = Uuid();
 
-  // Local state
   String? _topicId;
   String? _itemId;
   String? _detailId;
   bool _isNonConformity = false;
   String _observation = '';
+  bool _topicOnly = false;
 
-  // Data lists
   List<Item> _items = [];
   List<Detail> _details = [];
 
-  // Loading flags
   bool _isLoading = false;
   bool _isLoadingItems = false;
   bool _isLoadingDetails = false;
@@ -61,7 +55,6 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   bool _isGalleryLoading = false;
   bool _isVideoGalleryLoading = false;
 
-  // Form key
   final _formKey = GlobalKey<FormState>();
   final _observationController = TextEditingController();
 
@@ -69,12 +62,10 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   void initState() {
     super.initState();
 
-    // Initialize with provided values
     _topicId = widget.selectedTopicId;
     _itemId = widget.selectedItemId;
     _detailId = widget.selectedDetailId;
 
-    // Load items and details if topic/item is selected
     if (_topicId != null) {
       _loadItems(_topicId!);
     }
@@ -130,13 +121,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   }
 
   Future<void> _captureImage() async {
-    if (_topicId == null || _itemId == null || _detailId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Selecione um tópico, item e detalhe primeiro')),
-      );
-      return;
-    }
+    if (!_validateSelection()) return;
 
     setState(() => _isCameraLoading = true);
 
@@ -170,13 +155,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   }
 
   Future<void> _captureVideo() async {
-    if (_topicId == null || _itemId == null || _detailId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Selecione um tópico, item e detalhe primeiro')),
-      );
-      return;
-    }
+    if (!_validateSelection()) return;
 
     setState(() => _isVideoLoading = true);
 
@@ -208,13 +187,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   }
 
   Future<void> _pickFromGallery(bool isVideo) async {
-    if (_topicId == null || _itemId == null || _detailId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Selecione um tópico, item e detalhe primeiro')),
-      );
-      return;
-    }
+    if (!_validateSelection()) return;
 
     setState(() {
       if (isVideo) {
@@ -271,98 +244,106 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     }
   }
 
-  Future<void> _processMedia(
-      String filePath, String type, bool isFromGallery) async {
+  bool _validateSelection() {
+    if (_topicId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione um tópico primeiro')),
+      );
+      return false;
+    }
+
+    if (!_topicOnly && _itemId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione um item primeiro')),
+      );
+      return false;
+    }
+
+    if (!_topicOnly && _detailId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione um detalhe primeiro')),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _processMedia(String filePath, String type, bool isFromGallery) async {
     try {
       setState(() => _isLoading = true);
 
-      // Create a unique filename and path
       final ext = path.extension(filePath);
-      final fileName =
-          '${widget.inspectionId}_${_topicId}_${_itemId}_${_detailId}_${_uuid.v4().substring(0, 8)}$ext';
+      final fileName = '${widget.inspectionId}_${type}_${_uuid.v4().substring(0, 8)}$ext';
       final appDir = await getApplicationDocumentsDirectory();
       final localPath = path.join(appDir.path, fileName);
 
-      // Apply watermarks and process the file
+      // Processar mídia para aspectos corretos
       if (type == 'image') {
-        // Optionally apply watermark
-        final watermarkedFile =
-            await _serviceFactory.watermarkService.applyWatermark(filePath, localPath);
-        // If watermarking failed, fallback to copy
-        if (watermarkedFile == null) {
+        final processedFile = await _serviceFactory.mediaService.processImage43(
+          filePath,
+          localPath,
+        );
+        if (processedFile == null) {
           await File(filePath).copy(localPath);
         }
       } else {
-        // For video, just copy
+        // Para vídeo, apenas copiar (16:9 seria processado aqui se necessário)
         await File(filePath).copy(localPath);
       }
 
-      // Prepare media data
-      final mediaId = _uuid.v4();
+      // Obter localização
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
 
-      Map<String, dynamic> mediaData = {
+      final mediaData = {
+        'id': _uuid.v4(),
         'type': type,
         'localPath': localPath,
+        'aspect_ratio': type == 'image' ? '4:3' : '16:9',
         'is_non_conformity': _isNonConformity,
         'observation': _observation.isEmpty ? null : _observation,
-        'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
+        'source': isFromGallery ? 'gallery' : 'camera',
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'metadata': {
+          'location': position != null ? {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'accuracy': position.accuracy,
+          } : null,
+          'source': isFromGallery ? 'gallery' : 'camera',
+        },
       };
 
-      // Try to upload to Firebase Storage
-      try {
-        // Upload to Firebase Storage
-        final storageRef =
-            _storage.ref().child('inspection_media').child(fileName);
-        await storageRef.putFile(File(localPath));
-        final downloadUrl = await storageRef.getDownloadURL();
+      // Upload para Firebase Storage se online
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
+          connectivityResult.contains(ConnectivityResult.mobile);
 
-        mediaData['url'] = downloadUrl;
-      } catch (e) {
-        print('Error uploading to Firebase Storage: $e');
-        // Continue without URL, it will be uploaded when online
+      if (isOnline) {
+        try {
+          final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
+            file: File(localPath),
+            inspectionId: widget.inspectionId,
+            type: type,
+            topicId: _topicId,
+            itemId: _topicOnly ? null : _itemId,
+            detailId: _topicOnly ? null : _detailId,
+          );
+          mediaData['url'] = downloadUrl;
+        } catch (e) {
+          print('Error uploading to Firebase Storage: $e');
+        }
       }
 
-      // Salvar na subcoleção 'media' do detalhe
-      await _firestore
-          .collection('inspections')
-          .doc(widget.inspectionId)
-          .collection('topics')
-          .doc(_topicId)
-          .collection('topic_items')
-          .doc(_itemId)
-          .collection('item_details')
-          .doc(_detailId)
-          .collection('media')
-          .doc(mediaId)
-          .set(mediaData);
-
-      // Update detail if it's a non-conformity
-      if (_isNonConformity) {
-        await _firestore
-            .collection('inspections')
-            .doc(widget.inspectionId)
-            .collection('topics')
-            .doc(_topicId)
-            .collection('topic_items')
-            .doc(_itemId)
-            .collection('item_details')
-            .doc(_detailId)
-            .update({'is_damaged': true});
-      }
-
-      // Call the callback
+      await _saveMediaToInspection(mediaData);
       widget.onMediaAdded(localPath);
 
-      // Close the bottom sheet
       if (mounted) {
         Navigator.of(context).pop();
-
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -381,10 +362,64 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     }
   }
 
+  Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
+    final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+    if (inspection?.topics == null) return;
+
+    final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+    final topicIndex = int.tryParse(_topicId!.replaceFirst('topic_', '')) ?? 0;
+
+    if (topicIndex >= topics.length) return;
+
+    final topic = Map<String, dynamic>.from(topics[topicIndex]);
+
+    if (_topicOnly) {
+      // Salvar no tópico
+      if (!topic.containsKey('media')) {
+        topic['media'] = <Map<String, dynamic>>[];
+      }
+      final topicMedia = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+      topicMedia.add(mediaData);
+      topic['media'] = topicMedia;
+    } else {
+      // Salvar no detalhe
+      final itemIndex = int.tryParse(_itemId!.replaceFirst('item_', '')) ?? 0;
+      final detailIndex = int.tryParse(_detailId!.replaceFirst('detail_', '')) ?? 0;
+
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      if (itemIndex < items.length) {
+        final item = Map<String, dynamic>.from(items[itemIndex]);
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        
+        if (detailIndex < details.length) {
+          final detail = Map<String, dynamic>.from(details[detailIndex]);
+          if (!detail.containsKey('media')) {
+            detail['media'] = <Map<String, dynamic>>[];
+          }
+          final detailMedia = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+          detailMedia.add(mediaData);
+          detail['media'] = detailMedia;
+
+          if (_isNonConformity) {
+            detail['is_damaged'] = true;
+          }
+
+          details[detailIndex] = detail;
+          item['details'] = details;
+          items[itemIndex] = item;
+        }
+      }
+      topic['items'] = items;
+    }
+
+    topics[topicIndex] = topic;
+    final updatedInspection = inspection.copyWith(topics: topics);
+    await _serviceFactory.coordinator.saveInspection(updatedInspection);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool isFormValid =
-        _topicId != null && _itemId != null && _detailId != null;
+    final bool isFormValid = _topicId != null && (_topicOnly || (_itemId != null && _detailId != null));
     final bool isAnyLoading = _isLoading ||
         _isCameraLoading ||
         _isVideoLoading ||
@@ -399,7 +434,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF1E293B), // Slate background to match theme
+        color: Color(0xFF1E293B),
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Form(
@@ -460,6 +495,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                     _detailId = null;
                     _items = [];
                     _details = [];
+                    _topicOnly = false;
                   });
 
                   if (value != null) {
@@ -472,93 +508,119 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
             ),
             const SizedBox(height: 16),
 
+            // Checkbox para "Apenas Tópico"
+            if (_topicId != null)
+              CheckboxListTile(
+                title: const Text(
+                  'Registrar apenas no Tópico',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Mídia será associada apenas ao tópico selecionado',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                value: _topicOnly,
+                onChanged: (value) {
+                  setState(() {
+                    _topicOnly = value ?? false;
+                    if (_topicOnly) {
+                      _itemId = null;
+                      _detailId = null;
+                    }
+                  });
+                },
+                activeColor: Colors.blue,
+              ),
+
             // Item selector
-            const Text('Item', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 8),
-            _isLoadingItems
-                ? const LinearProgressIndicator(color: Colors.blue)
-                : Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[800],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[700]!),
-                    ),
-                    child: DropdownButtonFormField<String>(
-                      value: _itemId,
-                      isExpanded: true,
-                      dropdownColor: Colors.grey[800],
-                      decoration: const InputDecoration(
-                        hintText: 'Selecione um item',
-                        hintStyle: TextStyle(color: Colors.white70),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                        border: InputBorder.none,
+            if (!_topicOnly) ...[
+              const Text('Item', style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 8),
+              _isLoadingItems
+                  ? const LinearProgressIndicator(color: Colors.blue)
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[700]!),
                       ),
-                      style: const TextStyle(color: Colors.white),
-                      items: _items.map((item) {
-                        return DropdownMenuItem<String>(
-                          value: item.id,
-                          child: Text(item.itemName),
-                        );
-                      }).toList(),
-                      onChanged: _topicId == null
-                          ? null
-                          : (value) {
-                              setState(() {
-                                _itemId = value;
-                                _detailId = null;
-                                _details = [];
-                              });
+                      child: DropdownButtonFormField<String>(
+                        value: _itemId,
+                        isExpanded: true,
+                        dropdownColor: Colors.grey[800],
+                        decoration: const InputDecoration(
+                          hintText: 'Selecione um item',
+                          hintStyle: TextStyle(color: Colors.white70),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                          border: InputBorder.none,
+                        ),
+                        style: const TextStyle(color: Colors.white),
+                        items: _items.map((item) {
+                          return DropdownMenuItem<String>(
+                            value: item.id,
+                            child: Text(item.itemName),
+                          );
+                        }).toList(),
+                        onChanged: _topicId == null
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _itemId = value;
+                                  _detailId = null;
+                                  _details = [];
+                                });
 
-                              if (value != null && _topicId != null) {
-                                _loadDetails(_topicId!, value);
-                              }
-                            },
-                      validator: (value) =>
-                          value == null ? 'Selecione um item' : null,
-                    ),
-                  ),
-            const SizedBox(height: 16),
-
-            // Detail selector
-            const Text('Detalhe', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 8),
-            _isLoadingDetails
-                ? const LinearProgressIndicator(color: Colors.blue)
-                : Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[800],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[700]!),
-                    ),
-                    child: DropdownButtonFormField<String>(
-                      value: _detailId,
-                      isExpanded: true,
-                      dropdownColor: Colors.grey[800],
-                      decoration: const InputDecoration(
-                        hintText: 'Selecione um detalhe',
-                        hintStyle: TextStyle(color: Colors.white70),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                        border: InputBorder.none,
+                                if (value != null && _topicId != null) {
+                                  _loadDetails(_topicId!, value);
+                                }
+                              },
+                        validator: (value) =>
+                            value == null ? 'Selecione um item' : null,
                       ),
-                      style: const TextStyle(color: Colors.white),
-                      items: _details.map((detail) {
-                        return DropdownMenuItem<String>(
-                          value: detail.id,
-                          child: Text(detail.detailName),
-                        );
-                      }).toList(),
-                      onChanged: _itemId == null
-                          ? null
-                          : (value) {
-                              setState(() {
-                                _detailId = value;
-                              });
-                            },
-                      validator: (value) =>
-                          value == null ? 'Selecione um detalhe' : null,
                     ),
-                  ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+
+              // Detail selector
+              const Text('Detalhe', style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 8),
+              _isLoadingDetails
+                  ? const LinearProgressIndicator(color: Colors.blue)
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[700]!),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        value: _detailId,
+                        isExpanded: true,
+                        dropdownColor: Colors.grey[800],
+                        decoration: const InputDecoration(
+                          hintText: 'Selecione um detalhe',
+                          hintStyle: TextStyle(color: Colors.white70),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                          border: InputBorder.none,
+                        ),
+                        style: const TextStyle(color: Colors.white),
+                        items: _details.map((detail) {
+                          return DropdownMenuItem<String>(
+                            value: detail.id,
+                            child: Text(detail.detailName),
+                          );
+                        }).toList(),
+                        onChanged: _itemId == null
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _detailId = value;
+                                });
+                              },
+                        validator: (value) =>
+                            value == null ? 'Selecione um detalhe' : null,
+                      ),
+                    ),
+              const SizedBox(height: 16),
+            ],
 
             // Non-conformity flag
             Container(
