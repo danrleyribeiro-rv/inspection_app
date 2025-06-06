@@ -96,7 +96,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     } catch (e) {
-      print('Error checking profile image: $e');
+      debugPrint('Error checking profile image: $e');
     }
   }
 
@@ -110,15 +110,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         imageQuality: 85,
       );
 
-      if (image != null) {
+      // It's also a good practice to check `mounted` before `setState`.
+      if (image != null && mounted) {
         setState(() {
           _profileImage = File(image.path);
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error selecting image: $e')),
-      );
+      // THE FIX: Guard the use of context with a 'mounted' check.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error selecting image: $e')),
+        );
+      }
     }
   }
 
@@ -200,7 +204,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // 2. Process profile image if selected
       if (_profileImage != null) {
         // Upload to Firebase Storage
-        final downloadUrl = await _serviceFactory.mediaService.uploadProfileImage(
+        final downloadUrl =
+            await _serviceFactory.mediaService.uploadProfileImage(
           file: _profileImage!,
           userId: userId,
         );
@@ -258,7 +263,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           CircleAvatar(
                             radius: 60,
                             backgroundColor:
-                                Theme.of(context).primaryColor.withOpacity(0.2),
+                                Theme.of(context).primaryColor.withAlpha((255 * 0.2).round()),
                             child: _profileImage != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(60),

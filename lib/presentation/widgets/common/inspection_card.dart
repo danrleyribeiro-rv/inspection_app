@@ -303,7 +303,7 @@ class InspectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withAlpha((255 * 0.2).round()),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color),
       ),

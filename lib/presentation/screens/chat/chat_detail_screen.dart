@@ -16,15 +16,16 @@ class ChatDetailScreen extends StatefulWidget {
   final Chat chat;
 
   const ChatDetailScreen({
-    Key? key,
+    super.key,
     required this.chat,
-  }) : super(key: key);
+  });
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBindingObserver {
+// REMOVED `with WidgetsBindingObserver` as we will handle this differently
+class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final ChatService _chatService = ChatService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -35,16 +36,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
   List<ChatMessage> _messages = [];
   StreamSubscription<List<ChatMessage>>? _messagesSubscription;
   bool _isFirstLoad = true;
-  bool _keyboardVisible = false;
+  // bool _keyboardVisible = false; // This state is no longer needed
 
   @override
   void initState() {
     super.initState();
     _currentUserId = _auth.currentUser?.uid ?? '';
     _markMessagesAsRead();
-    
-    // Adicionar observer para detectar mudanças de teclado
-    WidgetsBinding.instance.addObserver(this);
     
     _messageController.addListener(() {
       setState(() {});
@@ -54,28 +52,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       _setupMessagesStream();
     });
   }
-
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    
-    // Detectar mudança do teclado
-    final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
-    final newKeyboardVisible = bottomInset > 0;
-    
-    if (_keyboardVisible != newKeyboardVisible) {
-      setState(() {
-        _keyboardVisible = newKeyboardVisible;
-      });
-      
-      // Scroll para o final quando o teclado aparecer
-      if (newKeyboardVisible) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom(animate: true);
-        });
-      }
-    }
-  }
+  
+  // REMOVED `didChangeMetrics()` - we'll handle this in the build method.
 
   void _setupMessagesStream() {
     _messagesSubscription = _chatService.getChatMessages(widget.chat.id).listen((messages) {
@@ -105,7 +83,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _messagesSubscription?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
@@ -116,7 +93,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     try {
       await _chatService.markMessagesAsRead(widget.chat.id);
     } catch (e) {
-      print('Erro ao marcar mensagens como lidas: $e');
+      debugPrint('Erro ao marcar mensagens como lidas: $e');
     }
   }
   
@@ -139,9 +116,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     final message = _messageController.text.trim();
     if (message.isEmpty || _isLoading) return;
     
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
     
     try {
       await _chatService.sendTextMessage(widget.chat.id, message);
@@ -158,9 +133,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -173,6 +146,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       );
       
       if (image != null) {
+        if (!mounted) return;
         setState(() => _isLoading = true);
         
         final file = File(image.path);
@@ -183,11 +157,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao enviar imagem: $e')),
-      );
+      // THE FIX: Add a mounted check before using context.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao enviar imagem: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -199,6 +178,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       );
       
       if (result != null && result.files.single.path != null) {
+        if (!mounted) return;
         setState(() => _isLoading = true);
         
         final file = File(result.files.single.path!);
@@ -209,14 +189,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao enviar arquivo: $e')),
-      );
+      // THE FIX: Add a mounted check before using context.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao enviar arquivo: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
-
+  
+  // ... (rest of the methods like _showMessageOptions, etc., remain the same)
   void _showMessageOptions(ChatMessage message) {
     showModalBottomSheet(
       context: context,
@@ -298,11 +284,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
+    // THE FIX for `window` deprecation: Get insets from MediaQuery
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    
+    // Scroll to bottom when keyboard appears
+    if (keyboardVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom(animate: true);
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
-      resizeToAvoidBottomInset: true, // Permitir que o scaffold se redimensione
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
@@ -337,8 +333,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
       body: SafeArea(
         child: Column(
           children: [
-            // Lista de mensagens com Flexible em vez de Expanded
-            Flexible(
+            Expanded( // Use Expanded instead of Flexible for more predictable behavior
               child: _messages.isEmpty 
                 ? const Center(
                     child: Text(
@@ -346,77 +341,55 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                       style: TextStyle(color: Colors.grey),
                     ),
                   )
-                : NotificationListener<ScrollNotification>(
-                    onNotification: (scrollNotification) {
-                      // Opcional: detectar quando o usuário rola manualmente
-                      return true;
-                    },
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final message = _messages[index];
-                        final isCurrentUser = message.senderId == _currentUserId;
-                        final previousIsSameSender = index > 0 && 
-                            _messages[index - 1].senderId == message.senderId;
-                        
-                        bool showDateSeparator = false;
-                        if (index == 0) {
-                          showDateSeparator = true;
-                        } else {
-                          final currentDate = DateTime(
-                            message.timestamp.year,
-                            message.timestamp.month,
-                            message.timestamp.day,
-                          );
-                          final previousDate = DateTime(
-                            _messages[index - 1].timestamp.year,
-                            _messages[index - 1].timestamp.month,
-                            _messages[index - 1].timestamp.day,
-                          );
-                          showDateSeparator = !currentDate.isAtSameMomentAs(previousDate);
-                        }
-                        
-                        return Column(
-                          children: [
-                            if (showDateSeparator)
-                              Center(
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 16),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[800],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    _formatDateSeparator(message.timestamp),
-                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                                  ),
-                                ),
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      final isCurrentUser = message.senderId == _currentUserId;
+                      final previousIsSameSender = index > 0 && _messages[index - 1].senderId == message.senderId;
+                      
+                      bool showDateSeparator = false;
+                      if (index == 0) {
+                        showDateSeparator = true;
+                      } else {
+                        final currentDate = DateTime(message.timestamp.year, message.timestamp.month, message.timestamp.day);
+                        final previousDate = DateTime(_messages[index - 1].timestamp.year, _messages[index - 1].timestamp.month, _messages[index - 1].timestamp.day);
+                        showDateSeparator = !currentDate.isAtSameMomentAs(previousDate);
+                      }
+                      
+                      return Column(
+                        children: [
+                          if (showDateSeparator)
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(12)),
+                                child: Text(_formatDateSeparator(message.timestamp), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                               ),
-                            
-                            ChatMessageItem(
-                              message: message,
-                              isCurrentUser: isCurrentUser,
-                              onLongPress: () => _showMessageOptions(message),
-                              previousIsSameSender: previousIsSameSender,
                             ),
-                          ],
-                        );
-                      },
-                    ),
+                          
+                          ChatMessageItem(
+                            message: message,
+                            isCurrentUser: isCurrentUser,
+                            onLongPress: () => _showMessageOptions(message),
+                            previousIsSameSender: previousIsSameSender,
+                          ),
+                        ],
+                      );
+                    },
                   ),
             ),
             
-            // Campo de entrada de mensagem
             Container(
               padding: const EdgeInsets.all(8.0),
               decoration: BoxDecoration(
                 color: Colors.grey[900],
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withAlpha((255 * 0.1).round()),
                     blurRadius: 4,
                     offset: const Offset(0, -2),
                   ),
@@ -425,13 +398,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Botão de anexo
                   IconButton(
                     icon: const Icon(Icons.attach_file, color: Colors.grey),
                     onPressed: _isLoading ? null : _showAttachmentOptions,
                   ),
                   
-                  // Campo de texto
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
@@ -440,10 +411,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         decoration: InputDecoration(
                           hintText: 'Digite uma mensagem...',
                           hintStyle: TextStyle(color: Colors.grey[500]),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide.none,
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                           filled: true,
                           fillColor: Colors.grey[800],
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -455,10 +423,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                         enabled: !_isLoading,
                         onSubmitted: (_) => _sendMessage(),
                         onTap: () {
-                          // Scroll para o final quando o campo de texto for tocado
-                          Future.delayed(const Duration(milliseconds: 300), () {
-                            _scrollToBottom(animate: true);
-                          });
+                          Future.delayed(const Duration(milliseconds: 300), () => _scrollToBottom(animate: true));
                         },
                       ),
                     ),
@@ -466,7 +431,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with WidgetsBinding
                   
                   const SizedBox(width: 8),
                   
-                  // Botão de enviar
                   _isLoading
                       ? Container(
                           width: 48,

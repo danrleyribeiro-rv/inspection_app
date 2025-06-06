@@ -9,7 +9,7 @@ import 'package:inspection_app/presentation/widgets/media/avatar_widget.dart';
 import 'package:intl/intl.dart';
 
 class ChatsScreen extends StatefulWidget {
-  const ChatsScreen({Key? key}) : super(key: key);
+  const ChatsScreen({super.key});
 
   @override
   State<ChatsScreen> createState() => _ChatsScreenState();
@@ -160,10 +160,10 @@ class ChatListItem extends StatelessWidget {
   final VoidCallback onTap;
   
   const ChatListItem({
-    Key? key,
+    super.key,
     required this.chat,
     required this.onTap,
-  }) : super(key: key);
+  });
   
   @override
   Widget build(BuildContext context) {

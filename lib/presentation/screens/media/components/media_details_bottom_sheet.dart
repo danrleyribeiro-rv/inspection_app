@@ -8,7 +8,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
 
-
 class MediaDetailsBottomSheet extends StatefulWidget {
   final Map<String, dynamic> media;
   final String inspectionId;
@@ -113,7 +112,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
           final storageRef = _storage.refFromURL(widget.media['url']);
           await storageRef.delete();
         } catch (e) {
-          print('Error deleting from storage: $e');
+          debugPrint('Error deleting from storage: $e');
         }
       }
 
@@ -125,7 +124,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
             await file.delete();
           }
         } catch (e) {
-          print('Error deleting local file: $e');
+          debugPrint('Error deleting local file: $e');
         }
       }
 
@@ -153,7 +152,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
         );
       }
     } catch (e) {
-      print('Error deleting media: $e');
+      debugPrint('Error deleting media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
 
@@ -168,23 +167,39 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
   }
 
   Future<void> _shareMedia() async {
+    // Capturar o contexto antes de qualquer operação async.
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
       final mediaPath = widget.media['localPath'];
+      final mediaUrl = widget.media['url'];
 
-      if (mediaPath != null && File(mediaPath).existsSync()) {
-        await Share.shareXFiles([XFile(mediaPath)]);
-      } else if (widget.media['url'] != null) {
-        // If local file not available, share the URL
-        await Share.share(widget.media['url']);
+      // A API `share_plus` agora usa o `SharePlus.instance` e um objeto `ShareParams`.
+      if (mediaPath != null && await File(mediaPath).exists()) {
+        // Para compartilhar arquivos, use o parâmetro `files` dentro de `ShareParams`.
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(mediaPath)],
+          ),
+        );
+      } else if (mediaUrl != null) {
+        // Para compartilhar texto ou uma URL, use o parâmetro `text`.
+        await SharePlus.instance.share(
+          ShareParams(
+            text: mediaUrl,
+          ),
+        );
       } else {
-        throw Exception('Nenhum arquivo disponível para compartilhar');
+        // Se nenhum estiver disponível, lance um erro.
+        throw Exception('Nenhum arquivo ou URL disponível para compartilhar');
       }
     } catch (e) {
-      print('Error sharing media: $e');
+      debugPrint('Error sharing media: $e');
+      // Verifique se o widget ainda está montado antes de mostrar o SnackBar.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('Erro ao compartilhar mídia: $e'),
+            content: Text('Erro ao compartilhar mídia: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -278,7 +293,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
         );
       }
     } catch (e) {
-      print('Error updating media: $e');
+      debugPrint('Error updating media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
 
@@ -307,7 +322,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
 
       return DateFormat('dd/MM/yyyy HH:mm:ss').format(date);
     } catch (e) {
-      print('Error formatting date: $e');
+      debugPrint('Error formatting date: $e');
       return 'Data inválida';
     }
   }
@@ -584,7 +599,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
 
   Widget _buildImageDisplay(bool hasLocalPath, bool hasUrl) {
     Widget imageWidget;
-    
+
     if (hasLocalPath) {
       imageWidget = Image.file(
         File(widget.media['localPath']),

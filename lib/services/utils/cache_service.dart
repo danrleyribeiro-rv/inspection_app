@@ -1,20 +1,21 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/models/cached_inspection.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
-import 'package:inspection_app/services/utils/sync_service.dart';
 import 'package:inspection_app/services/inspection_coordinator.dart';
 
 class CacheService {
   static const String _inspectionsBoxName = 'inspections';
-  
   final InspectionService _inspectionService = InspectionService();
-  final SyncService _syncService = SyncService();
   final Connectivity _connectivity = Connectivity();
   final InspectionCoordinator _coordinator = InspectionCoordinator();
+
+  // REMOVIDO: A referência ao SyncService que causava o loop.
+  // final SyncService _syncService = SyncService();
 
   static Future<void> initialize() async {
     await Hive.initFlutter();
@@ -22,17 +23,12 @@ class CacheService {
     await Hive.openBox<CachedInspection>(_inspectionsBoxName);
   }
 
-  Box<CachedInspection> get _inspectionsBox => Hive.box<CachedInspection>(_inspectionsBoxName);
+  Box<CachedInspection> get _inspectionsBox =>
+      Hive.box<CachedInspection>(_inspectionsBoxName);
 
-  void initializeSync() {
-    _syncService.initialize();
-  }
+  // REMOVIDO: initializeSync() e dispose() pois a responsabilidade agora é do ServiceFactory e do próprio SyncService.
 
-  void dispose() {
-    _syncService.dispose();
-  }
-
-  // Cache operations
+  // As operações de cache permanecem as mesmas.
   Future<void> cacheInspection(String id, Map<String, dynamic> data) async {
     final cached = CachedInspection(
       id: id,
@@ -56,7 +52,9 @@ class CacheService {
   }
 
   List<CachedInspection> getInspectionsNeedingSync() {
-    return _inspectionsBox.values.where((inspection) => inspection.needsSync).toList();
+    return _inspectionsBox.values
+        .where((inspection) => inspection.needsSync)
+        .toList();
   }
 
   Future<void> markSynced(String id) async {
@@ -71,7 +69,7 @@ class CacheService {
     await _inspectionsBox.clear();
   }
 
-  // Offline operations
+  // As operações offline permanecem as mesmas.
   Future<bool> _isOnline() async {
     final result = await _connectivity.checkConnectivity();
     return result.contains(ConnectivityResult.wifi) ||
@@ -87,7 +85,6 @@ class CacheService {
           return inspection;
         }
       }
-
       final cached = getCachedInspection(inspectionId);
       if (cached != null) {
         return Inspection.fromMap({'id': cached.id, ...cached.data});
@@ -95,7 +92,7 @@ class CacheService {
 
       return null;
     } catch (e) {
-      print('Error getting inspection: $e');
+      debugPrint('Error getting inspection: $e');
       return null;
     }
   }
@@ -104,17 +101,18 @@ class CacheService {
     try {
       await cacheInspection(inspection.id, inspection.toMap());
       await markForSync(inspection.id);
-
       if (await _isOnline()) {
         try {
+          // Tenta salvar diretamente no backend se estiver online
           await _inspectionService.saveInspection(inspection);
           await markSynced(inspection.id);
         } catch (e) {
-          print('Error saving to Firebase: $e');
+          debugPrint('Error saving to Firebase: $e');
+          // Se falhar, a inspeção já está marcada para sincronização posterior.
         }
       }
     } catch (e) {
-      print('Error saving inspection: $e');
+      debugPrint('Error saving inspection: $e');
       rethrow;
     }
   }
@@ -130,7 +128,7 @@ class CacheService {
       }
       return [];
     } catch (e) {
-      print('Error getting topics: $e');
+      debugPrint('Error getting topics: $e');
       return [];
     }
   }
@@ -155,13 +153,5 @@ class CacheService {
 
   Future<Topic> duplicateTopic(String inspectionId, String topicName) async {
     return await _coordinator.duplicateTopic(inspectionId, topicName);
-  }
-
-  Future<void> forceSyncAll() async {
-    await _syncService.forceSyncAll();
-  }
-
-  bool hasPendingSync() {
-    return _syncService.hasPendingSync();
   }
 }

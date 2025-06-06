@@ -1,25 +1,35 @@
+//lib/services/utils/sync_service.dart
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:inspection_app/services/utils/cache_service.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
 import 'package:inspection_app/models/inspection.dart';
 
 class SyncService {
-  final CacheService _cacheService = CacheService();
+  // Recebe a instância do CacheService via injeção de dependência.
+  final CacheService _cacheService;
   final InspectionService _inspectionService = InspectionService();
   final Connectivity _connectivity = Connectivity();
-  
+
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
   bool _isSyncing = false;
 
+  // O construtor agora exige uma instância de CacheService.
+  SyncService({required CacheService cacheService})
+      : _cacheService = cacheService;
+
   void initialize() {
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
-      final isOnline = result.contains(ConnectivityResult.wifi) || 
-                      result.contains(ConnectivityResult.mobile);
+    _connectivitySubscription =
+        _connectivity.onConnectivityChanged.listen((result) {
+      final isOnline = result.contains(ConnectivityResult.wifi) ||
+          result.contains(ConnectivityResult.mobile);
       if (isOnline && !_isSyncing) {
         _syncAll();
       }
     });
+    // Tenta uma sincronização inicial caso já esteja online.
+    _syncAll();
   }
 
   void dispose() {
@@ -32,8 +42,8 @@ class SyncService {
 
     try {
       final connectivityResult = await _connectivity.checkConnectivity();
-      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) || 
-                      connectivityResult.contains(ConnectivityResult.mobile);
+      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
+          connectivityResult.contains(ConnectivityResult.mobile);
 
       if (!isOnline) {
         _isSyncing = false;
@@ -41,24 +51,32 @@ class SyncService {
       }
 
       final inspectionsToSync = _cacheService.getInspectionsNeedingSync();
-      
+      if (inspectionsToSync.isEmpty) {
+        _isSyncing = false;
+        return;
+      }
+
+      debugPrint('Syncing ${inspectionsToSync.length} inspections...');
+
       for (final cachedInspection in inspectionsToSync) {
         try {
           final inspection = Inspection.fromMap({
             'id': cachedInspection.id,
             ...cachedInspection.data,
           });
-          
+
           await _inspectionService.saveInspection(inspection);
           await _cacheService.markSynced(cachedInspection.id);
+          debugPrint('Successfully synced inspection ${cachedInspection.id}');
         } catch (e) {
-          print('Error syncing inspection ${cachedInspection.id}: $e');
+          debugPrint('Error syncing inspection ${cachedInspection.id}: $e');
         }
       }
     } catch (e) {
-      print('Error during sync: $e');
+      debugPrint('Error during sync process: $e');
     } finally {
       _isSyncing = false;
+      debugPrint('Sync process finished.');
     }
   }
 

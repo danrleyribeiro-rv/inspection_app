@@ -45,18 +45,31 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   bool _isProcessing = false;
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    Connectivity().checkConnectivity().then((result) {
-      if (mounted) {
-        setState(() {
-          _isOffline = result == ConnectivityResult.none;
-        });
-      }
-    });
-    _loadData();
-  }
+    void initState() {
+      super.initState();
+      _tabController = TabController(length: 2, vsync: this);
+
+      // Call checkConnectivity to get the initial state
+      Connectivity().checkConnectivity().then((result) {
+        if (mounted) {
+          setState(() {
+            // THE FIX: Check if the List<ConnectivityResult> contains .none
+            _isOffline = result.contains(ConnectivityResult.none);
+          });
+        }
+      });
+
+      // It's also good practice to listen for future changes
+      Connectivity().onConnectivityChanged.listen((result) {
+        if (mounted) {
+          setState(() {
+            _isOffline = result.contains(ConnectivityResult.none);
+          });
+        }
+      });
+
+      _loadData();
+    }
 
   @override
   void dispose() {
@@ -127,7 +140,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
       setState(() => _isLoading = false);
     } catch (e) {
-      print('Erro ao carregar dados: $e');
+      debugPrint('Erro ao carregar dados: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar dados: $e')),
@@ -148,7 +161,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         });
       }
     } catch (e) {
-      print('Erro ao carregar não conformidades: $e');
+      debugPrint('Erro ao carregar não conformidades: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar não conformidades: $e')),
@@ -172,7 +185,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             .getItems(widget.inspectionId, topic.id!);
         setState(() => _items = items);
       } catch (e) {
-        print('Erro ao carregar itens: $e');
+        debugPrint('Erro ao carregar itens: $e');
       }
     }
   }
@@ -190,7 +203,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             .getDetails(widget.inspectionId, item.topicId!, item.id!);
         setState(() => _details = details);
       } catch (e) {
-        print('Erro ao carregar detalhes: $e');
+        debugPrint('Erro ao carregar detalhes: $e');
       }
     }
   }

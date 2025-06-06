@@ -31,12 +31,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final ServiceFactory _serviceFactory = ServiceFactory();
   late CheckpointDialogService _checkpointDialogService;
 
-  // Estados
+  // States
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
-  bool _isRestoringCheckpoint = false;
+  final bool _isRestoringCheckpoint = false;
   double _overallProgress = 0.0;
   Inspection? _inspection;
   List<Topic> _topics = [];
@@ -45,14 +45,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _serviceFactory.initialize();
     _listenToConnectivity();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkpointDialogService = _serviceFactory.createCheckpointDialogService(
-        context,
-        _loadInspection,
-      );
+      if (mounted) {
+        _checkpointDialogService = _serviceFactory.createCheckpointDialogService(
+          context,
+          _loadInspection,
+        );
+      }
     });
 
     _loadInspection();
@@ -60,19 +61,19 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   @override
   void dispose() {
-    _serviceFactory.dispose();
     super.dispose();
   }
 
   void _listenToConnectivity() {
     Connectivity().onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
+        final newOnlineStatus = connectivityResult.contains(ConnectivityResult.wifi) ||
+            connectivityResult.contains(ConnectivityResult.mobile);
         setState(() {
-          _isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-              connectivityResult.contains(ConnectivityResult.mobile);
+          _isOnline = newOnlineStatus;
         });
 
-        if (_isOnline &&
+        if (newOnlineStatus &&
             _inspection != null &&
             _inspection!.templateId != null &&
             _inspection!.isTemplated != true) {
@@ -101,13 +102,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   Future<void> _loadInspection() async {
     if (!mounted) return;
-
     setState(() => _isLoading = true);
 
     try {
-      final inspection = await _serviceFactory.cacheService
-          .getInspection(widget.inspectionId);
-
+      final inspection = await _serviceFactory.cacheService.getInspection(widget.inspectionId);
       if (!mounted) return;
 
       if (inspection != null) {
@@ -116,7 +114,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         });
 
         await _loadTopics();
-        await _loadProgress(); // Adicione esta linha
+        if (!mounted) return;
+        
+        await _loadProgress();
+        if (!mounted) return;
 
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
@@ -151,15 +152,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _checkAndApplyTemplate() async {
-    if (_inspection == null) return;
+    if (_inspection == null || !mounted) return;
 
     if (_inspection!.templateId != null) {
       final isAlreadyApplied = await _serviceFactory.coordinator
           .isTemplateAlreadyApplied(_inspection!.id);
-      if (isAlreadyApplied) {
-        setState(() {
-          _inspection = _inspection!.copyWith(isTemplated: true);
-        });
+      if (!mounted || isAlreadyApplied) {
+        if (mounted) setState(() => _inspection = _inspection!.copyWith(isTemplated: true));
         return;
       }
       setState(() => _isApplyingTemplate = true);
@@ -175,8 +174,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
 
         final success = await _serviceFactory.coordinator
-            .applyTemplateToInspectionSafe(
-                _inspection!.id, _inspection!.templateId!);
+            .applyTemplateToInspectionSafe(_inspection!.id, _inspection!.templateId!);
+        
+        if (!mounted) return;
 
         if (success) {
           await FirebaseFirestore.instance
@@ -187,30 +187,26 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             'status': 'in_progress',
             'updated_at': FieldValue.serverTimestamp(),
           });
+          
+          if (!mounted) return;
 
-          if (mounted) {
-            final updatedInspection = _inspection!.copyWith(
-              isTemplated: true,
-              status: 'in_progress',
-              updatedAt: DateTime.now(),
-            );
-
-            setState(() {
-              _inspection = updatedInspection;
-            });
-          }
-
+          final updatedInspection = _inspection!.copyWith(
+            isTemplated: true,
+            status: 'in_progress',
+            updatedAt: DateTime.now(),
+          );
+          setState(() => _inspection = updatedInspection);
+          
           await _loadInspection();
+          if (!mounted) return;
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Template aplicado com sucesso!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Template aplicado com sucesso!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       } catch (e) {
         if (mounted) {
@@ -235,6 +231,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     final isAlreadyApplied = await _serviceFactory.coordinator
         .isTemplateAlreadyApplied(_inspection!.id);
+    if (!mounted) return;
 
     final shouldApply = await showDialog<bool>(
           context: context,
@@ -260,39 +257,45 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         ) ??
         false;
 
-    if (shouldApply) {
-      setState(() => _isApplyingTemplate = true);
+    if (!mounted || !shouldApply) return;
 
-      try {
-        if (isAlreadyApplied) {
-          await FirebaseFirestore.instance
-              .collection('inspections')
-              .doc(_inspection!.id)
-              .update({
-            'is_templated': false,
-            'updated_at': FieldValue.serverTimestamp(),
-          });
+    setState(() => _isApplyingTemplate = true);
+
+    try {
+      if (isAlreadyApplied) {
+        await FirebaseFirestore.instance
+            .collection('inspections')
+            .doc(_inspection!.id)
+            .update({
+          'is_templated': false,
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+        if (mounted) {
           setState(() {
             _inspection = _inspection!.copyWith(isTemplated: false);
           });
         }
+      }
+      
+      if (mounted) {
         await _checkAndApplyTemplate();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao aplicar template: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isApplyingTemplate = false);
-        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao aplicar template: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isApplyingTemplate = false);
       }
     }
   }
+
 
   Future<void> _openInspectionChat() async {
     try {
@@ -325,10 +328,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       final topics =
           await _serviceFactory.cacheService.getTopics(widget.inspectionId);
 
-      if (!mounted) return;
-      setState(() {
-        _topics = topics;
-      });
+      if (mounted) {
+        setState(() {
+          _topics = topics;
+        });
+      }
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('Erro ao carregar tópicos: $e');
@@ -345,91 +349,95 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _addTopic() async {
+    // Await é um async gap
+    final template = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => TemplateSelectorDialog(
+        title: 'Adicionar Tópico',
+        type: 'topic',
+        parentName: 'Inspeção',
+      ),
+    );
+
+    // Após o gap, verificar `mounted`
+    if (template == null || !mounted) return;
+
+    final topicName = template['name'] as String;
+    final topicLabel = template['value'] as String?;
+
+    setState(() => _isLoading = true);
+
     try {
-      final template = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (context) => TemplateSelectorDialog(
-          title: 'Adicionar Tópico',
-          type: 'topic',
-          parentName: 'Inspeção',
-        ),
+      final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
+      await _serviceFactory.cacheService.addTopic(
+        widget.inspectionId,
+        topicName,
+        label: topicLabel,
+        position: position,
       );
+      if (!mounted) return;
 
-      if (template == null || !mounted) return;
+      await _loadTopics();
+      if (!mounted) return;
 
-      final topicName = template['name'] as String;
-      final topicLabel = template['value'] as String?;
+      if (_topics.isNotEmpty) {
+        setState(() {
+          _expandedTopicIndex = _topics.length - 1;
+        });
+      }
 
-      setState(() => _isLoading = true);
-
-      try {
-        final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
-        await _serviceFactory.cacheService.addTopic(
-          widget.inspectionId,
-          topicName,
-          label: topicLabel,
-          position: position,
+      if (_inspection?.status == 'pending') {
+        final updatedInspection = _inspection!.copyWith(
+          status: 'in_progress',
+          updatedAt: DateTime.now(),
         );
-
-        await _loadTopics();
-
-        if (_topics.isNotEmpty) {
-          setState(() {
-            _expandedTopicIndex = _topics.length - 1;
-          });
-        }
-
-        if (_inspection?.status == 'pending') {
-          final updatedInspection = _inspection!.copyWith(
-            status: 'in_progress',
-            updatedAt: DateTime.now(),
-          );
-          await _serviceFactory.cacheService
-              .saveInspection(updatedInspection);
+        await _serviceFactory.cacheService.saveInspection(updatedInspection);
+        if (mounted) {
           setState(() {
             _inspection = updatedInspection;
           });
         }
-
+      }
+      
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Tópico adicionado com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
-      } catch (e) {
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao adicionar tópico: $e'),
             backgroundColor: Colors.red,
           ),
         );
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
       }
-    } catch (e) {
-      // Error handling
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _duplicateTopic(Topic topic) async {
     setState(() => _isLoading = true);
-
     try {
-      await _serviceFactory.cacheService
-          .duplicateTopic(widget.inspectionId, topic.topicName);
+      await _serviceFactory.cacheService.duplicateTopic(widget.inspectionId, topic.topicName);
+      if (!mounted) return;
+      
       await _loadTopics();
+      if (!mounted) return;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Tópico "${topic.topicName}" duplicado com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tópico "${topic.topicName}" duplicado com sucesso'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -437,19 +445,22 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _updateTopic(Topic updatedTopic) async {
     try {
       await _serviceFactory.cacheService.updateTopic(updatedTopic);
-
-      final index = _topics.indexWhere((r) => r.id == updatedTopic.id);
-      if (index >= 0 && mounted) {
-        setState(() {
-          _topics[index] = updatedTopic;
-        });
+      if (mounted) {
+        final index = _topics.indexWhere((r) => r.id == updatedTopic.id);
+        if (index >= 0) {
+          setState(() {
+            _topics[index] = updatedTopic;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -462,21 +473,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   Future<void> _deleteTopic(dynamic topicId) async {
     setState(() => _isLoading = true);
-
     try {
       await _serviceFactory.cacheService
           .deleteTopic(widget.inspectionId, topicId);
+      if (!mounted) return;
 
       await _loadTopics();
+      if (!mounted) return;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tópico excluído com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tópico excluído com sucesso'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -484,21 +494,19 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _exportInspection() async {
-    final confirmed = await _serviceFactory.importExportService
-        .showExportConfirmationDialog(context);
-    if (!confirmed) return;
-
+    final confirmed = await _serviceFactory.importExportService.showExportConfirmationDialog(context);
+    if (!mounted || !confirmed) return;
     setState(() => _isSyncing = true);
 
     try {
-      final filePath = await _serviceFactory.importExportService
-          .exportInspection(widget.inspectionId);
-
+      final filePath = await _serviceFactory.importExportService.exportInspection(widget.inspectionId);
       if (mounted) {
         _serviceFactory.importExportService.showSuccessMessage(
             context, 'Inspeção exportada com sucesso para:\n$filePath');
@@ -516,36 +524,30 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _importInspection() async {
-    final confirmed = await _serviceFactory.importExportService
-        .showImportConfirmationDialog(context);
-    if (!confirmed) return;
-
+    final confirmed = await _serviceFactory.importExportService.showImportConfirmationDialog(context);
+    if (!mounted || !confirmed) return;
     setState(() => _isSyncing = true);
 
     try {
       final jsonData = await _serviceFactory.importExportService.pickJsonFile();
-
-      if (jsonData == null) {
-        if (mounted) {
-          setState(() => _isSyncing = false);
-        }
+      if (!mounted || jsonData == null) {
+        if (mounted) setState(() => _isSyncing = false);
         return;
       }
 
-      final success = await _serviceFactory.importExportService
-          .importInspection(widget.inspectionId, jsonData);
+      final success = await _serviceFactory.importExportService.importInspection(widget.inspectionId, jsonData);
+      if (!mounted) return;
 
       if (success) {
         await _loadInspection();
-
         if (mounted) {
-          _serviceFactory.importExportService.showSuccessMessage(
-              context, 'Dados da inspeção importados com sucesso');
+            _serviceFactory.importExportService.showSuccessMessage(
+            context, 'Dados da inspeção importados com sucesso');
         }
       } else {
-        if (mounted) {
-          _serviceFactory.importExportService
-              .showErrorMessage(context, 'Falha ao importar dados da inspeção');
+         if (mounted) {
+            _serviceFactory.importExportService
+            .showErrorMessage(context, 'Falha ao importar dados da inspeção');
         }
       }
     } catch (e) {
@@ -570,6 +572,80 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
+  // =================================================================
+  // A CORREÇÃO FINAL: Extrair a lógica para um método separado.
+  // =================================================================
+  Future<void> _handleMenuSelection(String value) async {
+    // A verificação `mounted` no início do método garante a segurança para todas as operações.
+    if (!mounted) return;
+    
+    switch (value) {
+      case 'import':
+        await _importInspection();
+        break;
+      case 'nonConformities':
+        // Agora, esta navegação está segura dentro do método.
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => NonConformityScreen(
+              inspectionId: widget.inspectionId,
+            ),
+          ),
+        );
+        break;
+      case 'media':
+        _navigateToMediaGallery();
+        break;
+      case 'checkpointHistory':
+        _showCheckpointHistory();
+        break;
+      case 'refresh':
+        await _loadInspection();
+        break;
+      case 'chat':
+        await _openInspectionChat();
+        break;
+      case 'info':
+        if (_inspection != null) {
+          final inspectionId = _inspection!.id;
+          int totalTopics = _topics.length;
+          int totalItems = 0;
+          int totalDetails = 0;
+          int totalMedia = 0;
+          
+          for (final topic in _topics) {
+            if (!mounted) return;
+            final items = await _serviceFactory.coordinator.getItems(inspectionId, topic.id!);
+            totalItems += items.length;
+            for (final item in items) {
+              if (!mounted) return;
+              final details = await _serviceFactory.coordinator.getDetails(inspectionId, topic.id!, item.id!);
+              totalDetails += details.length;
+            }
+          }
+          
+          if (!mounted) return;
+          final allMedia = await _serviceFactory.coordinator.getAllMedia(inspectionId);
+          totalMedia = allMedia.length;
+
+          // A verificação final antes de usar o context para o dialog.
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => InspectionInfoDialog(
+                inspection: _inspection!,
+                totalTopics: totalTopics,
+                totalItems: totalItems,
+                totalDetails: totalDetails,
+                totalMedia: totalMedia,
+              ),
+            );
+          }
+        }
+        break;
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     final isLandscape =
@@ -638,67 +714,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             PopupMenuButton<String>(
               padding: const EdgeInsets.all(5),
               icon: const Icon(Icons.more_vert, size: 22),
-              onSelected: (value) async {
-                switch (value) {
-                  case 'import':
-                    await _importInspection();
-                    break;
-                  case 'nonConformities':
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => NonConformityScreen(
-                          inspectionId: widget.inspectionId,
-                        ),
-                      ),
-                    );
-                    break;
-                  case 'media':
-                    _navigateToMediaGallery();
-                    break;
-                  case 'checkpointHistory':
-                    _showCheckpointHistory();
-                    break;
-                  case 'refresh':
-                    await _loadInspection();
-                    break;
-                  case 'chat':
-                    await _openInspectionChat();
-                    break;
-                  case 'info':
-                    if (_inspection != null) {
-                      final inspectionId = _inspection!.id;
-                      int totalTopics = _topics.length;
-                      int totalItems = 0;
-                      int totalDetails = 0;
-                      int totalMedia = 0;
-                      for (final topic in _topics) {
-                        final items = await _serviceFactory.coordinator
-                            .getItems(inspectionId, topic.id!);
-                        totalItems += items.length;
-                        for (final item in items) {
-                          final details = await _serviceFactory.coordinator
-                              .getDetails(inspectionId, topic.id!, item.id!);
-                          totalDetails += details.length;
-                        }
-                      }
-                      final allMedia = await _serviceFactory.coordinator
-                          .getAllMedia(inspectionId);
-                      totalMedia = allMedia.length;
-
-                      showDialog(
-                        context: context,
-                        builder: (context) => InspectionInfoDialog(
-                          inspection: _inspection!,
-                          totalTopics: totalTopics,
-                          totalItems: totalItems,
-                          totalDetails: totalDetails,
-                          totalMedia: totalMedia,
-                        ),
-                      );
-                    }
-                    break;
-                }
-              },
+              // Simplesmente chame o método extraído.
+              onSelected: _handleMenuSelection,
               itemBuilder: (context) => [
                 const PopupMenuItem(
                   value: 'import',
@@ -707,6 +724,26 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       Icon(Icons.file_upload),
                       SizedBox(width: 8),
                       Text('Importar Inspeção'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'nonConformities',
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text('Não Conformidades'),
+                    ],
+                  ),
+                ),
+                 const PopupMenuItem(
+                  value: 'media',
+                  child: Row(
+                    children: [
+                      Icon(Icons.photo_library, color: Colors.purpleAccent),
+                      SizedBox(width: 8),
+                      Text('Galeria de Mídia'),
                     ],
                   ),
                 ),
@@ -857,6 +894,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   icon: Icons.warning_amber_rounded,
                   label: 'NCs',
                   onTap: () {
+                    // Navegação síncrona dentro de um callback não-async é segura.
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) => NonConformityScreen(
@@ -900,7 +938,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 4),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
+            color: color.withAlpha((255 * 0.08).round()),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(

@@ -129,7 +129,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao registrar não conformidade: $e')),
         );
-        print(e);
+        debugPrint(e as String?);
       }
     }
   }

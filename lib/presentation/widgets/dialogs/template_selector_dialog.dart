@@ -224,7 +224,7 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar templates: $e');
+      debugPrint('Erro ao carregar templates: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }

@@ -55,8 +55,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } catch (e) {
       String message = e.toString();
 
-      if (e.toString().contains('FirebaseAuthException'))
+      if (e.toString().contains('FirebaseAuthException')) {
         message = 'Falha ao redefinir a senha.';
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

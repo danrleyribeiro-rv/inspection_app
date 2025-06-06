@@ -13,7 +13,8 @@ class NonConformityEditDialog extends StatefulWidget {
   });
 
   @override
-  State<NonConformityEditDialog> createState() => _NonConformityEditDialogState();
+  State<NonConformityEditDialog> createState() =>
+      _NonConformityEditDialogState();
 }
 
 class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
@@ -26,16 +27,18 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
   @override
   void initState() {
     super.initState();
-    _descriptionController = TextEditingController(text: widget.nonConformity['description'] ?? '');
-    _correctiveActionController = TextEditingController(text: widget.nonConformity['corrective_action'] ?? '');
+    _descriptionController =
+        TextEditingController(text: widget.nonConformity['description'] ?? '');
+    _correctiveActionController = TextEditingController(
+        text: widget.nonConformity['corrective_action'] ?? '');
     _severity = widget.nonConformity['severity'] ?? 'Média';
-    
+
     // Parse deadline if available
     if (widget.nonConformity['deadline'] != null) {
       try {
         _deadline = DateTime.parse(widget.nonConformity['deadline']);
       } catch (e) {
-        print('Error parsing deadline: $e');
+        debugPrint('Error parsing deadline: $e');
       }
     }
   }
@@ -78,7 +81,8 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                 value: _severity,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
                 items: const [
                   DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
@@ -91,9 +95,9 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                   }
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Description field
               const Text('Descrição:'),
               const SizedBox(height: 8),
@@ -101,16 +105,17 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                 controller: _descriptionController,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
                 maxLines: 3,
-                validator: (value) => value == null || value.isEmpty 
-                    ? 'A descrição é obrigatória' 
+                validator: (value) => value == null || value.isEmpty
+                    ? 'A descrição é obrigatória'
                     : null,
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Corrective action field
               const Text('Ação Corretiva (opcional):'),
               const SizedBox(height: 8),
@@ -118,13 +123,14 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                 controller: _correctiveActionController,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
                 maxLines: 3,
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Deadline picker
               const Text('Prazo:'),
               const SizedBox(height: 8),
@@ -135,11 +141,12 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       suffixIcon: Icon(Icons.calendar_today),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     ),
                     controller: TextEditingController(
-                      text: _deadline != null 
-                          ? DateFormat('dd/MM/yyyy').format(_deadline!) 
+                      text: _deadline != null
+                          ? DateFormat('dd/MM/yyyy').format(_deadline!)
                           : '',
                     ),
                   ),
@@ -161,13 +168,13 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
               final updatedData = {
                 ...widget.nonConformity,
                 'description': _descriptionController.text,
-                'corrective_action': _correctiveActionController.text.isEmpty 
-                    ? null 
+                'corrective_action': _correctiveActionController.text.isEmpty
+                    ? null
                     : _correctiveActionController.text,
                 'severity': _severity,
                 'deadline': _deadline?.toIso8601String(),
               };
-              
+
               widget.onSave(updatedData);
             }
           },

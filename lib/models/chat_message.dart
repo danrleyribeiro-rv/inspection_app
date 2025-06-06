@@ -1,6 +1,7 @@
 // lib/models/chat_message.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 class ChatMessage {
   final String id;
@@ -84,7 +85,7 @@ class ChatMessage {
           seconds * 1000 + (nanoseconds / 1000000).round(),
         );
       } catch (e) {
-        print('Error parsing Firestore timestamp map: $e');
+        debugPrint('Error parsing Firestore timestamp map: $e');
         return null;
       }
     } else if (timestamp.runtimeType.toString().contains('Timestamp')) {
@@ -92,7 +93,7 @@ class ChatMessage {
         final toDateMethod = (timestamp as dynamic).toDate;
         return toDateMethod?.call();
       } catch (e) {
-        print('Error parsing Timestamp object: $e');
+        debugPrint('Error parsing Timestamp object: $e');
         return null;
       }
     }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 class Inspection {
   final String id;
@@ -243,7 +244,7 @@ class Inspection {
           seconds = value['_seconds'] as int;
           nanoseconds = value['_nanoseconds'] as int;
         } else {
-          print('Invalid Timestamp map format');
+          debugPrint('Invalid Timestamp map format');
           return null;
         }
 
@@ -251,7 +252,7 @@ class Inspection {
           seconds * 1000 + (nanoseconds / 1000000).round(),
         );
       } catch (e) {
-        print('Error parsing Firestore timestamp: $e');
+        debugPrint('Error parsing Firestore timestamp: $e');
         return null;
       }
     } else if (value.runtimeType.toString().contains('Timestamp')) {
@@ -261,14 +262,14 @@ class Inspection {
         if (toDateMethod != null) {
           return toDateMethod();
         }
-        print('Invalid Timestamp object: missing toDate method');
+        debugPrint('Invalid Timestamp object: missing toDate method');
         return null;
       } catch (e) {
-        print('Error parsing Timestamp object: $e');
+        debugPrint('Error parsing Timestamp object: $e');
         return null;
       }
     } else {
-      print('Unsupported datetime format: ${value.runtimeType}');
+      debugPrint('Unsupported datetime format: ${value.runtimeType}');
       return null;
     }
   }

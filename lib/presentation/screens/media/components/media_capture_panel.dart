@@ -95,7 +95,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         _isLoadingItems = false;
       });
     } catch (e) {
-      print('Error loading items: $e');
+      debugPrint('Error loading items: $e');
       setState(() => _isLoadingItems = false);
     }
   }
@@ -115,7 +115,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         _isLoadingDetails = false;
       });
     } catch (e) {
-      print('Error loading details: $e');
+      debugPrint('Error loading details: $e');
       setState(() => _isLoadingDetails = false);
     }
   }
@@ -141,7 +141,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
 
       await _processMedia(pickedFile.path, 'image', false);
     } catch (e) {
-      print('Error capturing image: $e');
+      debugPrint('Error capturing image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao capturar imagem: $e')),
@@ -173,7 +173,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
 
       await _processMedia(pickedFile.path, 'video', false);
     } catch (e) {
-      print('Error capturing video: $e');
+      debugPrint('Error capturing video: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao capturar vídeo: $e')),
@@ -225,7 +225,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         true,
       );
     } catch (e) {
-      print('Error picking from gallery: $e');
+      debugPrint('Error picking from gallery: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao selecionar da galeria: $e')),
@@ -269,12 +269,14 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     return true;
   }
 
-  Future<void> _processMedia(String filePath, String type, bool isFromGallery) async {
+  Future<void> _processMedia(
+      String filePath, String type, bool isFromGallery) async {
     try {
       setState(() => _isLoading = true);
 
       final ext = path.extension(filePath);
-      final fileName = '${widget.inspectionId}_${type}_${_uuid.v4().substring(0, 8)}$ext';
+      final fileName =
+          '${widget.inspectionId}_${type}_${_uuid.v4().substring(0, 8)}$ext';
       final appDir = await getApplicationDocumentsDirectory();
       final localPath = path.join(appDir.path, fileName);
 
@@ -306,11 +308,13 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
         'metadata': {
-          'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy,
-          } : null,
+          'location': position != null
+              ? {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                }
+              : null,
           'source': isFromGallery ? 'gallery' : 'camera',
         },
       };
@@ -332,7 +336,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
           );
           mediaData['url'] = downloadUrl;
         } catch (e) {
-          print('Error uploading to Firebase Storage: $e');
+          debugPrint('Error uploading to Firebase Storage: $e');
         }
       }
 
@@ -343,13 +347,14 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+            content:
+                Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
-      print('Error processing media: $e');
+      debugPrint('Error processing media: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao processar mídia: $e')),
@@ -363,7 +368,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   }
 
   Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
-    final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+    final inspection =
+        await _serviceFactory.coordinator.getInspection(widget.inspectionId);
     if (inspection?.topics == null) return;
 
     final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
@@ -384,19 +390,21 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     } else {
       // Salvar no detalhe
       final itemIndex = int.tryParse(_itemId!.replaceFirst('item_', '')) ?? 0;
-      final detailIndex = int.tryParse(_detailId!.replaceFirst('detail_', '')) ?? 0;
+      final detailIndex =
+          int.tryParse(_detailId!.replaceFirst('detail_', '')) ?? 0;
 
       final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
       if (itemIndex < items.length) {
         final item = Map<String, dynamic>.from(items[itemIndex]);
         final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-        
+
         if (detailIndex < details.length) {
           final detail = Map<String, dynamic>.from(details[detailIndex]);
           if (!detail.containsKey('media')) {
             detail['media'] = <Map<String, dynamic>>[];
           }
-          final detailMedia = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+          final detailMedia =
+              List<Map<String, dynamic>>.from(detail['media'] ?? []);
           detailMedia.add(mediaData);
           detail['media'] = detailMedia;
 
@@ -419,7 +427,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isFormValid = _topicId != null && (_topicOnly || (_itemId != null && _detailId != null));
+    final bool isFormValid = _topicId != null &&
+        (_topicOnly || (_itemId != null && _detailId != null));
     final bool isAnyLoading = _isLoading ||
         _isCameraLoading ||
         _isVideoLoading ||

@@ -1,17 +1,16 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:inspection_app/models/chat.dart';
 import 'package:inspection_app/models/chat_message.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
 
-
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseService _firebase = FirebaseService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-
 
   Stream<List<Chat>> getUserChats() {
     final userId = _firebase.currentUser?.uid;
@@ -22,20 +21,21 @@ class ChatService {
         .where('participants', arrayContains: userId)
         .orderBy('updated_at', descending: true)
         .snapshots()
-        .map((snapshot) => 
+        .map((snapshot) =>
             snapshot.docs.map((doc) => Chat.fromFirestore(doc)).toList());
   }
-  
+
   Stream<List<ChatMessage>> getChatMessages(String chatId) {
     return _firebase.firestore
         .collection('chat_messages')
         .where('chat_id', isEqualTo: chatId)
         .orderBy('timestamp', descending: false)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ChatMessage.fromFirestore(doc))
+            .toList());
   }
-  
+
   Future<String> createOrGetChat(String inspectionId) async {
     final userId = _firebase.currentUser?.uid;
     if (userId == null) throw Exception('Usuário não autenticado');
@@ -53,11 +53,11 @@ class ChatService {
 
     return await _createNewChat(inspectionId, userId);
   }
-  
+
   Future<void> sendTextMessage(String chatId, String content) async {
     final userId = _firebase.currentUser?.uid;
     if (userId == null) throw Exception('Usuário não autenticado');
-    
+
     await _firebase.firestore.collection('chat_messages').add({
       'chat_id': chatId,
       'sender_id': userId,
@@ -67,30 +67,31 @@ class ChatService {
       'received_by': [userId],
       'read_by': [userId],
     });
-    
+
     await _updateLastMessage(chatId, content, userId, 'text');
   }
-  
+
   Future<void> sendFileMessage(String chatId, File file, String type) async {
     final userId = _firebase.currentUser?.uid;
     if (userId == null) throw Exception('Usuário não autenticado');
-    
+
     final fileSize = await file.length();
     if (fileSize > 100 * 1024 * 1024) {
       throw Exception('O arquivo excede o limite de 100MB');
     }
-    
+
     final fileName = path.basename(file.path);
-    final storagePath = 'chats/$chatId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-    
+    final storagePath =
+        'chats/$chatId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
     final storageRef = _firebase.storage.ref().child(storagePath);
     final uploadTask = storageRef.putFile(file);
     final snapshot = await uploadTask;
     final downloadUrl = await snapshot.ref.getDownloadURL();
-    
+
     final fileExtension = path.extension(fileName).toLowerCase();
     final fileType = _getFileType(fileExtension);
-    
+
     await _firebase.firestore.collection('chat_messages').add({
       'chat_id': chatId,
       'sender_id': userId,
@@ -103,7 +104,7 @@ class ChatService {
       'received_by': [userId],
       'read_by': [userId],
     });
-    
+
     final displayText = 'Enviou um ${_getFileTypeDisplay(fileType)}';
     await _updateLastMessage(chatId, displayText, userId, fileType);
   }
@@ -111,16 +112,16 @@ class ChatService {
   Future<void> markMessagesAsRead(String chatId) async {
     final userId = _firebase.currentUser?.uid;
     if (userId == null) return;
-    
+
     final snapshot = await _firebase.firestore
         .collection('chat_messages')
         .where('chat_id', isEqualTo: chatId)
         .where('sender_id', isNotEqualTo: userId)
         .get();
-    
+
     final batch = _firebase.firestore.batch();
     bool hasUnreadMessages = false;
-    
+
     for (final doc in snapshot.docs) {
       final message = ChatMessage.fromFirestore(doc);
       if (!message.readBy.contains(userId)) {
@@ -129,12 +130,13 @@ class ChatService {
         batch.update(doc.reference, {'read_by': updatedReadBy});
       }
     }
-    
+
     if (hasUnreadMessages) {
       await batch.commit();
-      await _firebase.firestore.collection('chats').doc(chatId).update({
-        'unread_count': 0
-      });
+      await _firebase.firestore
+          .collection('chats')
+          .doc(chatId)
+          .update({'unread_count': 0});
     }
   }
 
@@ -143,18 +145,16 @@ class ChatService {
         .collection('inspections')
         .doc(inspectionId)
         .get();
-    
+
     if (!inspectionDoc.exists) {
       throw Exception('Inspeção não encontrada');
     }
-    
+
     final inspectionData = inspectionDoc.data() as Map<String, dynamic>;
 
-    final inspectorDoc = await _firebase.firestore
-        .collection('inspectors')
-        .doc(userId)
-        .get();
-    
+    final inspectorDoc =
+        await _firebase.firestore.collection('inspectors').doc(userId).get();
+
     if (!inspectorDoc.exists) {
       throw Exception('Inspetor não encontrado');
     }
@@ -169,7 +169,7 @@ class ChatService {
       },
       'inspector': {
         'id': userId,
-'name': inspectorData['name'] ?? '',
+        'name': inspectorData['name'] ?? '',
         'last_name': inspectorData['last_name'] ?? '',
         'profileImageUrl': inspectorData['profileImageUrl']
       },
@@ -179,11 +179,12 @@ class ChatService {
       'last_message': {},
       'unread_count': 0,
     });
-    
+
     return chatRef.id;
   }
 
-  Future<void> _updateLastMessage(String chatId, String content, String userId, String type) async {
+  Future<void> _updateLastMessage(
+      String chatId, String content, String userId, String type) async {
     await _firebase.firestore.collection('chats').doc(chatId).update({
       'last_message': {
         'text': content,
@@ -196,9 +197,11 @@ class ChatService {
   }
 
   String _getFileType(String extension) {
-    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].contains(extension)) {
+    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+        .contains(extension)) {
       return 'image';
-    } else if (['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'].contains(extension)) {
+    } else if (['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm']
+        .contains(extension)) {
       return 'video';
     } else {
       return 'file';
@@ -207,32 +210,36 @@ class ChatService {
 
   String _getFileTypeDisplay(String type) {
     switch (type) {
-      case 'image': return 'imagem';
-      case 'video': return 'vídeo';
-      case 'file': return 'arquivo';
-      default: return 'arquivo';
+      case 'image':
+        return 'imagem';
+      case 'video':
+        return 'vídeo';
+      case 'file':
+        return 'arquivo';
+      default:
+        return 'arquivo';
     }
   }
 
-    Future<int> getUnreadMessagesCount() async {
+  Future<int> getUnreadMessagesCount() async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return 0;
-    
+
     try {
       final chatsSnapshot = await _firestore
           .collection('chats')
           .where('participants', arrayContains: userId)
           .get();
-      
+
       int totalUnread = 0;
-      
+
       for (final chatDoc in chatsSnapshot.docs) {
         final messagesSnapshot = await _firestore
             .collection('chat_messages')
             .where('chat_id', isEqualTo: chatDoc.id)
             .where('sender_id', isNotEqualTo: userId)
             .get();
-        
+
         for (final messageDoc in messagesSnapshot.docs) {
           final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
           if (!readBy.contains(userId)) {
@@ -240,10 +247,10 @@ class ChatService {
           }
         }
       }
-      
+
       return totalUnread;
     } catch (e) {
-      print('Erro ao contar mensagens não lidas: $e');
+      debugPrint('Erro ao contar mensagens não lidas: $e');
       return 0;
     }
   }
@@ -251,21 +258,21 @@ class ChatService {
   Stream<int> getUnreadMessagesCountStream() {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return Stream.value(0);
-    
+
     return _firestore
         .collection('chats')
         .where('participants', arrayContains: userId)
         .snapshots()
         .asyncMap((chatsSnapshot) async {
       int totalUnread = 0;
-      
+
       for (final chatDoc in chatsSnapshot.docs) {
         final messagesSnapshot = await _firestore
             .collection('chat_messages')
             .where('chat_id', isEqualTo: chatDoc.id)
             .where('sender_id', isNotEqualTo: userId)
             .get();
-        
+
         for (final messageDoc in messagesSnapshot.docs) {
           final readBy = List<String>.from(messageDoc.data()['read_by'] ?? []);
           if (!readBy.contains(userId)) {
@@ -273,7 +280,7 @@ class ChatService {
           }
         }
       }
-      
+
       return totalUnread;
     });
   }

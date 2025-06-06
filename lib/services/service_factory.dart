@@ -1,3 +1,5 @@
+// service_factory.dart
+
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/inspection_coordinator.dart';
 import 'package:inspection_app/services/core/auth_service.dart';
@@ -12,81 +14,45 @@ import 'package:inspection_app/services/utils/notification_service.dart';
 import 'package:inspection_app/services/utils/import_export_service.dart';
 import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
 
-
-
 class ServiceFactory {
   static final ServiceFactory _instance = ServiceFactory._internal();
   factory ServiceFactory() => _instance;
   ServiceFactory._internal();
 
-  // Singletons
-  InspectionCoordinator? _coordinator;
-  AuthService? _authService;
-  ChatService? _chatService;
-  MediaService? _mediaService;
-  CheckpointService? _checkpointService;
-  TemplateService? _templateService;
-  CacheService? _cacheService;
-  SettingsService? _settingsService;
-  SyncService? _syncService;
-  NotificationService? _notificationService;
-  ImportExportService? _importExportService;
+  // Mude para 'late final' para garantir que sejam inicializados uma vez e não sejam nulos.
+  // Isso substitui o padrão de inicialização preguiçosa (lazy) que estava causando o problema.
+  late final InspectionCoordinator coordinator;
+  late final AuthService authService;
+  late final ChatService chatService;
+  late final MediaService mediaService;
+  late final CheckpointService checkpointService;
+  late final TemplateService templateService;
+  late final CacheService cacheService;
+  late final SettingsService settingsService;
+  late final SyncService syncService;
+  late final NotificationService notificationService;
+  late final ImportExportService importExportService;
 
+  /// Inicializa todos os serviços na ordem correta de dependência.
+  /// Isso deve ser chamado no `main.dart` após os serviços de base (Firebase, Hive) serem inicializados.
+  void initialize() {
+    // 1. Instancie serviços que não têm outras dependências de serviço.
+    coordinator = InspectionCoordinator();
+    authService = AuthService();
+    chatService = ChatService();
+    mediaService = MediaService();
+    checkpointService = CheckpointService();
+    templateService = TemplateService();
+    cacheService = CacheService(); // <-- CacheService é criado aqui.
+    settingsService = SettingsService();
+    notificationService = NotificationService();
+    importExportService = ImportExportService();
 
-  // Get services (singleton pattern)
-  InspectionCoordinator get coordinator {
-    _coordinator ??= InspectionCoordinator();
-    return _coordinator!;
-  }
+    // 2. Instancie serviços que dependem de outros, injetando as instâncias já criadas.
+    syncService = SyncService(cacheService: cacheService); // <-- A instância de cacheService é injetada no SyncService.
 
-  AuthService get authService {
-    _authService ??= AuthService();
-    return _authService!;
-  }
-
-  ChatService get chatService {
-    _chatService ??= ChatService();
-    return _chatService!;
-  }
-
-  MediaService get mediaService {
-    _mediaService ??= MediaService();
-    return _mediaService!;
-  }
-
-  CheckpointService get checkpointService {
-    _checkpointService ??= CheckpointService();
-    return _checkpointService!;
-  }
-
-  TemplateService get templateService {
-    _templateService ??= TemplateService();
-    return _templateService!;
-  }
-
-  CacheService get cacheService {
-    _cacheService ??= CacheService();
-    return _cacheService!;
-  }
-
-  SettingsService get settingsService {
-    _settingsService ??= SettingsService();
-    return _settingsService!;
-  }
-
-  SyncService get syncService {
-    _syncService ??= SyncService();
-    return _syncService!;
-  }
-
-  NotificationService get notificationService {
-    _notificationService ??= NotificationService();
-    return _notificationService!;
-  }
-
-  ImportExportService get importExportService {
-    _importExportService ??= ImportExportService();
-    return _importExportService!;
+    // 3. Chame métodos de inicialização que iniciam listeners ou outras tarefas em segundo plano.
+    syncService.initialize();
   }
 
   CheckpointDialogService createCheckpointDialogService(
@@ -95,19 +61,13 @@ class ServiceFactory {
   ) {
     return CheckpointDialogService(
       context,
-      checkpointService,
+      checkpointService, // Usa a instância já criada
       onReloadData,
     );
   }
 
-  void initialize() {
-    cacheService.initializeSync();
-    syncService.initialize();
-  }
-
- 
+  /// Libera os recursos dos serviços, como streams.
   void dispose() {
-    _cacheService?.dispose();
-    _syncService?.dispose();
+    syncService.dispose();
   }
 }

@@ -40,7 +40,7 @@ class ItemWidget extends StatefulWidget {
 class _ItemWidgetState extends State<ItemWidget> {
   final _serviceFactory = ServiceFactory();
   final _uuid = Uuid();
-  
+
   List<Detail> _details = [];
   bool _isLoading = true;
   bool _isAddingMedia = false;
@@ -72,9 +72,7 @@ class _ItemWidgetState extends State<ItemWidget> {
 
     try {
       if (widget.item.id == null || widget.item.topicId == null) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
@@ -83,10 +81,11 @@ class _ItemWidgetState extends State<ItemWidget> {
         widget.item.topicId!,
         widget.item.id!,
       );
-
       if (!mounted) return;
 
       final inspection = await _serviceFactory.coordinator.getInspection(widget.item.inspectionId);
+      if (!mounted) return;
+      
       final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
       final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
       final progress = ProgressCalculationService.calculateItemProgress(
@@ -95,20 +94,21 @@ class _ItemWidgetState extends State<ItemWidget> {
         itemIndex,
       );
 
-      setState(() {
-        _details = details;
-        _itemProgress = progress;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _details = details;
+          _itemProgress = progress;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print('Error loading details: $e');
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      debugPrint('Error loading details: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _updateItem() {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
       final updatedItem = widget.item.copyWith(
         observation: _observationController.text.isEmpty
@@ -131,30 +131,31 @@ class _ItemWidgetState extends State<ItemWidget> {
         preferredCameraDevice: CameraDevice.rear,
       );
 
-      if (pickedFile == null) {
-        setState(() => _isAddingMedia = false);
+      if (pickedFile == null || !mounted) {
+        if (mounted) setState(() => _isAddingMedia = false);
         return;
       }
 
       final mediaDir = await getApplicationDocumentsDirectory();
+      if (!mounted) return;
+      
       final timestamp = DateTime.now();
       final filename = 'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
       final localPath = '${mediaDir.path}/$filename';
 
-      // Processar imagem para 4:3 em background
       final processedFile = await _serviceFactory.mediaService.processImage43(
         pickedFile.path,
         localPath,
       );
+      if (!mounted) return;
 
       if (processedFile == null) {
         await File(pickedFile.path).copy(localPath);
       }
 
-      // Obter localização
       final position = await _serviceFactory.mediaService.getCurrentLocation();
+      if (!mounted) return;
 
-      // Criar dados da mídia
       final mediaData = {
         'id': _uuid.v4(),
         'type': 'image',
@@ -171,16 +172,17 @@ class _ItemWidgetState extends State<ItemWidget> {
         'detail_name': null,
         'is_non_conformity': false,
         'metadata': {
-          'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy,
-          } : null,
+          'location': position != null
+              ? {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                }
+              : null,
           'source': source == ImageSource.camera ? 'camera' : 'gallery',
         },
       };
 
-      // Upload para Firebase Storage se online
       try {
         final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
           file: File(localPath),
@@ -195,15 +197,14 @@ class _ItemWidgetState extends State<ItemWidget> {
       }
 
       await _saveItemMediaToInspection(mediaData);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Imagem do item salva com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Imagem do item salva com sucesso'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -222,22 +223,20 @@ class _ItemWidgetState extends State<ItemWidget> {
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
       final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
-      
+
       if (topicIndex < topics.length) {
         final topic = Map<String, dynamic>.from(topics[topicIndex]);
         mediaData['topic_name'] = topic['name'];
-        
+
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
-        
+
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          
-          if (!item.containsKey('media')) {
-            item['media'] = <Map<String, dynamic>>[];
-          }
-          
-          final itemMedia = List<Map<String, dynamic>>.from(item['media'] ?? []);
+
+          item.putIfAbsent('media', () => <Map<String, dynamic>>[]);
+
+          final itemMedia = List<Map<String, dynamic>>.from(item['media']);
           itemMedia.add(mediaData);
           item['media'] = itemMedia;
           items[itemIndex] = item;
@@ -261,7 +260,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       ),
     );
 
-    if (newName != null && newName != widget.item.itemName) {
+    if (newName != null && newName != widget.item.itemName && mounted) {
       final updatedItem = widget.item.copyWith(
         itemName: newName,
         updatedAt: DateTime.now(),
@@ -291,32 +290,34 @@ class _ItemWidgetState extends State<ItemWidget> {
       ),
     );
 
-    if (confirmed == true && widget.item.id != null) {
+    if (confirmed == true && widget.item.id != null && mounted) {
       widget.onItemDeleted(widget.item.id!);
     }
   }
 
   Future<void> _addDetail() async {
     if (widget.item.id == null || widget.item.topicId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Erro: ID do Item ou do Tópico não encontrado')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Erro: ID do Item ou do Tópico não encontrado')),
+        );
+      }
       return;
     }
 
     String topicName = "";
     try {
-      final topics =
-          await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
+      final topics = await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
+      if (!mounted) return;
       final topic = topics.firstWhere((t) => t.id == widget.item.topicId,
-          orElse: () =>
-              Topic(id: '', inspectionId: '', topicName: '', position: 0));
+          orElse: () => Topic(id: '', inspectionId: '', topicName: '', position: 0));
       topicName = topic.topicName;
     } catch (e) {
-      print('Erro ao buscar nome do tópico: $e');
+      debugPrint('Erro ao buscar nome do tópico: $e');
     }
 
+    // `showDialog` is an async gap.
     final template = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => TemplateSelectorDialog(
@@ -327,6 +328,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       ),
     );
 
+    // THE FIX: Check for `mounted` immediately after the `await`.
     if (template == null || !mounted) return;
 
     setState(() => _isLoading = true);
@@ -352,9 +354,9 @@ class _ItemWidgetState extends State<ItemWidget> {
         type: detailType,
         options: options,
       );
+      if (!mounted) return;
 
       await _loadDetails();
-
       if (!mounted) return;
 
       final newIndex = _details.indexWhere((d) => d.id == newDetail.id);
@@ -383,11 +385,11 @@ class _ItemWidgetState extends State<ItemWidget> {
     if (widget.item.id == null ||
         widget.item.topicId == null ||
         detail.id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text('Erro: Não é possível duplicar detalhe com IDs ausentes')),
-      );
+      if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: Não é possível duplicar detalhe com IDs ausentes')),
+        );
+      }
       return;
     }
 
@@ -406,11 +408,9 @@ class _ItemWidgetState extends State<ItemWidget> {
       }
 
       await _loadDetails();
-
       if (!mounted) return;
-
-      final newIndex =
-          _details.indexWhere((d) => d.detailName == detail.detailName);
+      
+      final newIndex = _details.indexWhere((d) => d.detailName == detail.detailName);
       if (newIndex >= 0) {
         setState(() {
           _expandedDetailIndex = newIndex;
@@ -418,9 +418,7 @@ class _ItemWidgetState extends State<ItemWidget> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text('Detalhe "${detail.detailName}" duplicado com sucesso')),
+        SnackBar(content: Text('Detalhe "${detail.detailName}" duplicado com sucesso')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -436,6 +434,8 @@ class _ItemWidgetState extends State<ItemWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // The rest of the build method is fine and does not need changes.
+    // ...
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 1,
@@ -494,10 +494,13 @@ class _ItemWidgetState extends State<ItemWidget> {
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   : const Icon(Icons.camera_alt, size: 18),
-                              onPressed: _isAddingMedia ? null : () => _captureItemImage(ImageSource.camera),
+                              onPressed: _isAddingMedia
+                                  ? null
+                                  : () => _captureItemImage(ImageSource.camera),
                               tooltip: 'Tirar foto do item',
                               padding: const EdgeInsets.all(8.0),
                               constraints: const BoxConstraints(),
@@ -511,7 +514,8 @@ class _ItemWidgetState extends State<ItemWidget> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.copy, size: 20),
-                              onPressed: () => widget.onItemDuplicated(widget.item),
+                              onPressed: () =>
+                                  widget.onItemDuplicated(widget.item),
                               tooltip: 'Duplicar Item',
                               padding: const EdgeInsets.all(8.0),
                               constraints: const BoxConstraints(),
@@ -595,9 +599,10 @@ class _ItemWidgetState extends State<ItemWidget> {
                           onDetailUpdated: (updatedDetail) {
                             final idx = _details
                                 .indexWhere((d) => d.id == updatedDetail.id);
-                            if (idx >= 0) {
+                            if (idx >= 0 && mounted) {
                               setState(() => _details[idx] = updatedDetail);
-                              _serviceFactory.coordinator.updateDetail(updatedDetail);
+                              _serviceFactory.coordinator
+                                  .updateDetail(updatedDetail);
                               _loadDetails();
                             }
                           },
@@ -610,7 +615,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                                 widget.item.id!,
                                 detailId,
                               );
-                              await _loadDetails();
+                              if (mounted) await _loadDetails();
                             }
                           },
                           onDetailDuplicated: _duplicateDetail,

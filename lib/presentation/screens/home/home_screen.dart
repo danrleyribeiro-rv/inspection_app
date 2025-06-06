@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar contagem de mensagens não lidas: $e');
+      debugPrint('Erro ao carregar contagem de mensagens não lidas: $e');
     }
   }
 
@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Theme.of(context).colorScheme.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withAlpha((255 * 0.15).round()),
               offset: const Offset(0, -4),
             ),
           ],
@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Theme.of(context)
                               .colorScheme
                               .primary
-                              .withOpacity(0.12),
+                              .withAlpha((255 * 0.12).round()),
                           borderRadius: BorderRadius.circular(12),
                         )
                       : null,
@@ -142,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Theme.of(context)
                                   .colorScheme
                                   .primary
-                                  .withOpacity(0.12),
+                                  .withAlpha((255 * 0.12).round()),
                               borderRadius: BorderRadius.circular(12),
                             )
                           : null,
@@ -188,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Theme.of(context)
                               .colorScheme
                               .primary
-                              .withOpacity(0.12),
+                              .withAlpha((255 * 0.12).round()),
                           borderRadius: BorderRadius.circular(12),
                         )
                       : null,

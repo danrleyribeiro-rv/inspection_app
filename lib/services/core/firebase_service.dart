@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -17,8 +18,10 @@ class FirebaseService {
     // Firebase initialization logic if needed
   }
 
-  Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
-    return await auth.signInWithEmailAndPassword(email: email, password: password);
+  Future<UserCredential> signInWithEmailAndPassword(
+      String email, String password) async {
+    return await auth.signInWithEmailAndPassword(
+        email: email, password: password);
   }
 
   Future<void> signOut() async {
@@ -31,10 +34,8 @@ class FirebaseService {
 
     try {
       // Try to find by document ID first
-      final inspectorDoc = await firestore
-          .collection('inspectors')
-          .doc(user.uid)
-          .get();
+      final inspectorDoc =
+          await firestore.collection('inspectors').doc(user.uid).get();
 
       if (inspectorDoc.exists) {
         return {
@@ -60,12 +61,13 @@ class FirebaseService {
 
       return null;
     } catch (e) {
-      print('Error getting inspector data: $e');
+      debugPrint('Error getting inspector data: $e');
       return null;
     }
   }
 
-  Future<void> updateInspectorProfile(String inspectorId, Map<String, dynamic> data) async {
+  Future<void> updateInspectorProfile(
+      String inspectorId, Map<String, dynamic> data) async {
     await firestore.collection('inspectors').doc(inspectorId).update(data);
   }
 
@@ -80,18 +82,22 @@ class FirebaseService {
         .orderBy('scheduled_date', descending: true)
         .get();
 
-    return inspectionQuery.docs.map((doc) => {
-      'id': doc.id,
-      ...doc.data(),
-    }).toList();
+    return inspectionQuery.docs
+        .map((doc) => {
+              'id': doc.id,
+              ...doc.data(),
+            })
+        .toList();
   }
 
   // Helper methods
-  Future<DocumentReference> addDocument(String collection, Map<String, dynamic> data) async {
+  Future<DocumentReference> addDocument(
+      String collection, Map<String, dynamic> data) async {
     return await firestore.collection(collection).add(data);
   }
 
-  Future<void> updateDocument(String collection, String docId, Map<String, dynamic> data) async {
+  Future<void> updateDocument(
+      String collection, String docId, Map<String, dynamic> data) async {
     await firestore.collection(collection).doc(docId).update(data);
   }
 

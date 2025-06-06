@@ -44,9 +44,11 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final topics = await _serviceFactory.coordinator.getTopics(widget.inspectionId);
+      final topics =
+          await _serviceFactory.coordinator.getTopics(widget.inspectionId);
 
-      final allMedia = await _serviceFactory.coordinator.getAllMedia(widget.inspectionId);
+      final allMedia =
+          await _serviceFactory.coordinator.getAllMedia(widget.inspectionId);
 
       if (mounted) {
         setState(() {
@@ -57,7 +59,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         });
       }
     } catch (e) {
-      print('Error loading media data: $e');
+      debugPrint('Error loading media data: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -167,7 +169,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                     _isNonConformityOnly != null ||
                     _mediaType != null)
                   _buildFilterSummary(),
-
                 Expanded(
                   child: _filteredMedia.isEmpty
                       ? Center(

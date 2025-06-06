@@ -190,7 +190,7 @@ class MapLocationCard extends StatelessWidget {
                         foregroundColor: Theme.of(context).colorScheme.primary,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 0),
-                        disabledForegroundColor: Colors.grey.withOpacity(0.5),
+                        disabledForegroundColor: Colors.grey.withAlpha((255 * 0.5).round()),
                       ),
                     ),
                   ],

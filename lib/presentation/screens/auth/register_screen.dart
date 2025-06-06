@@ -40,28 +40,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final cepDigits = cep.replaceAll(RegExp(r'\D'), '');
     if (cepDigits.length != 8) return;
 
-    setState(() => _isLoading =
-        true); // Consider showing a smaller indicator for just CEP lookup
+    setState(() => _isLoading = true);
 
     try {
       final url = Uri.parse('https://viacep.com.br/ws/$cepDigits/json/');
       final response = await http.get(url);
 
-      if (!mounted) return; // Check mounted after await
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data.containsKey('erro') && data['erro'] == true) {
-          // More robust check for 'erro' key
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('CEP not found'), backgroundColor: Colors.orange),
+                content: Text('CEP não encontrado'),
+                backgroundColor: Colors.orange),
           );
-          // Clear fields if CEP is not found? Optional.
-          // _streetController.clear();
-          // _neighborhoodController.clear();
-          // _cityController.clear();
-          // _stateController.clear();
         } else {
           setState(() {
             _streetController.text = data['logradouro'] ?? '';
@@ -76,23 +70,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } catch (e) {
-      if (!mounted) return; // Check mounted in catch block
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao buscar CEP: $e')),
       );
     } finally {
       if (mounted) {
-        // Check mounted in finally
         setState(() => _isLoading = false);
       }
     }
   }
 
   Future<void> _signUp() async {
-    // 1. Run basic form validation first
     if (!_formKey.currentState!.validate()) return;
 
-    // 2. Check password match
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -101,116 +92,92 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
-
-    // 3. Validate CPF/CNPJ *before* starting the loading indicator for registration
+    
+    // ... (Your existing document validation logic is good, no changes needed there)
     final documentValue = _documentController.text;
     final documentDigits = documentValue.replaceAll(RegExp(r'\D'), '');
     bool isDocumentValid = false;
-
     if (documentDigits.isNotEmpty) {
-      // Only validate if not empty
       if (documentDigits.length == 11) {
         isDocumentValid = cpf_validator.CPFValidator.isValid(documentValue);
         if (!isDocumentValid) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('O CPF informado é inválido'),
-                backgroundColor: Colors.red),
-          );
-          return; // Stop if invalid
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O CPF informado é inválido'), backgroundColor: Colors.red));
+          return;
         }
       } else if (documentDigits.length == 14) {
         isDocumentValid = cnpj_validator.CNPJValidator.isValid(documentValue);
         if (!isDocumentValid) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('O CNPJ informado é inválido'),
-                backgroundColor: Colors.red),
-          );
-          return; // Stop if invalid
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O CNPJ informado é inválido'), backgroundColor: Colors.red));
+          return;
         }
       } else {
-        // Neither CPF nor CNPJ length
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'O documento deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)'),
-              backgroundColor: Colors.red),
-        );
-        return; // Stop if invalid length
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O documento deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)'), backgroundColor: Colors.red));
+        return;
       }
     } else {
-      // Handle case where document might be optional or required
-      // If required, the basic form validator should catch it.
-      // If optional, we can proceed. For now, assume it's required by validator.
-      // If it *can* be empty, set isDocumentValid = true here or adjust logic.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Por favor, insira seu CPF ou CNPJ'),
-            backgroundColor: Colors.red),
-      );
-      return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, insira seu CPF ou CNPJ'), backgroundColor: Colors.red));
+        return;
     }
 
-    // If all checks passed, proceed with registration
+
     setState(() => _isLoading = true);
 
     try {
-      // Prepare user data for registration
       final userData = {
         'name': _nameController.text.trim(),
         'last_name': _lastNameController.text.trim(),
         'email': _emailController.text.trim(),
         'profession': _selectedProfession,
-        // Use the stripped digits or the formatted value? Depends on Firestore needs.
-        // Using stripped digits is often cleaner for storage/querying.
         'document': documentDigits,
-        'cep': _cepController.text
-            .replaceAll(RegExp(r'\D'), ''), // Store digits only
+        'cep': _cepController.text.replaceAll(RegExp(r'\D'), ''),
         'street': _streetController.text.trim(),
         'neighborhood': _neighborhoodController.text.trim(),
         'city': _cityController.text.trim(),
         'state': _stateController.text.trim(),
-        'phonenumber': _phoneController.text
-            .replaceAll(RegExp(r'\D'), ''), // Store digits only
+        'phonenumber': _phoneController.text.replaceAll(RegExp(r'\D'), ''),
       };
 
-      // Register user with the new method that creates user and inspector
+      // FIRST async gap
       final userCredential = await _authService.registerWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text.trim(),
         userData,
       );
 
-      // Check mounted before proceeding after await
+      // Check mounted before proceeding after the FIRST await
       if (!mounted) return;
 
-      // Send email verification (null check user just in case)
       if (userCredential.user != null) {
+        // SECOND async gap
         await userCredential.user!.sendEmailVerification();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Registro bem-sucedido! Por favor, verifique seu e-mail para confirmar seu endereço.'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 5), // Show longer
-          ),
-        );
-        // Navigate to login or a verification pending screen
-        Navigator.of(context).pushReplacementNamed('/login');
+        
+        // THE FIX: Check mounted AGAIN after the second await
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registro bem-sucedido! Por favor, verifique seu e-mail para confirmar seu endereço.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ),
+          );
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
       } else {
-        // Handle unexpected case where user is null after successful registration
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Registro concluído, mas os dados do usuário estão indisponíveis. Por favor, tente fazer login.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        Navigator.of(context).pushReplacementNamed('/login');
+        // This 'else' block doesn't have an await before it,
+        // but it's inside the larger block that does. A mounted
+        // check is still best practice.
+        if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registro concluído, mas os dados do usuário estão indisponíveis. Por favor, tente fazer login.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
       }
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return; // Check mounted in catch
+      if (!mounted) return;
       String message = 'Registro falhou.';
 
       switch (e.code) {
@@ -224,22 +191,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           message = 'O formato do endereço de e-mail é inválido.';
           break;
         default:
-          // Log the error for debugging
-          debugPrint(
-              'FirebaseAuthException code: ${e.code}, message: ${e.message}');
-          message =
-              'Ocorreu um erro inesperado durante o registro. Por favor, tente novamente.';
+          debugPrint('FirebaseAuthException code: ${e.code}, message: ${e.message}');
+          message = 'Ocorreu um erro inesperado durante o registro. Por favor, tente novamente.';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                message), // Removed 'Registration error: ' for cleaner message
-            backgroundColor: Colors.red),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     } catch (e) {
-      if (!mounted) return; // Check mounted in catch
-      // Log the error for debugging
+      if (!mounted) return;
       debugPrint('Erro inesperado durante o registro: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -248,12 +208,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } finally {
       if (mounted) {
-        // Check mounted in finally
         setState(() => _isLoading = false);
       }
     }
   }
 
+  // The rest of the file (build method, dispose, etc.) remains unchanged.
+  // ...
   @override
   Widget build(BuildContext context) {
     return Scaffold(

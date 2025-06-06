@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:inspection_app/services/service_factory.dart';
 
-
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -31,11 +30,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final settings = await _serviceFactory.settingsService.loadSettings();
-    setState(() {
-      _notificationsEnabled = settings['notificationsEnabled'] ?? true;
-      _locationPermission = settings['locationPermission'] ?? true;
-      _cameraPermission = settings['cameraPermission'] ?? true;
-    });
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = settings['notificationsEnabled'] ?? true;
+        _locationPermission = settings['locationPermission'] ?? true;
+        _cameraPermission = settings['cameraPermission'] ?? true;
+      });
+    }
   }
 
   Future<void> _saveSettings() async {
@@ -48,10 +49,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _signOut() async {
     setState(() => _isLoading = true);
-
     try {
       await _serviceFactory.authService.signOut();
-
       if (mounted) {
         Navigator.of(context)
             .pushNamedAndRemoveUntil('/login', (route) => false);
@@ -63,7 +62,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -91,56 +92,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
 
-    if (confirm == true) {
-      setState(() => _isLoading = true);
+    if (confirm != true || !mounted) return;
 
-      try {
-        final userId = _auth.currentUser?.uid; // Corrigido de .id para .uid
-        if (userId == null) return;
+    setState(() => _isLoading = true);
 
-        // Get the inspector ID
-        final inspectorDoc = await _firestore
+    try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) return;
+
+      final inspectorDoc = await _firestore
+          .collection('inspectors')
+          .where('user_id', isEqualTo: userId)
+          .limit(1)
+          .get();
+      if (!mounted) return;
+
+      if (inspectorDoc.docs.isNotEmpty) {
+        final inspectorId = inspectorDoc.docs[0].id;
+        await _firestore
             .collection('inspectors')
-            .where('user_id', isEqualTo: userId)
-            .limit(1)
-            .get();
+            .doc(inspectorId)
+            .update({'deleted_at': FieldValue.serverTimestamp()});
+        if (!mounted) return;
+      }
 
-        if (inspectorDoc.docs.isNotEmpty) {
-          final inspectorId = inspectorDoc.docs[0].id;
-
-          // Mark the inspector as deleted (soft delete)
-          await _firestore
-              .collection('inspectors')
-              .doc(inspectorId)
-              .update({'deleted_at': FieldValue.serverTimestamp()});
-        }
-
-        // Sign out
-        await _serviceFactory.authService.signOut();
-
-        if (mounted) {
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/login', (route) => false);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting account: $e')),
-          );
-        }
-      } finally {
+      await _serviceFactory.authService.signOut();
+      if (mounted) {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir conta: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _handleNotificationChange(bool value) async {
+    if (!mounted) return;
+    setState(() => _notificationsEnabled = value);
+    await _saveSettings();
+    
+    if (value) {
+      await Permission.notification.request();
+    } else {
+      await openAppSettings();
+    }
+  }
+
+  Future<void> _handleLocationPermissionChange(bool value) async {
+    if (!mounted) return;
+    setState(() => _locationPermission = value);
+    await _saveSettings();
+
+    if (value) {
+      await Permission.location.request();
+    } else {
+      await openAppSettings();
+    }
+  }
+
+  Future<void> _handleCameraPermissionChange(bool value) async {
+    if (!mounted) return;
+    setState(() => _cameraPermission = value);
+    await _saveSettings();
+    
+    if (value) {
+      await Permission.camera.request();
+    } else {
+      await openAppSettings();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B), // Slate color for background
+      backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
         title: const Text('Configurações'),
-        backgroundColor: const Color(0xFF1E293B), // Slate color for appbar
+        backgroundColor: const Color(0xFF1E293B),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -155,14 +191,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   value: _notificationsEnabled,
                   activeColor: Colors.blue,
-                  onChanged: (value) async {
-                    setState(() => _notificationsEnabled = value);
-                    await _saveSettings();
-                    if (value) {
-                      await Permission.notification.request();
-                    } else {
-                      await openAppSettings();
-                    }
+                  // CORREÇÃO: Callback Síncrono que chama a função Async
+                  onChanged: (value) {
+                    _handleNotificationChange(value);
                   },
                 ),
                 _buildSectionHeader('Permissões'),
@@ -174,14 +205,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   value: _locationPermission,
                   activeColor: Colors.blue,
-                  onChanged: (value) async {
-                    setState(() => _locationPermission = value);
-                    await _saveSettings();
-                    if (value) {
-                      await Permission.location.request();
-                    } else {
-                      await openAppSettings();
-                    }
+                  // CORREÇÃO: Callback Síncrono que chama a função Async
+                  onChanged: (value) {
+                    _handleLocationPermissionChange(value);
                   },
                 ),
                 SwitchListTile(
@@ -192,14 +218,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(color: Colors.white70)),
                   value: _cameraPermission,
                   activeColor: Colors.blue,
-                  onChanged: (value) async {
-                    setState(() => _cameraPermission = value);
-                    await _saveSettings();
-                    if (value) {
-                      await Permission.camera.request();
-                    } else {
-                      await openAppSettings();
-                    }
+                  // CORREÇÃO: Callback Síncrono que chama a função Async
+                  onChanged: (value) {
+                    _handleCameraPermissionChange(value);
                   },
                 ),
                 _buildSectionHeader('Armazenamento'),

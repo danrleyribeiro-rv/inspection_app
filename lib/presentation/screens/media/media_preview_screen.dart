@@ -135,7 +135,7 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
         if (!_isPlaying || !_videoController!.value.isPlaying)
           Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withAlpha((255 * 0.5).round()),
               shape: BoxShape.circle,
             ),
             child: IconButton(

@@ -88,7 +88,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
         _isLoadingItems = false;
       });
     } catch (e) {
-      print('Error loading items: $e');
+      debugPrint('Error loading items: $e');
       setState(() => _isLoadingItems = false);
     }
   }
@@ -108,7 +108,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
         _isLoadingDetails = false;
       });
     } catch (e) {
-      print('Error loading details: $e');
+      debugPrint('Error loading details: $e');
       setState(() => _isLoadingDetails = false);
     }
   }
@@ -401,29 +401,29 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
           const SizedBox(height: 20),
 
           // Buttons
-         Row(
-           mainAxisAlignment: MainAxisAlignment.end,
-           children: [
-             TextButton(
-               onPressed: _clearFilters,
-               style: TextButton.styleFrom(
-                 foregroundColor: Colors.white,
-               ),
-               child: const Text('Limpar Filtros'),
-             ),
-             const SizedBox(width: 10),
-             ElevatedButton(
-               onPressed: _applyFilters,
-               style: ElevatedButton.styleFrom(
-                 backgroundColor: Colors.blue,
-                 foregroundColor: Colors.white,
-               ),
-               child: const Text('Aplicar Filtros'),
-             ),
-           ],
-         ),
-       ],
-     ),
-   );
- }
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: _clearFilters,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Limpar Filtros'),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: _applyFilters,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Aplicar Filtros'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

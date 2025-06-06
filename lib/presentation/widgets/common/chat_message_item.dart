@@ -12,12 +12,12 @@ class ChatMessageItem extends StatelessWidget {
   final bool previousIsSameSender;
 
   const ChatMessageItem({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
     required this.onLongPress,
     this.previousIsSameSender = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +183,7 @@ class ChatMessageItem extends StatelessWidget {
                       Icon(
                         Icons.play_circle_fill,
                         size: 50,
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withAlpha((255 * 0.8).round()),
                       ),
                     ],
                   ),

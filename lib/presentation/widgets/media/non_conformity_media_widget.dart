@@ -9,7 +9,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
 
-
 class NonConformityMediaWidget extends StatefulWidget {
   final String inspectionId;
   final int topicIndex;
@@ -109,7 +108,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading non-conformity media: $e');
+      debugPrint('Error loading non-conformity media: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -140,16 +139,18 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       try {
         final mediaDir = await _getMediaDirectory();
         final fileExt = path.extension(pickedFile.path);
-        final filename = 'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
+        final filename =
+            'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
         final localPath = '${mediaDir.path}/$filename';
 
         if (type == 'image') {
           // Processar imagem para 4:3
-          final processedFile = await _serviceFactory.mediaService.processImage43(
+          final processedFile =
+              await _serviceFactory.mediaService.processImage43(
             pickedFile.path,
             localPath,
           );
-          
+
           if (processedFile == null) {
             await File(pickedFile.path).copy(localPath);
           }
@@ -159,7 +160,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         }
 
         // Obter localização
-        final position = await _serviceFactory.mediaService.getCurrentLocation();
+        final position =
+            await _serviceFactory.mediaService.getCurrentLocation();
 
         final mediaData = {
           'id': _uuid.v4(),
@@ -170,11 +172,13 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           'created_at': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
           'metadata': {
-            'location': position != null ? {
-              'latitude': position.latitude,
-              'longitude': position.longitude,
-              'accuracy': position.accuracy,
-            } : null,
+            'location': position != null
+                ? {
+                    'latitude': position.latitude,
+                    'longitude': position.longitude,
+                    'accuracy': position.accuracy,
+                  }
+                : null,
             'source': source == ImageSource.camera ? 'camera' : 'gallery',
           },
         };
@@ -191,7 +195,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             );
             mediaData['url'] = downloadUrl;
           } catch (e) {
-            print('Error uploading to Firebase Storage: $e');
+            debugPrint('Error uploading to Firebase Storage: $e');
           }
         }
 
@@ -202,7 +206,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+              content: Text(
+                  '${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
               backgroundColor: Colors.green,
             ),
           );
@@ -297,7 +302,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         try {
           await _serviceFactory.mediaService.deleteFile(media['url']);
         } catch (e) {
-          print('Error deleting from storage: $e');
+          debugPrint('Error deleting from storage: $e');
         }
       }
 
@@ -308,7 +313,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             await file.delete();
           }
         } catch (e) {
-          print('Error deleting local file: $e');
+          debugPrint('Error deleting local file: $e');
         }
       }
 
@@ -539,69 +544,69 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                       );
                     }
 
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => MediaViewerScreen(
-                              mediaItems: _mediaItems,
-                              initialIndex: index,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: mediaWidget,
-                          ),
-                          if (!widget.isReadOnly)
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
+                    return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => MediaViewerScreen(
+                                  mediaItems: _mediaItems,
+                                  initialIndex: index,
                                 ),
-                                child: IconButton(
-                                  icon: const Icon(Icons.close,
-                                      color: Colors.white, size: 16),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 24,
-                                    minHeight: 24,
+                              ),
+                            );
+                          },
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: mediaWidget,
+                              ),
+                              if (!widget.isReadOnly)
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.close,
+                                          color: Colors.white, size: 16),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () =>
+                                          _removeMedia(index, media),
+                                    ),
                                   ),
-                                  padding: EdgeInsets.zero,
-                                  onPressed: () => _removeMedia(index, media),
+                                ),
+                              Positioned(
+                                bottom: 4,
+                                left: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withAlpha((255 * 0.7).round()),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    isImage ? 'Foto' : 'Vídeo',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          Positioned(
-                            bottom: 4,
-                            left: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.7),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                isImage ? 'Foto' : 'Vídeo',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                    )
-                    );
+                        ));
                   },
                 ),
               ),

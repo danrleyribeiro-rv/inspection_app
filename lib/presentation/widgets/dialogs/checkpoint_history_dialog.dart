@@ -25,8 +25,8 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
 
   bool _isLoading = true;
   List<InspectionCheckpoint> _checkpoints = [];
-  Map<String, String> _userNames = {};
-  Map<String, Map<String, dynamic>> _comparisons = {};
+  final Map<String, String> _userNames = {};
+  final Map<String, Map<String, dynamic>> _comparisons = {};
 
   @override
   void initState() {
@@ -56,7 +56,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
             _userNames[userId] = '$firstName $lastName'.trim();
           }
         } catch (e) {
-          print('Erro ao buscar usuário $userId: $e');
+          debugPrint('Erro ao buscar usuário $userId: $e');
           _userNames[userId] = 'Usuário não encontrado';
         }
       }
@@ -68,7 +68,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
               widget.inspectionId, checkpoint.id);
           _comparisons[checkpoint.id] = comparison;
         } catch (e) {
-          print('Erro ao comparar checkpoint ${checkpoint.id}: $e');
+          debugPrint('Erro ao comparar checkpoint ${checkpoint.id}: $e');
         }
       }
 
@@ -77,7 +77,7 @@ class _CheckpointHistoryDialogState extends State<CheckpointHistoryDialog> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Erro ao carregar checkpoints: $e');
+      debugPrint('Erro ao carregar checkpoints: $e');
       setState(() => _isLoading = false);
 
       if (mounted) {
@@ -139,7 +139,7 @@ class ContentBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withAlpha((255 * 0.3).round()),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -262,7 +262,7 @@ class ContentBox extends StatelessWidget {
                                     Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.2),
+                                        color: Colors.black.withAlpha((255 * 0.2).round()),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
@@ -371,9 +371,9 @@ class ContentBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withAlpha((255 * 0.2).round()),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withAlpha((255 * 0.5).round())),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -381,7 +381,7 @@ class ContentBox extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.9),
+              color: color.withAlpha((255 * 0.9).round()),
               fontSize: 10,
             ),
           ),
@@ -389,7 +389,7 @@ class ContentBox extends StatelessWidget {
           Text(
             '$current / $checkpoint',
             style: TextStyle(
-              color: color.withOpacity(0.9),
+              color: color.withAlpha((255 * 0.9).round()),
               fontSize: 10,
               fontWeight: FontWeight.bold,
             ),

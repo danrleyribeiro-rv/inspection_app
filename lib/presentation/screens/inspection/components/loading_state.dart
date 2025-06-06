@@ -44,7 +44,7 @@ class LoadingState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.2),
+                color: Colors.orange.withAlpha((255 * 0.2).round()),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: Colors.orange),
               ),

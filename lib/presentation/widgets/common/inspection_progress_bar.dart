@@ -46,7 +46,7 @@ class InspectionProgressBar extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: progressColor.withOpacity(0.2),
+                  color: progressColor.withAlpha((255 * 0.2).round()),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: progressColor),
                 ),

@@ -706,7 +706,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                            right: 5,
                            child: Container(
                              decoration: BoxDecoration(
-                               color: Colors.black.withOpacity(0.6),
+                               color: Colors.black.withAlpha((255 * 0.6).round()),
                                shape: BoxShape.circle,
                              ),
                              child: IconButton(
@@ -728,7 +728,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                              padding: const EdgeInsets.symmetric(
                                  horizontal: 8, vertical: 4),
                              decoration: BoxDecoration(
-                               color: Colors.black.withOpacity(0.6),
+                               color: Colors.black.withAlpha((255 * 0.6).round()),
                                borderRadius: BorderRadius.circular(6),
                              ),
                              child: Text(

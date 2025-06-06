@@ -21,34 +21,44 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _checkDeepLink();
+    // It's better to not make initState async.
+    // Use a post-frame callback to do async work safely.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkDeepLink();
+      }
+    });
   }
 
   Future<void> _checkDeepLink() async {
     try {
-      // Check if we're returning from a password reset flow
       final user = _authService.currentUser;
       if (user != null) {
-        // Verify if the user has the inspector role
+        // First async gap
         final isInspector = await _authService.isUserInspector(user.uid);
         
+        // This outer `mounted` check is crucial.
         if (mounted) {
           if (isInspector) {
             Navigator.of(context).pushReplacementNamed('/home');
           } else {
-            // If not an inspector, sign out
+            // Second async gap
             await _authService.signOut();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Apenas vistoriadores podem acessar este aplicativo.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            
+            // THE FIX: Check for `mounted` AGAIN after the second async gap.
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Apenas vistoriadores podem acessar este aplicativo.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           }
         }
       }
     } catch (e) {
-      print('Erro ao verificar o link profundo: $e');
+      debugPrint('Erro ao verificar o link profundo: $e');
     }
   }
 
@@ -58,19 +68,15 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Sign in with Firebase Auth
       await _authService.signInWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
 
-      // The AuthService already checks if the user is an inspector
-      // If we reach here, login was successful
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } on FirebaseAuthException catch (e) {
-      // Handle Firebase Auth Exceptions
       String message = 'Ocorreu um erro durante o login.';
       
       switch (e.code) {
@@ -99,7 +105,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      // Handle other exceptions
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -108,7 +113,11 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      // Check mounted here as well, as the widget could be disposed
+      // while the sign-in was in progress.
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -198,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             child: _isLoading
-                                ? const CircularProgressIndicator()
+                                ? const CircularProgressIndicator(color: Colors.white)
                                 : const Text('Login'),
                           ),
                         ),

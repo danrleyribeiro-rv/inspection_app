@@ -22,7 +22,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late PageController _pageController;
   late int _currentIndex;
   bool _showUI = true;
-  Map<int, VideoPlayerController?> _videoControllers = {};
+  final Map<int, VideoPlayerController?> _videoControllers = {};
 
   @override
   void initState() {
@@ -132,7 +132,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         if (!controller.value.isPlaying)
           Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withAlpha((255 * 0.5).round()),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -230,7 +230,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.7),
+                        Colors.black.withAlpha((255 * 0.7).round()),
                         Colors.transparent,
                       ],
                     ),
@@ -276,7 +276,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withOpacity(0.8),
+                        Colors.black.withAlpha((255 * 0.8).round()),
                         Colors.transparent,
                       ],
                     ),
@@ -339,7 +339,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.8),
+                                    color: Colors.red.withAlpha((255 * 0.8).round()),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Row(
@@ -373,7 +373,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withAlpha((255 * 0.3).round()),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -402,7 +402,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                   child: Center(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withAlpha((255 * 0.5).round()),
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
@@ -426,7 +426,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                   child: Center(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withAlpha((255 * 0.5).round()),
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(

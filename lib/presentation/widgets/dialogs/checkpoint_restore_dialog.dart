@@ -37,7 +37,7 @@ class CheckpointRestoreDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withAlpha((255 * 0.5).round()),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -138,7 +138,7 @@ class CheckpointRestoreDialog extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withAlpha((255 * 0.3).round()),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -166,7 +166,7 @@ class CheckpointRestoreDialog extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade900.withOpacity(0.3),
+                        color: Colors.red.shade900.withAlpha((255 * 0.3).round()),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.red.shade800),
                       ),
@@ -311,9 +311,9 @@ class CheckpointRestoreDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withAlpha((255 * 0.2).round()),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withAlpha((255 * 0.5).round())),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -323,7 +323,7 @@ class CheckpointRestoreDialog extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.9),
+              color: color.withAlpha((255 * 0.9).round()),
               fontSize: 12,
             ),
           ),

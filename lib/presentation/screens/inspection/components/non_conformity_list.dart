@@ -133,7 +133,7 @@ class NonConformityList extends StatelessWidget {
         }
       }
     } catch (e) {
-      print('Error parsing date: ${item['created_at']}');
+      debugPrint('Error parsing date: ${item['created_at']}');
     }
 
     // Generate a composite ID for the non-conformity if it doesn't have one
@@ -142,7 +142,7 @@ class NonConformityList extends StatelessWidget {
     // If not already in composite format, create it
     if (!nonConformityId.contains('-')) {
       nonConformityId =
-          '${inspectionId}-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
+          '$inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
     }
 
     // Extrair índices do nonConformityId
@@ -168,7 +168,7 @@ class NonConformityList extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
+                    color: statusColor.withAlpha((255 * 0.2).round()),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: statusColor),
                   ),
@@ -188,7 +188,7 @@ class NonConformityList extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: _getSeverityColor(item['severity']).withOpacity(0.2),
+                    color: _getSeverityColor(item['severity']).withAlpha((255 * 0.2).round()),
                     borderRadius: BorderRadius.circular(6),
                     border:
                         Border.all(color: _getSeverityColor(item['severity'])),
@@ -384,7 +384,7 @@ class NonConformityList extends StatelessWidget {
     // If not already in composite format, create it
     if (!nonConformityId.contains('-')) {
       nonConformityId =
-          '${inspectionId}-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
+          '$inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
     }
 
     showDialog(

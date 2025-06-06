@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:inspection_app/services/features/chat_service.dart';
 
 class NotificationService {

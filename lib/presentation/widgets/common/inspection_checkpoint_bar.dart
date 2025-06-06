@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class InspectionCheckpointBar extends StatelessWidget {
-  static const double HEIGHT = 72.0;
+  static const double height = 72.0;
   final DateTime? lastCheckpointAt;
   final String? lastCheckpointMessage;
   final double? lastCheckpointCompletion;
@@ -86,7 +86,7 @@ class InspectionCheckpointBar extends StatelessWidget {
                         width: 40,
                         decoration: BoxDecoration(
                           color: hasLastCheckpoint
-                              ? Colors.blue.shade800.withOpacity(0.9)
+                              ? Colors.blue.shade800.withAlpha((255 * 0.9).round())
                               : Colors.grey.shade700,
                           shape: BoxShape.circle,
                         ),
@@ -169,7 +169,7 @@ class InspectionCheckpointBar extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _getProgressColor(currentCompletion).withOpacity(0.2),
+                  color: _getProgressColor(currentCompletion).withAlpha((255 * 0.2).round()),
                   borderRadius: BorderRadius.circular(6),
                   border:
                       Border.all(color: _getProgressColor(currentCompletion)),

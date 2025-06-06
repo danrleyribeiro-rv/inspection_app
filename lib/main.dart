@@ -20,30 +20,29 @@ import 'package:inspection_app/models/chat.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase
+  
+  // 1. Inicializa dependências de plataforma/pacotes externos
   await Firebase.initializeApp();
-  
-  // Initialize Core Services
+  await dotenv.load(fileName: ".env");
+
+  // 2. Inicializa serviços de base que não dependem de outros (são estáticos)
+  await CacheService.initialize(); // Prepara o Hive
   await FirebaseService.initialize();
-  await CacheService.initialize();
-  
-  // Initialize Service Factory
+
+  // 3. Inicializa todos os serviços da aplicação através do ServiceFactory
+  //    Esta única chamada agora cria todas as instâncias e resolve as dependências.
   ServiceFactory().initialize();
 
-  // System UI Configuration
+  // Configuração da UI
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       systemNavigationBarColor: Colors.black,
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-
   if (!kIsWeb) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
-
-  await dotenv.load(fileName: ".env");
 
   runApp(const MyApp());
 }
@@ -122,10 +121,11 @@ class MyApp extends StatelessWidget {
               as Map<String, dynamic>?;
           final inspectionId = args?['inspectionId'] as String?;
 
+          // THE FIX: Instead of navigating during the build, we return a widget
+          // that handles the redirection logic safely.
           if (inspectionId == null) {
-            Future.microtask(
-                () => Navigator.pushReplacementNamed(context, '/home'));
-            return const SizedBox.shrink();
+            // Return a widget that will redirect safely after it's built.
+            return const _Redirect(targetRoute: '/home');
           }
 
           return MediaGalleryScreen(inspectionId: inspectionId);
@@ -177,6 +177,37 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class _Redirect extends StatefulWidget {
+  final String targetRoute;
+  const _Redirect({required this.targetRoute});
+
+  @override
+  State<_Redirect> createState() => _RedirectState();
+}
+
+class _RedirectState extends State<_Redirect> {
+  @override
+  void initState() {
+    super.initState();
+    // Use WidgetsBinding to schedule the navigation for after the first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Because we are now in a State object, we can safely check `mounted`.
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, widget.targetRoute);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Return a placeholder widget while the redirection is being scheduled.
+    return const Scaffold(
+      backgroundColor: Color(0xFF1E293B),
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
 Future<Chat?> _getChatById(String chatId) async {
   try {
     final doc = await FirebaseService().firestore.collection('chats').doc(chatId).get();
@@ -184,7 +215,7 @@ Future<Chat?> _getChatById(String chatId) async {
       return Chat.fromFirestore(doc);
     }
   } catch (e) {
-    print('Erro ao buscar chat: $e');
+    debugPrint('Erro ao buscar chat: $e');
   }
   return null;
 }

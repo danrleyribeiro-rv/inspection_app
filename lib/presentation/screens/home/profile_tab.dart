@@ -86,7 +86,7 @@ class _ProfileTabState extends State<ProfileTab> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar imagem: $e');
+      debugPrint('Erro ao carregar imagem: $e');
     }
   }
 
@@ -220,7 +220,7 @@ class _ProfileTabState extends State<ProfileTab> {
           radius: 50,
           backgroundImage: NetworkImage(_profileImageBase64!),
           onBackgroundImageError: (e, stackTrace) {
-            print('Erro ao carregar imagem de perfil: $e');
+            debugPrint('Erro ao carregar imagem de perfil: $e');
           },
         );
       } else {
@@ -232,7 +232,7 @@ class _ProfileTabState extends State<ProfileTab> {
             backgroundImage: MemoryImage(imageBytes),
           );
         } catch (e) {
-          print('Erro ao decodificar imagem: $e');
+          debugPrint('Erro ao decodificar imagem: $e');
           // Fall back to initials
         }
       }
