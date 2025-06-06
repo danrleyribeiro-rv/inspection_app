@@ -1,4 +1,3 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/inspection_coordinator.dart';
 import 'package:inspection_app/services/core/auth_service.dart';
@@ -110,13 +109,5 @@ class ServiceFactory {
   void dispose() {
     _cacheService?.dispose();
     _syncService?.dispose();
-  }
-
-  // Check if online
-  Future<bool> isOnline() async {
-    final connectivity = Connectivity();
-    final result = await connectivity.checkConnectivity();
-    return result.contains(ConnectivityResult.wifi) ||
-           result.contains(ConnectivityResult.mobile);
   }
 }

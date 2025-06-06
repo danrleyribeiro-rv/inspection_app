@@ -198,10 +198,6 @@ class InspectionCoordinator {
     return await _checkpointService.restoreCheckpoint(inspectionId, checkpointId);
   }
 
-  Future<double> getCompletionPercentage(String inspectionId) async {
-    return await _checkpointService.getCompletionPercentage(inspectionId);
-  }
-
   Future<Map<String, dynamic>> compareWithCheckpoint(String inspectionId, String checkpointId) async {
   return await _checkpointService.compareWithCheckpoint(inspectionId, checkpointId);
 }
