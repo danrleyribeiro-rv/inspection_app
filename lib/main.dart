@@ -20,7 +20,7 @@ import 'package:inspection_app/models/chat.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // 1. Inicializa dependências de plataforma/pacotes externos
   await Firebase.initializeApp();
   await dotenv.load(fileName: ".env");
@@ -131,9 +131,10 @@ class MyApp extends StatelessWidget {
           return MediaGalleryScreen(inspectionId: inspectionId);
         },
         '/chat-detail': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
           final chatId = args?['chatId'] as String?;
-          
+
           if (chatId == null) {
             return const Scaffold(
               backgroundColor: Color(0xFF1E293B),
@@ -145,7 +146,7 @@ class MyApp extends StatelessWidget {
               ),
             );
           }
-          
+
           return FutureBuilder<Chat?>(
             future: _getChatById(chatId),
             builder: (context, snapshot) {
@@ -155,7 +156,7 @@ class MyApp extends StatelessWidget {
                   body: Center(child: CircularProgressIndicator()),
                 );
               }
-              
+
               if (snapshot.data == null) {
                 return const Scaffold(
                   backgroundColor: Color(0xFF1E293B),
@@ -167,7 +168,7 @@ class MyApp extends StatelessWidget {
                   ),
                 );
               }
-              
+
               return ChatDetailScreen(chat: snapshot.data!);
             },
           );
@@ -210,7 +211,8 @@ class _RedirectState extends State<_Redirect> {
 
 Future<Chat?> _getChatById(String chatId) async {
   try {
-    final doc = await FirebaseService().firestore.collection('chats').doc(chatId).get();
+    final doc =
+        await FirebaseService().firestore.collection('chats').doc(chatId).get();
     if (doc.exists) {
       return Chat.fromFirestore(doc);
     }

@@ -96,7 +96,7 @@ class MediaService {
         // and how to enable it in the app settings.
         return null;
       }
-      
+
       // THE FIX: Use `locationSettings` instead of deprecated parameters.
       return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -200,7 +200,8 @@ class MediaService {
           for (int mediaIndex = 0; mediaIndex < media.length; mediaIndex++) {
             allMedia.add({
               ...media[mediaIndex],
-              'id': 'media_${topicIndex}_${itemIndex}_${detailIndex}_$mediaIndex',
+              'id':
+                  'media_${topicIndex}_${itemIndex}_${detailIndex}_$mediaIndex',
               'inspection_id': inspectionId,
               'topic_index': topicIndex,
               'item_index': itemIndex,
@@ -216,7 +217,8 @@ class MediaService {
             });
           }
 
-          final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+          final nonConformities =
+              List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
           for (int ncIndex = 0; ncIndex < nonConformities.length; ncIndex++) {
             final nc = nonConformities[ncIndex];
             final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
@@ -225,7 +227,8 @@ class MediaService {
                 ncMediaIndex++) {
               allMedia.add({
                 ...ncMedia[ncMediaIndex],
-                'id': 'nc_media_${topicIndex}_${itemIndex}_${detailIndex}_${ncIndex}_$ncMediaIndex',
+                'id':
+                    'nc_media_${topicIndex}_${itemIndex}_${detailIndex}_${ncIndex}_$ncMediaIndex',
                 'inspection_id': inspectionId,
                 'topic_index': topicIndex,
                 'item_index': itemIndex,
@@ -261,7 +264,7 @@ class MediaService {
       if (topicId != null && media['topic_id'] != topicId) return false;
       if (itemId != null && media['item_id'] != itemId) return false;
       if (detailId != null && media['detail_id'] != detailId) return false;
-      
+
       // THE FIX: Use curly braces for all if statements.
       if (isNonConformityOnly == true && media['is_non_conformity'] != true) {
         return false;

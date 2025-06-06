@@ -92,7 +92,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
-    
+
     // ... (Your existing document validation logic is good, no changes needed there)
     final documentValue = _documentController.text;
     final documentDigits = documentValue.replaceAll(RegExp(r'\D'), '');
@@ -101,24 +101,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (documentDigits.length == 11) {
         isDocumentValid = cpf_validator.CPFValidator.isValid(documentValue);
         if (!isDocumentValid) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O CPF informado é inválido'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('O CPF informado é inválido'),
+              backgroundColor: Colors.red));
           return;
         }
       } else if (documentDigits.length == 14) {
         isDocumentValid = cnpj_validator.CNPJValidator.isValid(documentValue);
         if (!isDocumentValid) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O CNPJ informado é inválido'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('O CNPJ informado é inválido'),
+              backgroundColor: Colors.red));
           return;
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('O documento deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'O documento deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)'),
+            backgroundColor: Colors.red));
         return;
       }
     } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, insira seu CPF ou CNPJ'), backgroundColor: Colors.red));
-        return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Por favor, insira seu CPF ou CNPJ'),
+          backgroundColor: Colors.red));
+      return;
     }
-
 
     setState(() => _isLoading = true);
 
@@ -150,12 +158,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (userCredential.user != null) {
         // SECOND async gap
         await userCredential.user!.sendEmailVerification();
-        
+
         // THE FIX: Check mounted AGAIN after the second await
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registro bem-sucedido! Por favor, verifique seu e-mail para confirmar seu endereço.'),
+              content: Text(
+                  'Registro bem-sucedido! Por favor, verifique seu e-mail para confirmar seu endereço.'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 5),
             ),
@@ -167,9 +176,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // but it's inside the larger block that does. A mounted
         // check is still best practice.
         if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registro concluído, mas os dados do usuário estão indisponíveis. Por favor, tente fazer login.'),
+              content: Text(
+                  'Registro concluído, mas os dados do usuário estão indisponíveis. Por favor, tente fazer login.'),
               backgroundColor: Colors.orange,
             ),
           );
@@ -191,8 +201,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           message = 'O formato do endereço de e-mail é inválido.';
           break;
         default:
-          debugPrint('FirebaseAuthException code: ${e.code}, message: ${e.message}');
-          message = 'Ocorreu um erro inesperado durante o registro. Por favor, tente novamente.';
+          debugPrint(
+              'FirebaseAuthException code: ${e.code}, message: ${e.message}');
+          message =
+              'Ocorreu um erro inesperado durante o registro. Por favor, tente novamente.';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(

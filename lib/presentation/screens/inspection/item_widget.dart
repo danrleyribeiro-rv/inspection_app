@@ -83,11 +83,14 @@ class _ItemWidgetState extends State<ItemWidget> {
       );
       if (!mounted) return;
 
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.item.inspectionId);
+      final inspection = await _serviceFactory.coordinator
+          .getInspection(widget.item.inspectionId);
       if (!mounted) return;
-      
-      final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
-      final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
+
+      final topicIndex =
+          int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
+      final itemIndex =
+          int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
       final progress = ProgressCalculationService.calculateItemProgress(
         inspection?.toMap(),
         topicIndex,
@@ -138,9 +141,10 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       final mediaDir = await getApplicationDocumentsDirectory();
       if (!mounted) return;
-      
+
       final timestamp = DateTime.now();
-      final filename = 'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
+      final filename =
+          'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
       final localPath = '${mediaDir.path}/$filename';
 
       final processedFile = await _serviceFactory.mediaService.processImage43(
@@ -198,7 +202,7 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       await _saveItemMediaToInspection(mediaData);
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Imagem do item salva com sucesso'),
@@ -218,18 +222,22 @@ class _ItemWidgetState extends State<ItemWidget> {
     }
   }
 
-  Future<void> _saveItemMediaToInspection(Map<String, dynamic> mediaData) async {
-    final inspection = await _serviceFactory.coordinator.getInspection(widget.item.inspectionId);
+  Future<void> _saveItemMediaToInspection(
+      Map<String, dynamic> mediaData) async {
+    final inspection = await _serviceFactory.coordinator
+        .getInspection(widget.item.inspectionId);
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
-      final topicIndex = int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
+      final topicIndex =
+          int.tryParse(widget.item.topicId!.replaceFirst('topic_', '')) ?? 0;
 
       if (topicIndex < topics.length) {
         final topic = Map<String, dynamic>.from(topics[topicIndex]);
         mediaData['topic_name'] = topic['name'];
 
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        final itemIndex = int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
+        final itemIndex =
+            int.tryParse(widget.item.id!.replaceFirst('item_', '')) ?? 0;
 
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
@@ -308,10 +316,12 @@ class _ItemWidgetState extends State<ItemWidget> {
 
     String topicName = "";
     try {
-      final topics = await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
+      final topics =
+          await _serviceFactory.coordinator.getTopics(widget.item.inspectionId);
       if (!mounted) return;
       final topic = topics.firstWhere((t) => t.id == widget.item.topicId,
-          orElse: () => Topic(id: '', inspectionId: '', topicName: '', position: 0));
+          orElse: () =>
+              Topic(id: '', inspectionId: '', topicName: '', position: 0));
       topicName = topic.topicName;
     } catch (e) {
       debugPrint('Erro ao buscar nome do tópico: $e');
@@ -386,8 +396,10 @@ class _ItemWidgetState extends State<ItemWidget> {
         widget.item.topicId == null ||
         detail.id == null) {
       if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro: Não é possível duplicar detalhe com IDs ausentes')),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Erro: Não é possível duplicar detalhe com IDs ausentes')),
         );
       }
       return;
@@ -409,8 +421,9 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       await _loadDetails();
       if (!mounted) return;
-      
-      final newIndex = _details.indexWhere((d) => d.detailName == detail.detailName);
+
+      final newIndex =
+          _details.indexWhere((d) => d.detailName == detail.detailName);
       if (newIndex >= 0) {
         setState(() {
           _expandedDetailIndex = newIndex;
@@ -418,7 +431,9 @@ class _ItemWidgetState extends State<ItemWidget> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Detalhe "${detail.detailName}" duplicado com sucesso')),
+        SnackBar(
+            content:
+                Text('Detalhe "${detail.detailName}" duplicado com sucesso')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -455,7 +470,7 @@ class _ItemWidgetState extends State<ItemWidget> {
                   ProgressCircle(
                     progress: _itemProgress,
                     size: 28,
-                    showPercentage: false,
+                    showPercentage: true,
                   ),
                   const SizedBox(width: 12),
                   Expanded(

@@ -262,8 +262,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           // Avatar or selected image
                           CircleAvatar(
                             radius: 60,
-                            backgroundColor:
-                                Theme.of(context).primaryColor.withAlpha((255 * 0.2).round()),
+                            backgroundColor: Theme.of(context)
+                                .primaryColor
+                                .withAlpha((255 * 0.2).round()),
                             child: _profileImage != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(60),

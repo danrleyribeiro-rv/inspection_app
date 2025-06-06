@@ -11,33 +11,64 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-  with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _animation;
+    with TickerProviderStateMixin {
+  late AnimationController _firstImageController;
+  late Animation<double> _firstImageAnimation;
+
+  late AnimationController _secondImageController;
+  late Animation<double> _secondImageAnimation;
+
   final ServiceFactory _serviceFactory = ServiceFactory();
+
+  // Duração total do splash
+  static const Duration _totalSplashDuration = Duration(seconds: 4);
+  // Duração da transição (fade in) de cada imagem
+  static const Duration _fadeDuration = Duration(milliseconds: 1000);
+  // Ponto no tempo em que a segunda imagem começa a aparecer
+  static const Duration _secondImageStartTime = Duration(seconds: 2);
 
   @override
   void initState() {
     super.initState();
 
-    _animationController = AnimationController(
+    // Controller para a primeira imagem
+    _firstImageController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: _fadeDuration,
     );
-
-    _animation = CurvedAnimation(
-      parent: _animationController,
+    _firstImageAnimation = CurvedAnimation(
+      parent: _firstImageController,
       curve: Curves.easeIn,
     );
 
-    _animationController.forward();
+    // Controller para a segunda imagem
+    _secondImageController = AnimationController(
+      vsync: this,
+      duration: _fadeDuration,
+    );
+    _secondImageAnimation = CurvedAnimation(
+      parent: _secondImageController,
+      curve: Curves.easeIn,
+    );
 
-    Future.delayed(const Duration(seconds: 4), _proceedToNextScreen);
+    // Inicia a animação da primeira imagem
+    _firstImageController.forward();
+
+    // Agenda o início da animação da segunda imagem
+    Timer(_secondImageStartTime, () {
+      if (mounted) {
+        _secondImageController.forward();
+      }
+    });
+
+    // Agenda a navegação para a próxima tela após a duração total
+    Timer(_totalSplashDuration, _proceedToNextScreen);
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _firstImageController.dispose();
+    _secondImageController.dispose();
     super.dispose();
   }
 
@@ -55,33 +86,47 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF000000), // Black background for the GIF
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FadeTransition(
-              opacity: _animation,
-              child: Image.asset(
-                'assets/gifs/demo_lince_splash_screen.gif', // Ensure this path is correct
-                width: 720.0, // <<< SETTING WIDTH TO 720 LOGICAL PIXELS
-                // Height is intentionally omitted here.
-                // BoxFit.contain will use the width and the image's aspect ratio
-                // to determine the correct height to display the entire image.
-                fit: BoxFit
-                    .contain, // Ensures the entire GIF is visible and scaled proportionally
+      backgroundColor: Colors.black, // Fundo de segurança
+      body: Stack(
+        fit: StackFit.expand, // Faz o Stack preencher a tela
+        children: [
+          // Imagem 1 (fundo)
+          FadeTransition(
+            opacity: _firstImageAnimation,
+            child: Image.asset(
+              'assets/splash_screen/imagem_01.jpg',
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+          ),
+          // Imagem 2 (frente)
+          FadeTransition(
+            opacity: _secondImageAnimation,
+            child: Image.asset(
+              'assets/splash_screen/imagem_02.jpg',
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+          ),
+
+          // A CORREÇÃO: Adicionando o indicador de loading
+          Positioned(
+            // Posiciona o loading na parte inferior da tela
+            bottom: MediaQuery.of(context).size.height *
+                0.15, // 15% da altura da tela a partir de baixo
+            // Centraliza horizontalmente
+            left: 0,
+            right: 0,
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                strokeWidth: 3.0, // Deixa a linha um pouco mais grossa
               ),
             ),
-            // You might need to adjust the spacing below if the GIF becomes very tall
-            const SizedBox(height: 20), // Reduced spacing a bit
-
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-
-            const SizedBox(height: 16), // Reduced spacing a bit
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

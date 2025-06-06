@@ -592,7 +592,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withAlpha((255 * 0.7).round()),
+                                    color: Colors.black
+                                        .withAlpha((255 * 0.7).round()),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(

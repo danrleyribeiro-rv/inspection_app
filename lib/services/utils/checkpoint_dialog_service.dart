@@ -10,13 +10,13 @@ class CheckpointDialogService {
   final BuildContext context;
   final CheckpointService checkpointService;
   final Function() onReloadData;
-  
+
   CheckpointDialogService(
     this.context,
     this.checkpointService,
     this.onReloadData,
   );
-  
+
   void showCreateCheckpointDialog(String inspectionId) {
     showDialog(
       context: context,
@@ -26,7 +26,7 @@ class CheckpointDialogService {
       ),
     );
   }
-  
+
   void showCheckpointHistory(String inspectionId) {
     showDialog(
       context: context,
@@ -34,14 +34,15 @@ class CheckpointDialogService {
         inspectionId: inspectionId,
         onRestore: (checkpoint) {
           // A navegação para fechar o diálogo de histórico acontece aqui.
-          Navigator.of(dialogContext).pop(); 
+          Navigator.of(dialogContext).pop();
           _showRestoreConfirmationDialog(inspectionId, checkpoint);
         },
       ),
     );
   }
-  
-  void _showRestoreConfirmationDialog(String inspectionId, InspectionCheckpoint checkpoint) {
+
+  void _showRestoreConfirmationDialog(
+      String inspectionId, InspectionCheckpoint checkpoint) {
     showDialog(
       context: context,
       // Usamos um Builder para obter um novo `context` que podemos usar com segurança
@@ -51,7 +52,7 @@ class CheckpointDialogService {
           // Capturamos o ScaffoldMessenger do contexto principal (que ainda pode estar vivo)
           // mas só o usamos se o diálogo ainda estiver montado.
           final scaffoldMessenger = ScaffoldMessenger.of(context);
-          
+
           // Fecha o diálogo de confirmação ANTES de iniciar a operação demorada.
           Navigator.of(dialogContext).pop();
 
@@ -61,10 +62,11 @@ class CheckpointDialogService {
               duration: Duration(seconds: 3),
             ),
           );
-          
+
           // O `await` que cria a async gap.
-          final success = await checkpointService.restoreCheckpoint(inspectionId, checkpoint.id);
-          
+          final success = await checkpointService.restoreCheckpoint(
+              inspectionId, checkpoint.id);
+
           // Após o gap, não temos mais um `context` garantido.
           // Mas podemos usar o `scaffoldMessenger` que capturamos antes.
           // O `onReloadData` é um callback para o widget pai, que é responsável por sua própria segurança (verificar `mounted`).
@@ -80,7 +82,8 @@ class CheckpointDialogService {
           } else {
             scaffoldMessenger.showSnackBar(
               const SnackBar(
-                content: Text('Falha ao restaurar checkpoint. Tente novamente.'),
+                content:
+                    Text('Falha ao restaurar checkpoint. Tente novamente.'),
                 backgroundColor: Colors.red,
               ),
             );

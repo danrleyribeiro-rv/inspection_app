@@ -262,7 +262,8 @@ class ContentBox extends StatelessWidget {
                                     Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withAlpha((255 * 0.2).round()),
+                                        color: Colors.black
+                                            .withAlpha((255 * 0.2).round()),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(

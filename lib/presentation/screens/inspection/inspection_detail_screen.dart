@@ -49,7 +49,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _checkpointDialogService = _serviceFactory.createCheckpointDialogService(
+        _checkpointDialogService =
+            _serviceFactory.createCheckpointDialogService(
           context,
           _loadInspection,
         );
@@ -67,8 +68,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   void _listenToConnectivity() {
     Connectivity().onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
-        final newOnlineStatus = connectivityResult.contains(ConnectivityResult.wifi) ||
-            connectivityResult.contains(ConnectivityResult.mobile);
+        final newOnlineStatus =
+            connectivityResult.contains(ConnectivityResult.wifi) ||
+                connectivityResult.contains(ConnectivityResult.mobile);
         setState(() {
           _isOnline = newOnlineStatus;
         });
@@ -105,7 +107,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection = await _serviceFactory.cacheService.getInspection(widget.inspectionId);
+      final inspection =
+          await _serviceFactory.cacheService.getInspection(widget.inspectionId);
       if (!mounted) return;
 
       if (inspection != null) {
@@ -115,7 +118,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
         await _loadTopics();
         if (!mounted) return;
-        
+
         await _loadProgress();
         if (!mounted) return;
 
@@ -140,9 +143,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   Future<void> _loadProgress() async {
     if (_inspection != null) {
-      final progress = ProgressCalculationService.calculateOverallProgress(_inspection!.toMap());
+      final progress = ProgressCalculationService.calculateOverallProgress(
+          _inspection!.toMap());
       ProgressCalculationService.getInspectionStats(_inspection!.toMap());
-      
+
       if (mounted) {
         setState(() {
           _overallProgress = progress;
@@ -158,7 +162,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       final isAlreadyApplied = await _serviceFactory.coordinator
           .isTemplateAlreadyApplied(_inspection!.id);
       if (!mounted || isAlreadyApplied) {
-        if (mounted) setState(() => _inspection = _inspection!.copyWith(isTemplated: true));
+        if (mounted)
+          setState(
+              () => _inspection = _inspection!.copyWith(isTemplated: true));
         return;
       }
       setState(() => _isApplyingTemplate = true);
@@ -174,8 +180,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         }
 
         final success = await _serviceFactory.coordinator
-            .applyTemplateToInspectionSafe(_inspection!.id, _inspection!.templateId!);
-        
+            .applyTemplateToInspectionSafe(
+                _inspection!.id, _inspection!.templateId!);
+
         if (!mounted) return;
 
         if (success) {
@@ -187,7 +194,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             'status': 'in_progress',
             'updated_at': FieldValue.serverTimestamp(),
           });
-          
+
           if (!mounted) return;
 
           final updatedInspection = _inspection!.copyWith(
@@ -196,7 +203,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             updatedAt: DateTime.now(),
           );
           setState(() => _inspection = updatedInspection);
-          
+
           await _loadInspection();
           if (!mounted) return;
 
@@ -276,7 +283,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           });
         }
       }
-      
+
       if (mounted) {
         await _checkAndApplyTemplate();
       }
@@ -295,7 +302,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     }
   }
-
 
   Future<void> _openInspectionChat() async {
     try {
@@ -398,7 +404,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           });
         }
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -426,9 +432,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Future<void> _duplicateTopic(Topic topic) async {
     setState(() => _isLoading = true);
     try {
-      await _serviceFactory.cacheService.duplicateTopic(widget.inspectionId, topic.topicName);
+      await _serviceFactory.cacheService
+          .duplicateTopic(widget.inspectionId, topic.topicName);
       if (!mounted) return;
-      
+
       await _loadTopics();
       if (!mounted) return;
 
@@ -501,12 +508,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _exportInspection() async {
-    final confirmed = await _serviceFactory.importExportService.showExportConfirmationDialog(context);
+    final confirmed = await _serviceFactory.importExportService
+        .showExportConfirmationDialog(context);
     if (!mounted || !confirmed) return;
     setState(() => _isSyncing = true);
 
     try {
-      final filePath = await _serviceFactory.importExportService.exportInspection(widget.inspectionId);
+      final filePath = await _serviceFactory.importExportService
+          .exportInspection(widget.inspectionId);
       if (mounted) {
         _serviceFactory.importExportService.showSuccessMessage(
             context, 'Inspeção exportada com sucesso para:\n$filePath');
@@ -524,7 +533,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _importInspection() async {
-    final confirmed = await _serviceFactory.importExportService.showImportConfirmationDialog(context);
+    final confirmed = await _serviceFactory.importExportService
+        .showImportConfirmationDialog(context);
     if (!mounted || !confirmed) return;
     setState(() => _isSyncing = true);
 
@@ -535,19 +545,20 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         return;
       }
 
-      final success = await _serviceFactory.importExportService.importInspection(widget.inspectionId, jsonData);
+      final success = await _serviceFactory.importExportService
+          .importInspection(widget.inspectionId, jsonData);
       if (!mounted) return;
 
       if (success) {
         await _loadInspection();
         if (mounted) {
-            _serviceFactory.importExportService.showSuccessMessage(
-            context, 'Dados da inspeção importados com sucesso');
+          _serviceFactory.importExportService.showSuccessMessage(
+              context, 'Dados da inspeção importados com sucesso');
         }
       } else {
-         if (mounted) {
-            _serviceFactory.importExportService
-            .showErrorMessage(context, 'Falha ao importar dados da inspeção');
+        if (mounted) {
+          _serviceFactory.importExportService
+              .showErrorMessage(context, 'Falha ao importar dados da inspeção');
         }
       }
     } catch (e) {
@@ -578,7 +589,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Future<void> _handleMenuSelection(String value) async {
     // A verificação `mounted` no início do método garante a segurança para todas as operações.
     if (!mounted) return;
-    
+
     switch (value) {
       case 'import':
         await _importInspection();
@@ -612,20 +623,23 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           int totalItems = 0;
           int totalDetails = 0;
           int totalMedia = 0;
-          
+
           for (final topic in _topics) {
             if (!mounted) return;
-            final items = await _serviceFactory.coordinator.getItems(inspectionId, topic.id!);
+            final items = await _serviceFactory.coordinator
+                .getItems(inspectionId, topic.id!);
             totalItems += items.length;
             for (final item in items) {
               if (!mounted) return;
-              final details = await _serviceFactory.coordinator.getDetails(inspectionId, topic.id!, item.id!);
+              final details = await _serviceFactory.coordinator
+                  .getDetails(inspectionId, topic.id!, item.id!);
               totalDetails += details.length;
             }
           }
-          
+
           if (!mounted) return;
-          final allMedia = await _serviceFactory.coordinator.getAllMedia(inspectionId);
+          final allMedia =
+              await _serviceFactory.coordinator.getAllMedia(inspectionId);
           totalMedia = allMedia.length;
 
           // A verificação final antes de usar o context para o dialog.
@@ -645,7 +659,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         break;
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final isLandscape =
@@ -655,11 +669,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
-        appBar: AppBar(
+      appBar: AppBar(
         title: Row(
           children: [
             Expanded(
-              child: Text(_inspection?.cod ?? 'Inspeção',
+              child: Text(
+                _inspection?.cod ?? 'Inspeção',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 20,
@@ -674,7 +689,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 size: 24,
                 showPercentage: true,
               ),
-              const SizedBox(width: 1), 
+              const SizedBox(width: 1),
             ],
           ],
         ),
@@ -731,13 +746,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                   value: 'nonConformities',
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                      Icon(Icons.warning_amber_rounded,
+                          color: Colors.redAccent),
                       SizedBox(width: 8),
                       Text('Não Conformidades'),
                     ],
                   ),
                 ),
-                 const PopupMenuItem(
+                const PopupMenuItem(
                   value: 'media',
                   child: Row(
                     children: [
@@ -790,8 +806,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               ],
             ),
         ],
-        ),
-
+      ),
       body: Padding(
         padding: EdgeInsets.only(bottom: bottomPadding),
         child: _buildBody(isLandscape, screenSize),

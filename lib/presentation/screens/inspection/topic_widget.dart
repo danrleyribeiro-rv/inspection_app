@@ -39,7 +39,7 @@ class TopicWidget extends StatefulWidget {
 class _TopicWidgetState extends State<TopicWidget> {
   final ServiceFactory _serviceFactory = ServiceFactory();
   final _uuid = Uuid();
-  
+
   List<Item> _items = [];
   bool _isLoading = true;
   bool _isAddingMedia = false;
@@ -84,9 +84,11 @@ class _TopicWidgetState extends State<TopicWidget> {
       );
 
       if (!mounted) return;
-      
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.topic.inspectionId);
-      final topicIndex = int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
+
+      final inspection = await _serviceFactory.coordinator
+          .getInspection(widget.topic.inspectionId);
+      final topicIndex =
+          int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
       final progress = ProgressCalculationService.calculateTopicProgress(
         inspection?.toMap(),
         topicIndex,
@@ -152,7 +154,8 @@ class _TopicWidgetState extends State<TopicWidget> {
 
       final mediaDir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now();
-      final filename = 'topic_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
+      final filename =
+          'topic_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
       final localPath = '${mediaDir.path}/$filename';
 
       // Processar imagem para 4:3 em background
@@ -185,11 +188,13 @@ class _TopicWidgetState extends State<TopicWidget> {
         'detail_name': null,
         'is_non_conformity': false,
         'metadata': {
-          'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy,
-          } : null,
+          'location': position != null
+              ? {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                }
+              : null,
           'source': source == ImageSource.camera ? 'camera' : 'gallery',
         },
       };
@@ -230,20 +235,24 @@ class _TopicWidgetState extends State<TopicWidget> {
     }
   }
 
-  Future<void> _saveTopicMediaToInspection(Map<String, dynamic> mediaData) async {
-    final inspection = await _serviceFactory.coordinator.getInspection(widget.topic.inspectionId);
+  Future<void> _saveTopicMediaToInspection(
+      Map<String, dynamic> mediaData) async {
+    final inspection = await _serviceFactory.coordinator
+        .getInspection(widget.topic.inspectionId);
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
-      final topicIndex = int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
-      
+      final topicIndex =
+          int.tryParse(widget.topic.id!.replaceFirst('topic_', '')) ?? 0;
+
       if (topicIndex < topics.length) {
         final topic = Map<String, dynamic>.from(topics[topicIndex]);
-        
+
         if (!topic.containsKey('media')) {
           topic['media'] = <Map<String, dynamic>>[];
         }
-        
-        final topicMedia = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+
+        final topicMedia =
+            List<Map<String, dynamic>>.from(topic['media'] ?? []);
         topicMedia.add(mediaData);
         topic['media'] = topicMedia;
         topics[topicIndex] = topic;
@@ -521,11 +530,13 @@ class _TopicWidgetState extends State<TopicWidget> {
                                   fontSize: 16, fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (_localTopic.topicLabel != null && _localTopic.topicLabel!.isNotEmpty) ...[
+                            if (_localTopic.topicLabel != null &&
+                                _localTopic.topicLabel!.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 _localTopic.topicLabel!,
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 12),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ],
@@ -546,10 +557,13 @@ class _TopicWidgetState extends State<TopicWidget> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.camera_alt, size: 18),
-                        onPressed: _isAddingMedia ? null : () => _captureTopicImage(ImageSource.camera),
+                        onPressed: _isAddingMedia
+                            ? null
+                            : () => _captureTopicImage(ImageSource.camera),
                         tooltip: 'Tirar foto do tópico',
                       ),
                       const SizedBox(width: 8),
@@ -579,81 +593,81 @@ class _TopicWidgetState extends State<TopicWidget> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-padding: const EdgeInsets.all(8),
-             child: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 GestureDetector(
-                   onTap: _editObservationDialog,
-                   child: AbsorbPointer(
-                     child: TextFormField(
-                       controller: _observationController,
-                       decoration: const InputDecoration(
-                         labelText: 'Observações',
-                         border: OutlineInputBorder(),
-                         hintText: 'Adicione observações sobre este tópico...',
-                       ),
-                       maxLines: 1,
-                     ),
-                   ),
-                 ),
-                 const SizedBox(height: 10),
-                 Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   children: [
-                     const Text(
-                       'Itens',
-                       style:
-                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                     ),
-                     ElevatedButton.icon(
-                       onPressed: _addItem,
-                       icon: const Icon(Icons.add),
-                       label: const Text('Adicionar Item'),
-                       style: ElevatedButton.styleFrom(
-                         backgroundColor: Theme.of(context).primaryColor,
-                       ),
-                     ),
-                   ],
-                 ),
-                 const SizedBox(height: 8),
-                 if (_isLoading)
-                   const Center(child: CircularProgressIndicator())
-                 else if (_items.isEmpty)
-                   const Center(
-                     child: Padding(
-                       padding: EdgeInsets.all(8),
-                       child: Text('Nenhum item adicionado ainda'),
-                     ),
-                   )
-                 else
-                   ListView.builder(
-                     shrinkWrap: true,
-                     physics: const NeverScrollableScrollPhysics(),
-                     controller: _scrollController,
-                     itemCount: _items.length,
-                     itemBuilder: (context, index) {
-                       return ItemWidget(
-                         item: _items[index],
-                         onItemUpdated: _handleItemUpdate,
-                         onItemDeleted: _handleItemDelete,
-                         onItemDuplicated: _duplicateItem,
-                         isExpanded: index == _expandedItemIndex,
-                         onExpansionChanged: () {
-                           setState(() {
-                             _expandedItemIndex =
-                                 _expandedItemIndex == index ? -1 : index;
-                           });
-                         },
-                       );
-                     },
-                   ),
-               ],
-             ),
-           ),
-         ],
-       ],
-     ),
-   );
- }
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: _editObservationDialog,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        controller: _observationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações',
+                          border: OutlineInputBorder(),
+                          hintText: 'Adicione observações sobre este tópico...',
+                        ),
+                        maxLines: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Itens',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar Item'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_isLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_items.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Nenhum item adicionado ainda'),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      controller: _scrollController,
+                      itemCount: _items.length,
+                      itemBuilder: (context, index) {
+                        return ItemWidget(
+                          item: _items[index],
+                          onItemUpdated: _handleItemUpdate,
+                          onItemDeleted: _handleItemDelete,
+                          onItemDuplicated: _duplicateItem,
+                          isExpanded: index == _expandedItemIndex,
+                          onExpansionChanged: () {
+                            setState(() {
+                              _expandedItemIndex =
+                                  _expandedItemIndex == index ? -1 : index;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

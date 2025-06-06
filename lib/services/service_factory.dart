@@ -49,7 +49,9 @@ class ServiceFactory {
     importExportService = ImportExportService();
 
     // 2. Instancie serviços que dependem de outros, injetando as instâncias já criadas.
-    syncService = SyncService(cacheService: cacheService); // <-- A instância de cacheService é injetada no SyncService.
+    syncService = SyncService(
+        cacheService:
+            cacheService); // <-- A instância de cacheService é injetada no SyncService.
 
     // 3. Chame métodos de inicialização que iniciam listeners ou outras tarefas em segundo plano.
     syncService.initialize();

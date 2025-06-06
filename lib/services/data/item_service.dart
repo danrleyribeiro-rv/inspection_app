@@ -49,12 +49,16 @@ class ItemService {
   }
 
   Future<void> updateItem(Item updatedItem) async {
-    final topicIndex = int.tryParse(updatedItem.topicId?.replaceFirst('topic_', '') ?? '');
-    final itemIndex = int.tryParse(updatedItem.id?.replaceFirst('item_', '') ?? '');
+    final topicIndex =
+        int.tryParse(updatedItem.topicId?.replaceFirst('topic_', '') ?? '');
+    final itemIndex =
+        int.tryParse(updatedItem.id?.replaceFirst('item_', '') ?? '');
 
     if (topicIndex != null && itemIndex != null) {
-      final inspection = await _inspectionService.getInspection(updatedItem.inspectionId);
-      if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final inspection =
+          await _inspectionService.getInspection(updatedItem.inspectionId);
+      if (inspection?.topics != null &&
+          topicIndex < inspection!.topics!.length) {
         final topic = inspection.topics![topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
@@ -63,13 +67,15 @@ class ItemService {
           currentItemData['description'] = updatedItem.itemLabel;
           currentItemData['observation'] = updatedItem.observation;
 
-          await _updateItemAtIndex(updatedItem.inspectionId, topicIndex, itemIndex, currentItemData);
+          await _updateItemAtIndex(
+              updatedItem.inspectionId, topicIndex, itemIndex, currentItemData);
         }
       }
     }
   }
 
-  Future<void> deleteItem(String inspectionId, String topicId, String itemId) async {
+  Future<void> deleteItem(
+      String inspectionId, String topicId, String itemId) async {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
 
@@ -78,7 +84,8 @@ class ItemService {
     }
   }
 
-  List<Item> _extractItems(String inspectionId, String topicId, Map<String, dynamic> topicData) {
+  List<Item> _extractItems(
+      String inspectionId, String topicId, Map<String, dynamic> topicData) {
     final itemsData = topicData['items'] as List<dynamic>? ?? [];
     List<Item> items = [];
 
@@ -101,7 +108,8 @@ class ItemService {
     return items;
   }
 
-  Future<void> _addItemToTopic(String inspectionId, int topicIndex, Map<String, dynamic> newItem) async {
+  Future<void> _addItemToTopic(
+      String inspectionId, int topicIndex, Map<String, dynamic> newItem) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -112,7 +120,8 @@ class ItemService {
         topic['items'] = items;
         topics[topicIndex] = topic;
 
-        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+        await _inspectionService
+            .saveInspection(inspection.copyWith(topics: topics));
       }
     }
   }
@@ -130,13 +139,15 @@ class ItemService {
           topic['items'] = items;
           topics[topicIndex] = topic;
 
-          await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+          await _inspectionService
+              .saveInspection(inspection.copyWith(topics: topics));
         }
       }
     }
   }
 
-  Future<void> _deleteItemAtIndex(String inspectionId, int topicIndex, int itemIndex) async {
+  Future<void> _deleteItemAtIndex(
+      String inspectionId, int topicIndex, int itemIndex) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
@@ -148,13 +159,15 @@ class ItemService {
           topic['items'] = items;
           topics[topicIndex] = topic;
 
-          await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+          await _inspectionService
+              .saveInspection(inspection.copyWith(topics: topics));
         }
       }
     }
   }
 
-  Future<Item?> isItemDuplicate(String inspectionId, String topicId, String itemName) async {
+  Future<Item?> isItemDuplicate(
+      String inspectionId, String topicId, String itemName) async {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     if (topicIndex == null) return null;
 
@@ -162,7 +175,7 @@ class ItemService {
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topic = inspection.topics![topicIndex];
       final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-      
+
       for (int i = 0; i < items.length; i++) {
         final item = items[i];
         if (item['name'] == itemName) {

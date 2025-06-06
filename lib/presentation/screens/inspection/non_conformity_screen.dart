@@ -45,31 +45,31 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   bool _isProcessing = false;
 
   @override
-    void initState() {
-      super.initState();
-      _tabController = TabController(length: 2, vsync: this);
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
 
-      // Call checkConnectivity to get the initial state
-      Connectivity().checkConnectivity().then((result) {
-        if (mounted) {
-          setState(() {
-            // THE FIX: Check if the List<ConnectivityResult> contains .none
-            _isOffline = result.contains(ConnectivityResult.none);
-          });
-        }
-      });
+    // Call checkConnectivity to get the initial state
+    Connectivity().checkConnectivity().then((result) {
+      if (mounted) {
+        setState(() {
+          // THE FIX: Check if the List<ConnectivityResult> contains .none
+          _isOffline = result.contains(ConnectivityResult.none);
+        });
+      }
+    });
 
-      // It's also good practice to listen for future changes
-      Connectivity().onConnectivityChanged.listen((result) {
-        if (mounted) {
-          setState(() {
-            _isOffline = result.contains(ConnectivityResult.none);
-          });
-        }
-      });
+    // It's also good practice to listen for future changes
+    Connectivity().onConnectivityChanged.listen((result) {
+      if (mounted) {
+        setState(() {
+          _isOffline = result.contains(ConnectivityResult.none);
+        });
+      }
+    });
 
-      _loadData();
-    }
+    _loadData();
+  }
 
   @override
   void dispose() {

@@ -138,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() => _notificationsEnabled = value);
     await _saveSettings();
-    
+
     if (value) {
       await Permission.notification.request();
     } else {
@@ -162,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() => _cameraPermission = value);
     await _saveSettings();
-    
+
     if (value) {
       await Permission.camera.request();
     } else {

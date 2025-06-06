@@ -6,10 +6,13 @@ class InspectionService {
   final FirebaseService _firebase = FirebaseService();
 
   Future<Inspection?> getInspection(String inspectionId) async {
-    final doc = await _firebase.firestore.collection('inspections').doc(inspectionId).get();
-    
+    final doc = await _firebase.firestore
+        .collection('inspections')
+        .doc(inspectionId)
+        .get();
+
     if (!doc.exists) return null;
-    
+
     return Inspection.fromMap({
       'id': doc.id,
       ...doc.data() ?? {},

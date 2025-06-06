@@ -58,8 +58,10 @@ class TemplateService {
 
         final String topicName = _extractStringValue(topicFields, 'name',
             defaultValue: 'Tópico sem nome');
-        final String topicDescriptionValue = _extractStringValue(topicFields, 'description');
-        final String? topicDescription = topicDescriptionValue.isNotEmpty ? topicDescriptionValue : null;
+        final String topicDescriptionValue =
+            _extractStringValue(topicFields, 'description');
+        final String? topicDescription =
+            topicDescriptionValue.isNotEmpty ? topicDescriptionValue : null;
 
         final itemsData = _extractArrayFromTemplate(topicFields, 'items');
         List<Map<String, dynamic>> processedItems = [];
@@ -72,8 +74,10 @@ class TemplateService {
 
           final String itemName = _extractStringValue(itemFields, 'name',
               defaultValue: 'Item sem nome');
-          final String itemDescriptionValue = _extractStringValue(itemFields, 'description');
-          final String? itemDescription = itemDescriptionValue.isNotEmpty ? itemDescriptionValue : null;
+          final String itemDescriptionValue =
+              _extractStringValue(itemFields, 'description');
+          final String? itemDescription =
+              itemDescriptionValue.isNotEmpty ? itemDescriptionValue : null;
 
           final detailsData = _extractArrayFromTemplate(itemFields, 'details');
           List<Map<String, dynamic>> processedDetails = [];

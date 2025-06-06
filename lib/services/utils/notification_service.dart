@@ -4,9 +4,9 @@ class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
-  
+
   final ChatService _chatService = ChatService();
-  
+
   Stream<int> get unreadMessagesStream {
     return _chatService.getUserChats().map((chats) {
       int totalUnread = 0;

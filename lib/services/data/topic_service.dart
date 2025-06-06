@@ -37,16 +37,20 @@ class TopicService {
   }
 
   Future<void> updateTopic(Topic updatedTopic) async {
-    final inspection = await _inspectionService.getInspection(updatedTopic.inspectionId);
+    final inspection =
+        await _inspectionService.getInspection(updatedTopic.inspectionId);
     if (inspection?.topics != null) {
-      final topicIndex = int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
+      final topicIndex =
+          int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
       if (topicIndex != null && topicIndex < inspection!.topics!.length) {
-        final currentTopicData = Map<String, dynamic>.from(inspection.topics![topicIndex]);
+        final currentTopicData =
+            Map<String, dynamic>.from(inspection.topics![topicIndex]);
         currentTopicData['name'] = updatedTopic.topicName;
         currentTopicData['description'] = updatedTopic.topicLabel;
         currentTopicData['observation'] = updatedTopic.observation;
 
-        await _updateTopicAtIndex(updatedTopic.inspectionId, topicIndex, currentTopicData);
+        await _updateTopicAtIndex(
+            updatedTopic.inspectionId, topicIndex, currentTopicData);
       }
     }
   }
@@ -71,7 +75,8 @@ class TopicService {
         }
       }
 
-      await _inspectionService.saveInspection(inspection.copyWith(topics: reorderedTopics));
+      await _inspectionService
+          .saveInspection(inspection.copyWith(topics: reorderedTopics));
     }
   }
 
@@ -130,14 +135,16 @@ class TopicService {
     return topics;
   }
 
-  Future<void> _addTopicToInspection(String inspectionId, Map<String, dynamic> newTopic) async {
+  Future<void> _addTopicToInspection(
+      String inspectionId, Map<String, dynamic> newTopic) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     final topics = inspection?.topics != null
         ? List<Map<String, dynamic>>.from(inspection!.topics!)
         : <Map<String, dynamic>>[];
 
     topics.add(newTopic);
-    await _inspectionService.saveInspection(inspection!.copyWith(topics: topics));
+    await _inspectionService
+        .saveInspection(inspection!.copyWith(topics: topics));
   }
 
   Future<void> _updateTopicAtIndex(String inspectionId, int topicIndex,
@@ -147,7 +154,8 @@ class TopicService {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics[topicIndex] = updatedTopic;
-        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+        await _inspectionService
+            .saveInspection(inspection.copyWith(topics: topics));
       }
     }
   }
@@ -158,7 +166,8 @@ class TopicService {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics.removeAt(topicIndex);
-        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+        await _inspectionService
+            .saveInspection(inspection.copyWith(topics: topics));
       }
     }
   }

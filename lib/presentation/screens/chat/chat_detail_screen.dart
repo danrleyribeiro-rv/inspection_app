@@ -43,7 +43,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.initState();
     _currentUserId = _auth.currentUser?.uid ?? '';
     _markMessagesAsRead();
-    
+
     _messageController.addListener(() {
       setState(() {});
     });
@@ -52,16 +52,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _setupMessagesStream();
     });
   }
-  
+
   // REMOVED `didChangeMetrics()` - we'll handle this in the build method.
 
   void _setupMessagesStream() {
-    _messagesSubscription = _chatService.getChatMessages(widget.chat.id).listen((messages) {
+    _messagesSubscription =
+        _chatService.getChatMessages(widget.chat.id).listen((messages) {
       if (mounted) {
         setState(() {
           _messages = messages;
         });
-        
+
         if (_isFirstLoad || _shouldScrollToBottom()) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToBottom(animate: !_isFirstLoad);
@@ -74,10 +75,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   bool _shouldScrollToBottom() {
     if (!_scrollController.hasClients) return true;
-    
-    final isNearBottom = _scrollController.position.pixels >= 
+
+    final isNearBottom = _scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 100;
-    
+
     return isNearBottom;
   }
 
@@ -88,7 +89,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _scrollController.dispose();
     super.dispose();
   }
-  
+
   void _markMessagesAsRead() async {
     try {
       await _chatService.markMessagesAsRead(widget.chat.id);
@@ -96,7 +97,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       debugPrint('Erro ao marcar mensagens como lidas: $e');
     }
   }
-  
+
   void _scrollToBottom({bool animate = true}) {
     if (_scrollController.hasClients) {
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -111,17 +112,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
   }
-  
+
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
     if (message.isEmpty || _isLoading) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       await _chatService.sendTextMessage(widget.chat.id, message);
       _messageController.clear();
-      
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBottom();
       });
@@ -144,14 +145,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         source: ImageSource.gallery,
         imageQuality: 80,
       );
-      
+
       if (image != null) {
         if (!mounted) return;
         setState(() => _isLoading = true);
-        
+
         final file = File(image.path);
         await _chatService.sendFileMessage(widget.chat.id, file, 'image');
-        
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollToBottom();
         });
@@ -176,14 +177,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         allowMultiple: false,
         type: FileType.any,
       );
-      
+
       if (result != null && result.files.single.path != null) {
         if (!mounted) return;
         setState(() => _isLoading = true);
-        
+
         final file = File(result.files.single.path!);
         await _chatService.sendFileMessage(widget.chat.id, file, 'file');
-        
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollToBottom();
         });
@@ -201,7 +202,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
   }
-  
+
   // ... (rest of the methods like _showMessageOptions, etc., remain the same)
   void _showMessageOptions(ChatMessage message) {
     showModalBottomSheet(
@@ -217,7 +218,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.info_outline, color: Colors.grey),
-                title: const Text('Detalhes', style: TextStyle(color: Colors.white)),
+                title: const Text('Detalhes',
+                    style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _showMessageDetails(message);
@@ -233,8 +235,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String _formatDateSeparator(DateTime messageDate) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final messageDay = DateTime(messageDate.year, messageDate.month, messageDate.day);
-    
+    final messageDay =
+        DateTime(messageDate.year, messageDate.month, messageDate.day);
+
     if (messageDay == today) {
       return 'Hoje';
     } else if (messageDay == today.subtract(const Duration(days: 1))) {
@@ -245,31 +248,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _showMessageDetails(ChatMessage message) {
-    final readBy = message.readBy.where((id) => id != message.senderId).toList();
+    final readBy =
+        message.readBy.where((id) => id != message.senderId).toList();
     final sentTime = DateFormat('dd/MM/yyyy HH:mm').format(message.timestamp);
     String readTime = '';
-    
+
     if (message.readByTimestamp != null) {
-      readTime = DateFormat('dd/MM/yyyy HH:mm').format(message.readByTimestamp!);
+      readTime =
+          DateFormat('dd/MM/yyyy HH:mm').format(message.readByTimestamp!);
     }
-    
+
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.grey[900],
-          title: const Text('Detalhes da mensagem', style: TextStyle(color: Colors.white)),
+          title: const Text('Detalhes da mensagem',
+              style: TextStyle(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Enviada: $sentTime', style: const TextStyle(color: Colors.white)),
+              Text('Enviada: $sentTime',
+                  style: const TextStyle(color: Colors.white)),
               const SizedBox(height: 8),
-              
               if (readBy.isNotEmpty && readTime.isNotEmpty) ...[
-                Text('Lida em: $readTime', style: const TextStyle(color: Colors.green)),
+                Text('Lida em: $readTime',
+                    style: const TextStyle(color: Colors.green)),
               ] else ...[
-                const Text('Status: Não lida', style: TextStyle(color: Colors.grey)),
+                const Text('Status: Não lida',
+                    style: TextStyle(color: Colors.grey)),
               ],
             ],
           ),
@@ -284,12 +292,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     // THE FIX for `window` deprecation: Get insets from MediaQuery
     final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
-    
+
     // Scroll to bottom when keyboard appears
     if (keyboardVisible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -306,7 +313,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           children: [
             AvatarWidget(
               imageUrl: widget.chat.inspector['profileImageUrl'],
-              name: '${widget.chat.inspector['name']} ${widget.chat.inspector['last_name']}',
+              name:
+                  '${widget.chat.inspector['name']} ${widget.chat.inspector['last_name']}',
               size: 40,
             ),
             const SizedBox(width: 12),
@@ -333,56 +341,70 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Expanded( // Use Expanded instead of Flexible for more predictable behavior
-              child: _messages.isEmpty 
-                ? const Center(
-                    child: Text(
-                      'Nenhuma mensagem ainda. Comece a conversar!',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      final isCurrentUser = message.senderId == _currentUserId;
-                      final previousIsSameSender = index > 0 && _messages[index - 1].senderId == message.senderId;
-                      
-                      bool showDateSeparator = false;
-                      if (index == 0) {
-                        showDateSeparator = true;
-                      } else {
-                        final currentDate = DateTime(message.timestamp.year, message.timestamp.month, message.timestamp.day);
-                        final previousDate = DateTime(_messages[index - 1].timestamp.year, _messages[index - 1].timestamp.month, _messages[index - 1].timestamp.day);
-                        showDateSeparator = !currentDate.isAtSameMomentAs(previousDate);
-                      }
-                      
-                      return Column(
-                        children: [
-                          if (showDateSeparator)
-                            Center(
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(vertical: 16),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(12)),
-                                child: Text(_formatDateSeparator(message.timestamp), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Expanded(
+              // Use Expanded instead of Flexible for more predictable behavior
+              child: _messages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Nenhuma mensagem ainda. Comece a conversar!',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        final isCurrentUser =
+                            message.senderId == _currentUserId;
+                        final previousIsSameSender = index > 0 &&
+                            _messages[index - 1].senderId == message.senderId;
+
+                        bool showDateSeparator = false;
+                        if (index == 0) {
+                          showDateSeparator = true;
+                        } else {
+                          final currentDate = DateTime(message.timestamp.year,
+                              message.timestamp.month, message.timestamp.day);
+                          final previousDate = DateTime(
+                              _messages[index - 1].timestamp.year,
+                              _messages[index - 1].timestamp.month,
+                              _messages[index - 1].timestamp.day);
+                          showDateSeparator =
+                              !currentDate.isAtSameMomentAs(previousDate);
+                        }
+
+                        return Column(
+                          children: [
+                            if (showDateSeparator)
+                              Center(
+                                child: Container(
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                      color: Colors.grey[800],
+                                      borderRadius: BorderRadius.circular(12)),
+                                  child: Text(
+                                      _formatDateSeparator(message.timestamp),
+                                      style: const TextStyle(
+                                          color: Colors.grey, fontSize: 12)),
+                                ),
                               ),
+                            ChatMessageItem(
+                              message: message,
+                              isCurrentUser: isCurrentUser,
+                              onLongPress: () => _showMessageOptions(message),
+                              previousIsSameSender: previousIsSameSender,
                             ),
-                          
-                          ChatMessageItem(
-                            message: message,
-                            isCurrentUser: isCurrentUser,
-                            onLongPress: () => _showMessageOptions(message),
-                            previousIsSameSender: previousIsSameSender,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                          ],
+                        );
+                      },
+                    ),
             ),
-            
             Container(
               padding: const EdgeInsets.all(8.0),
               decoration: BoxDecoration(
@@ -402,7 +424,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     icon: const Icon(Icons.attach_file, color: Colors.grey),
                     onPressed: _isLoading ? null : _showAttachmentOptions,
                   ),
-                  
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
@@ -411,10 +432,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         decoration: InputDecoration(
                           hintText: 'Digite uma mensagem...',
                           hintStyle: TextStyle(color: Colors.grey[500]),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none),
                           filled: true,
                           fillColor: Colors.grey[800],
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                         ),
                         style: const TextStyle(color: Colors.white),
                         minLines: 1,
@@ -423,26 +447,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         enabled: !_isLoading,
                         onSubmitted: (_) => _sendMessage(),
                         onTap: () {
-                          Future.delayed(const Duration(milliseconds: 300), () => _scrollToBottom(animate: true));
+                          Future.delayed(const Duration(milliseconds: 300),
+                              () => _scrollToBottom(animate: true));
                         },
                       ),
                     ),
                   ),
-                  
                   const SizedBox(width: 8),
-                  
                   _isLoading
                       ? Container(
                           width: 48,
                           height: 48,
                           padding: const EdgeInsets.all(12),
-                          child: const CircularProgressIndicator(strokeWidth: 2),
+                          child:
+                              const CircularProgressIndicator(strokeWidth: 2),
                         )
                       : IconButton(
                           icon: const Icon(Icons.send, color: Colors.blue),
-                          onPressed: _messageController.text.trim().isNotEmpty && !_isLoading 
-                              ? _sendMessage 
-                              : null,
+                          onPressed:
+                              _messageController.text.trim().isNotEmpty &&
+                                      !_isLoading
+                                  ? _sendMessage
+                                  : null,
                         ),
                 ],
               ),
@@ -467,7 +493,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.image, color: Colors.blue),
-                title: const Text('Imagem', style: TextStyle(color: Colors.white)),
+                title:
+                    const Text('Imagem', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickAndSendImage();
@@ -475,7 +502,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.attach_file, color: Colors.orange),
-                title: const Text('Arquivo', style: TextStyle(color: Colors.white)),
+                title: const Text('Arquivo',
+                    style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickAndSendFile();

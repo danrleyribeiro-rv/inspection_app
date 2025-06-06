@@ -16,7 +16,7 @@ class InspectionProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final progressColor = ProgressCalculationService.getProgressColor(progress);
     final progressLabel = ProgressCalculationService.getProgressLabel(progress);
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),

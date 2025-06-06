@@ -12,7 +12,6 @@ import 'package:inspection_app/services/features/template_service.dart';
 import 'package:inspection_app/services/features/checkpoint_service.dart';
 import 'package:inspection_app/services/data/non_conformity_service.dart';
 
-
 class InspectionCoordinator {
   final InspectionService _inspectionService = InspectionService();
   final TopicService _topicService = TopicService();
@@ -74,16 +73,19 @@ class InspectionCoordinator {
     await _itemService.updateItem(updatedItem);
   }
 
-  Future<void> deleteItem(String inspectionId, String topicId, String itemId) async {
+  Future<void> deleteItem(
+      String inspectionId, String topicId, String itemId) async {
     await _itemService.deleteItem(inspectionId, topicId, itemId);
   }
 
-  Future<Item?> isItemDuplicate(String inspectionId, String topicId, String itemName) async {
+  Future<Item?> isItemDuplicate(
+      String inspectionId, String topicId, String itemName) async {
     return await _itemService.isItemDuplicate(inspectionId, topicId, itemName);
   }
 
   // DETAIL OPERATIONS
-  Future<List<Detail>> getDetails(String inspectionId, String topicId, String itemId) async {
+  Future<List<Detail>> getDetails(
+      String inspectionId, String topicId, String itemId) async {
     return await _detailService.getDetails(inspectionId, topicId, itemId);
   }
 
@@ -111,7 +113,8 @@ class InspectionCoordinator {
     );
   }
 
-  Future<void> deleteDetail(String inspectionId, String topicId, String itemId, String detailId) async {
+  Future<void> deleteDetail(String inspectionId, String topicId, String itemId,
+      String detailId) async {
     await _detailService.deleteDetail(inspectionId, topicId, itemId, detailId);
   }
 
@@ -119,30 +122,41 @@ class InspectionCoordinator {
     await _detailService.updateDetail(updatedDetail);
   }
 
-  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId, String itemId, String detailName) async {
-    return await _detailService.isDetailDuplicate(inspectionId, topicId, itemId, detailName);
+  Future<Detail?> isDetailDuplicate(String inspectionId, String topicId,
+      String itemId, String detailName) async {
+    return await _detailService.isDetailDuplicate(
+        inspectionId, topicId, itemId, detailName);
   }
 
   // NON-CONFORMITY OPERATIONS
-  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(String inspectionId) async {
-    return await _nonConformityService.getNonConformitiesByInspection(inspectionId);
+  Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
+      String inspectionId) async {
+    return await _nonConformityService
+        .getNonConformitiesByInspection(inspectionId);
   }
 
   Future<void> saveNonConformity(Map<String, dynamic> nonConformityData) async {
     await _nonConformityService.saveNonConformity(nonConformityData);
   }
 
-  Future<void> updateNonConformityStatus(String nonConformityId, String newStatus) async {
-    await _nonConformityService.updateNonConformityStatus(nonConformityId, newStatus);
+  Future<void> updateNonConformityStatus(
+      String nonConformityId, String newStatus) async {
+    await _nonConformityService.updateNonConformityStatus(
+        nonConformityId, newStatus);
   }
 
-  Future<void> updateNonConformity(String nonConformityId, Map<String, dynamic> updatedData) async {
-    await _nonConformityService.updateNonConformity(nonConformityId, updatedData);
+  Future<void> updateNonConformity(
+      String nonConformityId, Map<String, dynamic> updatedData) async {
+    await _nonConformityService.updateNonConformity(
+        nonConformityId, updatedData);
   }
 
-  Future<void> deleteNonConformity(String nonConformityId, String inspectionId) async {
-    await _nonConformityService.deleteNonConformity(nonConformityId, inspectionId);
+  Future<void> deleteNonConformity(
+      String nonConformityId, String inspectionId) async {
+    await _nonConformityService.deleteNonConformity(
+        nonConformityId, inspectionId);
   }
+
   // MEDIA OPERATIONS
   Future<List<Map<String, dynamic>>> getAllMedia(String inspectionId) async {
     return await _mediaService.getAllMedia(inspectionId);
@@ -171,12 +185,16 @@ class InspectionCoordinator {
     return await _templateService.isTemplateAlreadyApplied(inspectionId);
   }
 
-  Future<bool> applyTemplateToInspectionSafe(String inspectionId, String templateId) async {
-    return await _templateService.applyTemplateToInspectionSafe(inspectionId, templateId);
+  Future<bool> applyTemplateToInspectionSafe(
+      String inspectionId, String templateId) async {
+    return await _templateService.applyTemplateToInspectionSafe(
+        inspectionId, templateId);
   }
 
-  Future<bool> applyTemplateToInspection(String inspectionId, String templateId) async {
-    return await _templateService.applyTemplateToInspection(inspectionId, templateId);
+  Future<bool> applyTemplateToInspection(
+      String inspectionId, String templateId) async {
+    return await _templateService.applyTemplateToInspection(
+        inspectionId, templateId);
   }
 
   // CHECKPOINT OPERATIONS
@@ -194,11 +212,15 @@ class InspectionCoordinator {
     return await _checkpointService.getCheckpoints(inspectionId);
   }
 
-  Future<bool> restoreCheckpoint(String inspectionId, String checkpointId) async {
-    return await _checkpointService.restoreCheckpoint(inspectionId, checkpointId);
+  Future<bool> restoreCheckpoint(
+      String inspectionId, String checkpointId) async {
+    return await _checkpointService.restoreCheckpoint(
+        inspectionId, checkpointId);
   }
 
-  Future<Map<String, dynamic>> compareWithCheckpoint(String inspectionId, String checkpointId) async {
-  return await _checkpointService.compareWithCheckpoint(inspectionId, checkpointId);
-}
+  Future<Map<String, dynamic>> compareWithCheckpoint(
+      String inspectionId, String checkpointId) async {
+    return await _checkpointService.compareWithCheckpoint(
+        inspectionId, checkpointId);
+  }
 }

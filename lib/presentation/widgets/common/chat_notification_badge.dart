@@ -3,19 +3,19 @@ import 'package:inspection_app/services/service_factory.dart';
 
 class ChatNotificationBadge extends StatelessWidget {
   final Widget child;
-  
+
   const ChatNotificationBadge({
     super.key,
     required this.child,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<int>(
       stream: ServiceFactory().notificationService.unreadMessagesStream,
       builder: (context, snapshot) {
         final unreadCount = snapshot.data ?? 0;
-        
+
         return Stack(
           children: [
             child,

@@ -138,7 +138,8 @@ class CheckpointRestoreDialog extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.black.withAlpha((255 * 0.3).round()),
+                                color:
+                                    Colors.black.withAlpha((255 * 0.3).round()),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -166,7 +167,8 @@ class CheckpointRestoreDialog extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade900.withAlpha((255 * 0.3).round()),
+                        color:
+                            Colors.red.shade900.withAlpha((255 * 0.3).round()),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.red.shade800),
                       ),

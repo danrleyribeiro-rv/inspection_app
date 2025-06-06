@@ -138,10 +138,9 @@ class ChatMessageItem extends StatelessWidget {
                       Icon(
                         statusIcon,
                         size: 12,
-                        color:
-                            message.readBy.isNotEmpty
-                                ? Colors.blue[300]
-                                : Colors.white70,
+                        color: message.readBy.isNotEmpty
+                            ? Colors.blue[300]
+                            : Colors.white70,
                       ),
                     ],
                   ],
@@ -209,10 +208,9 @@ class ChatMessageItem extends StatelessWidget {
                       Icon(
                         statusIcon,
                         size: 12,
-                        color:
-                          message.readBy.isNotEmpty
-                              ? Colors.blue[300]
-                              : Colors.white70,
+                        color: message.readBy.isNotEmpty
+                            ? Colors.blue[300]
+                            : Colors.white70,
                       ),
                     ],
                   ],
@@ -302,10 +300,9 @@ class ChatMessageItem extends StatelessWidget {
                       Icon(
                         statusIcon,
                         size: 12,
-                        color:
-                            message.readBy.isNotEmpty
-                                ? Colors.blue[300]
-                                : Colors.white70,
+                        color: message.readBy.isNotEmpty
+                            ? Colors.blue[300]
+                            : Colors.white70,
                       ),
                     ],
                   ],
@@ -362,10 +359,9 @@ class ChatMessageItem extends StatelessWidget {
                     Icon(
                       statusIcon,
                       size: 12,
-                      color:
-                          message.readBy.isNotEmpty
-                              ? Colors.blue[300]
-                              : Colors.white70,
+                      color: message.readBy.isNotEmpty
+                          ? Colors.blue[300]
+                          : Colors.white70,
                     ),
                   ],
                 ],

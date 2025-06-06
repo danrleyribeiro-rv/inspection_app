@@ -188,7 +188,8 @@ class NonConformityList extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: _getSeverityColor(item['severity']).withAlpha((255 * 0.2).round()),
+                    color: _getSeverityColor(item['severity'])
+                        .withAlpha((255 * 0.2).round()),
                     borderRadius: BorderRadius.circular(6),
                     border:
                         Border.all(color: _getSeverityColor(item['severity'])),

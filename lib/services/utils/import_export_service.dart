@@ -54,7 +54,8 @@ class ImportExportService {
 
   dynamic _convertTimestampsToStrings(dynamic data) {
     if (data is Map<String, dynamic>) {
-      return data.map((key, value) => MapEntry(key, _convertTimestampsToStrings(value)));
+      return data.map(
+          (key, value) => MapEntry(key, _convertTimestampsToStrings(value)));
     } else if (data is List) {
       return data.map((item) => _convertTimestampsToStrings(item)).toList();
     } else if (data is Timestamp) {
@@ -64,7 +65,8 @@ class ImportExportService {
     }
   }
 
-  Future<bool> importInspection(String inspectionId, Map<String, dynamic> jsonData) async {
+  Future<bool> importInspection(
+      String inspectionId, Map<String, dynamic> jsonData) async {
     try {
       if (jsonData.isEmpty) {
         throw Exception('Invalid JSON data');

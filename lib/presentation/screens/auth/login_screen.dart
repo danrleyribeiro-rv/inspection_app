@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         // First async gap
         final isInspector = await _authService.isUserInspector(user.uid);
-        
+
         // This outer `mounted` check is crucial.
         if (mounted) {
           if (isInspector) {
@@ -44,12 +44,13 @@ class _LoginScreenState extends State<LoginScreen> {
           } else {
             // Second async gap
             await _authService.signOut();
-            
+
             // THE FIX: Check for `mounted` AGAIN after the second async gap.
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Apenas vistoriadores podem acessar este aplicativo.'),
+                  content: Text(
+                      'Apenas vistoriadores podem acessar este aplicativo.'),
                   backgroundColor: Colors.red,
                 ),
               );
@@ -78,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       String message = 'Ocorreu um erro durante o login.';
-      
+
       switch (e.code) {
         case 'user-not-found':
           message = 'Nenhum usuário encontrado com este endereço de e-mail.';
@@ -98,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
         default:
           message = e.message ?? 'Ocorreu um erro desconhecido.';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), backgroundColor: Colors.red),
@@ -207,7 +208,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             child: _isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white)
                                 : const Text('Login'),
                           ),
                         ),
