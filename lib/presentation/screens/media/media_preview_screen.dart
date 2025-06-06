@@ -105,7 +105,6 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
             children: [
               const Icon(Icons.error, color: Colors.white, size: 48),
               const SizedBox(height: 16),
-              // lib/presentation/screens/media/media_preview_screen.dart (continuação)
               const Text(
                 'Erro ao carregar imagem',
                 style: TextStyle(color: Colors.white),

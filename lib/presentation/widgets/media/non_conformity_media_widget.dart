@@ -7,6 +7,8 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
+import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
+
 
 class NonConformityMediaWidget extends StatefulWidget {
   final String inspectionId;
@@ -537,8 +539,19 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                       );
                     }
 
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => MediaViewerScreen(
+                              mediaItems: _mediaItems,
+                              initialIndex: index,
+                            ),
+                          ),
+                        );
+                      },
                       child: Stack(
                         children: [
                           ClipRRect(
@@ -587,6 +600,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                           ),
                         ],
                       ),
+                    )
                     );
                   },
                 ),

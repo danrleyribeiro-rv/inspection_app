@@ -1,4 +1,5 @@
 import 'package:inspection_app/models/inspection.dart';
+import 'package:inspection_app/models/inspection_checkpoint.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:inspection_app/models/inspection_checkpoint.dart';
 import 'package:inspection_app/services/features/checkpoint_service.dart';
-import 'package:inspection_app/presentation/widgets/create_checkpoint_dialog.dart';
-import 'package:inspection_app/presentation/widgets/checkpoint_history_dialog.dart';
-import 'package:inspection_app/presentation/widgets/checkpoint_restore_dialog.dart';
+import 'package:inspection_app/presentation/widgets/dialogs/create_checkpoint_dialog.dart';
+import 'package:inspection_app/presentation/widgets/dialogs/checkpoint_history_dialog.dart';
+import 'package:inspection_app/presentation/widgets/dialogs/checkpoint_restore_dialog.dart';
 
 class CheckpointDialogService {
   final BuildContext context;

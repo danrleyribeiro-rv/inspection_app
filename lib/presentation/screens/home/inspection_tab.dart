@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
 import 'package:inspection_app/presentation/screens/inspection/inspection_detail_screen.dart';
-import 'package:inspection_app/presentation/widgets/inspection_card.dart';
+import 'package:inspection_app/presentation/widgets/common/inspection_card.dart';
 
 // Função auxiliar para formatação de data em pt-BR
 String formatDateBR(DateTime date) {

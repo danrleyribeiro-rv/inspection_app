@@ -1,7 +1,7 @@
 // lib/presentation/widgets/inspection_card.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:inspection_app/presentation/widgets/map_location_card.dart';
+import 'package:inspection_app/presentation/widgets/common/map_location_card.dart';
 import 'dart:developer'; // Import log for potential debugging
 
 class InspectionCard extends StatelessWidget {

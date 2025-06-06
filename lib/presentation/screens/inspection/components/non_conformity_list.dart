@@ -1,7 +1,7 @@
 // lib/presentation/screens/inspection/components/non_conformity_list.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:inspection_app/presentation/widgets/non_conformity_media_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/non_conformity_media_widget.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 
 class NonConformityList extends StatelessWidget {

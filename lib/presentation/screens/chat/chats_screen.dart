@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:inspection_app/models/chat.dart';
 import 'package:inspection_app/services/features/chat_service.dart';
 import 'package:inspection_app/presentation/screens/chat/chat_detail_screen.dart';
-import 'package:inspection_app/presentation/widgets/avatar_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/avatar_widget.dart';
 import 'package:intl/intl.dart';
 
 class ChatsScreen extends StatefulWidget {

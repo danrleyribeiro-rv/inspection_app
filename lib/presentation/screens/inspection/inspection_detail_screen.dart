@@ -7,8 +7,8 @@ import 'package:inspection_app/presentation/screens/inspection/components/topics
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
-import 'package:inspection_app/presentation/widgets/progress_circle.dart';
-import 'package:inspection_app/presentation/widgets/template_selector_dialog.dart';
+import 'package:inspection_app/presentation/widgets/common/progress_circle.dart';
+import 'package:inspection_app/presentation/widgets/dialogs/template_selector_dialog.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
@@ -105,7 +105,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection = await _serviceFactory.offlineService
+      final inspection = await _serviceFactory.cacheService
           .getInspection(widget.inspectionId);
 
       if (!mounted) return;
@@ -323,7 +323,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     try {
       final topics =
-          await _serviceFactory.offlineService.getTopics(widget.inspectionId);
+          await _serviceFactory.cacheService.getTopics(widget.inspectionId);
 
       if (!mounted) return;
       setState(() {
@@ -364,7 +364,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
       try {
         final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
-        await _serviceFactory.offlineService.addTopic(
+        await _serviceFactory.cacheService.addTopic(
           widget.inspectionId,
           topicName,
           label: topicLabel,
@@ -384,7 +384,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             status: 'in_progress',
             updatedAt: DateTime.now(),
           );
-          await _serviceFactory.offlineService
+          await _serviceFactory.cacheService
               .saveInspection(updatedInspection);
           setState(() {
             _inspection = updatedInspection;
@@ -418,7 +418,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _serviceFactory.offlineService
+      await _serviceFactory.cacheService
           .duplicateTopic(widget.inspectionId, topic.topicName);
       await _loadTopics();
 
@@ -443,7 +443,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   Future<void> _updateTopic(Topic updatedTopic) async {
     try {
-      await _serviceFactory.offlineService.updateTopic(updatedTopic);
+      await _serviceFactory.cacheService.updateTopic(updatedTopic);
 
       final index = _topics.indexWhere((r) => r.id == updatedTopic.id);
       if (index >= 0 && mounted) {
@@ -464,7 +464,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _serviceFactory.offlineService
+      await _serviceFactory.cacheService
           .deleteTopic(widget.inspectionId, topicId);
 
       await _loadTopics();

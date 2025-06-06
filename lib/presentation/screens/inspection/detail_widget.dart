@@ -2,9 +2,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/presentation/widgets/media_handling_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/media_handling_widget.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
-import 'package:inspection_app/presentation/widgets/rename_dialog.dart';
+import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 
 class DetailWidget extends StatefulWidget {
   final Detail detail;

@@ -1,5 +1,6 @@
 // lib/presentation/widgets/checkpoint_history_dialog.dart
 import 'package:flutter/material.dart';
+import 'package:inspection_app/models/inspection_checkpoint.dart';
 import 'package:inspection_app/services/features/checkpoint_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 

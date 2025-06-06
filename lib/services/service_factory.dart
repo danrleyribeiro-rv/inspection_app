@@ -12,7 +12,6 @@ import 'package:inspection_app/services/utils/sync_service.dart';
 import 'package:inspection_app/services/utils/notification_service.dart';
 import 'package:inspection_app/services/utils/import_export_service.dart';
 import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
-import 'package:inspection_app/services/features/offline_service.dart';
 
 
 
@@ -33,7 +32,6 @@ class ServiceFactory {
   SyncService? _syncService;
   NotificationService? _notificationService;
   ImportExportService? _importExportService;
-  OfflineService? _offlineService;
 
 
   // Get services (singleton pattern)
@@ -92,11 +90,6 @@ class ServiceFactory {
     return _importExportService!;
   }
 
-  OfflineService get offlineService {
-  _offlineService ??= OfflineService();
-  return _offlineService!;
-  }
-
   CheckpointDialogService createCheckpointDialogService(
     BuildContext context,
     Function() onReloadData,
@@ -108,15 +101,14 @@ class ServiceFactory {
     );
   }
 
-  // Initialize all services
   void initialize() {
-    offlineService.initialize();
+    cacheService.initializeSync();
     syncService.initialize();
   }
 
-  // Dispose all services
+ 
   void dispose() {
-    _offlineService?.dispose();
+    _cacheService?.dispose();
     _syncService?.dispose();
   }
 

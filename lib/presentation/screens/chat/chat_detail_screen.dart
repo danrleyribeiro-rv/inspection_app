@@ -8,8 +8,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:inspection_app/models/chat.dart';
 import 'package:inspection_app/models/chat_message.dart';
 import 'package:inspection_app/services/features/chat_service.dart';
-import 'package:inspection_app/presentation/widgets/avatar_widget.dart';
-import 'package:inspection_app/presentation/widgets/chat_message_item.dart';
+import 'package:inspection_app/presentation/widgets/media/avatar_widget.dart';
+import 'package:inspection_app/presentation/widgets/common/chat_message_item.dart';
 import 'package:intl/intl.dart';
 
 class ChatDetailScreen extends StatefulWidget {

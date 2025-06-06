@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
+
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -671,22 +673,33 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                      }
                    }
 
-                   return Padding(
-                     padding: const EdgeInsets.only(right: 8.0),
-                     child: Stack(
-                       children: [
-                         Container(
-                           width: 150,
-                           height: 150,
-                           decoration: BoxDecoration(
-                             border: Border.all(color: Colors.grey),
-                             borderRadius: BorderRadius.circular(8),
-                           ),
-                           child: ClipRRect(
-                             borderRadius: BorderRadius.circular(8),
-                             child: displayWidget,
-                           ),
-                         ),
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => MediaViewerScreen(
+                              mediaItems: _mediaItems,
+                              initialIndex: index,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 150,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: displayWidget,
+                            ),
+                          ),
 
                          Positioned(
                            top: 5,
@@ -727,8 +740,9 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                          ),
                        ],
                      ),
+                    )
                    );
-                 },
+                },
                ),
              ),
            ],

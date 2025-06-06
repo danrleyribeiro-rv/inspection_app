@@ -1,35 +1,9 @@
+// lib/services/features/checkpoint_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
-
-class InspectionCheckpoint {
-  final String id;
-  final String inspectionId;
-  final String createdBy;
-  final DateTime createdAt;
-  final String? message;
-  final Map<String, dynamic>? data;
-
-  InspectionCheckpoint({
-    required this.id,
-    required this.inspectionId,
-    required this.createdBy,
-    required this.createdAt,
-    this.message,
-    this.data,
-  });
-
-  String get formattedDate {
-    final day = createdAt.day.toString().padLeft(2, '0');
-    final month = createdAt.month.toString().padLeft(2, '0');
-    final year = createdAt.year;
-    final hour = createdAt.hour.toString().padLeft(2, '0');
-    final minute = createdAt.minute.toString().padLeft(2, '0');
-    
-    return '$day/$month/$year $hour:$minute';
-  }
-}
+import 'package:inspection_app/models/inspection_checkpoint.dart'; // Import adicionado
 
 class CheckpointService {
   final FirebaseService _firebase = FirebaseService();
@@ -91,25 +65,7 @@ class CheckpointService {
         .orderBy('created_at', descending: true)
         .get();
     
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      DateTime createdAt;
-      
-      if (data['created_at'] is Timestamp) {
-        createdAt = (data['created_at'] as Timestamp).toDate();
-      } else {
-        createdAt = DateTime.now();
-      }
-      
-      return InspectionCheckpoint(
-        id: doc.id,
-        inspectionId: data['inspection_id'],
-        createdBy: data['created_by'],
-        createdAt: createdAt,
-        message: data['message'],
-        data: data['data'],
-      );
-    }).toList();
+    return snapshot.docs.map((doc) => InspectionCheckpoint.fromFirestore(doc)).toList();
   }
 
   Future<bool> restoreCheckpoint(String inspectionId, String checkpointId) async {

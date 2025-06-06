@@ -6,6 +6,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
+
 
 class MediaDetailsBottomSheet extends StatefulWidget {
   final Map<String, dynamic> media;
@@ -581,14 +583,16 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
   }
 
   Widget _buildImageDisplay(bool hasLocalPath, bool hasUrl) {
+    Widget imageWidget;
+    
     if (hasLocalPath) {
-      return Image.file(
+      imageWidget = Image.file(
         File(widget.media['localPath']),
         fit: BoxFit.contain,
         errorBuilder: (ctx, error, _) => _buildErrorContainer(),
       );
     } else if (hasUrl) {
-      return Image.network(
+      imageWidget = Image.network(
         widget.media['url'],
         fit: BoxFit.contain,
         loadingBuilder: (context, child, loadingProgress) {
@@ -598,26 +602,51 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
         errorBuilder: (ctx, error, _) => _buildErrorContainer(),
       );
     } else {
-      return _buildNoSourceContainer('image');
+      imageWidget = _buildNoSourceContainer('image');
     }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MediaViewerScreen(
+              mediaItems: [widget.media],
+              initialIndex: 0,
+            ),
+          ),
+        );
+      },
+      child: imageWidget,
+    );
   }
 
   Widget _buildVideoDisplay(bool hasLocalPath, bool hasUrl) {
-    // TODO: Implement video player later
-    return Container(
-      height: 300,
-      color: Colors.black,
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.play_circle_fill, size: 64, color: Colors.white),
-            SizedBox(height: 16),
-            Text(
-              'Reprodutor de vídeo não implementado',
-              style: TextStyle(color: Colors.white),
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MediaViewerScreen(
+              mediaItems: [widget.media],
+              initialIndex: 0,
             ),
-          ],
+          ),
+        );
+      },
+      child: Container(
+        height: 300,
+        color: Colors.black,
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.play_circle_fill, size: 64, color: Colors.white),
+              SizedBox(height: 16),
+              Text(
+                'Toque para reproduzir vídeo',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
         ),
       ),
     );

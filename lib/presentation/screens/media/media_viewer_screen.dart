@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> mediaItems;
@@ -21,19 +22,24 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late PageController _pageController;
   late int _currentIndex;
   bool _showUI = true;
+  Map<int, VideoPlayerController?> _videoControllers = {};
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    
+
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    // Dispose video controllers
+    for (var controller in _videoControllers.values) {
+      controller?.dispose();
+    }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
@@ -58,32 +64,99 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     }
   }
 
-  Widget _buildMediaWidget(Map<String, dynamic> media) {
+  Widget _buildMediaWidget(Map<String, dynamic> media, int index) {
     final bool isImage = media['type'] == 'image';
-    final bool hasLocalPath = media['localPath'] != null && File(media['localPath']).existsSync();
+    final bool hasLocalPath =
+        media['localPath'] != null && File(media['localPath']).existsSync();
     final bool hasUrl = media['url'] != null;
 
     if (isImage) {
       if (hasLocalPath) {
-        return Image.file(
-          File(media['localPath']),
-          fit: BoxFit.contain,
-          errorBuilder: (ctx, error, _) => _buildErrorWidget(),
+        return InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Image.file(
+            File(media['localPath']),
+            fit: BoxFit.contain,
+            errorBuilder: (ctx, error, _) => _buildErrorWidget(),
+          ),
         );
       } else if (hasUrl) {
-        return Image.network(
-          media['url'],
-          fit: BoxFit.contain,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _buildLoadingWidget();
-          },
-          errorBuilder: (ctx, error, _) => _buildErrorWidget(),
+        return InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Image.network(
+            media['url'],
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _buildLoadingWidget();
+            },
+            errorBuilder: (ctx, error, _) => _buildErrorWidget(),
+          ),
         );
       }
+    } else {
+      // Video
+      return _buildVideoPlayer(media, index);
     }
-    
     return _buildUnsupportedWidget();
+  }
+
+  Widget _buildVideoPlayer(Map<String, dynamic> media, int index) {
+    VideoPlayerController? controller = _videoControllers[index];
+    if (controller == null) {
+      // Initialize controller
+      if (media['localPath'] != null && File(media['localPath']).existsSync()) {
+        controller = VideoPlayerController.file(File(media['localPath']));
+      } else if (media['url'] != null) {
+        controller = VideoPlayerController.networkUrl(Uri.parse(media['url']));
+      }
+      if (controller != null) {
+        _videoControllers[index] = controller;
+        controller.initialize().then((_) {
+          if (mounted) setState(() {});
+        });
+      }
+    }
+    if (controller == null || !controller.value.isInitialized) {
+      return _buildLoadingWidget();
+    }
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: VideoPlayer(controller),
+        ),
+        if (!controller.value.isPlaying)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.play_arrow, color: Colors.white, size: 48),
+              onPressed: () {
+                controller!.play();
+                setState(() {});
+              },
+            ),
+          ),
+        if (controller.value.isPlaying)
+          GestureDetector(
+            onTap: () {
+              controller!.pause();
+              setState(() {});
+            },
+            child: Container(
+              color: Colors.transparent,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildLoadingWidget() {
@@ -112,7 +185,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         children: [
           Icon(Icons.block, color: Colors.white, size: 64),
           SizedBox(height: 16),
-          Text('Tipo de mídia não suportado', style: TextStyle(color: Colors.white)),
+          Text('Tipo de mídia não suportado',
+              style: TextStyle(color: Colors.white)),
         ],
       ),
     );
@@ -121,7 +195,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   @override
   Widget build(BuildContext context) {
     final currentMedia = widget.mediaItems[_currentIndex];
-    
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
@@ -138,12 +212,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                 });
               },
               itemBuilder: (context, index) {
-                return InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: Center(
-                    child: _buildMediaWidget(widget.mediaItems[index]),
-                  ),
+                return Center(
+                  child: _buildMediaWidget(widget.mediaItems[index], index),
                 );
               },
             ),
@@ -243,16 +313,16 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                               style: const TextStyle(color: Colors.white70),
                             ),
                           ],
-                          
+
                           const SizedBox(height: 12),
-                          
+
                           // Data e tipo
                           Row(
                             children: [
                               Icon(
-                                currentMedia['type'] == 'image' 
-                                  ? Icons.photo 
-                                  : Icons.videocam,
+                                currentMedia['type'] == 'image'
+                                    ? Icons.photo
+                                    : Icons.videocam,
                                 color: Colors.white70,
                                 size: 16,
                               ),
@@ -294,10 +364,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                                 ),
                             ],
                           ),
-                          
+
                           // Observação se existir
-                          if (currentMedia['observation'] != null && 
-                              (currentMedia['observation'] as String).isNotEmpty) ...[
+                          if (currentMedia['observation'] != null &&
+                              (currentMedia['observation'] as String)
+                                  .isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.all(8),
@@ -335,7 +406,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.chevron_left, color: Colors.white),
+                        icon:
+                            const Icon(Icons.chevron_left, color: Colors.white),
                         onPressed: () {
                           _pageController.previousPage(
                             duration: const Duration(milliseconds: 300),
@@ -358,7 +430,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.chevron_right, color: Colors.white),
+                        icon: const Icon(Icons.chevron_right,
+                            color: Colors.white),
                         onPressed: () {
                           _pageController.nextPage(
                             duration: const Duration(milliseconds: 300),
