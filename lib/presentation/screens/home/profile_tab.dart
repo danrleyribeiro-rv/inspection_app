@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/presentation/screens/profile/edit_profile_screen.dart';
+import 'package:inspection_app/presentation/widgets/profile/qr_code_credentials_dialog.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -37,10 +38,12 @@ class _ProfileTabState extends State<ProfileTab> {
 
       if (doc.exists) {
         setState(() {
-          _profile = doc.data();
+          _profile = {
+            'id': doc.id,
+            ...doc.data() ?? {},
+          };
         });
 
-        // Load profile image
         await _loadProfileImage();
       }
 
@@ -59,17 +62,14 @@ class _ProfileTabState extends State<ProfileTab> {
     if (_profile == null) return;
 
     try {
-      // Check if profile contains a direct imageUrl
       if (_profile!.containsKey('profileImageUrl') &&
           _profile!['profileImageUrl'] != null) {
         setState(() {
-          // Just store the URL reference, will use CachedNetworkImage to display
           _profileImageBase64 = _profile!['profileImageUrl'];
         });
         return;
       }
 
-      // For backward compatibility - check if we have base64 data in a separate collection
       final userId = _auth.currentUser?.uid;
       if (userId == null) return;
 
@@ -95,16 +95,25 @@ class _ProfileTabState extends State<ProfileTab> {
 
     final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (context) => EditProfileScreen(
-          profile: _profile!,
-        ),
+        builder: (context) => EditProfileScreen(profile: _profile!),
       ),
     );
 
-    // Reload profile if updated
     if (updated == true) {
       _loadProfile();
     }
+  }
+
+  void _showQrCredentials() {
+    if (_profile == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => QrCodeCredentialsDialog(
+        inspectorId: _profile!['id'],
+        profile: _profile!,
+      ),
+    );
   }
 
   @override
@@ -135,6 +144,24 @@ class _ProfileTabState extends State<ProfileTab> {
                   // Avatar and name
                   _buildProfileImage(),
                   const SizedBox(height: 16),
+                  
+                  // QR Code Credentials Button
+                  ElevatedButton.icon(
+                    onPressed: _showQrCredentials,
+                    icon: const Icon(Icons.qr_code, size: 20),
+                    label: const Text('Credenciais'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
                   Text(
                     _getFullName(),
                     style: const TextStyle(
@@ -179,7 +206,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Address',
+                      'Endereço',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -213,9 +240,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Widget _buildProfileImage() {
     if (_profileImageBase64 != null) {
-      // Check if it's a URL or base64 data
       if (_profileImageBase64!.startsWith('http')) {
-        // It's a URL
         return CircleAvatar(
           radius: 50,
           backgroundImage: NetworkImage(_profileImageBase64!),
@@ -224,7 +249,6 @@ class _ProfileTabState extends State<ProfileTab> {
           },
         );
       } else {
-        // It's base64 data
         try {
           final imageBytes = base64Decode(_profileImageBase64!);
           return CircleAvatar(
@@ -233,12 +257,10 @@ class _ProfileTabState extends State<ProfileTab> {
           );
         } catch (e) {
           debugPrint('Erro ao decodificar imagem: $e');
-          // Fall back to initials
         }
       }
     }
 
-    // Fallback to initials avatar
     return CircleAvatar(
       radius: 50,
       backgroundColor: Theme.of(context).primaryColor,
@@ -282,7 +304,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final neighborhood = _profile?['neighborhood'] ?? '';
 
     if (street.isEmpty && neighborhood.isEmpty) {
-      return 'Not provided';
+      return 'Não fornecido';
     }
 
     return '$street, $neighborhood'.trim();

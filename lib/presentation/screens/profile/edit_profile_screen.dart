@@ -30,6 +30,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _serviceFactory = ServiceFactory();
 
   bool _isLoading = false;
+  bool _isCepLoading = false;
   File? _profileImage;
   String? _profileImageUrl;
   bool _hasProfileImage = false;
@@ -56,27 +57,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   void _initControllers() {
     _nameController = TextEditingController(text: widget.profile['name'] ?? '');
-    _lastNameController =
-        TextEditingController(text: widget.profile['last_name'] ?? '');
-    _emailController =
-        TextEditingController(text: widget.profile['email'] ?? '');
-    _phoneController =
-        TextEditingController(text: widget.profile['phonenumber'] ?? '');
-    _documentController =
-        TextEditingController(text: widget.profile['document'] ?? '');
+    _lastNameController = TextEditingController(text: widget.profile['last_name'] ?? '');
+    _emailController = TextEditingController(text: widget.profile['email'] ?? '');
+    _phoneController = TextEditingController(text: widget.profile['phonenumber'] ?? '');
+    _documentController = TextEditingController(text: widget.profile['document'] ?? '');
     _cepController = TextEditingController(text: widget.profile['cep'] ?? '');
-    _streetController =
-        TextEditingController(text: widget.profile['street'] ?? '');
-    _neighborhoodController =
-        TextEditingController(text: widget.profile['neighborhood'] ?? '');
+    _streetController = TextEditingController(text: widget.profile['street'] ?? '');
+    _neighborhoodController = TextEditingController(text: widget.profile['neighborhood'] ?? '');
     _cityController = TextEditingController(text: widget.profile['city'] ?? '');
-    _stateController =
-        TextEditingController(text: widget.profile['state'] ?? '');
+    _stateController = TextEditingController(text: widget.profile['state'] ?? '');
     _selectedProfession = widget.profile['profession'];
     _profileImageUrl = widget.profile['profileImageUrl'];
   }
 
-  // Check if there's a profile image in the database
   Future<void> _checkProfileImage() async {
     try {
       setState(() {
@@ -84,16 +77,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
 
       if (!_hasProfileImage && widget.profile['id'] != null) {
-        // Check for profile image in profile_images collection (for backward compatibility)
         final imagesSnapshot = await _firestore
             .collection('profile_images')
             .where('inspector_id', isEqualTo: widget.profile['id'])
             .limit(1)
             .get();
 
-        setState(() {
-          _hasProfileImage = imagesSnapshot.docs.isNotEmpty;
-        });
+        if (mounted) {
+          setState(() {
+            _hasProfileImage = imagesSnapshot.docs.isNotEmpty;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error checking profile image: $e');
@@ -110,67 +104,71 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         imageQuality: 85,
       );
 
-      // It's also a good practice to check `mounted` before `setState`.
       if (image != null && mounted) {
         setState(() {
           _profileImage = File(image.path);
         });
       }
     } catch (e) {
-      // THE FIX: Guard the use of context with a 'mounted' check.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error selecting image: $e')),
+          SnackBar(content: Text('Erro ao selecionar imagem: $e')),
         );
       }
     }
   }
 
   Future<void> _fetchCepData(String cep) async {
-    // Ensure we're working with digits only
     final cepDigits = cep.replaceAll(RegExp(r'\D'), '');
     if (cepDigits.length != 8) return;
 
-    setState(() => _isLoading = true);
+    setState(() => _isCepLoading = true);
 
     try {
       final url = Uri.parse('https://viacep.com.br/ws/$cepDigits/json/');
       final response = await http.get(url);
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['erro'] == true) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('ZIP code not found')),
-            );
-          }
-          return;
-        }
-        if (mounted) {
+        if (data.containsKey('erro') && data['erro'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('CEP não encontrado'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
           setState(() {
             _streetController.text = data['logradouro'] ?? '';
             _neighborhoodController.text = data['bairro'] ?? '';
             _cityController.text = data['localidade'] ?? '';
             _stateController.text = data['uf'] ?? '';
           });
-        }
-      } else {
-        if (mounted) {
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error fetching ZIP code')),
+            const SnackBar(
+              content: Text('Endereço preenchido automaticamente'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
           );
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao buscar CEP: ${response.statusCode}')),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Erro ao buscar CEP: $e')),
         );
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isCepLoading = false);
       }
     }
   }
@@ -184,33 +182,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final userId = _auth.currentUser?.uid;
       if (userId == null) throw Exception('User not authenticated');
 
-      // 1. Update profile data
       final profileData = {
-        'name': _nameController.text,
-        'last_name': _lastNameController.text,
+        'name': _nameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
         'profession': _selectedProfession,
-        'phonenumber': _phoneController.text,
-        'document': _documentController.text,
-        'cep': _cepController.text,
-        'street': _streetController.text,
-        'neighborhood': _neighborhoodController.text,
-        'city': _cityController.text,
-        'state': _stateController.text,
+        'phonenumber': _phoneController.text.replaceAll(RegExp(r'\D'), ''),
+        'document': _documentController.text.replaceAll(RegExp(r'\D'), ''),
+        'cep': _cepController.text.replaceAll(RegExp(r'\D'), ''),
+        'street': _streetController.text.trim(),
+        'neighborhood': _neighborhoodController.text.trim(),
+        'city': _cityController.text.trim(),
+        'state': _stateController.text.trim().toUpperCase(),
         'updated_at': FieldValue.serverTimestamp(),
       };
 
       await _firestore.collection('inspectors').doc(userId).update(profileData);
 
-      // 2. Process profile image if selected
       if (_profileImage != null) {
-        // Upload to Firebase Storage
-        final downloadUrl =
-            await _serviceFactory.mediaService.uploadProfileImage(
+        final downloadUrl = await _serviceFactory.mediaService.uploadProfileImage(
           file: _profileImage!,
           userId: userId,
         );
 
-        // Update profile with image URL
         await _firestore.collection('inspectors').doc(userId).update({
           'profileImageUrl': downloadUrl,
         });
@@ -218,14 +211,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully!')),
+          const SnackBar(
+            content: Text('Perfil atualizado com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
         );
-        Navigator.of(context).pop(true); // Return true to indicate success
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating profile: $e')),
+          SnackBar(content: Text('Erro ao atualizar perfil: $e')),
         );
       }
     } finally {
@@ -238,12 +234,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
         title: const Text('Editar Perfil'),
+        backgroundColor: const Color(0xFF1E293B),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: _isLoading 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.save),
             onPressed: _isLoading ? null : _saveProfile,
+            tooltip: 'Salvar alterações',
           ),
         ],
       ),
@@ -254,190 +260,189 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Profile image
+                    // Profile image section with improved design
                     Center(
-                      child: Stack(
-                        children: [
-                          // Avatar or selected image
-                          CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Theme.of(context)
-                                .primaryColor
-                                .withAlpha((255 * 0.2).round()),
-                            child: _profileImage != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(60),
-                                    child: Image.file(
-                                      _profileImage!,
-                                      width: 120,
-                                      height: 120,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : _profileImageUrl != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(60),
-                                        child: Image.network(
-                                          _profileImageUrl!,
-                                          width: 120,
-                                          height: 120,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  Text(
-                                            _getInitials(),
-                                            style: TextStyle(
-                                              fontSize: 40,
-                                              fontWeight: FontWeight.bold,
-                                              color: Theme.of(context)
-                                                  .primaryColor,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.blue, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withAlpha((255 * 0.3).round()),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.grey[800],
+                              child: _profileImage != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(60),
+                                      child: Image.file(
+                                        _profileImage!,
+                                        width: 120,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : _profileImageUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(60),
+                                          child: Image.network(
+                                            _profileImageUrl!,
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) =>
+                                                Text(
+                                              _getInitials(),
+                                              style: const TextStyle(
+                                                fontSize: 40,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
                                             ),
                                           ),
+                                        )
+                                      : Text(
+                                          _getInitials(),
+                                          style: const TextStyle(
+                                            fontSize: 40,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                         ),
-                                      )
-                                    : Text(
-                                        _getInitials(),
-                                        style: TextStyle(
-                                          fontSize: 40,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(context).primaryColor,
-                                        ),
-                                      ),
-                          ),
-                          // Edit button
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).primaryColor,
-                                shape: BoxShape.circle,
-                              ),
-                              child: IconButton(
-                                icon: const Icon(Icons.camera_alt,
-                                    color: Colors.white),
-                                onPressed: _pickImage,
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha((255 * 0.3).round()),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                                  onPressed: _pickImage,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
-                    // Personal data
-                    const Text(
-                      'Informações Pessoais',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    // Personal Information Section
+                    _buildSectionHeader('Informações Pessoais', Icons.person),
+                    const SizedBox(height: 16),
+                    
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            controller: _nameController,
+                            label: 'Primeiro Nome',
+                            icon: Icons.person_outline,
+                            validator: (value) => value?.trim().isEmpty == true ? 'Campo obrigatório' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildTextField(
+                            controller: _lastNameController,
+                            label: 'Sobrenome',
+                            icon: Icons.person_outline,
+                            validator: (value) => value?.trim().isEmpty == true ? 'Campo obrigatório' : null,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Primeiro Nome',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Campo obrigatório'
-                          : null,
-                    ),
+                    
+                    _buildDropdownField(),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _lastNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Sobrenome',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Campo obrigatório'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _selectedProfession,
-                      decoration: const InputDecoration(
-                        labelText: 'Profissão',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: Constants.professions.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() => _selectedProfession = newValue);
-                      },
-                      validator: (value) =>
-                          value == null ? 'Selecione uma profissão' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
+                    
+                    _buildTextField(
                       controller: _emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(),
-                      ),
-                      readOnly: true, // Email cannot be changed
+                      label: 'Email',
+                      icon: Icons.email_outlined,
+                      readOnly: true,
+                      suffixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
+                    
+                    _buildTextField(
                       controller: _phoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Telefone',
-                        border: OutlineInputBorder(),
-                        hintText: '(99) 99999-9999',
-                      ),
+                      label: 'Telefone',
+                      icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         TelefoneInputFormatter(),
                       ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _documentController,
-                      decoration: const InputDecoration(
-                        labelText: 'CNPJ/CPF',
-                        border: OutlineInputBorder(),
-                        hintText: 'Digite o CNPJ ou CPF',
+                      hintText: '(99) 99999-9999',
                       ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                      controller: _documentController,
+                      label: 'CNPJ/CPF',
+                      icon: Icons.badge_outlined,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         CpfOuCnpjFormatter(),
                       ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Endereço
-                    const Text(
-                      'Endereço',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                      hintText: 'Digite o CNPJ ou CPF',
                       ),
-                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Address Section
+                    _buildSectionHeader('Endereço', Icons.location_on),
                     const SizedBox(height: 16),
-                    TextFormField(
+                    
+                    _buildTextField(
                       controller: _cepController,
-                      decoration: const InputDecoration(
-                        labelText: 'CEP',
-                        border: OutlineInputBorder(),
-                        hintText: '00.000-000',
-                      ),
+                      label: 'CEP',
+                      icon: Icons.location_on_outlined,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         CepInputFormatter(),
                       ],
+                      hintText: '00.000-000',
+                      suffixIcon: _isCepLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : IconButton(
+                              icon: const Icon(Icons.search),
+                              onPressed: () {
+                                final cep = _cepController.text;
+                                if (cep.isNotEmpty) {
+                                  _fetchCepData(cep);
+                                }
+                              },
+                              tooltip: 'Buscar endereço',
+                            ),
                       onChanged: (value) {
-                        // Remove formatting to use only digits
                         final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
                         if (digitsOnly.length == 8) {
                           _fetchCepData(digitsOnly);
@@ -445,65 +450,216 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
+                    
+                    _buildTextField(
                       controller: _streetController,
-                      decoration: const InputDecoration(
-                        labelText: 'Rua',
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Rua',
+                      icon: Icons.location_city_outlined,
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
+                    
+                    _buildTextField(
                       controller: _neighborhoodController,
-                      decoration: const InputDecoration(
-                        labelText: 'Bairro',
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Bairro',
+                      icon: Icons.location_city_outlined,
                     ),
                     const SizedBox(height: 16),
+                    
                     Row(
                       children: [
                         Expanded(
-                          flex: 2,
-                          child: TextFormField(
+                          flex: 3,
+                          child: _buildTextField(
                             controller: _cityController,
-                            decoration: const InputDecoration(
-                              labelText: 'Cidade',
-                              border: OutlineInputBorder(),
-                            ),
+                            label: 'Cidade',
+                            icon: Icons.location_city,
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: TextFormField(
+                          child: _buildTextField(
                             controller: _stateController,
-                            decoration: const InputDecoration(
-                              labelText: 'Estado',
-                              border: OutlineInputBorder(),
-                            ),
+                            label: 'UF',
+                            icon: Icons.map_outlined,
+                            textCapitalization: TextCapitalization.characters,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(2),
+                            ],
+                            hintText: 'UF',
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 40),
 
-                    // Save button
+                    // Save button with improved design
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 56,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _saveProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          elevation: 4,
+                          shadowColor: Colors.blue.withAlpha((255 * 0.3).round()),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         child: _isLoading
-                            ? const CircularProgressIndicator()
-                            : const Text('Salvar Alterações'),
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.save, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Salvar Alterações',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
+                    
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
     );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withAlpha((255 * 0.1).round()),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withAlpha((255 * 0.3).round())),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.blue, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hintText,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+    bool readOnly = false,
+    Widget? suffixIcon,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    void Function(String)? onChanged,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: Icon(icon, color: Colors.blue),
+        suffixIcon: suffixIcon,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[600]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.blue, width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[600]!),
+        ),
+        filled: true,
+        fillColor: readOnly ? Colors.grey[800] : Colors.grey[850],
+        labelStyle: TextStyle(color: Colors.grey[400]),
+        hintStyle: TextStyle(color: Colors.grey[500]),
+      ),
+      style: const TextStyle(color: Colors.white),
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      validator: validator,
+      readOnly: readOnly,
+      textCapitalization: textCapitalization,
+      onChanged: onChanged,
+    );
+  }
+
+  Widget _buildDropdownField() {
+    return DropdownButtonFormField<String>(
+      value: _selectedProfession,
+      decoration: InputDecoration(
+        labelText: 'Profissão',
+        prefixIcon: const Icon(Icons.work_outline, color: Colors.blue),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[600]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.blue, width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[600]!),
+        ),
+        filled: true,
+        fillColor: Colors.grey[850],
+        labelStyle: TextStyle(color: Colors.grey[400]),
+      ),
+      style: const TextStyle(color: Colors.white),
+      dropdownColor: Colors.grey[800],
+      items: Constants.professions.map((String value) {
+        return DropdownMenuItem<String>(
+          value: value,
+          child: Text(value, style: const TextStyle(color: Colors.white)),
+        );
+      }).toList(),
+      onChanged: (String? newValue) {
+        setState(() => _selectedProfession = newValue);
+      },
+      validator: (value) => value == null ? 'Selecione uma profissão' : null,
+    );
+  }
+
+  String _getInitials() {
+    final name = _nameController.text;
+    final lastName = _lastNameController.text;
+
+    String initials = '';
+    if (name.isNotEmpty) initials += name[0];
+    if (lastName.isNotEmpty) initials += lastName[0];
+
+    return initials.toUpperCase();
   }
 
   @override
@@ -519,21 +675,5 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _cityController.dispose();
     _stateController.dispose();
     super.dispose();
-  }
-
-  String _getInitials() {
-    final name = _nameController.text;
-    final lastName = _lastNameController.text;
-
-    String initials = '';
-    if (name.isNotEmpty) {
-      initials += name[0];
-    }
-
-    if (lastName.isNotEmpty) {
-      initials += lastName[0];
-    }
-
-    return initials.toUpperCase();
   }
 }
