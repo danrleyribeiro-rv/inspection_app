@@ -7,6 +7,7 @@ import 'package:inspection_app/presentation/screens/inspection/detail_widget.dar
 import 'package:inspection_app/presentation/widgets/dialogs/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/widgets/common/progress_circle.dart';
+import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/utils/progress_calculation_service.dart';
 import 'package:image_picker/image_picker.dart';
@@ -123,16 +124,36 @@ class _ItemWidgetState extends State<ItemWidget> {
     });
   }
 
-  Future<void> _captureItemImage(ImageSource source) async {
+  void _showMediaCapturePopup() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaCapturePopup(
+        onMediaSelected: _captureItemMedia,
+      ),
+    );
+  }
+
+  Future<void> _captureItemMedia(ImageSource source, String type) async {
     setState(() => _isAddingMedia = true);
 
     try {
       final picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(
-        source: source,
-        imageQuality: 100,
-        preferredCameraDevice: CameraDevice.rear,
-      );
+      XFile? pickedFile;
+
+      if (type == 'image') {
+        pickedFile = await picker.pickImage(
+          source: source,
+          imageQuality: 100,
+          preferredCameraDevice: CameraDevice.rear,
+        );
+      } else if (type == 'video') {
+        pickedFile = await picker.pickVideo(
+          source: source,
+          maxDuration: const Duration(minutes: 2),
+          preferredCameraDevice: CameraDevice.rear,
+        );
+      }
 
       if (pickedFile == null || !mounted) {
         if (mounted) setState(() => _isAddingMedia = false);
@@ -144,16 +165,20 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       final timestamp = DateTime.now();
       final filename =
-          'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
+          'item_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.${type == 'image' ? 'jpg' : 'mp4'}';
       final localPath = '${mediaDir.path}/$filename';
 
-      final processedFile = await _serviceFactory.mediaService.processImage43(
-        pickedFile.path,
-        localPath,
-      );
-      if (!mounted) return;
+      if (type == 'image') {
+        final processedFile = await _serviceFactory.mediaService.processImage43(
+          pickedFile.path,
+          localPath,
+        );
+        if (!mounted) return;
 
-      if (processedFile == null) {
+        if (processedFile == null) {
+          await File(pickedFile.path).copy(localPath);
+        }
+      } else {
         await File(pickedFile.path).copy(localPath);
       }
 
@@ -162,9 +187,9 @@ class _ItemWidgetState extends State<ItemWidget> {
 
       final mediaData = {
         'id': _uuid.v4(),
-        'type': 'image',
+        'type': type,
         'localPath': localPath,
-        'aspect_ratio': '4:3',
+        'aspect_ratio': type == 'image' ? '4:3' : '16:9',
         'source': source == ImageSource.camera ? 'camera' : 'gallery',
         'created_at': timestamp.toIso8601String(),
         'updated_at': timestamp.toIso8601String(),
@@ -191,7 +216,7 @@ class _ItemWidgetState extends State<ItemWidget> {
         final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
           file: File(localPath),
           inspectionId: widget.item.inspectionId,
-          type: 'image',
+          type: type,
           topicId: widget.item.topicId,
           itemId: widget.item.id,
         );
@@ -204,15 +229,15 @@ class _ItemWidgetState extends State<ItemWidget> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Imagem do item salva com sucesso'),
+        SnackBar(
+          content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} do item salvo com sucesso'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+          SnackBar(content: Text('Erro ao capturar mídia: $e')),
         );
       }
     } finally {
@@ -277,6 +302,47 @@ class _ItemWidgetState extends State<ItemWidget> {
     }
   }
 
+  Future<void> _editObservationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller =
+            TextEditingController(text: _observationController.text);
+        return AlertDialog(
+          title: const Text('Observações do Item'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: TextFormField(
+                controller: controller,
+                maxLines: 6,
+                autofocus: true,
+                decoration:
+                    const InputDecoration(hintText: 'Digite suas observações...'),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) {
+      _observationController.text = result;
+      _updateItem();
+      setState(() {});
+    }
+  }
+
   Future<void> _showDeleteConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -327,7 +393,6 @@ class _ItemWidgetState extends State<ItemWidget> {
       debugPrint('Erro ao buscar nome do tópico: $e');
     }
 
-    // `showDialog` is an async gap.
     final template = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => TemplateSelectorDialog(
@@ -338,7 +403,6 @@ class _ItemWidgetState extends State<ItemWidget> {
       ),
     );
 
-    // THE FIX: Check for `mounted` immediately after the `await`.
     if (template == null || !mounted) return;
 
     setState(() => _isLoading = true);
@@ -449,10 +513,8 @@ class _ItemWidgetState extends State<ItemWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // The rest of the build method is fine and does not need changes.
-    // ...
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 6), // Reduzido de 10 para 6
       elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
@@ -463,7 +525,7 @@ class _ItemWidgetState extends State<ItemWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10), // Reduzido de 12 para 10
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -500,46 +562,46 @@ class _ItemWidgetState extends State<ItemWidget> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6), // Reduzido de 8 para 6
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             IconButton(
                               icon: _isAddingMedia
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
+                                      width: 18,
+                                      height: 18,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2),
                                     )
                                   : const Icon(Icons.camera_alt, size: 18),
                               onPressed: _isAddingMedia
                                   ? null
-                                  : () => _captureItemImage(ImageSource.camera),
-                              tooltip: 'Tirar foto do item',
-                              padding: const EdgeInsets.all(8.0),
+                                  : _showMediaCapturePopup,
+                              tooltip: 'Capturar mídia do item',
+                              padding: const EdgeInsets.all(6.0), // Reduzido
                               constraints: const BoxConstraints(),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.edit, size: 20),
+                              icon: const Icon(Icons.edit, size: 18),
                               onPressed: _renameItem,
                               tooltip: 'Renomear Item',
-                              padding: const EdgeInsets.all(8.0),
+                              padding: const EdgeInsets.all(6.0),
                               constraints: const BoxConstraints(),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.copy, size: 20),
+                              icon: const Icon(Icons.copy, size: 18),
                               onPressed: () =>
                                   widget.onItemDuplicated(widget.item),
                               tooltip: 'Duplicar Item',
-                              padding: const EdgeInsets.all(8.0),
+                              padding: const EdgeInsets.all(6.0),
                               constraints: const BoxConstraints(),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, size: 20),
+                              icon: const Icon(Icons.delete, size: 18),
                               onPressed: _showDeleteConfirmation,
                               tooltip: 'Excluir Item',
-                              padding: const EdgeInsets.all(8.0),
+                              padding: const EdgeInsets.all(6.0),
                               constraints: const BoxConstraints(),
                             ),
                           ],
@@ -558,21 +620,25 @@ class _ItemWidgetState extends State<ItemWidget> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12), // Reduzido de 16 para 12
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: _observationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observações',
-                      border: OutlineInputBorder(),
-                      hintText: 'Adicione observações sobre este item...',
+                  GestureDetector(
+                    onTap: _editObservationDialog,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        controller: _observationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações',
+                          border: OutlineInputBorder(),
+                          hintText: 'Adicione observações sobre este item...',
+                        ),
+                        maxLines: 1,
+                      ),
                     ),
-                    maxLines: 1,
-                    onChanged: (_) => _updateItem(),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10), // Reduzido de 16 para 10
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -592,13 +658,13 @@ class _ItemWidgetState extends State<ItemWidget> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6), // Reduzido de 8 para 6
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_details.isEmpty)
                     const Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: EdgeInsets.all(12), // Reduzido de 16 para 12
                         child: Text('Nenhum detalhe adicionado ainda'),
                       ),
                     )

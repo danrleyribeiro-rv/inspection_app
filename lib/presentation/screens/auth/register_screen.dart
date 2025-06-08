@@ -639,7 +639,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
        filled: true,
        fillColor: Colors.grey[850],
        labelStyle: TextStyle(color: Colors.grey[400]),
-       hintStyle: TextStyle(color: Colors.grey[500]),
+       hintStyle: TextStyle(color: Colors.grey),
      ),
      style: const TextStyle(color: Colors.white),
      keyboardType: keyboardType,

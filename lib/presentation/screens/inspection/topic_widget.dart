@@ -6,6 +6,7 @@ import 'package:inspection_app/presentation/screens/inspection/item_widget.dart'
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/utils/progress_calculation_service.dart';
 import 'package:inspection_app/presentation/widgets/common/progress_circle.dart';
+import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
 import 'dart:async';
 import 'package:inspection_app/presentation/widgets/dialogs/template_selector_dialog.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
@@ -136,16 +137,36 @@ class _TopicWidgetState extends State<TopicWidget> {
     });
   }
 
-  Future<void> _captureTopicImage(ImageSource source) async {
+  void _showMediaCapturePopup() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaCapturePopup(
+        onMediaSelected: _captureTopicMedia,
+      ),
+    );
+  }
+
+  Future<void> _captureTopicMedia(ImageSource source, String type) async {
     setState(() => _isAddingMedia = true);
 
     try {
       final picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(
-        source: source,
-        imageQuality: 100,
-        preferredCameraDevice: CameraDevice.rear,
-      );
+      XFile? pickedFile;
+
+      if (type == 'image') {
+        pickedFile = await picker.pickImage(
+          source: source,
+          imageQuality: 100,
+          preferredCameraDevice: CameraDevice.rear,
+        );
+      } else if (type == 'video') {
+        pickedFile = await picker.pickVideo(
+          source: source,
+          maxDuration: const Duration(minutes: 2),
+          preferredCameraDevice: CameraDevice.rear,
+        );
+      }
 
       if (pickedFile == null) {
         setState(() => _isAddingMedia = false);
@@ -155,28 +176,28 @@ class _TopicWidgetState extends State<TopicWidget> {
       final mediaDir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now();
       final filename =
-          'topic_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.jpg';
+          'topic_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}.${type == 'image' ? 'jpg' : 'mp4'}';
       final localPath = '${mediaDir.path}/$filename';
 
-      // Processar imagem para 4:3 em background
-      final processedFile = await _serviceFactory.mediaService.processImage43(
-        pickedFile.path,
-        localPath,
-      );
-
-      if (processedFile == null) {
+      if (type == 'image') {
+        final processedFile = await _serviceFactory.mediaService.processImage43(
+          pickedFile.path,
+          localPath,
+        );
+        if (processedFile == null) {
+          await File(pickedFile.path).copy(localPath);
+        }
+      } else {
         await File(pickedFile.path).copy(localPath);
       }
 
-      // Obter localização
       final position = await _serviceFactory.mediaService.getCurrentLocation();
 
-      // Criar dados da mídia
       final mediaData = {
         'id': _uuid.v4(),
-        'type': 'image',
+        'type': type,
         'localPath': localPath,
-        'aspect_ratio': '4:3',
+        'aspect_ratio': type == 'image' ? '4:3' : '16:9',
         'source': source == ImageSource.camera ? 'camera' : 'gallery',
         'created_at': timestamp.toIso8601String(),
         'updated_at': timestamp.toIso8601String(),
@@ -199,12 +220,11 @@ class _TopicWidgetState extends State<TopicWidget> {
         },
       };
 
-      // Upload para Firebase Storage se online
       try {
         final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
           file: File(localPath),
           inspectionId: widget.topic.inspectionId,
-          type: 'image',
+          type: type,
           topicId: widget.topic.id,
         );
         mediaData['url'] = downloadUrl;
@@ -216,8 +236,8 @@ class _TopicWidgetState extends State<TopicWidget> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Imagem do tópico salva com sucesso'),
+          SnackBar(
+            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} do tópico salvo com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -225,7 +245,7 @@ class _TopicWidgetState extends State<TopicWidget> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+          SnackBar(content: Text('Erro ao capturar mídia: $e')),
         );
       }
     } finally {
@@ -300,9 +320,9 @@ class _TopicWidgetState extends State<TopicWidget> {
               child: TextFormField(
                 controller: controller,
                 maxLines: 6,
+                autofocus: true,
                 decoration:
                     const InputDecoration(hintText: 'Digite a observação...'),
-                autofocus: true,
               ),
             ),
           ),
@@ -497,7 +517,7 @@ class _TopicWidgetState extends State<TopicWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 6), // Reduzido de 10 para 6
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
@@ -508,7 +528,7 @@ class _TopicWidgetState extends State<TopicWidget> {
           InkWell(
             onTap: widget.onExpansionChanged,
             child: Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8), // Reduzido de 10 para 8
               child: Column(
                 children: [
                   Row(
@@ -548,9 +568,9 @@ class _TopicWidgetState extends State<TopicWidget> {
                           : Icons.expand_more),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6), // Reduzido de 8 para 6
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       IconButton(
                         icon: _isAddingMedia
@@ -561,26 +581,21 @@ class _TopicWidgetState extends State<TopicWidget> {
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.camera_alt, size: 18),
-                        onPressed: _isAddingMedia
-                            ? null
-                            : () => _captureTopicImage(ImageSource.camera),
-                        tooltip: 'Tirar foto do tópico',
+                        onPressed: _isAddingMedia ? null : _showMediaCapturePopup,
+                        tooltip: 'Capturar mídia do tópico',
                       ),
-                      const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.edit),
+                        icon: const Icon(Icons.edit, size: 18),
                         onPressed: _renameTopic,
                         tooltip: 'Renomear Tópico',
                       ),
-                      const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.copy),
+                        icon: const Icon(Icons.copy, size: 18),
                         onPressed: _duplicateTopic,
                         tooltip: 'Duplicar Tópico',
                       ),
-                      const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.delete),
+                        icon: const Icon(Icons.delete, size: 18),
                         onPressed: _showDeleteConfirmation,
                         tooltip: 'Excluir Tópico',
                       ),
@@ -593,7 +608,7 @@ class _TopicWidgetState extends State<TopicWidget> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12), // Reduzido de 16 para 12
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -611,7 +626,7 @@ class _TopicWidgetState extends State<TopicWidget> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8), // Reduzido de 10 para 8
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -630,7 +645,7 @@ class _TopicWidgetState extends State<TopicWidget> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6), // Reduzido de 8 para 6
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else if (_items.isEmpty)

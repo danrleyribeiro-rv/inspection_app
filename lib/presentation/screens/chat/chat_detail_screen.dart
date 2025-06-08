@@ -431,7 +431,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         controller: _messageController,
                         decoration: InputDecoration(
                           hintText: 'Digite uma mensagem...',
-                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          hintStyle: TextStyle(color: Colors.grey),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
                               borderSide: BorderSide.none),

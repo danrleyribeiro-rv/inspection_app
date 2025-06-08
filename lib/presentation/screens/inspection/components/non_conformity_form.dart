@@ -49,7 +49,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
 
   bool _isCreating = false;
   DateTime? _deadline;
-  String _severity = 'Média'; // Valor padrão
+  String _severity = 'Média';
 
   @override
   void dispose() {
@@ -58,8 +58,100 @@ class _NonConformityFormState extends State<NonConformityForm> {
     super.dispose();
   }
 
+  Future<void> _editDescriptionDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController(text: _descriptionController.text);
+        return AlertDialog(
+          title: const Text('Descrição da Não Conformidade'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 250),
+              child: TextFormField(
+                controller: controller,
+                maxLines: 8,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    hintText: 'Descreva a não conformidade encontrada...',
+                    hintStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+    
+    if (result != null) {
+      _descriptionController.text = result;
+      setState(() {});
+    }
+  }
+
+  Future<void> _editCorrectiveActionDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController(text: _correctiveActionController.text);
+        return AlertDialog(
+          title: const Text('Ação Corretiva'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: TextFormField(
+                controller: controller,
+                maxLines: 6,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    hintText: 'Descreva as ações necessárias para correção...',
+                    hintStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+    
+    if (result != null) {
+      _correctiveActionController.text = result;
+      setState(() {});
+    }
+  }
+
   Future<void> _saveNonConformity() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_descriptionController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A descrição é obrigatória')),
+      );
+      return;
+    }
+    
     if (widget.selectedTopic == null ||
         widget.selectedItem == null ||
         widget.selectedDetail == null) {
@@ -72,7 +164,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
     setState(() => _isCreating = true);
 
     try {
-      // Extract necessary IDs
       final topicId = widget.selectedTopic!.id;
       final itemId = widget.selectedItem!.id;
       final detailId = widget.selectedDetail!.id;
@@ -81,20 +172,18 @@ class _NonConformityFormState extends State<NonConformityForm> {
         throw Exception('Tópico, item ou detalhe sem ID válido');
       }
 
-      // Prepare non-conformity data
       final nonConformityData = {
-        'description': _descriptionController.text,
+        'description': _descriptionController.text.trim(),
         'severity': _severity,
-        'corrective_action': _correctiveActionController.text.isEmpty
+        'corrective_action': _correctiveActionController.text.trim().isEmpty
             ? null
-            : _correctiveActionController.text,
+            : _correctiveActionController.text.trim(),
         'deadline': _deadline?.toIso8601String(),
         'status': 'pendente',
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       };
 
-      // Add the non-conformity to the appropriate subcollection
       await _serviceFactory.coordinator.saveNonConformity({
         'inspection_id': widget.inspectionId,
         'topic_id': topicId,
@@ -103,16 +192,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         ...nonConformityData,
       });
 
-      // Reset the form
-      _descriptionController.clear();
-      _correctiveActionController.clear();
-      setState(() {
-        _deadline = null;
-        _severity = 'Média';
-        _isCreating = false;
-      });
-
-      // Notify parent
+      _resetForm();
       widget.onNonConformitySaved();
 
       if (mounted) {
@@ -127,11 +207,23 @@ class _NonConformityFormState extends State<NonConformityForm> {
       if (mounted) {
         setState(() => _isCreating = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao registrar não conformidade: $e')),
+          SnackBar(
+            content: Text('Erro ao registrar não conformidade: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
-        debugPrint(e as String?);
       }
     }
+  }
+
+  void _resetForm() {
+    _descriptionController.clear();
+    _correctiveActionController.clear();
+    setState(() {
+      _deadline = null;
+      _severity = 'Média';
+      _isCreating = false;
+    });
   }
 
   Future<void> _pickDeadlineDate() async {
@@ -150,101 +242,18 @@ class _NonConformityFormState extends State<NonConformityForm> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(0),
+      padding: const EdgeInsets.all(12),
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLocationCard(), // Only Topic, Item, Detail selection
-            const SizedBox(height: 5),
-            Card(
-              // Card for non-conformity details
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      // Description
-                      controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Descrição', // Translated
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Informe uma descrição' // Translated
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      // Corrective Action
-                      controller: _correctiveActionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Ação Corretiva (opcional)', // Translated
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      // Deadline
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Prazo', // Translated
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.calendar_today),
-                          onPressed: _pickDeadlineDate,
-                        ),
-                      ),
-                      controller: TextEditingController(
-                        text: _deadline != null
-                            ? DateFormat('dd/MM/yyyy').format(_deadline!)
-                            : '',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      // Severity
-                      decoration: const InputDecoration(
-                        labelText: 'Severidade', // Translated
-                        border: OutlineInputBorder(),
-                      ),
-                      value: _severity,
-                      items: const [
-                        DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
-                        DropdownMenuItem(value: 'Média', child: Text('Média')),
-                        DropdownMenuItem(value: 'Alta', child: Text('Alta')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _severity = value);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            SizedBox(
-              // Save Button
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isCreating ? null : _saveNonConformity,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isCreating
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Registrar Não Conformidade'), // Translated
-              ),
-            ),
-            const SizedBox(height: 10),
+            _buildLocationCard(),
+            const SizedBox(height: 8),
+            _buildNonConformityDetailsCard(),
+            const SizedBox(height: 8),
+            _buildSaveButton(),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -252,88 +261,257 @@ class _NonConformityFormState extends State<NonConformityForm> {
   }
 
   Widget _buildLocationCard() {
-    // Now only contains Topic, Item, and Detail dropdowns
     return Card(
-      margin: const EdgeInsets.only(bottom: 0), // Adjusted margin
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Localização da Não Conformidade', // Translated
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Icon(Icons.location_on, color: Colors.blue, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Localização da Não Conformidade',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            // Topic dropdown
-            DropdownButtonFormField<Topic>(
-              decoration: const InputDecoration(
-                labelText: 'Tópico', // Updated from 'Ambiente'
-                border: OutlineInputBorder(),
-              ),
+            _buildDropdown<Topic>(
+              label: 'Tópico',
               value: widget.selectedTopic,
-              items: widget.topics.map((topic) {
-                return DropdownMenuItem<Topic>(
-                  value: topic,
-                  child: Text(topic.topicName),
-                );
-              }).toList(),
+              items: widget.topics,
               onChanged: (value) {
-                if (value != null) {
-                  widget.onTopicSelected(value);
-                }
+                if (value != null) widget.onTopicSelected(value);
               },
-              validator: (value) =>
-                  value == null ? 'Selecione um tópico' : null, // Updated
+              displayText: (topic) => topic.topicName,
+              icon: Icons.home_work_outlined,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // Item dropdown
-            DropdownButtonFormField<Item>(
-              decoration: const InputDecoration(
-                labelText: 'Item', // Translated
-                border: OutlineInputBorder(),
-              ),
+            _buildDropdown<Item>(
+              label: 'Item',
               value: widget.selectedItem,
-              items: widget.items.map((item) {
-                return DropdownMenuItem<Item>(
-                  value: item,
-                  child: Text(item.itemName),
-                );
-              }).toList(),
+              items: widget.items,
               onChanged: (value) {
-                if (value != null) {
-                  widget.onItemSelected(value);
-                }
+                if (value != null) widget.onItemSelected(value);
               },
-              validator: (value) =>
-                  value == null ? 'Selecione um item' : null, // Translated
+              displayText: (item) => item.itemName,
+              icon: Icons.list_alt,
+              enabled: widget.selectedTopic != null,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // Detail dropdown
-            DropdownButtonFormField<Detail>(
-              decoration: const InputDecoration(
-                labelText: 'Detalhe', // Translated
-                border: OutlineInputBorder(),
-              ),
+            _buildDropdown<Detail>(
+              label: 'Detalhe',
               value: widget.selectedDetail,
-              items: widget.details.map((detail) {
-                return DropdownMenuItem<Detail>(
-                  value: detail,
-                  child: Text(detail.detailName),
-                );
-              }).toList(),
+              items: widget.details,
               onChanged: (value) {
-                if (value != null) {
-                  widget.onDetailSelected(value);
-                }
+                if (value != null) widget.onDetailSelected(value);
               },
-              validator: (value) =>
-                  value == null ? 'Selecione um detalhe' : null, // Translated
+              displayText: (detail) => detail.detailName,
+              icon: Icons.details,
+              enabled: widget.selectedItem != null,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNonConformityDetailsCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Detalhes da Não Conformidade',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            _buildSeverityDropdown(),
+            const SizedBox(height: 12),
+
+            // Description field with popup
+            GestureDetector(
+              onTap: _editDescriptionDialog,
+              child: AbsorbPointer(
+                child: TextFormField(
+                  controller: _descriptionController,
+                  decoration: InputDecoration(
+                    labelText: 'Descrição *',
+                    hintText: _descriptionController.text.isEmpty 
+                        ? 'Toque para adicionar descrição...' 
+                        : null,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.description),
+                    suffixIcon: const Icon(Icons.edit, size: 18),
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Corrective action field with popup
+            GestureDetector(
+              onTap: _editCorrectiveActionDialog,
+              child: AbsorbPointer(
+                child: TextFormField(
+                  controller: _correctiveActionController,
+                  decoration: InputDecoration(
+                    labelText: 'Ação Corretiva (opcional)',
+                    hintText: _correctiveActionController.text.isEmpty 
+                        ? 'Toque para adicionar ação corretiva...' 
+                        : null,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.build),
+                    suffixIcon: const Icon(Icons.edit, size: 18),
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _buildDeadlinePicker(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown<T>({
+    required String label,
+    required T? value,
+    required List<T> items,
+    required Function(T?) onChanged,
+    required String Function(T) displayText,
+    required IconData icon,
+    bool enabled = true,
+  }) {
+    return DropdownButtonFormField<T>(
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        prefixIcon: Icon(icon),
+      ),
+      value: value,
+      items: items.map((item) {
+        return DropdownMenuItem<T>(
+          value: item,
+          child: Text(displayText(item), overflow: TextOverflow.ellipsis),
+        );
+      }).toList(),
+      onChanged: enabled ? onChanged : null,
+      isExpanded: true,
+    );
+  }
+
+  Widget _buildSeverityDropdown() {
+    return DropdownButtonFormField<String>(
+      decoration: const InputDecoration(
+        labelText: 'Severidade',
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.priority_high),
+      ),
+      value: _severity,
+      items: const [
+        DropdownMenuItem(
+          value: 'Baixa',
+          child: Row(
+            children: [
+              Icon(Icons.circle, color: Colors.blue, size: 12),
+              SizedBox(width: 8),
+              Text('Baixa'),
+            ],
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'Média',
+          child: Row(
+            children: [
+              Icon(Icons.circle, color: Colors.orange, size: 12),
+              SizedBox(width: 8),
+              Text('Média'),
+            ],
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'Alta',
+          child: Row(
+            children: [
+              Icon(Icons.circle, color: Colors.red, size: 12),
+              SizedBox(width: 8),
+              Text('Alta'),
+            ],
+          ),
+        ),
+      ],
+      onChanged: (value) {
+        if (value != null) setState(() => _severity = value);
+      },
+    );
+  }
+
+  Widget _buildDeadlinePicker() {
+    return GestureDetector(
+      onTap: _pickDeadlineDate,
+      child: AbsorbPointer(
+        child: TextFormField(
+          decoration: const InputDecoration(
+            labelText: 'Prazo (opcional)',
+            hintText: 'Selecione uma data limite',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.calendar_today),
+            suffixIcon: Icon(Icons.arrow_drop_down),
+          ),
+          controller: TextEditingController(
+            text: _deadline != null
+                ? DateFormat('dd/MM/yyyy').format(_deadline!)
+                : '',
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: _isCreating ? null : _saveNonConformity,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: _isCreating
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+              )
+            : const Icon(Icons.save),
+        label: Text(
+          _isCreating ? 'Salvando...' : 'Registrar Não Conformidade',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );

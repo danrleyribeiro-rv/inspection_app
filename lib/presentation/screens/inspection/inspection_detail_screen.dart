@@ -27,11 +27,9 @@ class InspectionDetailScreen extends StatefulWidget {
 }
 
 class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
-  // Services via factory
   final ServiceFactory _serviceFactory = ServiceFactory();
   late CheckpointDialogService _checkpointDialogService;
 
-  // States
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOnline = true;
@@ -58,11 +56,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     });
 
     _loadInspection();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   void _listenToConnectivity() {
@@ -162,9 +155,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       final isAlreadyApplied = await _serviceFactory.coordinator
           .isTemplateAlreadyApplied(_inspection!.id);
       if (!mounted || isAlreadyApplied) {
-        if (mounted)
+        if (mounted) {
           setState(
               () => _inspection = _inspection!.copyWith(isTemplated: true));
+        }
         return;
       }
       setState(() => _isApplyingTemplate = true);
@@ -355,7 +349,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   }
 
   Future<void> _addTopic() async {
-    // Await é um async gap
     final template = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => TemplateSelectorDialog(
@@ -365,7 +358,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       ),
     );
 
-    // Após o gap, verificar `mounted`
     if (template == null || !mounted) return;
 
     final topicName = template['name'] as String;
@@ -583,11 +575,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
-  // =================================================================
-  // A CORREÇÃO FINAL: Extrair a lógica para um método separado.
-  // =================================================================
   Future<void> _handleMenuSelection(String value) async {
-    // A verificação `mounted` no início do método garante a segurança para todas as operações.
     if (!mounted) return;
 
     switch (value) {
@@ -595,7 +583,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         await _importInspection();
         break;
       case 'nonConformities':
-        // Agora, esta navegação está segura dentro do método.
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => NonConformityScreen(
@@ -642,7 +629,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               await _serviceFactory.coordinator.getAllMedia(inspectionId);
           totalMedia = allMedia.length;
 
-          // A verificação final antes de usar o context para o dialog.
           if (mounted) {
             showDialog(
               context: context,
@@ -662,10 +648,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
-    final screenSize = MediaQuery.of(context).size;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
@@ -729,7 +714,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             PopupMenuButton<String>(
               padding: const EdgeInsets.all(5),
               icon: const Icon(Icons.more_vert, size: 22),
-              // Simplesmente chame o método extraído.
               onSelected: _handleMenuSelection,
               itemBuilder: (context) => [
                 const PopupMenuItem(
@@ -807,14 +791,80 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: _buildBody(isLandscape, screenSize),
+      body: Column(
+        children: [
+          // Conteúdo principal
+          Expanded(
+            child: _buildBody(screenSize),
+          ),
+
+          // Barra inferior - só mostra se teclado não estiver aberto
+          if (keyboardHeight == 0 && !_isLoading && _topics.isNotEmpty)
+            Container(
+              padding: EdgeInsets.only(
+                top: 8,
+                bottom: bottomPadding + 8,
+                left: 16,
+                right: 16,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildShortcutButton(
+                    icon: Icons.photo_library,
+                    label: 'Galeria',
+                    onTap: _navigateToMediaGallery,
+                    color: Colors.purple,
+                  ),
+                  _buildShortcutButton(
+                    icon: Icons.warning_amber_rounded,
+                    label: 'NCs',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => NonConformityScreen(
+                            inspectionId: widget.inspectionId,
+                          ),
+                        ),
+                      );
+                    },
+                    color: const Color.fromARGB(255, 255, 0, 0),
+                  ),
+                  _buildShortcutButton(
+                    icon: Icons.add_circle_outline,
+                    label: '+ Tópico',
+                    onTap: _addTopic,
+                    color: Colors.blue,
+                  ),
+                  _buildShortcutButton(
+                    icon: Icons.download,
+                    label: 'Exportar',
+                    onTap: _exportInspection,
+                    color: Colors.green,
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildBody(bool isLandscape, Size screenSize) {
+  Widget _buildBody(Size screenSize) {
     if (_isLoading) {
       return LoadingState(
           isDownloading: false, isApplyingTemplate: _isApplyingTemplate);
@@ -842,101 +892,27 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       );
     }
 
-    final double availableHeight = screenSize.height -
-        kToolbarHeight -
-        MediaQuery.of(context).padding.top -
-        MediaQuery.of(context).padding.bottom;
-
-    return Column(
-      children: [
-        Expanded(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: screenSize.width,
-              maxHeight: availableHeight,
-            ),
-            child: _topics.isEmpty
-                ? EmptyTopicState(onAddTopic: _addTopic)
-                : StatefulBuilder(
-                    builder: (context, setState) {
-                      return TopicsList(
-                        topics: _topics,
-                        expandedTopicIndex: _expandedTopicIndex,
-                        onTopicUpdated: _updateTopic,
-                        onTopicDeleted: _deleteTopic,
-                        onTopicDuplicated: _duplicateTopic,
-                        onExpansionChanged: (index) {
-                          setState(() {
-                            _expandedTopicIndex =
-                                _expandedTopicIndex == index ? -1 : index;
-                          });
-                        },
-                        inspectionId: widget.inspectionId,
-                        onTopicsReordered: _loadTopics,
-                      );
-                    },
-                  ),
-          ),
-        ),
-        if (!_isLoading && _topics.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildShortcutButton(
-                  icon: Icons.photo_library,
-                  label: 'Galeria',
-                  onTap: _navigateToMediaGallery,
-                  color: Colors.purple,
-                ),
-                _buildShortcutButton(
-                  icon: Icons.warning_amber_rounded,
-                  label: 'NCs',
-                  onTap: () {
-                    // Navegação síncrona dentro de um callback não-async é segura.
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => NonConformityScreen(
-                          inspectionId: widget.inspectionId,
-                        ),
-                      ),
-                    );
-                  },
-                  color: const Color.fromARGB(255, 255, 0, 0),
-                ),
-                _buildShortcutButton(
-                  icon: Icons.add_circle_outline,
-                  label: '+ Tópico',
-                  onTap: _addTopic,
-                  color: Colors.blue,
-                ),
-                _buildShortcutButton(
-                  icon: Icons.download,
-                  label: 'Exportar',
-                  onTap: _exportInspection,
-                  color: Colors.green,
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
+    return _topics.isEmpty
+        ? EmptyTopicState(onAddTopic: _addTopic)
+        : StatefulBuilder(
+            builder: (context, setState) {
+              return TopicsList(
+                topics: _topics,
+                expandedTopicIndex: _expandedTopicIndex,
+                onTopicUpdated: _updateTopic,
+                onTopicDeleted: _deleteTopic,
+                onTopicDuplicated: _duplicateTopic,
+                onExpansionChanged: (index) {
+                  setState(() {
+                    _expandedTopicIndex =
+                        _expandedTopicIndex == index ? -1 : index;
+                  });
+                },
+                inspectionId: widget.inspectionId,
+                onTopicsReordered: _loadTopics,
+              );
+            },
+          );
   }
 
   Widget _buildShortcutButton({
@@ -951,7 +927,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0), // Reduzido de 10 para 8
           decoration: BoxDecoration(
             color: color.withAlpha((255 * 0.08).round()),
             borderRadius: BorderRadius.circular(16),
@@ -962,14 +938,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               Icon(
                 icon,
                 color: color,
-                size: 28,
+                size: 24, // Reduzido de 28 para 24
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2), // Reduzido de 4 para 2
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 12,
+                  fontSize: 11, // Reduzido de 12 para 11
                   fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,

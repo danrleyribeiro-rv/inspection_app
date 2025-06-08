@@ -1,4 +1,4 @@
-// lib/presentation/widgets/media_handling_widget.dart
+// lib/presentation/widgets/media/media_handling_widget.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
+import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -53,32 +54,24 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection =
-          await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-      if (inspection?.topics != null &&
-          widget.topicIndex < inspection!.topics!.length) {
+      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
         final topic = inspection.topics![widget.topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
 
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          final details =
-              List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
 
           if (widget.detailIndex < details.length) {
             final detail = details[widget.detailIndex];
-            final media =
-                List<Map<String, dynamic>>.from(detail['media'] ?? []);
+            final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
 
             setState(() {
-              _mediaItems = media
-                  .asMap()
-                  .entries
-                  .map((entry) => {
-                        ...entry.value,
-                        'media_index': entry.key,
-                      })
-                  .toList();
+              _mediaItems = media.asMap().entries.map((entry) => {
+                ...entry.value,
+                'media_index': entry.key,
+              }).toList();
               _isLoading = false;
             });
             return;
@@ -92,9 +85,25 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       });
     } catch (e) {
       debugPrint('Error loading media: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showMediaCapturePopup() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaCapturePopup(
+        onMediaSelected: _captureMedia,
+      ),
+    );
+  }
+
+  Future<void> _captureMedia(ImageSource source, String type) async {
+    if (type == 'image') {
+      await _pickImage(source);
+    } else if (type == 'video') {
+      await _pickVideo(source);
     }
   }
 
@@ -126,11 +135,9 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
-      final newFilename =
-          'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+      final newFilename = 'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
       final localPath = '${mediaDir.path}/$newFilename';
 
-      // Processar imagem para 4:3 em background
       final processedFile = await _serviceFactory.mediaService.processImage43(
         pickedFile.path,
         localPath,
@@ -140,7 +147,6 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         await File(pickedFile.path).copy(localPath);
       }
 
-      // Obter localização
       final position = await _serviceFactory.mediaService.getCurrentLocation();
 
       final mediaData = <String, dynamic>{
@@ -202,9 +208,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -248,14 +252,11 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final mediaDir = await getMediaDirectory();
       final timestamp = DateTime.now();
       final filename = p.basename(pickedFile.path);
-      final newFilename =
-          'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
+      final newFilename = 'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
       final localPath = '${mediaDir.path}/$newFilename';
 
-      // Para vídeo, apenas copiar (16:9 seria processado aqui se necessário)
       await File(pickedFile.path).copy(localPath);
 
-      // Obter localização
       final position = await _serviceFactory.mediaService.getCurrentLocation();
 
       final mediaData = <String, dynamic>{
@@ -327,10 +328,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   }
 
   Future<void> _addMediaToInspection(Map<String, dynamic> mediaData) async {
-    final inspection =
-        await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-    if (inspection?.topics != null &&
-        widget.topicIndex < inspection!.topics!.length) {
+    final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+    if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = topics[widget.topicIndex];
       final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
@@ -351,8 +350,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           topic['items'] = items;
           topics[widget.topicIndex] = topic;
 
-          await _serviceFactory.coordinator
-              .saveInspection(inspection.copyWith(topics: topics));
+          await _serviceFactory.coordinator.saveInspection(inspection.copyWith(topics: topics));
         }
       }
     }
@@ -363,8 +361,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Mídia'),
-        content:
-            const Text('Tem certeza que deseja excluir este arquivo de mídia?'),
+        content: const Text('Tem certeza que deseja excluir este arquivo de mídia?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -395,32 +392,25 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       if (media['localPath'] != null) {
         try {
           final file = File(media['localPath']);
-          if (await file.exists()) {
-            await file.delete();
-          }
+          if (await file.exists()) await file.delete();
         } catch (e) {
           debugPrint('Error deleting local file: $e');
         }
       }
 
-      final inspection =
-          await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-      if (inspection?.topics != null &&
-          widget.topicIndex < inspection!.topics!.length) {
+      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);
         final topic = topics[widget.topicIndex];
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
 
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          final details =
-              List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
 
           if (widget.detailIndex < details.length) {
-            final detail =
-                Map<String, dynamic>.from(details[widget.detailIndex]);
-            final mediaList =
-                List<Map<String, dynamic>>.from(detail['media'] ?? []);
+            final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
+            final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
 
             if (mediaIndex < mediaList.length) {
               mediaList.removeAt(mediaIndex);
@@ -431,8 +421,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               topic['items'] = items;
               topics[widget.topicIndex] = topic;
 
-              await _serviceFactory.coordinator
-                  .saveInspection(inspection.copyWith(topics: topics));
+              await _serviceFactory.coordinator.saveInspection(inspection.copyWith(topics: topics));
             }
           }
         }
@@ -459,9 +448,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -481,54 +468,14 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed:
-                    _isLoading ? null : () => _pickImage(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Tirar Foto'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed:
-                    _isLoading ? null : () => _pickVideo(ImageSource.camera),
-                icon: const Icon(Icons.videocam),
-                label: const Text('Gravar Vídeo'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed:
-                    _isLoading ? null : () => _pickImage(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Da Galeria'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed:
-                    _isLoading ? null : () => _pickVideo(ImageSource.gallery),
-                icon: const Icon(Icons.video_library),
-                label: const Text('Vídeo Galeria'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-              ),
-            ),
-          ],
+        ElevatedButton.icon(
+          onPressed: _isLoading ? null : _showMediaCapturePopup,
+          icon: const Icon(Icons.camera_alt),
+          label: const Text('Capturar Mídia'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+          ),
         ),
         const SizedBox(height: 16),
         if (_isLoading)
@@ -539,10 +486,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                 const CircularProgressIndicator(),
                 const SizedBox(height: 12),
                 if (_isProcessingVideo)
-                  const Text(
-                    'Processando vídeo...\nIsso pode levar alguns instantes.',
-                    textAlign: TextAlign.center,
-                  )
+                  const Text('Processando vídeo...\nIsso pode levar alguns instantes.', textAlign: TextAlign.center)
                 else
                   const Text('Carregando...'),
               ],
@@ -559,10 +503,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Mídias Anexadas:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              const Text('Mídias Anexadas:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 8),
               SizedBox(
                 height: 150,
@@ -572,173 +513,109 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                   itemBuilder: (context, index) {
                     final media = _mediaItems[index];
                     final isImage = media['type'] == 'image';
-                    final hasUrl = media['url'] != null &&
-                        (media['url'] as String).isNotEmpty;
-                    final hasLocalPath = media['localPath'] != null &&
-                        (media['localPath'] as String).isNotEmpty;
+                    final hasUrl = media['url'] != null && (media['url'] as String).isNotEmpty;
+                    final hasLocalPath = media['localPath'] != null && (media['localPath'] as String).isNotEmpty;
 
                     Widget displayWidget;
                     if (isImage) {
                       if (hasLocalPath) {
                         final file = File(media['localPath']);
                         if (file.existsSync()) {
-                          displayWidget = Image.file(
-                            file,
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, error, _) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.broken_image,
-                                  color: Colors.red),
-                            ),
-                          );
+                          displayWidget = Image.file(file, fit: BoxFit.cover,
+                            errorBuilder: (ctx, error, _) => Container(color: Colors.grey[300], child: const Icon(Icons.broken_image, color: Colors.red)));
                         } else if (hasUrl) {
-                          displayWidget = Image.network(
-                            media['url'],
-                            fit: BoxFit.cover,
+                          displayWidget = Image.network(media['url'], fit: BoxFit.cover,
                             loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) return child;
-                              return const Center(
-                                  child: CircularProgressIndicator());
+                              return const Center(child: CircularProgressIndicator());
                             },
-                            errorBuilder: (ctx, error, _) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.error_outline,
-                                  color: Colors.red),
-                            ),
-                          );
+                            errorBuilder: (ctx, error, _) => Container(color: Colors.grey[300], child: const Icon(Icons.error_outline, color: Colors.red)));
                         } else {
-                          displayWidget = Container(
-                            color: Colors.grey[300],
-                            child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.image_not_supported),
-                                  SizedBox(height: 4),
-                                  Text('Sem Imagem',
-                                      style: TextStyle(fontSize: 10))
-                                ]),
-                          );
+                          displayWidget = Container(color: Colors.grey[300], 
+                            child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              Icon(Icons.image_not_supported), SizedBox(height: 4), Text('Sem Imagem', style: TextStyle(fontSize: 10))
+                            ]));
                         }
                       } else if (hasUrl) {
-                        displayWidget = Image.network(
-                          media['url'],
-                          fit: BoxFit.cover,
+                        displayWidget = Image.network(media['url'], fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
-                            return const Center(
-                                child: CircularProgressIndicator());
+                            return const Center(child: CircularProgressIndicator());
                           },
-                          errorBuilder: (ctx, error, _) => Container(
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.cloud_off,
-                                color: Colors.orange),
-                          ),
-                        );
+                          errorBuilder: (ctx, error, _) => Container(color: Colors.grey[300], child: const Icon(Icons.cloud_off, color: Colors.orange)));
                       } else {
-                        displayWidget = Container(
-                          color: Colors.grey[300],
-                          child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.image),
-                                SizedBox(height: 4),
-                                Text('Sem Fonte',
-                                    style: TextStyle(fontSize: 10))
-                              ]),
-                        );
+                        displayWidget = Container(color: Colors.grey[300], 
+                          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.image), SizedBox(height: 4), Text('Sem Fonte', style: TextStyle(fontSize: 10))
+                          ]));
                       }
                     } else {
-                      displayWidget = Container(
-                        color: Colors.grey[800],
-                        child: const Center(
-                          child: Icon(Icons.video_file,
-                              size: 50, color: Colors.grey),
-                        ),
-                      );
+                      displayWidget = Container(color: Colors.grey[800], 
+                        child: const Center(child: Icon(Icons.video_file, size: 50, color: Colors.grey)));
 
                       if (!hasLocalPath && !hasUrl) {
-                        displayWidget = Container(
-                          color: Colors.grey[300],
-                          child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.videocam_off),
-                                SizedBox(height: 4),
-                                Text('Sem Fonte',
-                                    style: TextStyle(fontSize: 10))
-                              ]),
-                        );
+                        displayWidget = Container(color: Colors.grey[300], 
+                          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.videocam_off), SizedBox(height: 4), Text('Sem Fonte', style: TextStyle(fontSize: 10))
+                          ]));
                       }
                     }
 
                     return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => MediaViewerScreen(
-                                  mediaItems: _mediaItems,
-                                  initialIndex: index,
-                                ),
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => MediaViewerScreen(
+                                mediaItems: _mediaItems,
+                                initialIndex: index,
                               ),
-                            );
-                          },
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 150,
-                                height: 150,
+                            ),
+                          );
+                        },
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 150, height: 150,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: displayWidget),
+                            ),
+                            Positioned(
+                              top: 5, right: 5,
+                              child: Container(
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.black.withAlpha((255 * 0.6).round()),
+                                  shape: BoxShape.circle,
                                 ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: displayWidget,
-                                ),
-                              ),
-                              Positioned(
-                                top: 5,
-                                right: 5,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black
-                                        .withAlpha((255 * 0.6).round()),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        color: Colors.white, size: 20),
-                                    onPressed: () => _deleteMedia(index, media),
-                                    tooltip: 'Excluir Mídia',
-                                    constraints: const BoxConstraints.tightFor(
-                                        width: 30, height: 30),
-                                    padding: EdgeInsets.zero,
-                                  ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.white, size: 20),
+                                  onPressed: () => _deleteMedia(index, media),
+                                  tooltip: 'Excluir Mídia',
+                                  constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+                                  padding: EdgeInsets.zero,
                                 ),
                               ),
-                              Positioned(
-                                bottom: 5,
-                                left: 5,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black
-                                        .withAlpha((255 * 0.6).round()),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    isImage ? 'Foto' : 'Vídeo',
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 12),
-                                  ),
+                            ),
+                            Positioned(
+                              bottom: 5, left: 5,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withAlpha((255 * 0.6).round()),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
+                                child: Text(isImage ? 'Foto' : 'Vídeo', 
+                                  style: const TextStyle(color: Colors.white, fontSize: 12)),
                               ),
-                            ],
-                          ),
-                        ));
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
                   },
                 ),
               ),
