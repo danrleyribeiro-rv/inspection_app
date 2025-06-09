@@ -1,35 +1,24 @@
-// lib/presentation/widgets/progress_circle.dart
+// lib/presentation/widgets/common/progress_circle.dart
 import 'package:flutter/material.dart';
 
 class ProgressCircle extends StatelessWidget {
   final double progress;
   final double size;
   final bool showPercentage;
-  final Color? backgroundColor;
-  final Color? progressColor;
+  final Color? color;
 
   const ProgressCircle({
     super.key,
     required this.progress,
-    this.size = 32,
-    this.showPercentage = true,
-    this.backgroundColor,
-    this.progressColor,
+    this.size = 40,
+    this.showPercentage = false,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    Color getProgressColor() {
-      if (progressColor != null) return progressColor!;
-      
-      if (progress < 30) {
-        return Colors.red;
-      } else if (progress < 70) {
-        return Colors.orange;
-      } else {
-        return Colors.green;
-      }
-    }
+    final displayColor = color ?? Theme.of(context).primaryColor;
+    final percentage = (progress * 100).round();
 
     return SizedBox(
       width: size,
@@ -37,19 +26,19 @@ class ProgressCircle extends StatelessWidget {
       child: Stack(
         children: [
           CircularProgressIndicator(
-            value: progress / 100,
-            backgroundColor: backgroundColor ?? Colors.grey[600],
-            valueColor: AlwaysStoppedAnimation<Color>(getProgressColor()),
-            strokeWidth: size * 0.09, // Proportional stroke width
+            value: progress,
+            backgroundColor: displayColor.withAlpha((255 * 0.2).round()),
+            valueColor: AlwaysStoppedAnimation<Color>(displayColor),
+            strokeWidth: size / 10,
           ),
           if (showPercentage)
             Center(
               child: Text(
-                '${progress.toInt()}',
+                '$percentage%',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: size * 0.31, // Proportional font size
+                  fontSize: size / 4,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),

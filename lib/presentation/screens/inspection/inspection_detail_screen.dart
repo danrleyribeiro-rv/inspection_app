@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inspection_app/models/topic.dart';
+import 'package:inspection_app/models/item.dart';
+import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/models/inspection.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/topics_list.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/hierarchical_inspection_view.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
@@ -34,11 +36,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
-  final bool _isRestoringCheckpoint = false;
   double _overallProgress = 0.0;
   Inspection? _inspection;
   List<Topic> _topics = [];
-  int _expandedTopicIndex = -1;
+  Map<String, List<Item>> _itemsCache = {};
+  Map<String, List<Detail>> _detailsCache = {};
 
   @override
   void initState() {
@@ -109,7 +111,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           _inspection = inspection;
         });
 
-        await _loadTopics();
+        await _loadAllData();
         if (!mounted) return;
 
         await _loadProgress();
@@ -130,6 +132,50 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadAllData() async {
+    if (_inspection?.id == null) return;
+
+    try {
+      // Carregar todos os tópicos
+      final topics =
+          await _serviceFactory.cacheService.getTopics(widget.inspectionId);
+
+      // Carregar todos os itens e detalhes em paralelo
+      for (final topic in topics) {
+        if (topic.id != null) {
+          // Carregar itens do tópico
+          final items = await _serviceFactory.coordinator.getItems(
+            widget.inspectionId,
+            topic.id!,
+          );
+          _itemsCache[topic.id!] = items;
+
+          // Carregar detalhes de cada item
+          for (final item in items) {
+            if (item.id != null) {
+              final details = await _serviceFactory.coordinator.getDetails(
+                widget.inspectionId,
+                topic.id!,
+                item.id!,
+              );
+              _detailsCache['${topic.id!}_${item.id!}'] = details;
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _topics = topics;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Erro ao carregar dados: $e');
       }
     }
   }
@@ -318,28 +364,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  Future<void> _loadTopics() async {
-    if (_inspection?.id == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-
-    try {
-      final topics =
-          await _serviceFactory.cacheService.getTopics(widget.inspectionId);
-
-      if (mounted) {
-        setState(() {
-          _topics = topics;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar('Erro ao carregar tópicos: $e');
-      }
-    }
-  }
-
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -363,8 +387,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     final topicName = template['name'] as String;
     final topicLabel = template['value'] as String?;
 
-    setState(() => _isLoading = true);
-
     try {
       final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
       await _serviceFactory.cacheService.addTopic(
@@ -373,14 +395,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         label: topicLabel,
         position: position,
       );
-      if (!mounted) return;
-
-      await _loadTopics();
-      if (!mounted) return;
-
-      if (_topics.isNotEmpty) {
+      
+      // Recarregar apenas os tópicos
+      final topics =
+          await _serviceFactory.cacheService.getTopics(widget.inspectionId);
+      
+      if (mounted) {
         setState(() {
-          _expandedTopicIndex = _topics.length - 1;
+          _topics = topics;
         });
       }
 
@@ -414,89 +436,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     }
   }
 
-  Future<void> _duplicateTopic(Topic topic) async {
-    setState(() => _isLoading = true);
-    try {
-      await _serviceFactory.cacheService
-          .duplicateTopic(widget.inspectionId, topic.topicName);
-      if (!mounted) return;
-
-      await _loadTopics();
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tópico "${topic.topicName}" duplicado com sucesso'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao duplicar tópico: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _updateTopic(Topic updatedTopic) async {
-    try {
-      await _serviceFactory.cacheService.updateTopic(updatedTopic);
-      if (mounted) {
-        final index = _topics.indexWhere((r) => r.id == updatedTopic.id);
-        if (index >= 0) {
-          setState(() {
-            _topics[index] = updatedTopic;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar tópico: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteTopic(dynamic topicId) async {
-    setState(() => _isLoading = true);
-    try {
-      await _serviceFactory.cacheService
-          .deleteTopic(widget.inspectionId, topicId);
-      if (!mounted) return;
-
-      await _loadTopics();
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tópico excluído com sucesso'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao excluir tópico: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  Future<void> _updateCache() async {
+    // Recarregar dados sem setState global
+    await _loadAllData();
+    await _loadProgress();
   }
 
   Future<void> _exportInspection() async {
@@ -613,13 +559,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
           for (final topic in _topics) {
             if (!mounted) return;
-            final items = await _serviceFactory.coordinator
-                .getItems(inspectionId, topic.id!);
+            final items = _itemsCache[topic.id!] ?? [];
             totalItems += items.length;
             for (final item in items) {
               if (!mounted) return;
-              final details = await _serviceFactory.coordinator
-                  .getDetails(inspectionId, topic.id!, item.id!);
+              final details = _detailsCache['${topic.id!}_${item.id!}'] ?? [];
               totalDetails += details.length;
             }
           }
@@ -650,7 +594,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
@@ -662,9 +605,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 _inspection?.cod ?? 'Inspeção',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.normal,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (!_isLoading && _inspection != null) ...[
@@ -674,7 +618,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 size: 24,
                 showPercentage: true,
               ),
-              const SizedBox(width: 1),
             ],
           ],
         ),
@@ -698,7 +641,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               padding: const EdgeInsets.all(5),
               visualDensity: VisualDensity.compact,
             ),
-          if (_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint)
+          if (_isSyncing || _isApplyingTemplate)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
               child: SizedBox(
@@ -710,7 +653,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 ),
               ),
             ),
-          if (!(_isSyncing || _isApplyingTemplate || _isRestoringCheckpoint))
+          if (!(_isSyncing || _isApplyingTemplate))
             PopupMenuButton<String>(
               padding: const EdgeInsets.all(5),
               icon: const Icon(Icons.more_vert, size: 22),
@@ -795,10 +738,21 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         children: [
           // Conteúdo principal
           Expanded(
-            child: _buildBody(screenSize),
+            child: _isLoading
+                ? LoadingState(
+                    isDownloading: false, isApplyingTemplate: _isApplyingTemplate)
+                : _topics.isEmpty
+                    ? EmptyTopicState(onAddTopic: _addTopic)
+                    : HierarchicalInspectionView(
+                        inspectionId: widget.inspectionId,
+                        topics: _topics,
+                        itemsCache: _itemsCache,
+                        detailsCache: _detailsCache,
+                        onUpdateCache: _updateCache,
+                      ),
           ),
 
-          // Barra inferior - só mostra se teclado não estiver aberto
+          // Barra inferior
           if (keyboardHeight == 0 && !_isLoading && _topics.isNotEmpty)
             Container(
               padding: EdgeInsets.only(
@@ -842,7 +796,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                         ),
                       );
                     },
-                    color: const Color.fromARGB(255, 255, 0, 0),
+                    color: Colors.red,
                   ),
                   _buildShortcutButton(
                     icon: Icons.add_circle_outline,
@@ -864,57 +818,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     );
   }
 
-  Widget _buildBody(Size screenSize) {
-    if (_isLoading) {
-      return LoadingState(
-          isDownloading: false, isApplyingTemplate: _isApplyingTemplate);
-    }
-
-    if (_isRestoringCheckpoint) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: Colors.green),
-            SizedBox(height: 24),
-            Text(
-              'Restaurando checkpoint...',
-              style: TextStyle(fontSize: 16, color: Colors.white),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Por favor, aguarde enquanto a inspeção é restaurada.',
-              style: TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return _topics.isEmpty
-        ? EmptyTopicState(onAddTopic: _addTopic)
-        : StatefulBuilder(
-            builder: (context, setState) {
-              return TopicsList(
-                topics: _topics,
-                expandedTopicIndex: _expandedTopicIndex,
-                onTopicUpdated: _updateTopic,
-                onTopicDeleted: _deleteTopic,
-                onTopicDuplicated: _duplicateTopic,
-                onExpansionChanged: (index) {
-                  setState(() {
-                    _expandedTopicIndex =
-                        _expandedTopicIndex == index ? -1 : index;
-                  });
-                },
-                inspectionId: widget.inspectionId,
-                onTopicsReordered: _loadTopics,
-              );
-            },
-          );
-  }
-
   Widget _buildShortcutButton({
     required IconData icon,
     required String label,
@@ -927,7 +830,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0), // Reduzido de 10 para 8
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
           decoration: BoxDecoration(
             color: color.withAlpha((255 * 0.08).round()),
             borderRadius: BorderRadius.circular(16),
@@ -938,14 +841,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               Icon(
                 icon,
                 color: color,
-                size: 24, // Reduzido de 28 para 24
+                size: 24,
               ),
-              const SizedBox(height: 2), // Reduzido de 4 para 2
+              const SizedBox(height: 2),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11, // Reduzido de 12 para 11
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,
