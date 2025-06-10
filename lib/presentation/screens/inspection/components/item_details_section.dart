@@ -1,18 +1,16 @@
-// lib/presentation/screens/inspection/components/item_details_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
-import 'package:image_picker/image_picker.dart';
 
 class ItemDetailsSection extends StatefulWidget {
   final Item item;
   final Topic topic;
   final String inspectionId;
   final Function(Item) onItemUpdated;
+  final VoidCallback onItemAction;
 
   const ItemDetailsSection({
     super.key,
@@ -20,6 +18,7 @@ class ItemDetailsSection extends StatefulWidget {
     required this.topic,
     required this.inspectionId,
     required this.onItemUpdated,
+    required this.onItemAction,
   });
 
   @override
@@ -30,12 +29,24 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   final ServiceFactory _serviceFactory = ServiceFactory();
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
-  bool _isAddingMedia = false;
+  String _currentItemName = '';
 
   @override
   void initState() {
     super.initState();
     _observationController.text = widget.item.observation ?? '';
+    _currentItemName = widget.item.itemName;
+  }
+
+  @override
+  void didUpdateWidget(ItemDetailsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.item.itemName != _currentItemName) {
+      _currentItemName = widget.item.itemName;
+    }
+    if (widget.item.observation != _observationController.text) {
+      _observationController.text = widget.item.observation ?? '';
+    }
   }
 
   @override
@@ -55,6 +66,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             : _observationController.text,
         updatedAt: DateTime.now(),
       );
+      
+      _serviceFactory.coordinator.updateItem(updatedItem);
       widget.onItemUpdated(updatedItem);
     });
   }
@@ -115,30 +128,48 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         itemName: newName,
         updatedAt: DateTime.now(),
       );
+      
+      setState(() {
+        _currentItemName = newName;
+      });
+      
+      await _serviceFactory.coordinator.updateItem(updatedItem);
       widget.onItemUpdated(updatedItem);
     }
   }
 
-  void _showMediaCapturePopup() {
-    showModalBottomSheet(
+  Future<void> _duplicateItem() async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MediaCapturePopup(
-        onMediaSelected: _captureItemMedia,
+      builder: (context) => AlertDialog(
+        title: const Text('Duplicar Item'),
+        content: Text('Deseja duplicar o item "${widget.item.itemName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Duplicar'),
+          ),
+        ],
       ),
     );
-  }
 
-  Future<void> _captureItemMedia(ImageSource source, String type) async {
-    setState(() => _isAddingMedia = true);
+    if (confirmed != true) return;
 
     try {
-      // Lógica de captura de mídia aqui...
+      await _serviceFactory.coordinator.duplicateItem(
+        widget.inspectionId, 
+        widget.topic.id!, 
+        widget.item,
+      );
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} do item salvo com sucesso'),
+          const SnackBar(
+            content: Text('Item duplicado com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -146,14 +177,58 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar mídia: $e')),
+          SnackBar(content: Text('Erro ao duplicar item: $e')),
         );
       }
-    } finally {
+    }
+    widget.onItemAction();
+  }
+
+  Future<void> _deleteItem() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Item'),
+        content: Text('Tem certeza que deseja excluir "${widget.item.itemName}"?\n\nTodos os detalhes serão excluídos permanentemente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _serviceFactory.coordinator.deleteItem(
+        widget.inspectionId, 
+        widget.topic.id!, 
+        widget.item.id!,
+      );
+      
       if (mounted) {
-        setState(() => _isAddingMedia = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Item excluído com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir item: $e')),
+        );
       }
     }
+    widget.onItemAction();
   }
 
   @override
@@ -167,19 +242,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         border: Border.all(color: Colors.orange.withAlpha((255 * 0.2).round())),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // ADICIONE ESTA LINHA
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Botões de ação
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildActionButton(
-                icon: _isAddingMedia ? null : Icons.camera_alt,
-                label: 'Mídia',
-                onPressed: _isAddingMedia ? null : _showMediaCapturePopup,
-                isLoading: _isAddingMedia,
-              ),
               _buildActionButton(
                 icon: Icons.edit,
                 label: 'Renomear',
@@ -188,16 +256,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
               _buildActionButton(
                 icon: Icons.copy,
                 label: 'Duplicar',
-                onPressed: () {
-                  // Lógica para duplicar
-                },
+                onPressed: _duplicateItem,
               ),
               _buildActionButton(
                 icon: Icons.delete,
                 label: 'Excluir',
-                onPressed: () {
-                  // Lógica para excluir
-                },
+                onPressed: _deleteItem,
                 color: Colors.red,
               ),
             ],
@@ -205,7 +269,6 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           
           const SizedBox(height: 16),
           
-          // Campo de observações
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
@@ -217,89 +280,79 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Row(
-                   children: [
-                     Icon(Icons.note_alt, size: 16, color: Colors.orange.shade300),
-                     const SizedBox(width: 8),
-                     Text(
-                       'Observações',
-                       style: TextStyle(
-                         fontWeight: FontWeight.bold,
-                         color: Colors.orange.shade300,
-                       ),
-                     ),
-                     const Spacer(),
-                     Icon(Icons.edit, size: 16, color: Colors.orange.shade300),
-                   ],
-                 ),
-                 const SizedBox(height: 8),
-                 Text(
-                   _observationController.text.isEmpty 
-                       ? 'Toque para adicionar observações...'
-                       : _observationController.text,
-                   style: TextStyle(
-                     color: _observationController.text.isEmpty 
-                         ? Colors.orange.shade200
-                         : Colors.white,
-                     fontStyle: _observationController.text.isEmpty 
-                         ? FontStyle.italic 
-                         : FontStyle.normal,
-                   ),
-                 ),
-               ],
-             ),
-           ),
-         ),
-       ],
-     ),
-   );
- }
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.note_alt, size: 16, color: Colors.orange.shade300),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Observações',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade300,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.edit, size: 16, color: Colors.orange.shade300),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _observationController.text.isEmpty 
+                        ? 'Toque para adicionar observações...'
+                        : _observationController.text,
+                    style: TextStyle(
+                      color: _observationController.text.isEmpty 
+                          ? Colors.orange.shade200
+                          : Colors.white,
+                      fontStyle: _observationController.text.isEmpty 
+                          ? FontStyle.italic 
+                          : FontStyle.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
- Widget _buildActionButton({
-   IconData? icon,
-   required String label,
-   required VoidCallback? onPressed,
-   Color? color,
-   bool isLoading = false,
- }) {
-   return Column(
-     mainAxisSize: MainAxisSize.min,
-     children: [
-       SizedBox(
-         width: 48,
-         height: 48,
-         child: ElevatedButton(
-           onPressed: onPressed,
-           style: ElevatedButton.styleFrom(
-             backgroundColor: color ?? Colors.orange,
-             foregroundColor: Colors.white,
-             padding: EdgeInsets.zero,
-             shape: RoundedRectangleBorder(
-               borderRadius: BorderRadius.circular(8),
-             ),
-           ),
-           child: isLoading
-               ? const SizedBox(
-                   width: 20,
-                   height: 20,
-                   child: CircularProgressIndicator(
-                     color: Colors.white,
-                     strokeWidth: 2,
-                   ),
-                 )
-               : Icon(icon, size: 20),
-         ),
-       ),
-       const SizedBox(height: 4),
-       Text(
-         label,
-         style: const TextStyle(
-           fontSize: 11,
-           color: Colors.white70,
-         ),
-       ),
-     ],
-   );
- }
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    Color? color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 48,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color ?? Colors.orange,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Icon(icon, size: 20),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.white70,
+          ),
+        ),
+      ],
+    );
+  }
 }

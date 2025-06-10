@@ -14,9 +14,6 @@ class CacheService {
   final Connectivity _connectivity = Connectivity();
   final InspectionCoordinator _coordinator = InspectionCoordinator();
 
-  // REMOVIDO: A referência ao SyncService que causava o loop.
-  // final SyncService _syncService = SyncService();
-
   static Future<void> initialize() async {
     await Hive.initFlutter();
     Hive.registerAdapter(CachedInspectionAdapter());
@@ -26,9 +23,6 @@ class CacheService {
   Box<CachedInspection> get _inspectionsBox =>
       Hive.box<CachedInspection>(_inspectionsBoxName);
 
-  // REMOVIDO: initializeSync() e dispose() pois a responsabilidade agora é do ServiceFactory e do próprio SyncService.
-
-  // As operações de cache permanecem as mesmas.
   Future<void> cacheInspection(String id, Map<String, dynamic> data) async {
     final cached = CachedInspection(
       id: id,
@@ -69,7 +63,6 @@ class CacheService {
     await _inspectionsBox.clear();
   }
 
-  // As operações offline permanecem as mesmas.
   Future<bool> _isOnline() async {
     final result = await _connectivity.checkConnectivity();
     return result.contains(ConnectivityResult.wifi) ||
@@ -103,12 +96,10 @@ class CacheService {
       await markForSync(inspection.id);
       if (await _isOnline()) {
         try {
-          // Tenta salvar diretamente no backend se estiver online
           await _inspectionService.saveInspection(inspection);
           await markSynced(inspection.id);
         } catch (e) {
           debugPrint('Error saving to Firebase: $e');
-          // Se falhar, a inspeção já está marcada para sincronização posterior.
         }
       }
     } catch (e) {
@@ -151,7 +142,13 @@ class CacheService {
     await _coordinator.deleteTopic(inspectionId, topicId);
   }
 
+  // CORRIGIDO: Agora busca o tópico primeiro e passa o objeto Topic
   Future<Topic> duplicateTopic(String inspectionId, String topicName) async {
-    return await _coordinator.duplicateTopic(inspectionId, topicName);
+    final topics = await getTopics(inspectionId);
+    final sourceTopic = topics.firstWhere(
+      (topic) => topic.topicName == topicName,
+      orElse: () => throw Exception('Topic not found: $topicName'),
+    );
+    return await _coordinator.duplicateTopic(inspectionId, sourceTopic);
   }
 }

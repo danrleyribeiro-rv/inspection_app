@@ -384,41 +384,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     if (template == null || !mounted) return;
 
-    final topicName = template['name'] as String;
-    final topicLabel = template['value'] as String?;
-
     try {
-      final position = _topics.isNotEmpty ? _topics.last.position + 1 : 0;
-      await _serviceFactory.cacheService.addTopic(
+      // Use o novo método que suporta templates completos
+      await _serviceFactory.coordinator.addTopicFromTemplate(
         widget.inspectionId,
-        topicName,
-        label: topicLabel,
-        position: position,
+        template,
       );
       
-      // Recarregar apenas os tópicos
-      final topics =
-          await _serviceFactory.cacheService.getTopics(widget.inspectionId);
+      await _loadInspection();
       
-      if (mounted) {
-        setState(() {
-          _topics = topics;
-        });
-      }
-
-      if (_inspection?.status == 'pending') {
-        final updatedInspection = _inspection!.copyWith(
-          status: 'in_progress',
-          updatedAt: DateTime.now(),
-        );
-        await _serviceFactory.cacheService.saveInspection(updatedInspection);
-        if (mounted) {
-          setState(() {
-            _inspection = updatedInspection;
-          });
-        }
-      }
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

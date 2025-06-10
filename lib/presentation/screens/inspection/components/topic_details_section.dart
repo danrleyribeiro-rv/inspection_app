@@ -1,22 +1,21 @@
-// lib/presentation/screens/inspection/components/topic_details_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
-import 'package:image_picker/image_picker.dart';
 
 class TopicDetailsSection extends StatefulWidget {
   final Topic topic;
   final String inspectionId;
   final Function(Topic) onTopicUpdated;
+  final VoidCallback onTopicAction;
 
   const TopicDetailsSection({
     super.key,
     required this.topic,
     required this.inspectionId,
     required this.onTopicUpdated,
+    required this.onTopicAction,
   });
 
   @override
@@ -27,12 +26,24 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   final ServiceFactory _serviceFactory = ServiceFactory();
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
-  bool _isAddingMedia = false;
+  String _currentTopicName = '';
 
   @override
   void initState() {
     super.initState();
     _observationController.text = widget.topic.observation ?? '';
+    _currentTopicName = widget.topic.topicName;
+  }
+
+  @override
+  void didUpdateWidget(TopicDetailsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.topic.topicName != _currentTopicName) {
+      _currentTopicName = widget.topic.topicName;
+    }
+    if (widget.topic.observation != _observationController.text) {
+      _observationController.text = widget.topic.observation ?? '';
+    }
   }
 
   @override
@@ -44,7 +55,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
   void _updateTopic() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    
+
     _debounce = Timer(const Duration(milliseconds: 500), () {
       final updatedTopic = widget.topic.copyWith(
         observation: _observationController.text.isEmpty
@@ -52,6 +63,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             : _observationController.text,
         updatedAt: DateTime.now(),
       );
+
+      _serviceFactory.coordinator.updateTopic(updatedTopic);
       widget.onTopicUpdated(updatedTopic);
     });
   }
@@ -60,7 +73,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
-        final controller = TextEditingController(text: _observationController.text);
+        final controller =
+            TextEditingController(text: _observationController.text);
         return AlertDialog(
           title: const Text('Observações do Tópico'),
           content: SizedBox(
@@ -88,7 +102,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         );
       },
     );
-    
+
     if (result != null) {
       setState(() {
         _observationController.text = result;
@@ -112,25 +126,103 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         topicName: newName,
         updatedAt: DateTime.now(),
       );
+
+      setState(() {
+        _currentTopicName = newName;
+      });
+
+      await _serviceFactory.coordinator.updateTopic(updatedTopic);
       widget.onTopicUpdated(updatedTopic);
     }
   }
 
-  void _showMediaCapturePopup() {
-    showModalBottomSheet(
+  Future<void> _duplicateTopic() async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MediaCapturePopup(
-        onMediaSelected: (source, type) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} do tópico capturado'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('Duplicar Tópico'),
+        content: Text('Deseja duplicar o tópico "${widget.topic.topicName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Duplicar'),
+          ),
+        ],
+      ),
+      
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _serviceFactory.coordinator
+          .duplicateTopic(widget.inspectionId, widget.topic);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tópico duplicado com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao duplicar tópico: $e')),
+        );
+      }
+    }
+    widget.onTopicAction();
+  }
+
+  Future<void> _deleteTopic() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Tópico'),
+        content: Text(
+            'Tem certeza que deseja excluir "${widget.topic.topicName}"?\n\nTodos os itens e detalhes serão excluídos permanentemente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
       ),
     );
+
+    if (confirmed != true) return;
+
+    try {
+      await _serviceFactory.coordinator
+          .deleteTopic(widget.inspectionId, widget.topic.id!);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tópico excluído com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir tópico: $e')),
+        );
+      }
+    }
+    widget.onTopicAction();
   }
 
   @override
@@ -147,15 +239,9 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Botões de ação
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildActionButton(
-                icon: Icons.camera_alt,
-                label: 'Mídia',
-                onPressed: _showMediaCapturePopup,
-              ),
               _buildActionButton(
                 icon: Icons.edit,
                 label: 'Renomear',
@@ -164,31 +250,25 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
               _buildActionButton(
                 icon: Icons.copy,
                 label: 'Duplicar',
-                onPressed: () {
-                  // Lógica para duplicar
-                },
+                onPressed: _duplicateTopic,
               ),
               _buildActionButton(
                 icon: Icons.delete,
                 label: 'Excluir',
-                onPressed: () {
-                  // Lógica para excluir
-                },
+                onPressed: _deleteTopic,
                 color: Colors.red,
               ),
             ],
           ),
-          
           const SizedBox(height: 16),
-          
-          // Campo de observações
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.blue.withAlpha((255 * 0.3).round())),
+                border: Border.all(
+                    color: Colors.blue.withAlpha((255 * 0.3).round())),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -196,7 +276,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.note_alt, size: 16, color: Colors.blue.shade300),
+                      Icon(Icons.note_alt,
+                          size: 16, color: Colors.blue.shade300),
                       const SizedBox(width: 8),
                       Text(
                         'Observações',
@@ -211,15 +292,15 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _observationController.text.isEmpty 
+                    _observationController.text.isEmpty
                         ? 'Toque para adicionar observações...'
                         : _observationController.text,
                     style: TextStyle(
-                      color: _observationController.text.isEmpty 
+                      color: _observationController.text.isEmpty
                           ? Colors.blue.shade200
                           : Colors.white,
-                      fontStyle: _observationController.text.isEmpty 
-                          ? FontStyle.italic 
+                      fontStyle: _observationController.text.isEmpty
+                          ? FontStyle.italic
                           : FontStyle.normal,
                     ),
                   ),

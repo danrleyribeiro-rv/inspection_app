@@ -13,6 +13,9 @@ class SwipeableLevelHeader extends StatefulWidget {
   final bool isExpanded;
   final int level;
   final IconData icon;
+  final VoidCallback? onRename;
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onDelete;
 
   const SwipeableLevelHeader({
     super.key,
@@ -26,6 +29,9 @@ class SwipeableLevelHeader extends StatefulWidget {
     required this.isExpanded,
     required this.level,
     required this.icon,
+    this.onRename,
+    this.onDuplicate,
+    this.onDelete,
   });
 
   @override
@@ -43,287 +49,342 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
         return Colors.green;
       default:
         return Colors.grey;
+    }
   }
- }
 
- Color get _backgroundColor {
-   return _levelColor.withAlpha((255 * 0.1).round());
- }
+  Color get _backgroundColor {
+    return _levelColor.withAlpha((255 * 0.1).round());
+  }
 
- void _showDropdownMenu(BuildContext context) {
-   if (widget.items.isEmpty) return;
+  void _showDropdownMenu(BuildContext context) {
+    if (widget.items.isEmpty) return;
 
-   showModalBottomSheet(
-     context: context,
-     backgroundColor: Colors.transparent,
-     builder: (context) => Container(
-       decoration: BoxDecoration(
-         color: Theme.of(context).cardColor,
-         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-       ),
-       child: Column(
-         mainAxisSize: MainAxisSize.min,
-         children: [
-           Container(
-             padding: const EdgeInsets.all(16),
-             decoration: BoxDecoration(
-               color: _levelColor,
-               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-             ),
-             child: Row(
-               children: [
-                 Icon(widget.icon, color: Colors.white),
-                 const SizedBox(width: 8),
-                 Text(
-                   'Selecionar ${_getLevelName()}',
-                   style: const TextStyle(
-                     color: Colors.white,
-                     fontSize: 18,
-                     fontWeight: FontWeight.bold,
-                   ),
-                 ),
-                 const Spacer(),
-                 IconButton(
-                   icon: const Icon(Icons.close, color: Colors.white),
-                   onPressed: () => Navigator.pop(context),
-                 ),
-               ],
-             ),
-           ),
-           Flexible(
-             child: ListView.builder(
-               shrinkWrap: true,
-               itemCount: widget.items.length,
-               itemBuilder: (context, index) {
-                 final isSelected = index == widget.currentIndex;
-                 
-                 return ListTile(
-                   leading: Icon(
-                     widget.icon,
-                     color: isSelected ? _levelColor : null,
-                   ),
-                   title: Text(
-                     widget.items[index],
-                     style: TextStyle(
-                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                       color: isSelected ? _levelColor : null,
-                     ),
-                   ),
-                   trailing: isSelected 
-                       ? Icon(Icons.check, color: _levelColor)
-                       : null,
-                   onTap: () {
-                     widget.onIndexChanged(index);
-                     Navigator.pop(context);
-                   },
-                 );
-               },
-             ),
-           ),
-           const SizedBox(height: 16),
-         ],
-       ),
-     ),
-   );
- }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _levelColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  Icon(widget.icon, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Selecionar ${_getLevelName()}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.items.length,
+                itemBuilder: (context, index) {
+                  final isSelected = index == widget.currentIndex;
+                  
+                  return ListTile(
+                    leading: Icon(
+                      widget.icon,
+                      color: isSelected ? _levelColor : null,
+                    ),
+                    title: Text(
+                      widget.items[index],
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? _levelColor : null,
+                      ),
+                    ),
+                    trailing: isSelected 
+                        ? Icon(Icons.check, color: _levelColor)
+                        : null,
+                    onTap: () {
+                      widget.onIndexChanged(index);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
 
- String _getLevelName() {
-   switch (widget.level) {
-     case 1:
-       return 'Tópico';
-     case 2:
-       return 'Item';
-     case 3:
-       return 'Detalhe';
-     default:
-       return 'Item';
-   }
- }
+  String _getLevelName() {
+    switch (widget.level) {
+      case 1:
+        return 'Tópico';
+      case 2:
+        return 'Item';
+      case 3:
+        return 'Detalhe';
+      default:
+        return 'Item';
+    }
+  }
 
- double _getProgress() {
-   // Simular progresso baseado no nível e posição
-   switch (widget.level) {
-     case 1:
-       return (widget.currentIndex + 1) / widget.totalCount * 0.8;
-     case 2:
-       return (widget.currentIndex + 1) / widget.totalCount * 0.6;
-     case 3:
-       return (widget.currentIndex + 1) / widget.totalCount * 0.4;
-     default:
-       return 0.0;
-   }
- }
+  double _getProgress() {
+    switch (widget.level) {
+      case 1:
+        return (widget.currentIndex + 1) / widget.totalCount * 0.8;
+      case 2:
+        return (widget.currentIndex + 1) / widget.totalCount * 0.6;
+      case 3:
+        return (widget.currentIndex + 1) / widget.totalCount * 0.4;
+      default:
+        return 0.0;
+    }
+  }
 
- @override
- Widget build(BuildContext context) {
-   return Container(
-     margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-     decoration: BoxDecoration(
-       color: _backgroundColor,
-       borderRadius: BorderRadius.circular(12),
-       border: Border.all(color: _levelColor.withAlpha((255 * 0.3).round())),
-     ),
-     child: Material(
-       color: Colors.transparent,
-       child: Column(
-         children: [
-           // Header clicável
-           InkWell(
-             onTap: widget.onExpansionChanged,
-             borderRadius: BorderRadius.circular(12),
-             child: Padding(
-               padding: const EdgeInsets.all(12),
-               child: Row(
-                 children: [
-                   // Botão de navegação anterior
-                   IconButton(
-                     icon: Icon(Icons.chevron_left, color: _levelColor),
-                     onPressed: widget.currentIndex > 0 
-                         ? () => widget.onIndexChanged(widget.currentIndex - 1)
-                         : null,
-                     padding: const EdgeInsets.all(4),
-                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                   ),
-                   
-                   const SizedBox(width: 8),
-                   
-                   // Progress Circle
-                   ProgressCircle(
-                     progress: _getProgress(),
-                     size: 28,
-                     showPercentage: false,
-                     color: _levelColor,
-                   ),
-                   
-                   const SizedBox(width: 12),
-                   
-                   // Conteúdo central expandido
-                   Expanded(
-                     child: GestureDetector(
-                       onTap: () => _showDropdownMenu(context),
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         mainAxisSize: MainAxisSize.min,
-                         children: [
-                           Row(
-                             children: [
-                               Icon(widget.icon, color: _levelColor, size: 18),
-                               const SizedBox(width: 8),
-                               Expanded(
-                                 child: Text(
-                                   widget.title,
-                                   style: TextStyle(
-                                     fontSize: 16,
-                                     fontWeight: FontWeight.bold,
-                                     color: _levelColor,
-                                   ),
-                                   overflow: TextOverflow.ellipsis,
-                                 ),
-                               ),
-                               const SizedBox(width: 4),
-                               Icon(Icons.arrow_drop_down, color: _levelColor, size: 20),
-                             ],
-                           ),
-                           if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
-                             const SizedBox(height: 2),
-                             Text(
-                               widget.subtitle!,
-                               style: TextStyle(
-                                 fontSize: 12,
-                                 color: _levelColor.withAlpha((255 * 0.7).round()),
-                               ),
-                               overflow: TextOverflow.ellipsis,
-                             ),
-                           ],
-                           const SizedBox(height: 4),
-                           Text(
-                             '${widget.currentIndex + 1} de ${widget.totalCount}',
-                             style: TextStyle(
-                               fontSize: 11,
-                               color: _levelColor.withAlpha((255 * 0.6).round()),
-                             ),
-                           ),
-                         ],
-                       ),
-                     ),
-                   ),
-                   
-                   const SizedBox(width: 8),
-                   
-                   // Botão de navegação próximo
-                   IconButton(
-                     icon: Icon(Icons.chevron_right, color: _levelColor),
-                     onPressed: widget.currentIndex < widget.totalCount - 1 
-                         ? () => widget.onIndexChanged(widget.currentIndex + 1)
-                         : null,
-                     padding: const EdgeInsets.all(4),
-                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                   ),
-                   
-                   const SizedBox(width: 8),
-                   
-                   // Ícone de expansão
-                   Icon(
-                     widget.isExpanded ? Icons.expand_less : Icons.expand_more,
-                     color: _levelColor,
-                     size: 24,
-                   ),
-                 ],
-               ),
-             ),
-           ),
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required Color color,
+    double size = 24,
+  }) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(size / 2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: color.withAlpha((255 * 0.1).round()),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withAlpha((255 * 0.3).round())),
+            ),
+            child: Icon(icon, color: color, size: size * 0.6),
+          ),
+        ),
+      ),
+    );
+  }
 
-           // Indicadores de paginação (bolinhas) - APENAS quando mais de 1 item
-           if (widget.totalCount > 1)
-             Container(
-               padding: const EdgeInsets.only(bottom: 8),
-               child: Row(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: List.generate(
-                   widget.totalCount > 10 ? 10 : widget.totalCount,
-                   (index) {
-                     if (widget.totalCount > 10 && index == 9) {
-                       return Container(
-                         margin: const EdgeInsets.symmetric(horizontal: 2),
-                         child: Text(
-                           '...',
-                           style: TextStyle(
-                             color: _levelColor.withAlpha((255 * 0.5).round()),
-                             fontSize: 8,
-                           ),
-                         ),
-                       );
-                     }
-                     
-                     final dotIndex = widget.totalCount > 10 && widget.currentIndex >= 9 
-                         ? widget.currentIndex - 9 + index
-                         : index;
-                     
-                     if (dotIndex >= widget.totalCount) return const SizedBox.shrink();
-                     
-                     final isActive = dotIndex == widget.currentIndex;
-                     
-                     return GestureDetector(
-                       onTap: () => widget.onIndexChanged(dotIndex),
-                       child: Container(
-                         margin: const EdgeInsets.symmetric(horizontal: 2),
-                         width: isActive ? 8 : 6,
-                         height: isActive ? 8 : 6,
-                         decoration: BoxDecoration(
-                           shape: BoxShape.circle,
-                           color: isActive
-                               ? _levelColor
-                               : _levelColor.withAlpha((255 * 0.3).round()),
-                         ),
-                       ),
-                     );
-                   },
-                 ),
-               ),
-             ),
-         ],
-       ),
-     ),
-   );
- }
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _levelColor.withAlpha((255 * 0.3).round())),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: widget.onExpansionChanged,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    // Botão anterior
+                    IconButton(
+                      icon: Icon(Icons.chevron_left, color: _levelColor),
+                      onPressed: widget.currentIndex > 0 
+                          ? () => widget.onIndexChanged(widget.currentIndex - 1)
+                          : null,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                    
+                    const SizedBox(width: 8),
+                    
+                    ProgressCircle(
+                      progress: _getProgress(),
+                      size: 28,
+                      showPercentage: false,
+                      color: _levelColor,
+                    ),
+                    
+                    const SizedBox(width: 12),
+                    
+                    // Conteúdo central
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Linha superior: nome + botões de ação
+                          Row(
+                            children: [
+                              Icon(widget.icon, color: _levelColor, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => _showDropdownMenu(context),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          widget.title,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: _levelColor,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(Icons.arrow_drop_down, color: _levelColor, size: 20),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              
+                              // Botões de ação inline para detalhes
+                              if (widget.level == 3) ...[
+                                const SizedBox(width: 8),
+                                _buildActionButton(
+                                  icon: Icons.edit,
+                                  onPressed: widget.onRename,
+                                  color: Colors.blue,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 4),
+                                _buildActionButton(
+                                  icon: Icons.copy,
+                                  onPressed: widget.onDuplicate,
+                                  color: Colors.green,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 4),
+                                _buildActionButton(
+                                  icon: Icons.delete,
+                                  onPressed: widget.onDelete,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                              ],
+                            ],
+                          ),
+                          
+                          if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.subtitle!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _levelColor.withAlpha((255 * 0.7).round()),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                          Text(
+                            '${widget.currentIndex + 1} de ${widget.totalCount}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _levelColor.withAlpha((255 * 0.6).round()),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 8),
+                    
+                    // Botão próximo
+                    IconButton(
+                      icon: Icon(Icons.chevron_right, color: _levelColor),
+                      onPressed: widget.currentIndex < widget.totalCount - 1 
+                          ? () => widget.onIndexChanged(widget.currentIndex + 1)
+                          : null,
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                    
+                    const SizedBox(width: 8),
+                    
+                    Icon(
+                      widget.isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: _levelColor,
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (widget.totalCount > 1)
+              Container(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    widget.totalCount > 10 ? 10 : widget.totalCount,
+                    (index) {
+                      if (widget.totalCount > 10 && index == 9) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Text(
+                            '...',
+                            style: TextStyle(
+                              color: _levelColor.withAlpha((255 * 0.5).round()),
+                              fontSize: 8,
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      final dotIndex = widget.totalCount > 10 && widget.currentIndex >= 9 
+                          ? widget.currentIndex - 9 + index
+                          : index;
+                      
+                      if (dotIndex >= widget.totalCount) return const SizedBox.shrink();
+                      
+                      final isActive = dotIndex == widget.currentIndex;
+                      
+                      return GestureDetector(
+                        onTap: () => widget.onIndexChanged(dotIndex),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          width: isActive ? 8 : 6,
+                          height: isActive ? 8 : 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isActive
+                                ? _levelColor
+                                : _levelColor.withAlpha((255 * 0.3).round()),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

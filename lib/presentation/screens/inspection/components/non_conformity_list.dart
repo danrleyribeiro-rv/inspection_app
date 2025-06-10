@@ -164,7 +164,7 @@ class NonConformityList extends StatelessWidget {
            Row(
              children: [
                if (createdAt != null)
-                 Text('${DateFormat('dd/MM HH:mm').format(createdAt)}',
+                 Text(DateFormat('dd/MM/yyyy HH:mm').format(createdAt),
                    style: TextStyle(color: Colors.grey[500], fontSize: 9)),
                const Spacer(),
                if (status != 'resolvido') ..._buildActionButtons(status, nonConformityId),

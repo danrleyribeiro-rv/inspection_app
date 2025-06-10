@@ -42,6 +42,11 @@ class InspectionCoordinator {
         label: label, position: position, observation: observation);
   }
 
+  Future<Topic> addTopicFromTemplate(
+      String inspectionId, Map<String, dynamic> templateData) async {
+    return await _topicService.addTopicFromTemplate(inspectionId, templateData);
+  }
+
   Future<void> updateTopic(Topic updatedTopic) async {
     await _topicService.updateTopic(updatedTopic);
   }
@@ -54,8 +59,8 @@ class InspectionCoordinator {
     await _topicService.reorderTopics(inspectionId, topicIds);
   }
 
-  Future<Topic> duplicateTopic(String inspectionId, String topicName) async {
-    return await _topicService.duplicateTopic(inspectionId, topicName);
+  Future<Topic> duplicateTopic(String inspectionId, Topic sourceTopic) async {
+    return await _topicService.duplicateTopic(inspectionId, sourceTopic);
   }
 
   // ITEM OPERATIONS
@@ -64,9 +69,9 @@ class InspectionCoordinator {
   }
 
   Future<Item> addItem(String inspectionId, String topicId, String itemName,
-      {String? label, String? observation}) async {
+      {String? description, String? observation}) async {
     return await _itemService.addItem(inspectionId, topicId, itemName,
-        label: label, observation: observation);
+        description: description, observation: observation);
   }
 
   Future<void> updateItem(Item updatedItem) async {
@@ -78,9 +83,9 @@ class InspectionCoordinator {
     await _itemService.deleteItem(inspectionId, topicId, itemId);
   }
 
-  Future<Item?> isItemDuplicate(
-      String inspectionId, String topicId, String itemName) async {
-    return await _itemService.isItemDuplicate(inspectionId, topicId, itemName);
+  Future<Item> duplicateItem(
+      String inspectionId, String topicId, Item sourceItem) async {
+    return await _itemService.duplicateItem(inspectionId, topicId, sourceItem);
   }
 
   // DETAIL OPERATIONS
@@ -126,6 +131,12 @@ class InspectionCoordinator {
       String itemId, String detailName) async {
     return await _detailService.isDetailDuplicate(
         inspectionId, topicId, itemId, detailName);
+  }
+
+  Future<Detail> duplicateDetail(
+      String inspectionId, String topicId, String itemId, Detail sourceDetail) async {
+    return await _detailService.duplicateDetail(
+        inspectionId, topicId, itemId, sourceDetail);
   }
 
   // NON-CONFORMITY OPERATIONS

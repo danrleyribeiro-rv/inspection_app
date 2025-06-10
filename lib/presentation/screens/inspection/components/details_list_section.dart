@@ -1,15 +1,12 @@
-// lib/presentation/screens/inspection/components/details_list_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/widgets/media/media_handling_widget.dart';
-import 'package:image_picker/image_picker.dart';
 
 class DetailsListSection extends StatefulWidget {
   final List<Detail> details;
@@ -17,6 +14,7 @@ class DetailsListSection extends StatefulWidget {
   final Topic topic;
   final String inspectionId;
   final Function(Detail) onDetailUpdated;
+  final VoidCallback onDetailAction;
 
   const DetailsListSection({
     super.key,
@@ -25,6 +23,7 @@ class DetailsListSection extends StatefulWidget {
     required this.topic,
     required this.inspectionId,
     required this.onDetailUpdated,
+    required this.onDetailAction,
   });
 
   @override
@@ -33,6 +32,21 @@ class DetailsListSection extends StatefulWidget {
 
 class _DetailsListSectionState extends State<DetailsListSection> {
   int _expandedDetailIndex = -1;
+  List<Detail> _localDetails = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _localDetails = List.from(widget.details);
+  }
+
+  @override
+  void didUpdateWidget(DetailsListSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.details != oldWidget.details) {
+      _localDetails = List.from(widget.details);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,12 +59,13 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       ),
       child: ListView.builder(
         padding: const EdgeInsets.all(8),
-        itemCount: widget.details.length,
+        itemCount: _localDetails.length,
         itemBuilder: (context, index) {
-          final detail = widget.details[index];
+          final detail = _localDetails[index];
           final isExpanded = index == _expandedDetailIndex;
           
           return DetailListItem(
+            key: ValueKey(detail.id),
             detail: detail,
             item: widget.item,
             topic: widget.topic,
@@ -61,11 +76,126 @@ class _DetailsListSectionState extends State<DetailsListSection> {
                 _expandedDetailIndex = isExpanded ? -1 : index;
               });
             },
-            onDetailUpdated: widget.onDetailUpdated,
+            onDetailUpdated: (updatedDetail) {
+              setState(() {
+                _localDetails[index] = updatedDetail;
+              });
+              widget.onDetailUpdated(updatedDetail);
+            },
+            onDetailDeleted: () => _deleteDetail(detail, index),
+            onDetailDuplicated: () => _duplicateDetail(detail),
           );
         },
       ),
     );
+  }
+
+  Future<void> _deleteDetail(Detail detail, int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Detalhe'),
+        content: Text('Tem certeza que deseja excluir "${detail.detailName}"?\n\nEsta ação não pode ser desfeita.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ServiceFactory().coordinator.deleteDetail(
+        widget.inspectionId,
+        widget.topic.id!,
+        widget.item.id!,
+        detail.id!,
+      );
+      
+      setState(() {
+        _localDetails.removeAt(index);
+        if (_expandedDetailIndex == index) {
+          _expandedDetailIndex = -1;
+        } else if (_expandedDetailIndex > index) {
+          _expandedDetailIndex--;
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Detalhe excluído com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir detalhe: $e')),
+        );
+      }
+    }
+    widget.onDetailAction();
+  }
+
+  Future<void> _duplicateDetail(Detail detail) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Duplicar Detalhe'),
+        content: Text('Deseja duplicar o detalhe "${detail.detailName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Duplicar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final duplicatedDetail = await ServiceFactory().coordinator.duplicateDetail(
+        widget.inspectionId,
+        widget.topic.id!,
+        widget.item.id!,
+        detail,
+      );
+      
+      setState(() {
+        _localDetails.add(duplicatedDetail);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Detalhe duplicado com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao duplicar detalhe: $e')),
+        );
+      }
+    }
+    widget.onDetailAction();
   }
 }
 
@@ -77,6 +207,8 @@ class DetailListItem extends StatefulWidget {
   final bool isExpanded;
   final VoidCallback onExpansionChanged;
   final Function(Detail) onDetailUpdated;
+  final VoidCallback onDetailDeleted;
+  final VoidCallback onDetailDuplicated;
 
   const DetailListItem({
     super.key,
@@ -87,6 +219,8 @@ class DetailListItem extends StatefulWidget {
     required this.isExpanded,
     required this.onExpansionChanged,
     required this.onDetailUpdated,
+    required this.onDetailDeleted,
+    required this.onDetailDuplicated,
   });
 
   @override
@@ -99,13 +233,29 @@ class _DetailListItemState extends State<DetailListItem> {
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   bool _isDamaged = false;
+  String _currentDetailName = '';
 
   @override
   void initState() {
     super.initState();
+    _initializeControllers();
+  }
+
+  @override
+  void didUpdateWidget(DetailListItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.detail.detailName != _currentDetailName ||
+        widget.detail.detailValue != _valueController.text ||
+        widget.detail.observation != _observationController.text) {
+      _initializeControllers();
+    }
+  }
+
+  void _initializeControllers() {
     _valueController.text = widget.detail.detailValue ?? '';
     _observationController.text = widget.detail.observation ?? '';
     _isDamaged = widget.detail.isDamaged ?? false;
+    _currentDetailName = widget.detail.detailName;
   }
 
   @override
@@ -126,6 +276,8 @@ class _DetailListItemState extends State<DetailListItem> {
         isDamaged: _isDamaged,
         updatedAt: DateTime.now(),
       );
+      
+      _serviceFactory.coordinator.updateDetail(updatedDetail);
       widget.onDetailUpdated(updatedDetail);
     });
   }
@@ -186,25 +338,14 @@ class _DetailListItemState extends State<DetailListItem> {
         detailName: newName,
         updatedAt: DateTime.now(),
       );
+      
+      setState(() {
+        _currentDetailName = newName;
+      });
+      
+      await _serviceFactory.coordinator.updateDetail(updatedDetail);
       widget.onDetailUpdated(updatedDetail);
     }
-  }
-
-  void _showMediaCapturePopup() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MediaCapturePopup(
-        onMediaSelected: (source, type) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} capturado via ${source == ImageSource.camera ? 'câmera' : 'galeria'}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
-      ),
-    );
   }
 
   @override
@@ -221,7 +362,6 @@ class _DetailListItemState extends State<DetailListItem> {
       ),
       child: Column(
         children: [
-          // Cabeçalho do detalhe
           InkWell(
             onTap: widget.onExpansionChanged,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -233,33 +373,70 @@ class _DetailListItemState extends State<DetailListItem> {
                     : null,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  if (_isDamaged) 
-                    const Icon(Icons.warning, color: Colors.red, size: 18),
-                  if (_isDamaged) const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.detail.detailName,
+                  Row(
+                    children: [
+                      if (_isDamaged) 
+                        const Icon(Icons.warning, color: Colors.red, size: 18),
+                      if (_isDamaged) const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _currentDetailName,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: _isDamaged ? Colors.red : Colors.green.shade300,
                           ),
                         ),
-                        if (_valueController.text.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 16),
+                        onPressed: _renameDetail,
+                        tooltip: 'Renomear',
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 16),
+                        onPressed: widget.onDetailDuplicated,
+                        tooltip: 'Duplicar',
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                        onPressed: widget.onDetailDeleted,
+                        tooltip: 'Excluir',
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          padding: const EdgeInsets.all(4),
+                        ),
+                      ),
+                      Icon(
+                        widget.isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.green.shade300,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  if (_valueController.text.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.green.shade100,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              _valueController.text,
+                              'Valor: ${_valueController.text}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.green.shade800,
@@ -267,21 +444,15 @@ class _DetailListItemState extends State<DetailListItem> {
                               ),
                             ),
                           ),
-                        ],
+                        ),
                       ],
                     ),
-                  ),
-                  Icon(
-                    widget.isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.green.shade300,
-                    size: 20,
-                  ),
+                  ],
                 ],
               ),
             ),
           ),
           
-          // Conteúdo expandido
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
@@ -289,7 +460,6 @@ class _DetailListItemState extends State<DetailListItem> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Campo de valor
                   if (widget.detail.type == 'select' && 
                       widget.detail.options != null && 
                       widget.detail.options!.isNotEmpty)
@@ -339,7 +509,6 @@ class _DetailListItemState extends State<DetailListItem> {
                   
                   const SizedBox(height: 12),
                   
-                  // Campo de observações
                   GestureDetector(
                     onTap: _editObservationDialog,
                     child: Container(
@@ -390,14 +559,13 @@ class _DetailListItemState extends State<DetailListItem> {
                   
                   const SizedBox(height: 12),
                   
-                  // Botões de ação principais (lado a lado)
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.camera_alt, size: 16),
                           label: const Text('Mídia', style: TextStyle(fontSize: 12)),
-                          onPressed: _showMediaCapturePopup,
+                          onPressed: () {},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
@@ -436,38 +604,8 @@ class _DetailListItemState extends State<DetailListItem> {
                     ],
                   ),
                   
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   
-                  // Botões de ação secundários
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildActionButton(
-                        icon: Icons.edit,
-                        label: 'Renomear',
-                        onPressed: _renameDetail,
-                      ),
-                      _buildActionButton(
-                        icon: Icons.copy,
-                        label: 'Duplicar',
-                        onPressed: () {
-                          // Lógica para duplicar
-                        },
-                      ),
-                      _buildActionButton(
-                        icon: Icons.delete,
-                        label: 'Excluir',
-                        onPressed: () {
-                          // Lógica para excluir
-                        },
-                        color: Colors.red,
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  // Widget de mídia existente
                   if (widget.detail.id != null && 
                       widget.detail.topicId != null && 
                       widget.detail.itemId != null)
@@ -485,43 +623,6 @@ class _DetailListItemState extends State<DetailListItem> {
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    Color? color,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 40,
-          height: 40,
-          child: ElevatedButton(
-            onPressed: onPressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color ?? Colors.green,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            child: Icon(icon, size: 16),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            color: Colors.white70,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -170,6 +170,70 @@ class DetailService {
     }
   }
 
+  Future<Detail> duplicateDetail(
+    String inspectionId,
+    String topicId,
+    String itemId,
+    Detail sourceDetail,
+  ) async {
+    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+    final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
+
+    if (topicIndex == null || itemIndex == null) {
+      throw Exception('Invalid topic or item ID');
+    }
+
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
+      final topic = inspection.topics![topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      if (itemIndex < items.length) {
+        final item = items[itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+
+        final duplicateDetailData = {
+          'name': '${sourceDetail.detailName} (cópia)',
+          'type': sourceDetail.type ?? 'text',
+          'options': sourceDetail.options,
+          'value': sourceDetail.detailValue,
+          'observation': sourceDetail.observation,
+          'is_damaged': sourceDetail.isDamaged ?? false,
+          'required': false,
+          'media': <Map<String, dynamic>>[],
+          'non_conformities': <Map<String, dynamic>>[],
+        };
+
+        details.add(duplicateDetailData);
+        item['details'] = details;
+        items[itemIndex] = item;
+        topic['items'] = items;
+        
+        final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+        topics[topicIndex] = topic;
+
+        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+
+        return Detail(
+          id: 'detail_${details.length - 1}',
+          inspectionId: inspectionId,
+          topicId: topicId,
+          itemId: itemId,
+          detailName: '${sourceDetail.detailName} (cópia)',
+          type: sourceDetail.type,
+          options: sourceDetail.options,
+          detailValue: sourceDetail.detailValue,
+          observation: sourceDetail.observation,
+          isDamaged: sourceDetail.isDamaged,
+          position: details.length - 1,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      }
+    }
+
+    throw Exception('Failed to duplicate detail');
+  }
+
   Future<Detail?> isDetailDuplicate(String inspectionId, String topicId,
       String itemId, String detailName) async {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
