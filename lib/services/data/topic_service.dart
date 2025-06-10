@@ -1,14 +1,33 @@
 // lib/services/data/topic_service.dart
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
+import 'package:inspection_app/services/data/item_service.dart'; // ADICIONADO
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TopicService {
   final InspectionService _inspectionService = InspectionService();
+  final ItemService _itemService = ItemService(); // ADICIONADO
 
   Future<List<Topic>> getTopics(String inspectionId) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     return _extractTopics(inspectionId, inspection?.topics);
+  }
+
+  // ADICIONADO: Novo método para calcular o progresso de um tópico.
+  Future<double> getTopicProgress(String inspectionId, String topicId) async {
+    final items = await _itemService.getItems(inspectionId, topicId);
+
+    if (items.isEmpty) {
+      return 0.0;
+    }
+
+    double totalProgress = 0.0;
+    for (final item in items) {
+      totalProgress +=
+          await _itemService.getItemProgress(inspectionId, topicId, item.id!);
+    }
+
+    return totalProgress / items.length;
   }
 
   Future<Topic> addTopic(String inspectionId, String topicName,
@@ -16,7 +35,6 @@ class TopicService {
     final inspection = await _inspectionService.getInspection(inspectionId);
     final existingTopics = inspection?.topics ?? [];
     final newPosition = position ?? existingTopics.length;
-
     final newTopicData = {
       'name': topicName,
       'description': label,
@@ -45,7 +63,6 @@ class TopicService {
     final inspection = await _inspectionService.getInspection(inspectionId);
     final existingTopics = inspection?.topics ?? [];
     final newPosition = existingTopics.length;
-
     final topicName = templateData['name'] as String;
     final isCustom = templateData['isCustom'] as bool? ?? false;
 
@@ -88,36 +105,40 @@ class TopicService {
         currentTopicData['name'] = updatedTopic.topicName;
         currentTopicData['description'] = updatedTopic.topicLabel;
         currentTopicData['observation'] = updatedTopic.observation;
-
         await _updateTopicAtIndex(
             updatedTopic.inspectionId, topicIndex, currentTopicData);
       }
     }
   }
 
-  Future<Topic> duplicateTopic(String inspectionId, Topic sourceTopic) async {
+  Future<Topic> duplicateTopic(
+      String inspectionId, Topic sourceTopic) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     if (inspection?.topics == null) {
       throw Exception('Inspection not found');
     }
-
-    final sourceTopicIndex = int.tryParse(sourceTopic.id?.replaceFirst('topic_', '') ?? '');
-    if (sourceTopicIndex == null || sourceTopicIndex >= inspection!.topics!.length) {
+    final sourceTopicIndex =
+        int.tryParse(sourceTopic.id?.replaceFirst('topic_', '') ?? '');
+    if (sourceTopicIndex == null ||
+        sourceTopicIndex >= inspection!.topics!.length) {
       throw Exception('Source topic not found');
     }
 
-    final sourceTopicData = Map<String, dynamic>.from(inspection.topics![sourceTopicIndex]);
-    
+    final sourceTopicData =
+        Map<String, dynamic>.from(inspection.topics![sourceTopicIndex]);
+
     final duplicateTopicData = Map<String, dynamic>.from(sourceTopicData);
     duplicateTopicData['name'] = '${sourceTopic.topicName} (cópia)';
-    
+
     if (duplicateTopicData['items'] is List) {
-      final items = List<Map<String, dynamic>>.from(duplicateTopicData['items']);
+      final items =
+          List<Map<String, dynamic>>.from(duplicateTopicData['items']);
       for (int i = 0; i < items.length; i++) {
         items[i] = Map<String, dynamic>.from(items[i]);
-        
+
         if (items[i]['details'] is List) {
-          final details = List<Map<String, dynamic>>.from(items[i]['details']);
+          final details =
+              List<Map<String, dynamic>>.from(items[i]['details']);
           for (int j = 0; j < details.length; j++) {
             details[j] = Map<String, dynamic>.from(details[j]);
             details[j]['media'] = <Map<String, dynamic>>[];
@@ -153,12 +174,12 @@ class TopicService {
     }
   }
 
-  Future<void> reorderTopics(String inspectionId, List<String> topicIds) async {
+  Future<void> reorderTopics(
+      String inspectionId, List<String> topicIds) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
       final reorderedTopics = <Map<String, dynamic>>[];
-
       for (final topicId in topicIds) {
         final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
         if (topicIndex != null && topicIndex < topics.length) {
@@ -171,33 +192,33 @@ class TopicService {
     }
   }
 
-  Future<Map<String, dynamic>> _buildTopicFromTemplate(Map<String, dynamic> templateData) async {
+  Future<Map<String, dynamic>> _buildTopicFromTemplate(
+      Map<String, dynamic> templateData) async {
     try {
       final templateId = templateData['template_id'] as String;
       final topicName = templateData['name'] as String;
-      
       final templateDoc = await FirebaseFirestore.instance
           .collection('templates')
           .doc(templateId)
           .get();
-      
+
       if (!templateDoc.exists) {
         throw Exception('Template not found');
       }
 
       final fullTemplateData = templateDoc.data()!;
       final topicsData = _extractArrayFromTemplate(fullTemplateData, 'topics');
-      
+
       for (final topicTemplate in topicsData) {
         final topicFields = _extractFieldsFromTemplate(topicTemplate);
         if (topicFields == null) continue;
-        
+
         final templateTopicName = _extractStringValue(topicFields, 'name');
         if (templateTopicName == topicName) {
           return _processTopicTemplate(topicFields);
         }
       }
-      
+
       throw Exception('Topic not found in template');
     } catch (e) {
       return {
@@ -209,12 +230,13 @@ class TopicService {
     }
   }
 
-  Map<String, dynamic> _processTopicTemplate(Map<String, dynamic> topicFields) {
+  Map<String, dynamic> _processTopicTemplate(
+      Map<String, dynamic> topicFields) {
     final String topicName = _extractStringValue(topicFields, 'name');
-    final String? topicDescription = _extractStringValue(topicFields, 'description').isNotEmpty 
-        ? _extractStringValue(topicFields, 'description') 
-        : null;
-
+    final String? topicDescription =
+        _extractStringValue(topicFields, 'description').isNotEmpty
+            ? _extractStringValue(topicFields, 'description')
+            : null;
     final itemsData = _extractArrayFromTemplate(topicFields, 'items');
     List<Map<String, dynamic>> processedItems = [];
 
@@ -223,9 +245,10 @@ class TopicService {
       if (itemFields == null) continue;
 
       final String itemName = _extractStringValue(itemFields, 'name');
-      final String? itemDescription = _extractStringValue(itemFields, 'description').isNotEmpty 
-          ? _extractStringValue(itemFields, 'description') 
-          : null;
+      final String? itemDescription =
+          _extractStringValue(itemFields, 'description').isNotEmpty
+              ? _extractStringValue(itemFields, 'description')
+              : null;
 
       final detailsData = _extractArrayFromTemplate(itemFields, 'details');
       List<Map<String, dynamic>> processedDetails = [];
@@ -235,12 +258,15 @@ class TopicService {
         if (detailFields == null) continue;
 
         final String detailName = _extractStringValue(detailFields, 'name');
-        final String detailType = _extractStringValue(detailFields, 'type', defaultValue: 'text');
-        final bool isRequired = _extractBooleanValue(detailFields, 'required', defaultValue: false);
+        final String detailType =
+            _extractStringValue(detailFields, 'type', defaultValue: 'text');
+        final bool isRequired =
+            _extractBooleanValue(detailFields, 'required', defaultValue: false);
 
         List<String>? options;
         if (detailType == 'select') {
-          final optionsArray = _extractArrayFromTemplate(detailFields, 'options');
+          final optionsArray =
+              _extractArrayFromTemplate(detailFields, 'options');
           options = <String>[];
           for (var option in optionsArray) {
             if (option is Map && option.containsKey('stringValue')) {
@@ -251,7 +277,8 @@ class TopicService {
           }
 
           if (options.isEmpty && detailFields.containsKey('optionsText')) {
-            final String optionsText = _extractStringValue(detailFields, 'optionsText');
+            final String optionsText =
+                _extractStringValue(detailFields, 'optionsText');
             if (optionsText.isNotEmpty) {
               options = optionsText.split(',').map((e) => e.trim()).toList();
             }
@@ -289,7 +316,6 @@ class TopicService {
 
   List<Topic> _extractTopics(String inspectionId, List<dynamic>? topicsData) {
     if (topicsData == null) return [];
-
     List<Topic> topics = [];
     for (int i = 0; i < topicsData.length; i++) {
       final topicData = topicsData[i];
@@ -309,23 +335,26 @@ class TopicService {
     return topics;
   }
 
-  Future<void> _addTopicToInspection(String inspectionId, Map<String, dynamic> newTopic) async {
+  Future<void> _addTopicToInspection(
+      String inspectionId, Map<String, dynamic> newTopic) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     final topics = inspection?.topics != null
         ? List<Map<String, dynamic>>.from(inspection!.topics!)
         : <Map<String, dynamic>>[];
-
     topics.add(newTopic);
-    await _inspectionService.saveInspection(inspection!.copyWith(topics: topics));
+    await _inspectionService
+        .saveInspection(inspection!.copyWith(topics: topics));
   }
 
-  Future<void> _updateTopicAtIndex(String inspectionId, int topicIndex, Map<String, dynamic> updatedTopic) async {
+  Future<void> _updateTopicAtIndex(String inspectionId, int topicIndex,
+      Map<String, dynamic> updatedTopic) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics[topicIndex] = updatedTopic;
-        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+        await _inspectionService
+            .saveInspection(inspection.copyWith(topics: topics));
       }
     }
   }
@@ -336,7 +365,8 @@ class TopicService {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics.removeAt(topicIndex);
-        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+        await _inspectionService
+            .saveInspection(inspection.copyWith(topics: topics));
       }
     }
   }
@@ -344,7 +374,7 @@ class TopicService {
   List<dynamic> _extractArrayFromTemplate(dynamic data, String key) {
     if (data == null) return [];
     if (data[key] is List) return data[key];
-    if (data[key] is Map && 
+    if (data[key] is Map &&
         data[key].containsKey('arrayValue') &&
         data[key]['arrayValue'] is Map &&
         data[key]['arrayValue'].containsKey('values')) {
@@ -358,7 +388,7 @@ class TopicService {
     if (data is Map && data.containsKey('fields')) {
       return Map<String, dynamic>.from(data['fields']);
     }
-    if (data is Map && 
+    if (data is Map &&
         data.containsKey('mapValue') &&
         data['mapValue'] is Map &&
         data['mapValue'].containsKey('fields')) {
@@ -368,7 +398,8 @@ class TopicService {
     return null;
   }
 
-  String _extractStringValue(dynamic data, String key, {String defaultValue = ''}) {
+  String _extractStringValue(dynamic data, String key,
+      {String defaultValue = ''}) {
     if (data == null) return defaultValue;
     if (data[key] is String) return data[key];
     if (data[key] is Map && data[key].containsKey('stringValue')) {
@@ -377,7 +408,8 @@ class TopicService {
     return defaultValue;
   }
 
-  bool _extractBooleanValue(dynamic data, String key, {bool defaultValue = false}) {
+  bool _extractBooleanValue(dynamic data, String key,
+      {bool defaultValue = false}) {
     if (data == null) return defaultValue;
     if (data[key] is bool) return data[key];
     if (data[key] is Map && data[key].containsKey('booleanValue')) {

@@ -48,6 +48,51 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     }
   }
 
+  Future<void> _reorderDetail(int oldIndex, int newIndex) async {
+    // CORRIGIDO: O nome do método estava com um erro de digitação.
+    final future = ServiceFactory().coordinator.reorderDetails(
+          widget.inspectionId,
+          widget.topic.id!,
+          widget.item.id!,
+          oldIndex,
+          newIndex,
+        );
+
+    // Atualiza o estado local para um feedback visual imediato (atualização otimista)
+    setState(() {
+      if (oldIndex < newIndex) {
+        newIndex -= 1;
+      }
+      final Detail item = _localDetails.removeAt(oldIndex);
+      _localDetails.insert(newIndex, item);
+
+      // Atualiza o índice expandido para seguir o item movido
+      if (_expandedDetailIndex == oldIndex) {
+        _expandedDetailIndex = newIndex;
+      } else if (_expandedDetailIndex > oldIndex &&
+          _expandedDetailIndex <= newIndex) {
+        _expandedDetailIndex--;
+      } else if (_expandedDetailIndex < oldIndex &&
+          _expandedDetailIndex >= newIndex) {
+        _expandedDetailIndex++;
+      }
+    });
+
+    try {
+      await future; // Espera a conclusão da operação no backend
+      widget.onDetailAction(); // Notifica o pai sobre a mudança
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao reordenar detalhe: $e')),
+        );
+      }
+      // Em caso de erro, aciona a ação para recarregar os dados do servidor,
+      // revertendo a atualização otimista da UI.
+      widget.onDetailAction();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -57,15 +102,16 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.green.withAlpha((255 * 0.2).round())),
       ),
-      child: ListView.builder(
+      child: ReorderableListView.builder(
         padding: const EdgeInsets.all(8),
         itemCount: _localDetails.length,
         itemBuilder: (context, index) {
           final detail = _localDetails[index];
           final isExpanded = index == _expandedDetailIndex;
-          
+
           return DetailListItem(
-            key: ValueKey(detail.id),
+            key: ValueKey(detail.id), // Chave é crucial para ReorderableListView
+            index: index, // Passa o índice para o listener de arrastar
             detail: detail,
             item: widget.item,
             topic: widget.topic,
@@ -86,6 +132,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
             onDetailDuplicated: () => _duplicateDetail(detail),
           );
         },
+        onReorder: _reorderDetail,
       ),
     );
   }
@@ -95,7 +142,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Detalhe'),
-        content: Text('Tem certeza que deseja excluir "${detail.detailName}"?\n\nEsta ação não pode ser desfeita.'),
+        content: Text(
+            'Tem certeza que deseja excluir "${detail.detailName}"?\n\nEsta ação não pode ser desfeita.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -114,12 +162,12 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
     try {
       await ServiceFactory().coordinator.deleteDetail(
-        widget.inspectionId,
-        widget.topic.id!,
-        widget.item.id!,
-        detail.id!,
-      );
-      
+            widget.inspectionId,
+            widget.topic.id!,
+            widget.item.id!,
+            detail.id!,
+          );
+
       setState(() {
         _localDetails.removeAt(index);
         if (_expandedDetailIndex == index) {
@@ -169,13 +217,14 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     if (confirmed != true) return;
 
     try {
-      final duplicatedDetail = await ServiceFactory().coordinator.duplicateDetail(
-        widget.inspectionId,
-        widget.topic.id!,
-        widget.item.id!,
-        detail,
-      );
-      
+      final duplicatedDetail =
+          await ServiceFactory().coordinator.duplicateDetail(
+                widget.inspectionId,
+                widget.topic.id!,
+                widget.item.id!,
+                detail,
+              );
+
       setState(() {
         _localDetails.add(duplicatedDetail);
       });
@@ -200,6 +249,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 }
 
 class DetailListItem extends StatefulWidget {
+  final int index;
   final Detail detail;
   final Item item;
   final Topic topic;
@@ -212,6 +262,7 @@ class DetailListItem extends StatefulWidget {
 
   const DetailListItem({
     super.key,
+    required this.index,
     required this.detail,
     required this.item,
     required this.topic,
@@ -268,15 +319,18 @@ class _DetailListItemState extends State<DetailListItem> {
 
   void _updateDetail() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    
+
     _debounce = Timer(const Duration(milliseconds: 500), () {
       final updatedDetail = widget.detail.copyWith(
-        detailValue: _valueController.text.isEmpty ? null : _valueController.text,
-        observation: _observationController.text.isEmpty ? null : _observationController.text,
+        detailValue:
+            _valueController.text.isEmpty ? null : _valueController.text,
+        observation: _observationController.text.isEmpty
+            ? null
+            : _observationController.text,
         isDamaged: _isDamaged,
         updatedAt: DateTime.now(),
       );
-      
+
       _serviceFactory.coordinator.updateDetail(updatedDetail);
       widget.onDetailUpdated(updatedDetail);
     });
@@ -286,7 +340,8 @@ class _DetailListItemState extends State<DetailListItem> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
-        final controller = TextEditingController(text: _observationController.text);
+        final controller =
+            TextEditingController(text: _observationController.text);
         return AlertDialog(
           title: const Text('Observações do Detalhe'),
           content: SizedBox(
@@ -314,7 +369,7 @@ class _DetailListItemState extends State<DetailListItem> {
         );
       },
     );
-    
+
     if (result != null) {
       setState(() {
         _observationController.text = result;
@@ -338,11 +393,11 @@ class _DetailListItemState extends State<DetailListItem> {
         detailName: newName,
         updatedAt: DateTime.now(),
       );
-      
+
       setState(() {
         _currentDetailName = newName;
       });
-      
+
       await _serviceFactory.coordinator.updateDetail(updatedDetail);
       widget.onDetailUpdated(updatedDetail);
     }
@@ -356,7 +411,8 @@ class _DetailListItemState extends State<DetailListItem> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
+          color:
+              _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
           width: _isDamaged ? 2 : 1,
         ),
       ),
@@ -368,16 +424,17 @@ class _DetailListItemState extends State<DetailListItem> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _isDamaged 
+                color: _isDamaged
                     ? Colors.red.withAlpha((255 * 0.1).round())
                     : null,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(8)),
               ),
               child: Column(
                 children: [
                   Row(
                     children: [
-                      if (_isDamaged) 
+                      if (_isDamaged)
                         const Icon(Icons.warning, color: Colors.red, size: 18),
                       if (_isDamaged) const SizedBox(width: 8),
                       Expanded(
@@ -386,7 +443,19 @@ class _DetailListItemState extends State<DetailListItem> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: _isDamaged ? Colors.red : Colors.green.shade300,
+                            color:
+                                _isDamaged ? Colors.red : Colors.green.shade300,
+                          ),
+                        ),
+                      ),
+                      ReorderableDragStartListener(
+                        index: widget.index,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: Icon(
+                            Icons.drag_handle,
+                            size: 20,
+                            color: Colors.grey.shade400,
                           ),
                         ),
                       ),
@@ -409,7 +478,8 @@ class _DetailListItemState extends State<DetailListItem> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                        icon: const Icon(Icons.delete,
+                            size: 16, color: Colors.red),
                         onPressed: widget.onDetailDeleted,
                         tooltip: 'Excluir',
                         style: IconButton.styleFrom(
@@ -418,7 +488,9 @@ class _DetailListItemState extends State<DetailListItem> {
                         ),
                       ),
                       Icon(
-                        widget.isExpanded ? Icons.expand_less : Icons.expand_more,
+                        widget.isExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
                         color: Colors.green.shade300,
                         size: 20,
                       ),
@@ -430,7 +502,8 @@ class _DetailListItemState extends State<DetailListItem> {
                       children: [
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.green.shade100,
                               borderRadius: BorderRadius.circular(4),
@@ -452,7 +525,6 @@ class _DetailListItemState extends State<DetailListItem> {
               ),
             ),
           ),
-          
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
@@ -460,11 +532,13 @@ class _DetailListItemState extends State<DetailListItem> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (widget.detail.type == 'select' && 
-                      widget.detail.options != null && 
+                  if (widget.detail.type == 'select' &&
+                      widget.detail.options != null &&
                       widget.detail.options!.isNotEmpty)
                     DropdownButtonFormField<String>(
-                      value: _valueController.text.isNotEmpty ? _valueController.text : null,
+                      value: _valueController.text.isNotEmpty
+                          ? _valueController.text
+                          : null,
                       decoration: InputDecoration(
                         labelText: 'Valor',
                         border: const OutlineInputBorder(),
@@ -506,16 +580,15 @@ class _DetailListItemState extends State<DetailListItem> {
                       style: const TextStyle(color: Colors.white),
                       onChanged: (_) => _updateDetail(),
                     ),
-                  
                   const SizedBox(height: 12),
-                  
                   GestureDetector(
                     onTap: _editObservationDialog,
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.green.withAlpha((255 * 0.3).round())),
+                        border: Border.all(
+                            color: Colors.green.withAlpha((255 * 0.3).round())),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -523,7 +596,8 @@ class _DetailListItemState extends State<DetailListItem> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.note_alt, size: 16, color: Colors.green.shade300),
+                              Icon(Icons.note_alt,
+                                  size: 16, color: Colors.green.shade300),
                               const SizedBox(width: 8),
                               Text(
                                 'Observações',
@@ -534,20 +608,21 @@ class _DetailListItemState extends State<DetailListItem> {
                                 ),
                               ),
                               const Spacer(),
-                              Icon(Icons.edit, size: 16, color: Colors.green.shade300),
+                              Icon(Icons.edit,
+                                  size: 16, color: Colors.green.shade300),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _observationController.text.isEmpty 
+                            _observationController.text.isEmpty
                                 ? 'Toque para adicionar observações...'
                                 : _observationController.text,
                             style: TextStyle(
-                              color: _observationController.text.isEmpty 
+                              color: _observationController.text.isEmpty
                                   ? Colors.green.shade200
                                   : Colors.white,
-                              fontStyle: _observationController.text.isEmpty 
-                                  ? FontStyle.italic 
+                              fontStyle: _observationController.text.isEmpty
+                                  ? FontStyle.italic
                                   : FontStyle.normal,
                               fontSize: 14,
                             ),
@@ -556,15 +631,14 @@ class _DetailListItemState extends State<DetailListItem> {
                       ),
                     ),
                   ),
-                  
                   const SizedBox(height: 12),
-                  
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.camera_alt, size: 16),
-                          label: const Text('Mídia', style: TextStyle(fontSize: 12)),
+                          label: const Text('Mídia',
+                              style: TextStyle(fontSize: 12)),
                           onPressed: () {},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
@@ -577,10 +651,11 @@ class _DetailListItemState extends State<DetailListItem> {
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.report_problem, size: 16),
-                          label: const Text('NC', style: TextStyle(fontSize: 12)),
+                          label:
+                              const Text('NC', style: TextStyle(fontSize: 12)),
                           onPressed: () {
-                            if (widget.detail.id != null && 
-                                widget.detail.topicId != null && 
+                            if (widget.detail.id != null &&
+                                widget.detail.topicId != null &&
                                 widget.detail.itemId != null) {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
@@ -603,17 +678,18 @@ class _DetailListItemState extends State<DetailListItem> {
                       ),
                     ],
                   ),
-                  
                   const SizedBox(height: 12),
-                  
-                  if (widget.detail.id != null && 
-                      widget.detail.topicId != null && 
+                  if (widget.detail.id != null &&
+                      widget.detail.topicId != null &&
                       widget.detail.itemId != null)
                     MediaHandlingWidget(
                       inspectionId: widget.inspectionId,
-                      topicIndex: int.parse(widget.detail.topicId!.replaceFirst('topic_', '')),
-                      itemIndex: int.parse(widget.detail.itemId!.replaceFirst('item_', '')),
-                      detailIndex: int.parse(widget.detail.id!.replaceFirst('detail_', '')),
+                      topicIndex: int.parse(
+                          widget.detail.topicId!.replaceFirst('topic_', '')),
+                      itemIndex: int.parse(
+                          widget.detail.itemId!.replaceFirst('item_', '')),
+                      detailIndex: int.parse(
+                          widget.detail.id!.replaceFirst('detail_', '')),
                       onMediaAdded: (_) => setState(() {}),
                       onMediaDeleted: (_) => setState(() {}),
                     ),

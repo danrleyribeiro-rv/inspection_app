@@ -1,3 +1,4 @@
+// lib/services/coordinator/inspection_coordinator.dart
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/inspection_checkpoint.dart';
 import 'package:inspection_app/models/topic.dart';
@@ -63,6 +64,11 @@ class InspectionCoordinator {
     return await _topicService.duplicateTopic(inspectionId, sourceTopic);
   }
 
+  // ADICIONADO
+  Future<double> getTopicProgress(String inspectionId, String topicId) async {
+    return await _topicService.getTopicProgress(inspectionId, topicId);
+  }
+
   // ITEM OPERATIONS
   Future<List<Item>> getItems(String inspectionId, String topicId) async {
     return await _itemService.getItems(inspectionId, topicId);
@@ -86,6 +92,17 @@ class InspectionCoordinator {
   Future<Item> duplicateItem(
       String inspectionId, String topicId, Item sourceItem) async {
     return await _itemService.duplicateItem(inspectionId, topicId, sourceItem);
+  }
+
+  Future<void> reorderItems(
+      String inspectionId, String topicId, int oldIndex, int newIndex) async {
+    await _itemService.reorderItems(inspectionId, topicId, oldIndex, newIndex);
+  }
+
+  // ADICIONADO
+  Future<double> getItemProgress(
+      String inspectionId, String topicId, String itemId) async {
+    return await _itemService.getItemProgress(inspectionId, topicId, itemId);
   }
 
   // DETAIL OPERATIONS
@@ -133,10 +150,16 @@ class InspectionCoordinator {
         inspectionId, topicId, itemId, detailName);
   }
 
-  Future<Detail> duplicateDetail(
-      String inspectionId, String topicId, String itemId, Detail sourceDetail) async {
+  Future<Detail> duplicateDetail(String inspectionId, String topicId,
+      String itemId, Detail sourceDetail) async {
     return await _detailService.duplicateDetail(
         inspectionId, topicId, itemId, sourceDetail);
+  }
+
+  Future<void> reorderDetails(String inspectionId, String topicId,
+      String itemId, int oldIndex, int newIndex) async {
+    await _detailService.reorderDetails(
+        inspectionId, topicId, itemId, oldIndex, newIndex);
   }
 
   // NON-CONFORMITY OPERATIONS

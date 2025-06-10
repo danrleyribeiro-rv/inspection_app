@@ -1,12 +1,12 @@
 // lib/presentation/screens/inspection/components/swipeable_level_header.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/presentation/widgets/common/progress_circle.dart';
 
 class SwipeableLevelHeader extends StatefulWidget {
   final String title;
   final String? subtitle;
   final int currentIndex;
   final int totalCount;
+  final double progress;
   final List<String> items;
   final Function(int) onIndexChanged;
   final VoidCallback onExpansionChanged;
@@ -16,6 +16,7 @@ class SwipeableLevelHeader extends StatefulWidget {
   final VoidCallback? onRename;
   final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
+  final Function(int oldIndex, int newIndex)? onReorder;
 
   const SwipeableLevelHeader({
     super.key,
@@ -23,6 +24,7 @@ class SwipeableLevelHeader extends StatefulWidget {
     this.subtitle,
     required this.currentIndex,
     required this.totalCount,
+    required this.progress,
     required this.items,
     required this.onIndexChanged,
     required this.onExpansionChanged,
@@ -32,6 +34,7 @@ class SwipeableLevelHeader extends StatefulWidget {
     this.onRename,
     this.onDuplicate,
     this.onDelete,
+    this.onReorder,
   });
 
   @override
@@ -59,76 +62,127 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
   void _showDropdownMenu(BuildContext context) {
     if (widget.items.isEmpty) return;
 
+    List<String> localItems = List<String>.from(widget.items);
+    int localCurrentIndex = widget.currentIndex;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _levelColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Row(
-                children: [
-                  Icon(widget.icon, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Selecionar ${_getLevelName()}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
             ),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: widget.items.length,
-                itemBuilder: (context, index) {
-                  final isSelected = index == widget.currentIndex;
-                  
-                  return ListTile(
-                    leading: Icon(
-                      widget.icon,
-                      color: isSelected ? _levelColor : null,
-                    ),
-                    title: Text(
-                      widget.items[index],
-                      style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? _levelColor : null,
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _levelColor,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(widget.icon, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Selecionar ${_getLevelName()}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    trailing: isSelected 
-                        ? Icon(Icons.check, color: _levelColor)
-                        : null,
-                    onTap: () {
-                      widget.onIndexChanged(index);
-                      Navigator.pop(context);
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ReorderableListView.builder(
+                    shrinkWrap: true,
+                    itemCount: localItems.length,
+                    itemBuilder: (context, index) {
+                      final itemTitle = localItems[index];
+                      final isSelected = index == localCurrentIndex;
+
+                      return ListTile(
+                        key: Key(itemTitle),
+                        leading: Icon(
+                          widget.icon,
+                          color: isSelected ? _levelColor : null,
+                        ),
+                        title: Text(
+                          itemTitle,
+                          style: TextStyle(
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isSelected ? _levelColor : null,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected)
+                              Icon(Icons.check, color: _levelColor),
+                            if (widget.onReorder != null) ...[
+                              const SizedBox(width: 16),
+                              ReorderableDragStartListener(
+                                index: index,
+                                child: Icon(
+                                  Icons.drag_handle,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ]
+                          ],
+                        ),
+                        onTap: () {
+                          widget.onIndexChanged(index);
+                          Navigator.pop(context);
+                        },
+                      );
                     },
-                  );
-                },
-              ),
+                    onReorder: (int oldIndex, int newIndex) {
+                      widget.onReorder?.call(oldIndex, newIndex);
+                      setState(() {
+                        if (oldIndex < newIndex) {
+                          newIndex -= 1;
+                        }
+                        final String item = localItems.removeAt(oldIndex);
+                        localItems.insert(newIndex, item);
+
+                        if (localCurrentIndex == oldIndex) {
+                          localCurrentIndex = newIndex;
+                        } else if (localCurrentIndex > oldIndex &&
+                            localCurrentIndex <= newIndex) {
+                          localCurrentIndex--;
+                        } else if (localCurrentIndex < oldIndex &&
+                            localCurrentIndex >= newIndex) {
+                          localCurrentIndex++;
+                        }
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -143,19 +197,6 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
         return 'Detalhe';
       default:
         return 'Item';
-    }
-  }
-
-  double _getProgress() {
-    switch (widget.level) {
-      case 1:
-        return (widget.currentIndex + 1) / widget.totalCount * 0.8;
-      case 2:
-        return (widget.currentIndex + 1) / widget.totalCount * 0.6;
-      case 3:
-        return (widget.currentIndex + 1) / widget.totalCount * 0.4;
-      default:
-        return 0.0;
     }
   }
 
@@ -203,65 +244,65 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
               onTap: widget.onExpansionChanged,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                 child: Row(
                   children: [
-                    // Botão anterior
                     IconButton(
                       icon: Icon(Icons.chevron_left, color: _levelColor),
-                      onPressed: widget.currentIndex > 0 
-                          ? () => widget.onIndexChanged(widget.currentIndex - 1)
+                      onPressed: widget.currentIndex > 0
+                          ? () =>
+                              widget.onIndexChanged(widget.currentIndex - 1)
                           : null,
                       padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints:
+                          const BoxConstraints(minWidth: 32, minHeight: 32),
                     ),
-                    
                     const SizedBox(width: 8),
-                    
-                    ProgressCircle(
-                      progress: _getProgress(),
-                      size: 28,
-                      showPercentage: false,
-                      color: _levelColor,
-                    ),
-                    
-                    const SizedBox(width: 12),
-                    
-                    // Conteúdo central
+                    // REMOVIDO: O ProgressCircle foi removido daqui.
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Linha superior: nome + botões de ação
                           Row(
                             children: [
-                              Icon(widget.icon, color: _levelColor, size: 18),
+                              Icon(widget.icon,
+                                  color: _levelColor, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: GestureDetector(
                                   onTap: () => _showDropdownMenu(context),
                                   child: Row(
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          widget.title,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: _levelColor,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
+                                      // MODIFICADO: Adicionado Flexible e Row para título + percentual
+                                      Flexible(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.baseline,
+                                          textBaseline:
+                                              TextBaseline.alphabetic,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                widget.title,
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: _levelColor,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      Icon(Icons.arrow_drop_down, color: _levelColor, size: 20),
+                                      Icon(Icons.arrow_drop_down,
+                                          color: _levelColor, size: 20),
                                     ],
                                   ),
                                 ),
                               ),
-                              
-                              // Botões de ação inline para detalhes
                               if (widget.level == 3) ...[
                                 const SizedBox(width: 8),
                                 _buildActionButton(
@@ -287,14 +328,15 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                               ],
                             ],
                           ),
-                          
-                          if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
+                          if (widget.subtitle != null &&
+                              widget.subtitle!.isNotEmpty) ...[
                             const SizedBox(height: 2),
                             Text(
                               widget.subtitle!,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _levelColor.withAlpha((255 * 0.7).round()),
+                                color: _levelColor
+                                    .withAlpha((255 * 0.7).round()),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -304,29 +346,29 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                             '${widget.currentIndex + 1} de ${widget.totalCount}',
                             style: TextStyle(
                               fontSize: 11,
-                              color: _levelColor.withAlpha((255 * 0.6).round()),
+                              color: _levelColor
+                                  .withAlpha((255 * 0.6).round()),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    
                     const SizedBox(width: 8),
-                    
-                    // Botão próximo
                     IconButton(
                       icon: Icon(Icons.chevron_right, color: _levelColor),
-                      onPressed: widget.currentIndex < widget.totalCount - 1 
-                          ? () => widget.onIndexChanged(widget.currentIndex + 1)
+                      onPressed: widget.currentIndex < widget.totalCount - 1
+                          ? () =>
+                              widget.onIndexChanged(widget.currentIndex + 1)
                           : null,
                       padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints:
+                          const BoxConstraints(minWidth: 32, minHeight: 32),
                     ),
-                    
                     const SizedBox(width: 8),
-                    
                     Icon(
-                      widget.isExpanded ? Icons.expand_less : Icons.expand_more,
+                      widget.isExpanded
+                          ? Icons.expand_less
+                          : Icons.expand_more,
                       color: _levelColor,
                       size: 24,
                     ),
@@ -334,7 +376,18 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                 ),
               ),
             ),
-
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10.0),
+                child: LinearProgressIndicator(
+                  value: widget.progress,
+                  minHeight: 6,
+                  backgroundColor: _levelColor.withOpacity(0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(_levelColor),
+                ),
+              ),
+            ),
             if (widget.totalCount > 1)
               Container(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -349,21 +402,25 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                           child: Text(
                             '...',
                             style: TextStyle(
-                              color: _levelColor.withAlpha((255 * 0.5).round()),
+                              color:
+                                  _levelColor.withAlpha((255 * 0.5).round()),
                               fontSize: 8,
                             ),
                           ),
                         );
                       }
-                      
-                      final dotIndex = widget.totalCount > 10 && widget.currentIndex >= 9 
-                          ? widget.currentIndex - 9 + index
-                          : index;
-                      
-                      if (dotIndex >= widget.totalCount) return const SizedBox.shrink();
-                      
+
+                      final dotIndex =
+                          widget.totalCount > 10 && widget.currentIndex >= 9
+                              ? widget.currentIndex - 9 + index
+                              : index;
+
+                      if (dotIndex >= widget.totalCount) {
+                        return const SizedBox.shrink();
+                      }
+
                       final isActive = dotIndex == widget.currentIndex;
-                      
+
                       return GestureDetector(
                         onTap: () => widget.onIndexChanged(dotIndex),
                         child: Container(
