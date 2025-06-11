@@ -127,12 +127,16 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         updatedAt: DateTime.now(),
       );
 
+      // Atualizar estado local imediatamente
       setState(() {
         _currentTopicName = newName;
       });
 
-      await _serviceFactory.coordinator.updateTopic(updatedTopic);
+      // Notificar o pai imediatamente
       widget.onTopicUpdated(updatedTopic);
+
+      // Salvar no backend
+      await _serviceFactory.coordinator.updateTopic(updatedTopic);
     }
   }
 

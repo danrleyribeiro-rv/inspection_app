@@ -6,7 +6,8 @@ class TemplateSelectorDialog extends StatefulWidget {
   final String title;
   final String type;
   final String parentName;
-  final String? itemName; // Adicionamos o nome do item para buscar detalhes
+  final String? itemName;
+  final String? templateId;
 
   const TemplateSelectorDialog({
     super.key,
@@ -14,6 +15,7 @@ class TemplateSelectorDialog extends StatefulWidget {
     required this.type,
     required this.parentName,
     this.itemName,
+    this.templateId,
   });
 
   @override
@@ -33,203 +35,207 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
     _loadTemplateItems();
   }
 
-  Future<void> _loadTemplateItems() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
+Future<void> _loadTemplateItems() async {
+  if (!mounted) return;
+  setState(() => _isLoading = true);
 
-    try {
-      List<Map<String, dynamic>> items = [];
-      final firestore = FirebaseFirestore.instance;
+  try {
+    List<Map<String, dynamic>> items = [];
+    final firestore = FirebaseFirestore.instance;
 
-      if (widget.type == 'topic') {
-        // Buscar salas de templates
-        final templatesSnapshot = await firestore.collection('templates').get();
+    // Verificar se templateId foi fornecido
+    if (widget.templateId == null || widget.templateId!.isEmpty) {
+      setState(() {
+        _templates = [];
+        _isLoading = false;
+      });
+      return;
+    }
 
-        for (var templateDoc in templatesSnapshot.docs) {
-          final templateData = templateDoc.data();
-          if (templateData['topics'] is List) {
-            for (var topic in templateData['topics']) {
-              // Extrai o nome da sala do formato do template
-              String topicName = "";
-              if (topic is Map &&
-                  topic['name'] is Map &&
-                  topic['name']['stringValue'] != null) {
-                topicName = topic['name']['stringValue'];
-              } else if (topic is Map && topic['name'] is String) {
-                topicName = topic['name'];
-              }
+    // Buscar apenas o template específico
+    final templateDoc = await firestore
+        .collection('templates')
+        .doc(widget.templateId!)
+        .get();
 
-              if (topicName.isNotEmpty) {
-                items.add({
-                  'name': topicName,
-                  'template_id': templateDoc.id,
-                  'description': templateData['description'] ?? '',
-                });
-              }
-            }
+    if (!templateDoc.exists) {
+      setState(() {
+        _templates = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final templateData = templateDoc.data()!;
+
+    if (widget.type == 'topic') {
+      // Buscar tópicos do template específico
+      if (templateData['topics'] is List) {
+        for (var topic in templateData['topics']) {
+          String topicName = "";
+          if (topic is Map &&
+              topic['name'] is Map &&
+              topic['name']['stringValue'] != null) {
+            topicName = topic['name']['stringValue'];
+          } else if (topic is Map && topic['name'] is String) {
+            topicName = topic['name'];
+          }
+
+          if (topicName.isNotEmpty) {
+            items.add({
+              'name': topicName,
+              'template_id': widget.templateId!,
+              'description': templateData['description'] ?? '',
+              'templateData': topic, // IMPORTANTE: Manter dados completos do template
+            });
           }
         }
-      } else if (widget.type == 'item' && widget.parentName.isNotEmpty) {
-        // Buscar itens de templates para uma sala específica
-        final templatesSnapshot = await firestore.collection('templates').get();
+      }
+    } else if (widget.type == 'item' && widget.parentName.isNotEmpty) {
+      // Buscar itens do template específico
+      if (templateData['topics'] is List) {
+        for (var topic in templateData['topics']) {
+          String topicName = "";
+          if (topic is Map &&
+              topic['name'] is Map &&
+              topic['name']['stringValue'] != null) {
+            topicName = topic['name']['stringValue'];
+          } else if (topic is Map && topic['name'] is String) {
+            topicName = topic['name'];
+          }
 
-        for (var templateDoc in templatesSnapshot.docs) {
-          final templateData = templateDoc.data();
-          if (templateData['topics'] is List) {
-            for (var topic in templateData['topics']) {
-              String topicName = "";
-              if (topic is Map &&
-                  topic['name'] is Map &&
-                  topic['name']['stringValue'] != null) {
-                topicName = topic['name']['stringValue'];
-              } else if (topic is Map && topic['name'] is String) {
-                topicName = topic['name'];
+          if (topicName == widget.parentName) {
+            var topicItems = _extractArrayFromTemplate(topic, 'items');
+            for (var item in topicItems) {
+              var fields = _extractFieldsFromTemplate(item);
+              if (fields != null) {
+                String itemName = _extractStringValueFromTemplate(
+                    fields, 'name',
+                    defaultValue: 'Item sem nome');
+                String? itemDesc =
+                    _extractStringValueFromTemplate(fields, 'description');
+
+                if (itemName.isNotEmpty) {
+                  items.add({
+                    'name': itemName,
+                    'value': itemDesc,
+                    'template_id': widget.templateId!,
+                  });
+                }
               }
+            }
+            break;
+          }
+        }
+      }
+    } else if (widget.type == 'detail' &&
+        widget.parentName.isNotEmpty &&
+        widget.itemName != null) {
+      // Buscar detalhes do template específico
+      if (templateData['topics'] is List) {
+        for (var topic in templateData['topics']) {
+          String topicName = "";
+          if (topic is Map &&
+              topic['name'] is Map &&
+              topic['name']['stringValue'] != null) {
+            topicName = topic['name']['stringValue'];
+          } else if (topic is Map && topic['name'] is String) {
+            topicName = topic['name'];
+          }
 
-              // Se o nome da sala corresponder
-              if (topicName == widget.parentName) {
-                // Extrair itens desta sala
-                var topicItems = _extractArrayFromTemplate(topic, 'items');
-                for (var item in topicItems) {
-                  var fields = _extractFieldsFromTemplate(item);
-                  if (fields != null) {
-                    String itemName = _extractStringValueFromTemplate(
-                        fields, 'name',
-                        defaultValue: 'Item sem nome');
-                    String? itemDesc =
-                        _extractStringValueFromTemplate(fields, 'description');
+          if (topicName == widget.parentName) {
+            var topicItems = _extractArrayFromTemplate(topic, 'items');
+            for (var item in topicItems) {
+              var fields = _extractFieldsFromTemplate(item);
+              if (fields != null) {
+                String itemName = _extractStringValueFromTemplate(
+                    fields, 'name',
+                    defaultValue: 'Item sem nome');
 
-                    if (itemName.isNotEmpty) {
+                if (itemName == widget.itemName) {
+                  var details = _extractArrayFromTemplate(fields, 'details');
+                  for (var detail in details) {
+                    var detailFields = _extractFieldsFromTemplate(detail);
+                    if (detailFields != null) {
+                      String detailName = _extractStringValueFromTemplate(
+                          detailFields, 'name',
+                          defaultValue: 'Detalhe sem nome');
+                      String detailType = _extractStringValueFromTemplate(
+                          detailFields, 'type',
+                          defaultValue: 'text');
+
+                      List<String> options = [];
+                      if (detailType == 'select') {
+                        var optionsArray = _extractArrayFromTemplate(
+                            detailFields, 'options');
+                        for (var option in optionsArray) {
+                          if (option is Map &&
+                              option.containsKey('stringValue')) {
+                            options.add(option['stringValue']);
+                          } else if (option is String) {
+                            options.add(option);
+                          }
+                        }
+
+                        if (options.isEmpty &&
+                            detailFields.containsKey('optionsText')) {
+                          String optionsText =
+                              _extractStringValueFromTemplate(
+                                  detailFields, 'optionsText',
+                                  defaultValue: '');
+                          if (optionsText.isNotEmpty) {
+                            options = optionsText
+                                .split(',')
+                                .map((e) => e.trim())
+                                .toList();
+                          }
+                        }
+                      }
+
+                      bool required = false;
+                      if (detailFields.containsKey('required')) {
+                        if (detailFields['required'] is bool) {
+                          required = detailFields['required'];
+                        } else if (detailFields['required'] is Map &&
+                            detailFields['required']
+                                .containsKey('booleanValue')) {
+                          required =
+                              detailFields['required']['booleanValue'];
+                        }
+                      }
+
                       items.add({
-                        'name': itemName,
-                        'value': itemDesc,
-                        'template_id': templateDoc.id,
+                        'name': detailName,
+                        'type': detailType,
+                        'options': options,
+                        'required': required,
+                        'template_id': widget.templateId!,
                       });
                     }
                   }
+                  break;
                 }
               }
             }
+            break;
           }
         }
-      } else if (widget.type == 'detail' &&
-          widget.parentName.isNotEmpty &&
-          widget.itemName != null) {
-        // Buscar detalhes de templates para um item específico
-        final templatesSnapshot = await firestore.collection('templates').get();
-
-        for (var templateDoc in templatesSnapshot.docs) {
-          final templateData = templateDoc.data();
-          if (templateData['topics'] is List) {
-            for (var topic in templateData['topics']) {
-              String topicName = "";
-              if (topic is Map &&
-                  topic['name'] is Map &&
-                  topic['name']['stringValue'] != null) {
-                topicName = topic['name']['stringValue'];
-              } else if (topic is Map && topic['name'] is String) {
-                topicName = topic['name'];
-              }
-
-              // Se o nome da sala corresponder
-              if (topicName == widget.parentName) {
-                // Extrair itens desta sala
-                var topicItems = _extractArrayFromTemplate(topic, 'items');
-                for (var item in topicItems) {
-                  var fields = _extractFieldsFromTemplate(item);
-                  if (fields != null) {
-                    String itemName = _extractStringValueFromTemplate(
-                        fields, 'name',
-                        defaultValue: 'Item sem nome');
-
-                    // Se o nome do item corresponder
-                    if (itemName == widget.itemName) {
-                      // Extrair detalhes deste item
-                      var details =
-                          _extractArrayFromTemplate(fields, 'details');
-                      for (var detail in details) {
-                        var detailFields = _extractFieldsFromTemplate(detail);
-                        if (detailFields != null) {
-                          String detailName = _extractStringValueFromTemplate(
-                              detailFields, 'name',
-                              defaultValue: 'Detalhe sem nome');
-                          String detailType = _extractStringValueFromTemplate(
-                              detailFields, 'type',
-                              defaultValue: 'text');
-
-                          // Extrair opções para o tipo "select"
-                          List<String> options = [];
-                          if (detailType == 'select') {
-                            var optionsArray = _extractArrayFromTemplate(
-                                detailFields, 'options');
-                            for (var option in optionsArray) {
-                              if (option is Map &&
-                                  option.containsKey('stringValue')) {
-                                options.add(option['stringValue']);
-                              } else if (option is String) {
-                                options.add(option);
-                              }
-                            }
-
-                            // Verificar se há um campo optionsText como alternativa
-                            if (options.isEmpty &&
-                                detailFields.containsKey('optionsText')) {
-                              String optionsText =
-                                  _extractStringValueFromTemplate(
-                                      detailFields, 'optionsText',
-                                      defaultValue: '');
-                              if (optionsText.isNotEmpty) {
-                                options = optionsText
-                                    .split(',')
-                                    .map((e) => e.trim())
-                                    .toList();
-                              }
-                            }
-                          }
-
-                          bool required = false;
-                          if (detailFields.containsKey('required')) {
-                            if (detailFields['required'] is bool) {
-                              required = detailFields['required'];
-                            } else if (detailFields['required'] is Map &&
-                                detailFields['required']
-                                    .containsKey('booleanValue')) {
-                              required =
-                                  detailFields['required']['booleanValue'];
-                            }
-                          }
-
-                          items.add({
-                            'name': detailName,
-                            'type': detailType,
-                            'options': options,
-                            'required': required,
-                            'template_id': templateDoc.id,
-                          });
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _templates = items;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Erro ao carregar templates: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
       }
     }
+
+    if (mounted) {
+      setState(() {
+        _templates = items;
+        _isLoading = false;
+      });
+    }
+  } catch (e) {
+    debugPrint('Erro ao carregar templates: $e');
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
+}
 
   // Métodos auxiliares para extrair dados do template
   List<dynamic> _extractArrayFromTemplate(dynamic data, String key) {

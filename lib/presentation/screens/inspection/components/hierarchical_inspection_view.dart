@@ -6,7 +6,6 @@ import 'package:inspection_app/presentation/screens/inspection/components/swipea
 import 'package:inspection_app/presentation/screens/inspection/components/topic_details_section.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/item_details_section.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/details_list_section.dart';
-import 'package:inspection_app/presentation/widgets/common/progress_circle.dart';
 import 'package:inspection_app/services/service_factory.dart';
 
 class HierarchicalInspectionView extends StatefulWidget {

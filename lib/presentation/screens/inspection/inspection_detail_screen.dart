@@ -9,7 +9,6 @@ import 'package:inspection_app/presentation/screens/inspection/components/hierar
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
-import 'package:inspection_app/presentation/widgets/common/progress_circle.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/template_selector_dialog.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
@@ -17,7 +16,6 @@ import 'package:inspection_app/presentation/screens/inspection/inspection_info_d
 import 'package:inspection_app/services/features/chat_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
-import 'package:inspection_app/services/utils/progress_calculation_service.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -36,11 +34,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
-  double _overallProgress = 0.0;
   Inspection? _inspection;
   List<Topic> _topics = [];
-  Map<String, List<Item>> _itemsCache = {};
-  Map<String, List<Detail>> _detailsCache = {};
+  final Map<String, List<Item>> _itemsCache = {};
+  final Map<String, List<Detail>> _detailsCache = {};
 
   @override
   void initState() {
@@ -114,9 +111,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         await _loadAllData();
         if (!mounted) return;
 
-        await _loadProgress();
-        if (!mounted) return;
-
         if (_isOnline && inspection.templateId != null) {
           if (inspection.isTemplated != true) {
             await _checkAndApplyTemplate();
@@ -176,20 +170,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('Erro ao carregar dados: $e');
-      }
-    }
-  }
-
-  Future<void> _loadProgress() async {
-    if (_inspection != null) {
-      final progress = ProgressCalculationService.calculateOverallProgress(
-          _inspection!.toMap());
-      ProgressCalculationService.getInspectionStats(_inspection!.toMap());
-
-      if (mounted) {
-        setState(() {
-          _overallProgress = progress;
-        });
       }
     }
   }
@@ -372,51 +352,52 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-  Future<void> _addTopic() async {
-    final template = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => TemplateSelectorDialog(
-        title: 'Adicionar Tópico',
-        type: 'topic',
-        parentName: 'Inspeção',
-      ),
+Future<void> _addTopic() async {
+  final template = await showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (context) => TemplateSelectorDialog(
+      title: 'Adicionar Tópico',
+      type: 'topic',
+      parentName: 'Inspeção',
+      templateId: _inspection?.templateId,
+    ),
+  );
+
+  if (template == null || !mounted) return;
+
+  try {
+    final newTopic = await _serviceFactory.coordinator.addTopicFromTemplate(
+      widget.inspectionId,
+      template,
     );
-
-    if (template == null || !mounted) return;
-
-    try {
-      // Use o novo método que suporta templates completos
-      await _serviceFactory.coordinator.addTopicFromTemplate(
-        widget.inspectionId,
-        template,
+    
+    // Recarregar dados para garantir consistência
+    await _loadAllData();
+    
+    if (mounted) {
+      setState(() {}); // Trigger UI update
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tópico adicionado com sucesso'),
+          backgroundColor: Colors.green,
+        ),
       );
-      
-      await _loadInspection();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tópico adicionado com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao adicionar tópico: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao adicionar tópico: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
 
   Future<void> _updateCache() async {
     // Recarregar dados sem setState global
     await _loadAllData();
-    await _loadProgress();
   }
 
   Future<void> _exportInspection() async {
@@ -579,20 +560,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                 _inspection?.cod ?? 'Inspeção',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (!_isLoading && _inspection != null) ...[
-              const SizedBox(width: 8),
-              ProgressCircle(
-                progress: _overallProgress,
-                size: 24,
-                showPercentage: true,
-              ),
-            ],
           ],
         ),
         actions: [
@@ -640,27 +613,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
                       Icon(Icons.file_upload),
                       SizedBox(width: 8),
                       Text('Importar Inspeção'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'nonConformities',
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded,
-                          color: Colors.redAccent),
-                      SizedBox(width: 8),
-                      Text('Não Conformidades'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'media',
-                  child: Row(
-                    children: [
-                      Icon(Icons.photo_library, color: Colors.purpleAccent),
-                      SizedBox(width: 8),
-                      Text('Galeria de Mídia'),
                     ],
                   ),
                 ),

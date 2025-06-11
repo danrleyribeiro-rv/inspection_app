@@ -49,7 +49,6 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   }
 
   Future<void> _reorderDetail(int oldIndex, int newIndex) async {
-    // CORRIGIDO: O nome do método estava com um erro de digitação.
     final future = ServiceFactory().coordinator.reorderDetails(
           widget.inspectionId,
           widget.topic.id!,
@@ -58,7 +57,6 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           newIndex,
         );
 
-    // Atualiza o estado local para um feedback visual imediato (atualização otimista)
     setState(() {
       if (oldIndex < newIndex) {
         newIndex -= 1;
@@ -66,7 +64,6 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       final Detail item = _localDetails.removeAt(oldIndex);
       _localDetails.insert(newIndex, item);
 
-      // Atualiza o índice expandido para seguir o item movido
       if (_expandedDetailIndex == oldIndex) {
         _expandedDetailIndex = newIndex;
       } else if (_expandedDetailIndex > oldIndex &&
@@ -79,16 +76,14 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     });
 
     try {
-      await future; // Espera a conclusão da operação no backend
-      widget.onDetailAction(); // Notifica o pai sobre a mudança
+      await future;
+      widget.onDetailAction();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao reordenar detalhe: $e')),
         );
       }
-      // Em caso de erro, aciona a ação para recarregar os dados do servidor,
-      // revertendo a atualização otimista da UI.
       widget.onDetailAction();
     }
   }
@@ -110,8 +105,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           final isExpanded = index == _expandedDetailIndex;
 
           return DetailListItem(
-            key: ValueKey(detail.id), // Chave é crucial para ReorderableListView
-            index: index, // Passa o índice para o listener de arrastar
+            key: ValueKey(detail.id),
+            index: index,
             detail: detail,
             item: widget.item,
             topic: widget.topic,
@@ -282,8 +277,15 @@ class _DetailListItemState extends State<DetailListItem> {
   final ServiceFactory _serviceFactory = ServiceFactory();
   final TextEditingController _valueController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
+  
+  // Controllers para medidas
+  final TextEditingController _heightController = TextEditingController();
+  final TextEditingController _widthController = TextEditingController();
+  final TextEditingController _depthController = TextEditingController();
+  
   Timer? _debounce;
   bool _isDamaged = false;
+  bool _booleanValue = false;
   String _currentDetailName = '';
 
   @override
@@ -303,7 +305,20 @@ class _DetailListItemState extends State<DetailListItem> {
   }
 
   void _initializeControllers() {
-    _valueController.text = widget.detail.detailValue ?? '';
+    final detailValue = widget.detail.detailValue ?? '';
+    
+    if (widget.detail.type == 'measure') {
+      // Parse medidas do formato "altura,largura,profundidade"
+      final measurements = detailValue.split(',');
+      _heightController.text = measurements.isNotEmpty ? measurements[0].trim() : '';
+      _widthController.text = measurements.length > 1 ? measurements[1].trim() : '';
+      _depthController.text = measurements.length > 2 ? measurements[2].trim() : '';
+    } else if (widget.detail.type == 'boolean') {
+      _booleanValue = detailValue.toLowerCase() == 'true' || detailValue == '1';
+    } else {
+      _valueController.text = detailValue;
+    }
+    
     _observationController.text = widget.detail.observation ?? '';
     _isDamaged = widget.detail.isDamaged ?? false;
     _currentDetailName = widget.detail.detailName;
@@ -313,6 +328,9 @@ class _DetailListItemState extends State<DetailListItem> {
   void dispose() {
     _valueController.dispose();
     _observationController.dispose();
+    _heightController.dispose();
+    _widthController.dispose();
+    _depthController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -321,9 +339,20 @@ class _DetailListItemState extends State<DetailListItem> {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
 
     _debounce = Timer(const Duration(milliseconds: 500), () {
+      String value = '';
+      
+      if (widget.detail.type == 'measure') {
+        // Combinar medidas no formato "altura,largura,profundidade"
+        value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
+        if (value == ',,') value = ''; // Se todos estão vazios
+      } else if (widget.detail.type == 'boolean') {
+        value = _booleanValue.toString();
+      } else {
+        value = _valueController.text;
+      }
+
       final updatedDetail = widget.detail.copyWith(
-        detailValue:
-            _valueController.text.isEmpty ? null : _valueController.text,
+        detailValue: value.isEmpty ? null : value,
         observation: _observationController.text.isEmpty
             ? null
             : _observationController.text,
@@ -378,41 +407,217 @@ class _DetailListItemState extends State<DetailListItem> {
     }
   }
 
-  Future<void> _renameDetail() async {
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (context) => RenameDialog(
-        title: 'Renomear Detalhe',
-        label: 'Nome do Detalhe',
-        initialValue: widget.detail.detailName,
-      ),
+Future<void> _renameDetail() async {
+  final newName = await showDialog<String>(
+    context: context,
+    builder: (context) => RenameDialog(
+      title: 'Renomear Detalhe',
+      label: 'Nome do Detalhe',
+      initialValue: widget.detail.detailName,
+    ),
+  );
+
+  if (newName != null && newName != widget.detail.detailName) {
+    final updatedDetail = widget.detail.copyWith(
+      detailName: newName,
+      updatedAt: DateTime.now(),
     );
 
-    if (newName != null && newName != widget.detail.detailName) {
-      final updatedDetail = widget.detail.copyWith(
-        detailName: newName,
-        updatedAt: DateTime.now(),
-      );
+    // Atualizar estado local imediatamente
+    setState(() {
+      _currentDetailName = newName;
+    });
 
-      setState(() {
-        _currentDetailName = newName;
-      });
+    // Notificar o pai imediatamente
+    widget.onDetailUpdated(updatedDetail);
 
-      await _serviceFactory.coordinator.updateDetail(updatedDetail);
-      widget.onDetailUpdated(updatedDetail);
+    // Salvar no backend em segundo plano
+    _serviceFactory.coordinator.updateDetail(updatedDetail);
+  }
+}
+
+  Widget _buildValueInput() {
+    switch (widget.detail.type) {
+      case 'select':
+        if (widget.detail.options != null && widget.detail.options!.isNotEmpty) {
+          return DropdownButtonFormField<String>(
+            value: _valueController.text.isNotEmpty ? _valueController.text : null,
+            decoration: InputDecoration(
+              labelText: 'Valor',
+              border: const OutlineInputBorder(),
+              hintText: 'Selecione um valor',
+              labelStyle: TextStyle(color: Colors.green.shade300),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.green.shade300),
+              ),
+              isDense: true,
+            ),
+            dropdownColor: const Color(0xFF2A3749),
+            style: const TextStyle(color: Colors.white),
+            items: widget.detail.options!.map((option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Text(option),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _valueController.text = value);
+                _updateDetail();
+              }
+            },
+          );
+        }
+        break;
+        
+      case 'boolean':
+        return Row(
+          children: [
+            Text(
+              'Valor:',
+              style: TextStyle(color: Colors.green.shade300, fontSize: 16),
+            ),
+            const Spacer(),
+            Switch(
+              value: _booleanValue,
+              onChanged: (value) {
+                setState(() => _booleanValue = value);
+                _updateDetail();
+              },
+              activeColor: Colors.green,
+            ),
+            Text(
+              _booleanValue ? 'Sim' : 'Não',
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ],
+        );
+        
+      case 'measure':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Medidas:',
+              style: TextStyle(
+                color: Colors.green.shade300,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _heightController,
+                    decoration: const InputDecoration(
+                      labelText: 'Alt',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white),
+                    onChanged: (_) => _updateDetail(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _widthController,
+                    decoration: const InputDecoration(
+                      labelText: 'Larg',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white),
+                    onChanged: (_) => _updateDetail(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _depthController,
+                    decoration: const InputDecoration(
+                      labelText: 'Prof',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white),
+                    onChanged: (_) => _updateDetail(),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+        
+      case 'text':
+      default:
+        return TextFormField(
+          controller: _valueController,
+          decoration: InputDecoration(
+            labelText: 'Valor',
+            border: const OutlineInputBorder(),
+            hintText: 'Digite um valor',
+            labelStyle: TextStyle(color: Colors.green.shade300),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.green.shade300),
+            ),
+            isDense: true,
+          ),
+          style: const TextStyle(color: Colors.white),
+          onChanged: (_) => _updateDetail(),
+        );
+    }
+    
+    // Fallback para tipos não reconhecidos
+    return TextFormField(
+      controller: _valueController,
+      decoration: InputDecoration(
+        labelText: 'Valor',
+        border: const OutlineInputBorder(),
+        hintText: 'Digite um valor',
+        labelStyle: TextStyle(color: Colors.green.shade300),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.green.shade300),
+        ),
+        isDense: true,
+      ),
+      style: const TextStyle(color: Colors.white),
+      onChanged: (_) => _updateDetail(),
+    );
+  }
+
+  String _getDisplayValue() {
+    switch (widget.detail.type) {
+      case 'boolean':
+        return _booleanValue ? 'Sim' : 'Não';
+      case 'measure':
+        final measurements = [
+          _heightController.text.trim(),
+          _widthController.text.trim(),
+          _depthController.text.trim()
+        ].where((m) => m.isNotEmpty).toList();
+        return measurements.isNotEmpty ? 'H:${measurements.isNotEmpty ? measurements[0] : ''} L:${measurements.length > 1 ? measurements[1] : ''} P:${measurements.length > 2 ? measurements[2] : ''}' : '';
+      default:
+        return _valueController.text;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final displayValue = _getDisplayValue();
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: _isDamaged ? 2 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color:
-              _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
+          color: _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
           width: _isDamaged ? 2 : 1,
         ),
       ),
@@ -443,8 +648,7 @@ class _DetailListItemState extends State<DetailListItem> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color:
-                                _isDamaged ? Colors.red : Colors.green.shade300,
+                            color: _isDamaged ? Colors.red : Colors.green.shade300,
                           ),
                         ),
                       ),
@@ -478,8 +682,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete,
-                            size: 16, color: Colors.red),
+                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
                         onPressed: widget.onDetailDeleted,
                         tooltip: 'Excluir',
                         style: IconButton.styleFrom(
@@ -496,7 +699,7 @@ class _DetailListItemState extends State<DetailListItem> {
                       ),
                     ],
                   ),
-                  if (_valueController.text.isNotEmpty) ...[
+                  if (displayValue.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -509,7 +712,7 @@ class _DetailListItemState extends State<DetailListItem> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              'Valor: ${_valueController.text}',
+                              'Valor: $displayValue',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.green.shade800,
@@ -532,54 +735,7 @@ class _DetailListItemState extends State<DetailListItem> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (widget.detail.type == 'select' &&
-                      widget.detail.options != null &&
-                      widget.detail.options!.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      value: _valueController.text.isNotEmpty
-                          ? _valueController.text
-                          : null,
-                      decoration: InputDecoration(
-                        labelText: 'Valor',
-                        border: const OutlineInputBorder(),
-                        hintText: 'Selecione um valor',
-                        labelStyle: TextStyle(color: Colors.green.shade300),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.green.shade300),
-                        ),
-                        isDense: true,
-                      ),
-                      dropdownColor: const Color(0xFF2A3749),
-                      style: const TextStyle(color: Colors.white),
-                      items: widget.detail.options!.map((option) {
-                        return DropdownMenuItem<String>(
-                          value: option,
-                          child: Text(option),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _valueController.text = value);
-                          _updateDetail();
-                        }
-                      },
-                    )
-                  else
-                    TextFormField(
-                      controller: _valueController,
-                      decoration: InputDecoration(
-                        labelText: 'Valor',
-                        border: const OutlineInputBorder(),
-                        hintText: 'Digite um valor',
-                        labelStyle: TextStyle(color: Colors.green.shade300),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.green.shade300),
-                        ),
-                        isDense: true,
-                      ),
-                      style: const TextStyle(color: Colors.white),
-                      onChanged: (_) => _updateDetail(),
-                    ),
+                  _buildValueInput(),
                   const SizedBox(height: 12),
                   GestureDetector(
                     onTap: _editObservationDialog,
@@ -637,8 +793,7 @@ class _DetailListItemState extends State<DetailListItem> {
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.camera_alt, size: 16),
-                          label: const Text('Mídia',
-                              style: TextStyle(fontSize: 12)),
+                          label: const Text('Mídia', style: TextStyle(fontSize: 12)),
                           onPressed: () {},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
@@ -651,8 +806,7 @@ class _DetailListItemState extends State<DetailListItem> {
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.report_problem, size: 16),
-                          label:
-                              const Text('NC', style: TextStyle(fontSize: 12)),
+                          label: const Text('NC', style: TextStyle(fontSize: 12)),
                           onPressed: () {
                             if (widget.detail.id != null &&
                                 widget.detail.topicId != null &&

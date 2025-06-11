@@ -56,42 +56,63 @@ class TopicService {
     );
   }
 
-  Future<Topic> addTopicFromTemplate(
-    String inspectionId,
-    Map<String, dynamic> templateData,
-  ) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    final existingTopics = inspection?.topics ?? [];
-    final newPosition = existingTopics.length;
-    final topicName = templateData['name'] as String;
-    final isCustom = templateData['isCustom'] as bool? ?? false;
+Future<Topic> addTopicFromTemplate(
+  String inspectionId,
+  Map<String, dynamic> templateData,
+) async {
+  final inspection = await _inspectionService.getInspection(inspectionId);
+  final existingTopics = inspection?.topics ?? [];
+  final newPosition = existingTopics.length;
+  String topicName = templateData['name'] as String;
+  final isCustom = templateData['isCustom'] as bool? ?? false;
 
-    Map<String, dynamic> newTopicData;
+  // Verificar se já existe um tópico com o mesmo nome
+  final existingNames = existingTopics.map((t) => t['name'] as String? ?? '').toSet();
+  String finalTopicName = topicName;
+  
+  if (existingNames.contains(topicName)) {
+    finalTopicName = '$topicName (cópia)';
+    int counter = 1;
+    while (existingNames.contains(finalTopicName)) {
+      finalTopicName = '$topicName (cópia $counter)';
+      counter++;
+    }
+  }
 
-    if (isCustom) {
-      newTopicData = {
-        'name': topicName,
-        'description': templateData['value'],
-        'observation': null,
-        'items': <Map<String, dynamic>>[],
-      };
+  Map<String, dynamic> newTopicData;
+
+  if (isCustom) {
+    newTopicData = {
+      'name': finalTopicName,
+      'description': templateData['value'],
+      'observation': null,
+      'items': <Map<String, dynamic>>[],
+    };
+  } else {
+    // Usar dados completos do template
+    if (templateData.containsKey('templateData')) {
+      final extractedFields = _extractFieldsFromTemplate(templateData['templateData']) ?? <String, dynamic>{};
+      newTopicData = _processTopicTemplate(extractedFields);
+      newTopicData['name'] = finalTopicName;
     } else {
       newTopicData = await _buildTopicFromTemplate(templateData);
+      newTopicData['name'] = finalTopicName;
     }
-
-    await _addTopicToInspection(inspectionId, newTopicData);
-
-    return Topic(
-      id: 'topic_$newPosition',
-      inspectionId: inspectionId,
-      topicName: topicName,
-      topicLabel: newTopicData['description'],
-      position: newPosition,
-      observation: newTopicData['observation'],
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
   }
+
+  await _addTopicToInspection(inspectionId, newTopicData);
+
+  return Topic(
+    id: 'topic_$newPosition',
+    inspectionId: inspectionId,
+    topicName: finalTopicName,
+    topicLabel: newTopicData['description'],
+    position: newPosition,
+    observation: newTopicData['observation'],
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
+}
 
   Future<void> updateTopic(Topic updatedTopic) async {
     final inspection =

@@ -113,30 +113,34 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     }
   }
 
-  Future<void> _renameItem() async {
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (context) => RenameDialog(
-        title: 'Renomear Item',
-        label: 'Nome do Item',
-        initialValue: widget.item.itemName,
-      ),
-    );
+Future<void> _renameItem() async {
+  final newName = await showDialog<String>(
+    context: context,
+    builder: (context) => RenameDialog(
+      title: 'Renomear Item',
+      label: 'Nome do Item',
+      initialValue: widget.item.itemName,
+    ),
+  );
 
-    if (newName != null && newName != widget.item.itemName) {
-      final updatedItem = widget.item.copyWith(
-        itemName: newName,
-        updatedAt: DateTime.now(),
-      );
-      
-      setState(() {
-        _currentItemName = newName;
-      });
-      
-      await _serviceFactory.coordinator.updateItem(updatedItem);
-      widget.onItemUpdated(updatedItem);
-    }
+  if (newName != null && newName != widget.item.itemName) {
+    final updatedItem = widget.item.copyWith(
+      itemName: newName,
+      updatedAt: DateTime.now(),
+    );
+    
+    // Atualizar estado local imediatamente
+    setState(() {
+      _currentItemName = newName;
+    });
+    
+    // Notificar o pai imediatamente
+    widget.onItemUpdated(updatedItem);
+    
+    // Salvar no backend
+    await _serviceFactory.coordinator.updateItem(updatedItem);
   }
+}
 
   Future<void> _duplicateItem() async {
     final confirmed = await showDialog<bool>(
