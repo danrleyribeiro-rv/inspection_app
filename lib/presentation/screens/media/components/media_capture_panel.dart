@@ -280,28 +280,26 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       final appDir = await getApplicationDocumentsDirectory();
       final localPath = path.join(appDir.path, fileName);
 
-      // Processar mídia para aspectos corretos
-      if (type == 'image') {
-        final processedFile = await _serviceFactory.mediaService.processImage43(
-          filePath,
-          localPath,
-        );
-        if (processedFile == null) {
-          await File(filePath).copy(localPath);
-        }
-      } else {
-        // Para vídeo, apenas copiar (16:9 seria processado aqui se necessário)
+      // THE FIX: Use the generic processMedia43 for both images and videos
+      final processedFile = await _serviceFactory.mediaService.processMedia43(
+        filePath,
+        localPath,
+        type, // Pass the type ('image' or 'video')
+      );
+
+      // Use the processed file path, or fallback to the original if processing failed
+      final finalPath = processedFile?.path ?? localPath;
+      if (processedFile == null) {
         await File(filePath).copy(localPath);
       }
-
-      // Obter localização
+      
       final position = await _serviceFactory.mediaService.getCurrentLocation();
 
       final mediaData = {
         'id': _uuid.v4(),
         'type': type,
-        'localPath': localPath,
-        'aspect_ratio': type == 'image' ? '4:3' : '16:9',
+        'localPath': finalPath, // Use the final path
+        'aspect_ratio': '4:3', // Always 4:3 now
         'is_non_conformity': _isNonConformity,
         'observation': _observation.isEmpty ? null : _observation,
         'source': isFromGallery ? 'gallery' : 'camera',
@@ -319,7 +317,6 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         },
       };
 
-      // Upload para Firebase Storage se online
       final connectivityResult = await Connectivity().checkConnectivity();
       final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
           connectivityResult.contains(ConnectivityResult.mobile);
@@ -327,7 +324,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       if (isOnline) {
         try {
           final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
-            file: File(localPath),
+            file: File(finalPath),
             inspectionId: widget.inspectionId,
             type: type,
             topicId: _topicId,
@@ -341,7 +338,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       }
 
       await _saveMediaToInspection(mediaData);
-      widget.onMediaAdded(localPath);
+      widget.onMediaAdded(finalPath);
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -368,6 +365,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
   }
 
   Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
+    // ... (código existente sem alterações)
     final inspection =
         await _serviceFactory.coordinator.getInspection(widget.inspectionId);
     if (inspection?.topics == null) return;
@@ -427,6 +425,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
 
   @override
   Widget build(BuildContext context) {
+    // ... (código existente sem alterações)
     final bool isFormValid = _topicId != null &&
         (_topicOnly || (_itemId != null && _detailId != null));
     final bool isAnyLoading = _isLoading ||

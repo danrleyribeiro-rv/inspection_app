@@ -1,14 +1,12 @@
 // lib/presentation/widgets/media/non_conformity_media_widget.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/services/service_factory.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
-import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
-import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
+import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 
 class NonConformityMediaWidget extends StatefulWidget {
   final String inspectionId;
@@ -31,547 +29,227 @@ class NonConformityMediaWidget extends StatefulWidget {
   });
 
   @override
-  State<NonConformityMediaWidget> createState() => _NonConformityMediaWidgetState();
+  State<NonConformityMediaWidget> createState() =>
+      _NonConformityMediaWidgetState();
 }
 
 class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
-  List<Map<String, dynamic>> _mediaItems = [];
-  bool _isLoading = true;
-  bool _isOnline = false;
   final ServiceFactory _serviceFactory = ServiceFactory();
-  final _connectivityService = Connectivity();
   final _uuid = Uuid();
+  int _processingCount = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkConnectivity();
-    _loadMedia();
-  }
-
-  Future<void> _checkConnectivity() async {
-    final connectivityResult = await _connectivityService.checkConnectivity();
-    if (mounted) {
-      setState(() {
-        _isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-            connectivityResult.contains(ConnectivityResult.mobile);
-      });
-    }
-  }
-
-  Future<void> _loadMedia() async {
-    if (!mounted) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
-        final topic = inspection.topics![widget.topicIndex];
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-
-        if (widget.itemIndex < items.length) {
-          final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-
-          if (widget.detailIndex < details.length) {
-            final detail = details[widget.detailIndex];
-            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
-
-            if (widget.ncIndex < nonConformities.length) {
-              final nc = nonConformities[widget.ncIndex];
-              final media = List<Map<String, dynamic>>.from(nc['media'] ?? []);
-
-              setState(() {
-                _mediaItems = media.asMap().entries.map((entry) => {
-                  ...entry.value,
-                  'nc_media_index': entry.key,
-                }).toList();
-                _isLoading = false;
-              });
-              return;
-            }
-          }
-        }
-      }
-
-      setState(() {
-        _mediaItems = [];
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading non-conformity media: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showMediaCapturePopup() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MediaCapturePopup(
-        onMediaSelected: _captureNonConformityMedia,
+  void _showCameraCapture() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CustomCameraWidget(
+          onMediaCaptured: _handleMediaCaptured,
+          allowVideo: true,
+        ),
       ),
     );
   }
 
-  Future<void> _captureNonConformityMedia(ImageSource source, String type) async {
-    if (!mounted) return;
+  void _openNonConformityMediaGallery() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MediaGalleryScreen(
+          inspectionId: widget.inspectionId,
+          initialTopicId: 'topic_${widget.topicIndex}',
+          initialItemId: 'item_${widget.itemIndex}',
+          initialDetailId: 'detail_${widget.detailIndex}',
+          initialIsNonConformityOnly: true, // Filtro explícito para NC
+          initialMediaType: null,
+        ),
+      ),
+    );
+  }
 
-    try {
-      final picker = ImagePicker();
-      XFile? pickedFile;
-
-      if (type == 'image') {
-        pickedFile = await picker.pickImage(
-          source: source,
-          imageQuality: 100,
-          preferredCameraDevice: CameraDevice.rear,
-        );
-      } else if (type == 'video') {
-        pickedFile = await picker.pickVideo(
-          source: source,
-          maxDuration: const Duration(minutes: 1),
-        );
-      }
-
-      if (pickedFile == null) return;
-      if (!mounted) return;
-
-      setState(() => _isLoading = true);
-
-      try {
-        final mediaDir = await _getMediaDirectory();
-        final fileExt = path.extension(pickedFile.path);
-        final filename = 'nc_${widget.inspectionId}_${type}_${_uuid.v4()}$fileExt';
-        final localPath = '${mediaDir.path}/$filename';
-
-        if (type == 'image') {
-          final processedFile = await _serviceFactory.mediaService.processImage43(
-            pickedFile.path,
-            localPath,
-          );
-
-          if (processedFile == null) {
-            await File(pickedFile.path).copy(localPath);
-          }
-        } else {
-          await File(pickedFile.path).copy(localPath);
-        }
-
-        final position = await _serviceFactory.mediaService.getCurrentLocation();
-
-        final mediaData = {
-          'id': _uuid.v4(),
-          'type': type,
-          'localPath': localPath,
-          'aspect_ratio': type == 'image' ? '4:3' : '16:9',
-          'source': source == ImageSource.camera ? 'camera' : 'gallery',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-          'metadata': {
-            'location': position != null
-                ? {
-                    'latitude': position.latitude,
-                    'longitude': position.longitude,
-                    'accuracy': position.accuracy,
-                  }
-                : null,
-            'source': source == ImageSource.camera ? 'camera' : 'gallery',
-          },
-        };
-
-        if (_isOnline) {
-          try {
-            final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
-              file: File(localPath),
-              inspectionId: widget.inspectionId,
-              type: type,
-              topicId: 'topic_${widget.topicIndex}',
-              itemId: 'item_${widget.itemIndex}',
-              detailId: 'detail_${widget.detailIndex}',
-            );
-            mediaData['url'] = downloadUrl;
-          } catch (e) {
-            debugPrint('Error uploading to Firebase Storage: $e');
-          }
-        }
-
-        await _saveMediaToInspection(mediaData);
-        widget.onMediaAdded(localPath);
-        await _loadMedia();
-
+  Future<void> _handleMediaCaptured(List<String> localPaths, String type) async {
+    if (mounted) {
+      setState(() {
+        _processingCount += localPaths.length;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Iniciando processamento de ${localPaths.length} arquivo(s) de NC...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+    
+    for (final path in localPaths) {
+      _processAndSaveMedia(path, type).whenComplete(() {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          setState(() {
+            _processingCount--;
+          });
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao processar mídia: $e')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar mídia: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      });
     }
   }
 
-Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
-   final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-   if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
-     final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-     final topic = topics[widget.topicIndex];
-     final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+  Future<void> _processAndSaveMedia(String localPath, String type) async {
+    try {
+      final mediaDir = await getApplicationDocumentsDirectory();
+      final outputDir = Directory('${mediaDir.path}/processed_nc_media');
+      if (!await outputDir.exists()) await outputDir.create(recursive: true);
 
-     if (widget.itemIndex < items.length) {
-       final item = items[widget.itemIndex];
-       final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+      final fileExt = type == 'image' ? 'jpg' : 'mp4';
+      final filename = 'nc_${type}_${_uuid.v4()}.$fileExt';
+      final outputPath = '${outputDir.path}/$filename';
+      
+      final processedFile = await _serviceFactory.mediaService.processMedia43(
+        localPath,
+        outputPath,
+        type
+      );
+      
+      if (processedFile == null) {
+        throw Exception("Falha ao processar mídia de NC.");
+      }
 
-       if (widget.detailIndex < details.length) {
-         final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-         final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
 
-         if (widget.ncIndex < nonConformities.length) {
-           final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-           final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+      final mediaData = {
+        'id': _uuid.v4(),
+        'type': type,
+        'localPath': processedFile.path,
+        'aspect_ratio': '4:3',
+        'source': 'camera',
+        'is_non_conformity': true, // Mídias deste widget sempre são de NC
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'metadata': {
+          'location': position != null ? {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                } : null,
+          'source': 'camera',
+        },
+      };
+      
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
+          connectivityResult.contains(ConnectivityResult.mobile);
 
-           ncMedia.add(mediaData);
-           nc['media'] = ncMedia;
-           nonConformities[widget.ncIndex] = nc;
-           detail['non_conformities'] = nonConformities;
-           details[widget.detailIndex] = detail;
-           item['details'] = details;
-           items[widget.itemIndex] = item;
-           topic['items'] = items;
-           topics[widget.topicIndex] = topic;
+      if (isOnline) {
+        try {
+          final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
+            file: processedFile,
+            inspectionId: widget.inspectionId,
+            type: type,
+            topicId: 'topic_${widget.topicIndex}',
+            itemId: 'item_${widget.itemIndex}',
+            detailId: 'detail_${widget.detailIndex}',
+          );
+          mediaData['url'] = downloadUrl;
+        } catch (e) {
+          debugPrint('Error uploading to Firebase Storage: $e');
+        }
+      }
 
-           final updatedInspection = inspection.copyWith(topics: topics);
-           await _serviceFactory.coordinator.saveInspection(updatedInspection);
-         }
-       }
-     }
-   }
- }
+      await _saveMediaToInspection(mediaData);
+      widget.onMediaAdded(processedFile.path);
 
- Future<void> _removeMedia(int mediaIndex, Map<String, dynamic> media) async {
-   final confirmed = await showDialog<bool>(
-     context: context,
-     builder: (context) => AlertDialog(
-       title: const Text('Remover mídia'),
-       content: const Text('Tem certeza que deseja remover esta mídia?'),
-       actions: [
-         TextButton(
-           onPressed: () => Navigator.of(context).pop(false),
-           child: const Text('Cancelar'),
-         ),
-         TextButton(
-           onPressed: () => Navigator.of(context).pop(true),
-           style: TextButton.styleFrom(foregroundColor: Colors.red),
-           child: const Text('Remover'),
-         ),
-       ],
-     ),
-   );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao processar mídia de NC: $e')),
+        );
+      }
+    }
+  }
 
-   if (confirmed != true || !mounted) return;
+  Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
+    final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+    if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
+      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
+      final topic = topics[widget.topicIndex];
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
 
-   setState(() => _isLoading = true);
+      if (widget.itemIndex < items.length) {
+        final item = items[widget.itemIndex];
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
 
-   try {
-     if (_isOnline && media['url'] != null) {
-       try {
-         await _serviceFactory.mediaService.deleteFile(media['url']);
-       } catch (e) {
-         debugPrint('Error deleting from storage: $e');
-       }
-     }
+        if (widget.detailIndex < details.length) {
+          final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
+          final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
 
-     if (media['localPath'] != null) {
-       try {
-         final file = File(media['localPath']);
-         if (await file.exists()) {
-           await file.delete();
-         }
-       } catch (e) {
-         debugPrint('Error deleting local file: $e');
-       }
-     }
+          if (widget.ncIndex < nonConformities.length) {
+            final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
+            final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
 
-     final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-     if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
-       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-       final topic = topics[widget.topicIndex];
-       final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+            ncMedia.add(mediaData);
+            nc['media'] = ncMedia;
+            nonConformities[widget.ncIndex] = nc;
+            detail['non_conformities'] = nonConformities;
+            details[widget.detailIndex] = detail;
+            item['details'] = details;
+            items[widget.itemIndex] = item;
+            topic['items'] = items;
+            topics[widget.topicIndex] = topic;
 
-       if (widget.itemIndex < items.length) {
-         final item = items[widget.itemIndex];
-         final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+            final updatedInspection = inspection.copyWith(topics: topics);
+            await _serviceFactory.coordinator.saveInspection(updatedInspection);
+          }
+        }
+      }
+    }
+  }
 
-         if (widget.detailIndex < details.length) {
-           final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-           final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
-
-           if (widget.ncIndex < nonConformities.length) {
-             final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-             final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
-
-             if (mediaIndex < ncMedia.length) {
-               ncMedia.removeAt(mediaIndex);
-               nc['media'] = ncMedia;
-               nonConformities[widget.ncIndex] = nc;
-               detail['non_conformities'] = nonConformities;
-               details[widget.detailIndex] = detail;
-               item['details'] = details;
-               items[widget.itemIndex] = item;
-               topic['items'] = items;
-               topics[widget.topicIndex] = topic;
-
-               final updatedInspection = inspection.copyWith(topics: topics);
-               await _serviceFactory.coordinator.saveInspection(updatedInspection);
-             }
-           }
-         }
-       }
-     }
-
-     await _loadMedia();
-
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(
-           content: Text('Mídia removida com sucesso'),
-           backgroundColor: Colors.green,
-         ),
-       );
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text('Erro ao remover mídia: $e'),
-           backgroundColor: Colors.red,
-         ),
-       );
-     }
-   } finally {
-     if (mounted) setState(() => _isLoading = false);
-   }
- }
-
- Future<Directory> _getMediaDirectory() async {
-   final appDir = await getApplicationDocumentsDirectory();
-   final mediaDir = Directory('${appDir.path}/nc_media');
-
-   if (!await mediaDir.exists()) {
-     await mediaDir.create(recursive: true);
-   }
-
-   return mediaDir;
- }
-
- @override
- Widget build(BuildContext context) {
-   return Column(
-     crossAxisAlignment: CrossAxisAlignment.start,
-     children: [
-       Row(
-         children: [
-           const Expanded(
-             child: Text(
-               'Arquivos de Mídia',
-               style: TextStyle(
-                 fontSize: 12,
-                 color: Colors.black,
-                 fontWeight: FontWeight.bold,
-               ),
-             ),
-           ),
-         ],
-       ),
-       const SizedBox(height: 12),
-       
-       // Botão de captura de mídia
-       if (!widget.isReadOnly) ...[
-         ElevatedButton.icon(
-           icon: const Icon(Icons.camera_alt, size: 18),
-           label: const Text('Capturar Mídia', style: TextStyle(fontSize: 12)),
-           onPressed: _showMediaCapturePopup,
-           style: ElevatedButton.styleFrom(
-             backgroundColor: Colors.blue,
-             foregroundColor: Colors.white,
-             padding: const EdgeInsets.symmetric(vertical: 8),
-           ),
-         ),
-         const SizedBox(height: 8),
-       ],
-       
-       const Divider(),
-       const SizedBox(height: 8),
-       
-       if (_isLoading)
-         const Center(child: CircularProgressIndicator())
-       else if (_mediaItems.isEmpty)
-         const Center(
-           child: Padding(
-             padding: EdgeInsets.symmetric(vertical: 16),
-             child: Text(
-               'Nenhum arquivo de mídia adicionado',
-               style: TextStyle(color: Colors.grey),
-             ),
-           ),
-         )
-       else
-         Column(
-           crossAxisAlignment: CrossAxisAlignment.start,
-           children: [
-             const Text(
-               'Mídias Salvas:',
-               style: TextStyle(fontWeight: FontWeight.bold),
-             ),
-             const SizedBox(height: 8),
-             SizedBox(
-               height: 120,
-               child: ListView.builder(
-                 scrollDirection: Axis.horizontal,
-                 itemCount: _mediaItems.length,
-                 itemBuilder: (context, index) {
-                   final media = _mediaItems[index];
-                   final bool isImage = media['type'] == 'image';
-                   final bool hasUrl = media['url'] != null;
-                   final bool hasLocalPath = media['localPath'] != null;
-
-                   Widget mediaWidget;
-
-                   if (isImage) {
-                     if (hasLocalPath) {
-                       mediaWidget = Image.file(
-                         File(media['localPath']),
-                         fit: BoxFit.cover,
-                         width: 120,
-                         height: 120,
-                         errorBuilder: (ctx, error, _) => Container(
-                           width: 120,
-                           height: 120,
-                           color: Colors.grey[300],
-                           child: const Icon(Icons.broken_image),
-                         ),
-                       );
-                     } else if (hasUrl) {
-                       mediaWidget = Image.network(
-                         media['url'],
-                         width: 120,
-                         height: 120,
-                         fit: BoxFit.cover,
-                         errorBuilder: (ctx, error, _) => Container(
-                           width: 120,
-                           height: 120,
-                           color: Colors.grey[300],
-                           child: const Icon(Icons.broken_image),
-                         ),
-                       );
-                     } else {
-                       mediaWidget = Container(
-                         width: 120,
-                         height: 120,
-                         color: Colors.grey[300],
-                         child: const Icon(Icons.image),
-                       );
-                     }
-                   } else {
-                     mediaWidget = Container(
-                       width: 120,
-                       height: 120,
-                       color: Colors.grey[800],
-                       child: const Center(
-                         child: Icon(
-                           Icons.play_circle_fill,
-                           size: 48,
-                           color: Colors.white,
-                         ),
-                       ),
-                     );
-                   }
-
-                   return Padding(
-                     padding: const EdgeInsets.only(right: 8),
-                     child: GestureDetector(
-                       onTap: () {
-                         Navigator.of(context).push(
-                           MaterialPageRoute(
-                             builder: (context) => MediaViewerScreen(
-                               mediaItems: _mediaItems,
-                               initialIndex: index,
-                             ),
-                           ),
-                         );
-                       },
-                       child: Stack(
-                         children: [
-                           ClipRRect(
-                             borderRadius: BorderRadius.circular(8),
-                             child: mediaWidget,
-                           ),
-                           if (!widget.isReadOnly)
-                             Positioned(
-                               top: 4,
-                               right: 4,
-                               child: Container(
-                                 decoration: const BoxDecoration(
-                                   color: Colors.red,
-                                   shape: BoxShape.circle,
-                                 ),
-                                 child: IconButton(
-                                   icon: const Icon(Icons.close,
-                                       color: Colors.white, size: 16),
-                                   constraints: const BoxConstraints(
-                                     minWidth: 24,
-                                     minHeight: 24,
-                                   ),
-                                   padding: EdgeInsets.zero,
-                                   onPressed: () => _removeMedia(index, media),
-                                 ),
-                               ),
-                             ),
-                           Positioned(
-                             bottom: 4,
-                             left: 4,
-                             child: Container(
-                               padding: const EdgeInsets.symmetric(
-                                   horizontal: 6, vertical: 2),
-                               decoration: BoxDecoration(
-                                 color: Colors.black.withAlpha((255 * 0.7).round()),
-                                 borderRadius: BorderRadius.circular(4),
-                               ),
-                               child: Text(
-                                 isImage ? 'Foto' : 'Vídeo',
-                                 style: const TextStyle(
-                                   color: Colors.white,
-                                   fontSize: 10,
-                                 ),
-                               ),
-                             ),
-                           ),
-                         ],
-                       ),
-                     ),
-                   );
-                 },
-               ),
-             ),
-           ],
-         ),
-     ],
-   );
- }
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.isReadOnly) 
+          const SizedBox.shrink()
+        else
+          Column(
+            children: [
+              if (_processingCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      const SizedBox(width: 12),
+                      Text("Processando $_processingCount NC(s)...", style: const TextStyle(fontStyle: FontStyle.italic)),
+                    ],
+                  ),
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.camera_alt, size: 18),
+                      label: const Text('Capturar', style: TextStyle(fontSize: 12)),
+                      onPressed: _showCameraCapture,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.photo_library, size: 18),
+                      label: const Text('Ver Galeria', style: TextStyle(fontSize: 12)),
+                      onPressed: _openNonConformityMediaGallery,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+      ],
+    );
+  }
 }

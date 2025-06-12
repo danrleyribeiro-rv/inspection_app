@@ -1,3 +1,4 @@
+// lib/presentation/widgets/details_list_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:inspection_app/models/detail.dart';
@@ -7,6 +8,10 @@ import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/widgets/media/media_handling_widget.dart';
+
+// O widget DetailsListSection e seu State permanecem os mesmos.
+// A mudança principal está dentro do DetailListItem.
+// ... (código do DetailsListSection inalterado)
 
 class DetailsListSection extends StatefulWidget {
   final List<Detail> details;
@@ -98,6 +103,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         border: Border.all(color: Colors.green.withAlpha((255 * 0.2).round())),
       ),
       child: ReorderableListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(8),
         itemCount: _localDetails.length,
         itemBuilder: (context, index) {
@@ -243,6 +250,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   }
 }
 
+
+// AQUI ESTÁ A MUDANÇA PRINCIPAL
 class DetailListItem extends StatefulWidget {
   final int index;
   final Detail detail;
@@ -278,7 +287,6 @@ class _DetailListItemState extends State<DetailListItem> {
   final TextEditingController _valueController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
   
-  // Controllers para medidas
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _widthController = TextEditingController();
   final TextEditingController _depthController = TextEditingController();
@@ -308,7 +316,6 @@ class _DetailListItemState extends State<DetailListItem> {
     final detailValue = widget.detail.detailValue ?? '';
     
     if (widget.detail.type == 'measure') {
-      // Parse medidas do formato "altura,largura,profundidade"
       final measurements = detailValue.split(',');
       _heightController.text = measurements.isNotEmpty ? measurements[0].trim() : '';
       _widthController.text = measurements.length > 1 ? measurements[1].trim() : '';
@@ -342,9 +349,8 @@ class _DetailListItemState extends State<DetailListItem> {
       String value = '';
       
       if (widget.detail.type == 'measure') {
-        // Combinar medidas no formato "altura,largura,profundidade"
         value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
-        if (value == ',,') value = ''; // Se todos estão vazios
+        if (value == ',,') value = '';
       } else if (widget.detail.type == 'boolean') {
         value = _booleanValue.toString();
       } else {
@@ -407,35 +413,235 @@ class _DetailListItemState extends State<DetailListItem> {
     }
   }
 
-Future<void> _renameDetail() async {
-  final newName = await showDialog<String>(
-    context: context,
-    builder: (context) => RenameDialog(
-      title: 'Renomear Detalhe',
-      label: 'Nome do Detalhe',
-      initialValue: widget.detail.detailName,
-    ),
-  );
-
-  if (newName != null && newName != widget.detail.detailName) {
-    final updatedDetail = widget.detail.copyWith(
-      detailName: newName,
-      updatedAt: DateTime.now(),
+  Future<void> _renameDetail() async {
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => RenameDialog(
+        title: 'Renomear Detalhe',
+        label: 'Nome do Detalhe',
+        initialValue: widget.detail.detailName,
+      ),
     );
 
-    // Atualizar estado local imediatamente
-    setState(() {
-      _currentDetailName = newName;
-    });
+    if (newName != null && newName != widget.detail.detailName) {
+      final updatedDetail = widget.detail.copyWith(
+        detailName: newName,
+        updatedAt: DateTime.now(),
+      );
 
-    // Notificar o pai imediatamente
-    widget.onDetailUpdated(updatedDetail);
+      setState(() {
+        _currentDetailName = newName;
+      });
 
-    // Salvar no backend em segundo plano
-    _serviceFactory.coordinator.updateDetail(updatedDetail);
+      widget.onDetailUpdated(updatedDetail);
+      _serviceFactory.coordinator.updateDetail(updatedDetail);
+    }
   }
-}
 
+  // Métodos _buildValueInput e _getDisplayValue permanecem os mesmos
+  // ...
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = _getDisplayValue();
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: _isDamaged ? 2 : 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
+          width: _isDamaged ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: widget.onExpansionChanged,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isDamaged ? Colors.red.withAlpha((255 * 0.1).round()) : null,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      if (_isDamaged)
+                        const Icon(Icons.warning, color: Colors.red, size: 18),
+                      if (_isDamaged) const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _currentDetailName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _isDamaged ? Colors.red : Colors.green.shade300,
+                          ),
+                        ),
+                      ),
+                      ReorderableDragStartListener(
+                        index: widget.index,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: Icon(Icons.drag_handle, size: 20, color: Colors.grey.shade400),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 16),
+                        onPressed: _renameDetail,
+                        tooltip: 'Renomear',
+                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(4)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 16),
+                        onPressed: widget.onDetailDuplicated,
+                        tooltip: 'Duplicar',
+                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(4)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                        onPressed: widget.onDetailDeleted,
+                        tooltip: 'Excluir',
+                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(4)),
+                      ),
+                      Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, color: Colors.green.shade300, size: 20),
+                    ],
+                  ),
+                  if (displayValue.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                            child: Text(
+                              'Valor: $displayValue',
+                              style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (widget.isExpanded) ...[
+            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildValueInput(),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: _editObservationDialog,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.green.withAlpha((255 * 0.3).round())),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.note_alt, size: 16, color: Colors.green.shade300),
+                              const SizedBox(width: 8),
+                              Text('Observações', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade300, fontSize: 14)),
+                              const Spacer(),
+                              Icon(Icons.edit, size: 16, color: Colors.green.shade300),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _observationController.text.isEmpty ? 'Toque para adicionar observações...' : _observationController.text,
+                            style: TextStyle(
+                              color: _observationController.text.isEmpty ? Colors.green.shade200 : Colors.white,
+                              fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  
+                  // THE FIX: BOTÕES REDUNDANTES REMOVIDOS
+                  // A única linha de botões agora é o NC e o MediaHandlingWidget
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.report_problem, size: 16),
+                      label: const Text('Registrar Não Conformidade'),
+                      onPressed: () {
+                        if (widget.detail.id != null && widget.detail.topicId != null && widget.detail.itemId != null) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => NonConformityScreen(
+                                inspectionId: widget.inspectionId,
+                                preSelectedTopic: widget.detail.topicId,
+                                preSelectedItem: widget.detail.itemId,
+                                preSelectedDetail: widget.detail.id,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  // Lógica de mídia centralizada aqui
+                  const SizedBox(height: 4),
+                  if (widget.detail.id != null && widget.detail.topicId != null && widget.detail.itemId != null)
+                    MediaHandlingWidget(
+                      inspectionId: widget.inspectionId,
+                      topicIndex: int.parse(widget.detail.topicId!.replaceFirst('topic_', '')),
+                      itemIndex: int.parse(widget.detail.itemId!.replaceFirst('item_', '')),
+                      detailIndex: int.parse(widget.detail.id!.replaceFirst('detail_', '')),
+                      onMediaAdded: (_) => setState(() {}),
+                      onMediaDeleted: (_) => setState(() {}),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _getDisplayValue() {
+    switch (widget.detail.type) {
+      case 'boolean':
+        return _booleanValue ? 'Sim' : 'Não';
+      case 'measure':
+        final measurements = [
+          _heightController.text.trim(),
+          _widthController.text.trim(),
+          _depthController.text.trim()
+        ].where((m) => m.isNotEmpty).toList();
+        return measurements.isNotEmpty ? 'A:${measurements.isNotEmpty ? measurements[0] : ''} L:${measurements.length > 1 ? measurements[1] : ''} P:${measurements.length > 2 ? measurements[2] : ''}' : '';
+      default:
+        return _valueController.text;
+    }
+  }
+  
   Widget _buildValueInput() {
     switch (widget.detail.type) {
       case 'select':
@@ -469,8 +675,7 @@ Future<void> _renameDetail() async {
           );
         }
         break;
-        
-      case 'boolean':
+        case 'boolean':
         return Row(
           children: [
             Text(
@@ -573,7 +778,6 @@ Future<void> _renameDetail() async {
         );
     }
     
-    // Fallback para tipos não reconhecidos
     return TextFormField(
       controller: _valueController,
       decoration: InputDecoration(
@@ -588,271 +792,6 @@ Future<void> _renameDetail() async {
       ),
       style: const TextStyle(color: Colors.white),
       onChanged: (_) => _updateDetail(),
-    );
-  }
-
-  String _getDisplayValue() {
-    switch (widget.detail.type) {
-      case 'boolean':
-        return _booleanValue ? 'Sim' : 'Não';
-      case 'measure':
-        final measurements = [
-          _heightController.text.trim(),
-          _widthController.text.trim(),
-          _depthController.text.trim()
-        ].where((m) => m.isNotEmpty).toList();
-        return measurements.isNotEmpty ? 'H:${measurements.isNotEmpty ? measurements[0] : ''} L:${measurements.length > 1 ? measurements[1] : ''} P:${measurements.length > 2 ? measurements[2] : ''}' : '';
-      default:
-        return _valueController.text;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final displayValue = _getDisplayValue();
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: _isDamaged ? 2 : 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
-          width: _isDamaged ? 2 : 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: widget.onExpansionChanged,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _isDamaged
-                    ? Colors.red.withAlpha((255 * 0.1).round())
-                    : null,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(8)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      if (_isDamaged)
-                        const Icon(Icons.warning, color: Colors.red, size: 18),
-                      if (_isDamaged) const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _currentDetailName,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: _isDamaged ? Colors.red : Colors.green.shade300,
-                          ),
-                        ),
-                      ),
-                      ReorderableDragStartListener(
-                        index: widget.index,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: Icon(
-                            Icons.drag_handle,
-                            size: 20,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 16),
-                        onPressed: _renameDetail,
-                        tooltip: 'Renomear',
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(32, 32),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.copy, size: 16),
-                        onPressed: widget.onDetailDuplicated,
-                        tooltip: 'Duplicar',
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(32, 32),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                        onPressed: widget.onDetailDeleted,
-                        tooltip: 'Excluir',
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(32, 32),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                      ),
-                      Icon(
-                        widget.isExpanded
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                        color: Colors.green.shade300,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                  if (displayValue.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Valor: $displayValue',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.green.shade800,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          if (widget.isExpanded) ...[
-            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildValueInput(),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: _editObservationDialog,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                            color: Colors.green.withAlpha((255 * 0.3).round())),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.note_alt,
-                                  size: 16, color: Colors.green.shade300),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Observações',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green.shade300,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const Spacer(),
-                              Icon(Icons.edit,
-                                  size: 16, color: Colors.green.shade300),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _observationController.text.isEmpty
-                                ? 'Toque para adicionar observações...'
-                                : _observationController.text,
-                            style: TextStyle(
-                              color: _observationController.text.isEmpty
-                                  ? Colors.green.shade200
-                                  : Colors.white,
-                              fontStyle: _observationController.text.isEmpty
-                                  ? FontStyle.italic
-                                  : FontStyle.normal,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.camera_alt, size: 16),
-                          label: const Text('Mídia', style: TextStyle(fontSize: 12)),
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.report_problem, size: 16),
-                          label: const Text('NC', style: TextStyle(fontSize: 12)),
-                          onPressed: () {
-                            if (widget.detail.id != null &&
-                                widget.detail.topicId != null &&
-                                widget.detail.itemId != null) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => NonConformityScreen(
-                                    inspectionId: widget.inspectionId,
-                                    preSelectedTopic: widget.detail.topicId,
-                                    preSelectedItem: widget.detail.itemId,
-                                    preSelectedDetail: widget.detail.id,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (widget.detail.id != null &&
-                      widget.detail.topicId != null &&
-                      widget.detail.itemId != null)
-                    MediaHandlingWidget(
-                      inspectionId: widget.inspectionId,
-                      topicIndex: int.parse(
-                          widget.detail.topicId!.replaceFirst('topic_', '')),
-                      itemIndex: int.parse(
-                          widget.detail.itemId!.replaceFirst('item_', '')),
-                      detailIndex: int.parse(
-                          widget.detail.id!.replaceFirst('detail_', '')),
-                      onMediaAdded: (_) => setState(() {}),
-                      onMediaDeleted: (_) => setState(() {}),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

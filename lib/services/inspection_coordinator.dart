@@ -64,7 +64,6 @@ class InspectionCoordinator {
     return await _topicService.duplicateTopic(inspectionId, sourceTopic);
   }
 
-  // ADICIONADO
   Future<double> getTopicProgress(String inspectionId, String topicId) async {
     return await _topicService.getTopicProgress(inspectionId, topicId);
   }
@@ -99,7 +98,6 @@ class InspectionCoordinator {
     await _itemService.reorderItems(inspectionId, topicId, oldIndex, newIndex);
   }
 
-  // ADICIONADO
   Future<double> getItemProgress(
       String inspectionId, String topicId, String itemId) async {
     return await _itemService.getItemProgress(inspectionId, topicId, itemId);
@@ -213,6 +211,52 @@ class InspectionCoordinator {
       mediaType: mediaType,
     );
   }
+
+  // THE FIX: Métodos adicionados à classe correta
+  Future<void> addMediaToTopic(String inspectionId, String topicId, Map<String, dynamic> mediaData) async {
+    final inspection = await getInspection(inspectionId);
+    if (inspection == null) return;
+
+    final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+    final topicIndex = topics.indexWhere((t) => t['id'] == topicId);
+
+    if (topicIndex != -1) {
+      final topic = Map<String, dynamic>.from(topics[topicIndex]);
+      final mediaList = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+      mediaList.add(mediaData);
+      topic['media'] = mediaList;
+      topics[topicIndex] = topic;
+
+      await saveInspection(inspection.copyWith(topics: topics));
+    }
+  }
+
+  Future<void> addMediaToItem(String inspectionId, String topicId, String itemId, Map<String, dynamic> mediaData) async {
+    final inspection = await getInspection(inspectionId);
+    if (inspection == null) return;
+
+    final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+    final topicIndex = topics.indexWhere((t) => t['id'] == topicId);
+
+    if (topicIndex != -1) {
+      final topic = Map<String, dynamic>.from(topics[topicIndex]);
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      final itemIndex = items.indexWhere((i) => i['id'] == itemId);
+
+      if (itemIndex != -1) {
+        final item = Map<String, dynamic>.from(items[itemIndex]);
+        final mediaList = List<Map<String, dynamic>>.from(item['media'] ?? []);
+        mediaList.add(mediaData);
+        item['media'] = mediaList;
+        items[itemIndex] = item;
+        topic['items'] = items;
+        topics[topicIndex] = topic;
+
+        await saveInspection(inspection.copyWith(topics: topics));
+      }
+    }
+  }
+
 
   // TEMPLATE OPERATIONS
   Future<bool> isTemplateAlreadyApplied(String inspectionId) async {

@@ -1,15 +1,12 @@
 // lib/presentation/widgets/media/media_handling_widget.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
-import 'package:inspection_app/presentation/widgets/media/media_capture_popup.dart';
+import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
+import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
+import 'package:path_provider/path_provider.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -36,259 +33,110 @@ class MediaHandlingWidget extends StatefulWidget {
 class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   final ServiceFactory _serviceFactory = ServiceFactory();
   final _uuid = Uuid();
-  final _connectivity = Connectivity();
+  int _processingCount = 0;
 
-  List<Map<String, dynamic>> _mediaItems = [];
-  bool _isLoading = true;
-  bool _isProcessingVideo = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMedia();
-  }
-
-  Future<void> _loadMedia() async {
-    if (!mounted) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
-        final topic = inspection.topics![widget.topicIndex];
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-
-        if (widget.itemIndex < items.length) {
-          final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-
-          if (widget.detailIndex < details.length) {
-            final detail = details[widget.detailIndex];
-            final media = List<Map<String, dynamic>>.from(detail['media'] ?? []);
-
-            setState(() {
-              _mediaItems = media.asMap().entries.map((entry) => {
-                ...entry.value,
-                'media_index': entry.key,
-              }).toList();
-              _isLoading = false;
-            });
-            return;
-          }
-        }
-      }
-
-      setState(() {
-        _mediaItems = [];
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading media: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showMediaCapturePopup() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MediaCapturePopup(
-        onMediaSelected: _captureMedia,
+  void _showCameraCapture() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CustomCameraWidget(
+          onMediaCaptured: _handleMediaCaptured,
+          allowVideo: true,
+        ),
       ),
     );
   }
 
-  Future<void> _captureMedia(ImageSource source, String type) async {
-    if (type == 'image') {
-      await _pickImage(source);
-    } else if (type == 'video') {
-      await _pickVideo(source);
-    }
+  void _openDetailMediaGallery() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MediaGalleryScreen(
+          inspectionId: widget.inspectionId,
+          initialTopicId: 'topic_${widget.topicIndex}',
+          initialItemId: 'item_${widget.itemIndex}',
+          initialDetailId: 'detail_${widget.detailIndex}',
+          // Como este widget lida com mídias normais, o filtro de NC
+          // deve ser 'false' por padrão.
+          initialIsNonConformityOnly: false,
+        ),
+      ),
+    );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-
-    if (source == ImageSource.camera) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    }
-
-    final XFile? pickedFile = await picker.pickImage(
-      source: source,
-      imageQuality: 100,
-      preferredCameraDevice: CameraDevice.rear,
-    );
-
-    if (source == ImageSource.camera) {
-      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    }
-
-    if (pickedFile == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final mediaDir = await getMediaDirectory();
-      final timestamp = DateTime.now();
-      final filename = p.basename(pickedFile.path);
-      final newFilename = 'img_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
-      final localPath = '${mediaDir.path}/$newFilename';
-
-      final processedFile = await _serviceFactory.mediaService.processImage43(
-        pickedFile.path,
-        localPath,
-      );
-
-      if (processedFile == null) {
-        await File(pickedFile.path).copy(localPath);
-      }
-
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
-
-      final mediaData = <String, dynamic>{
-        'id': _uuid.v4(),
-        'type': 'image',
-        'localPath': localPath,
-        'aspect_ratio': '4:3',
-        'source': source == ImageSource.camera ? 'camera' : 'gallery',
-        'created_at': timestamp.toIso8601String(),
-        'updated_at': timestamp.toIso8601String(),
-        'metadata': {
-          'location': position != null
-              ? {
-                  'latitude': position.latitude,
-                  'longitude': position.longitude,
-                  'accuracy': position.accuracy,
-                }
-              : null,
-          'source': source == ImageSource.camera ? 'camera' : 'gallery',
-        },
-      };
-
-      final connectivityResult = await _connectivity.checkConnectivity();
-      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-          connectivityResult.contains(ConnectivityResult.mobile);
-
-      if (isOnline) {
-        try {
-          final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
-            file: File(localPath),
-            inspectionId: widget.inspectionId,
-            type: 'image',
-            topicId: 'topic_${widget.topicIndex}',
-            itemId: 'item_${widget.itemIndex}',
-            detailId: 'detail_${widget.detailIndex}',
-          );
-          mediaData['url'] = downloadUrl;
-        } catch (e) {
-          debugPrint('Error uploading to Firebase Storage: $e');
-        }
-      }
-
-      await _addMediaToInspection(mediaData);
-      widget.onMediaAdded(localPath);
-      await _loadMedia();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Imagem salva com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar imagem: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _pickVideo(ImageSource source) async {
-    final picker = ImagePicker();
-
-    if (source == ImageSource.camera) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    }
-
-    final XFile? pickedFile = await picker.pickVideo(
-      source: source,
-      maxDuration: const Duration(minutes: 2),
-      preferredCameraDevice: CameraDevice.rear,
-    );
-
-    if (source == ImageSource.camera) {
-      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    }
-
-    if (pickedFile == null) return;
-
+  Future<void> _handleMediaCaptured(List<String> localPaths, String type) async {
     if (mounted) {
+      setState(() {
+        _processingCount += localPaths.length;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Processando vídeo...'),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text('Iniciando processamento de ${localPaths.length} arquivo(s)...'),
+          backgroundColor: Colors.blue,
         ),
       );
     }
 
-    setState(() {
-      _isLoading = true;
-      _isProcessingVideo = true;
-    });
+    for (final path in localPaths) {
+      _processAndSaveMedia(path, type).whenComplete(() {
+        if (mounted) {
+          setState(() {
+            _processingCount--;
+          });
+        }
+      });
+    }
+  }
 
+  Future<void> _processAndSaveMedia(String localPath, String type) async {
     try {
-      final mediaDir = await getMediaDirectory();
-      final timestamp = DateTime.now();
-      final filename = p.basename(pickedFile.path);
-      final newFilename = 'vid_${timestamp.millisecondsSinceEpoch}_${_uuid.v4()}${p.extension(filename)}';
-      final localPath = '${mediaDir.path}/$newFilename';
+      final mediaDir = await getApplicationDocumentsDirectory();
+      final outputDir = Directory('${mediaDir.path}/processed_media');
+      if (!await outputDir.exists()) await outputDir.create(recursive: true);
 
-      await File(pickedFile.path).copy(localPath);
+      final fileExt = type == 'image' ? 'jpg' : 'mp4';
+      final filename = '${type}_${_uuid.v4()}.$fileExt';
+      final outputPath = '${outputDir.path}/$filename';
 
+      final processedFile = await _serviceFactory.mediaService.processMedia43(
+        localPath,
+        outputPath,
+        type
+      );
+
+      if (processedFile == null) {
+        throw Exception("Falha ao processar mídia.");
+      }
+      
       final position = await _serviceFactory.mediaService.getCurrentLocation();
 
       final mediaData = <String, dynamic>{
         'id': _uuid.v4(),
-        'type': 'video',
-        'localPath': localPath,
-        'aspect_ratio': '16:9',
-        'source': source == ImageSource.camera ? 'camera' : 'gallery',
-        'created_at': timestamp.toIso8601String(),
-        'updated_at': timestamp.toIso8601String(),
+        'type': type,
+        'localPath': processedFile.path,
+        'aspect_ratio': '4:3',
+        'source': 'camera',
+        'is_non_conformity': false, // Mídias deste widget nunca são de NC
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
         'metadata': {
-          'location': position != null
-              ? {
+          'location': position != null ? {
                   'latitude': position.latitude,
                   'longitude': position.longitude,
                   'accuracy': position.accuracy,
-                }
-              : null,
-          'source': source == ImageSource.camera ? 'camera' : 'gallery',
+                } : null,
+          'source': 'camera',
         },
       };
 
-      final connectivityResult = await _connectivity.checkConnectivity();
+      final connectivityResult = await Connectivity().checkConnectivity();
       final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
           connectivityResult.contains(ConnectivityResult.mobile);
 
       if (isOnline) {
         try {
           final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
-            file: File(localPath),
+            file: processedFile,
             inspectionId: widget.inspectionId,
-            type: 'video',
+            type: type,
             topicId: 'topic_${widget.topicIndex}',
             itemId: 'item_${widget.itemIndex}',
             detailId: 'detail_${widget.detailIndex}',
@@ -300,29 +148,13 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       }
 
       await _addMediaToInspection(mediaData);
-      widget.onMediaAdded(localPath);
-      await _loadMedia();
+      widget.onMediaAdded(processedFile.path);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vídeo salvo com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar vídeo: $e')),
+          SnackBar(content: Text('Erro ao salvar mídia: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isProcessingVideo = false;
-        });
       }
     }
   }
@@ -356,271 +188,49 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     }
   }
 
-  Future<void> _deleteMedia(int mediaIndex, Map<String, dynamic> media) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Excluir Mídia'),
-        content: const Text('Tem certeza que deseja excluir este arquivo de mídia?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      if (media['url'] != null) {
-        try {
-          await _serviceFactory.mediaService.deleteFile(media['url']);
-        } catch (e) {
-          debugPrint('Error deleting from storage: $e');
-        }
-      }
-
-      if (media['localPath'] != null) {
-        try {
-          final file = File(media['localPath']);
-          if (await file.exists()) await file.delete();
-        } catch (e) {
-          debugPrint('Error deleting local file: $e');
-        }
-      }
-
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-      if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
-        final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-        final topic = topics[widget.topicIndex];
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-
-        if (widget.itemIndex < items.length) {
-          final item = items[widget.itemIndex];
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-
-          if (widget.detailIndex < details.length) {
-            final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-            final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
-
-            if (mediaIndex < mediaList.length) {
-              mediaList.removeAt(mediaIndex);
-              detail['media'] = mediaList;
-              details[widget.detailIndex] = detail;
-              item['details'] = details;
-              items[widget.itemIndex] = item;
-              topic['items'] = items;
-              topics[widget.topicIndex] = topic;
-
-              await _serviceFactory.coordinator.saveInspection(inspection.copyWith(topics: topics));
-            }
-          }
-        }
-      }
-
-      if (media['localPath'] != null) {
-        widget.onMediaDeleted(media['localPath']);
-      }
-
-      await _loadMedia();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mídia excluída com sucesso'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao excluir mídia: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<Directory> getMediaDirectory() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final mediaDir = Directory('${appDir.path}/media');
-
-    if (!await mediaDir.exists()) {
-      await mediaDir.create(recursive: true);
-    }
-
-    return mediaDir;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ElevatedButton.icon(
-          onPressed: _isLoading ? null : _showMediaCapturePopup,
-          icon: const Icon(Icons.camera_alt),
-          label: const Text('Capturar Mídia'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_isLoading)
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        if (_processingCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 12),
-                if (_isProcessingVideo)
-                  const Text('Processando vídeo...\nIsso pode levar alguns instantes.', textAlign: TextAlign.center)
-                else
-                  const Text('Carregando...'),
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 12),
+                Text("Processando $_processingCount mídia(s)...", style: const TextStyle(fontStyle: FontStyle.italic)),
               ],
             ),
-          )
-        else if (_mediaItems.isEmpty)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('Nenhuma mídia anexada'),
-            ),
-          )
-        else
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Mídias Anexadas:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 150,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _mediaItems.length,
-                  itemBuilder: (context, index) {
-                    final media = _mediaItems[index];
-                    final isImage = media['type'] == 'image';
-                    final hasUrl = media['url'] != null && (media['url'] as String).isNotEmpty;
-                    final hasLocalPath = media['localPath'] != null && (media['localPath'] as String).isNotEmpty;
-
-                    Widget displayWidget;
-                    if (isImage) {
-                      if (hasLocalPath) {
-                        final file = File(media['localPath']);
-                        if (file.existsSync()) {
-                          displayWidget = Image.file(file, fit: BoxFit.cover,
-                            errorBuilder: (ctx, error, _) => Container(color: Colors.grey[300], child: const Icon(Icons.broken_image, color: Colors.red)));
-                        } else if (hasUrl) {
-                          displayWidget = Image.network(media['url'], fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return const Center(child: CircularProgressIndicator());
-                            },
-                            errorBuilder: (ctx, error, _) => Container(color: Colors.grey[300], child: const Icon(Icons.error_outline, color: Colors.red)));
-                        } else {
-                          displayWidget = Container(color: Colors.grey[300], 
-                            child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Icon(Icons.image_not_supported), SizedBox(height: 4), Text('Sem Imagem', style: TextStyle(fontSize: 10))
-                            ]));
-                        }
-                      } else if (hasUrl) {
-                        displayWidget = Image.network(media['url'], fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(child: CircularProgressIndicator());
-                          },
-                          errorBuilder: (ctx, error, _) => Container(color: Colors.grey[300], child: const Icon(Icons.cloud_off, color: Colors.orange)));
-                      } else {
-                        displayWidget = Container(color: Colors.grey[300], 
-                          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(Icons.image), SizedBox(height: 4), Text('Sem Fonte', style: TextStyle(fontSize: 10))
-                          ]));
-                      }
-                    } else {
-                      displayWidget = Container(color: Colors.grey[800], 
-                        child: const Center(child: Icon(Icons.video_file, size: 50, color: Colors.grey)));
-
-                      if (!hasLocalPath && !hasUrl) {
-                        displayWidget = Container(color: Colors.grey[300], 
-                          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(Icons.videocam_off), SizedBox(height: 4), Text('Sem Fonte', style: TextStyle(fontSize: 10))
-                          ]));
-                      }
-                    }
-
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => MediaViewerScreen(
-                                mediaItems: _mediaItems,
-                                initialIndex: index,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Stack(
-                          children: [
-                            Container(
-                              width: 150, height: 150,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: displayWidget),
-                            ),
-                            Positioned(
-                              top: 5, right: 5,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha((255 * 0.6).round()),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.white, size: 20),
-                                  onPressed: () => _deleteMedia(index, media),
-                                  tooltip: 'Excluir Mídia',
-                                  constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-                                  padding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 5, left: 5,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha((255 * 0.6).round()),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(isImage ? 'Foto' : 'Vídeo', 
-                                  style: const TextStyle(color: Colors.white, fontSize: 12)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _showCameraCapture,
+                icon: const Icon(Icons.camera_alt, size: 16),
+                label: const Text('Capturar', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _openDetailMediaGallery,
+                icon: const Icon(Icons.photo_library, size: 16),
+                label: const Text('Ver Galeria', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
