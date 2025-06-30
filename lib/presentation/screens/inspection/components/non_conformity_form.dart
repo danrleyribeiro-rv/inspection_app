@@ -64,18 +64,18 @@ class _NonConformityFormState extends State<NonConformityForm> {
       builder: (context) {
         final controller = TextEditingController(text: _descriptionController.text);
         return AlertDialog(
-          title: const Text('Descrição da Não Conformidade'),
+          title: const Text('Descrição da Não Conformidade', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 250),
               child: TextFormField(
                 controller: controller,
-                maxLines: 8,
+                maxLines: 5,
                 autofocus: true,
                 decoration: const InputDecoration(
                     hintText: 'Descreva a não conformidade encontrada...',
-                    hintStyle: TextStyle(color: Colors.grey),
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -107,18 +107,18 @@ class _NonConformityFormState extends State<NonConformityForm> {
       builder: (context) {
         final controller = TextEditingController(text: _correctiveActionController.text);
         return AlertDialog(
-          title: const Text('Ação Corretiva'),
+          title: const Text('Ação Corretiva', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 220),
               child: TextFormField(
                 controller: controller,
-                maxLines: 6,
+                maxLines: 5,
                 autofocus: true,
                 decoration: const InputDecoration(
                     hintText: 'Descreva as ações necessárias para correção...',
-                    hintStyle: TextStyle(color: Colors.grey),
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -275,7 +275,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 const SizedBox(width: 8),
                 const Text(
                   'Localização da Não Conformidade',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -338,7 +338,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 const SizedBox(width: 8),
                 const Text(
                   'Detalhes da Não Conformidade',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -355,6 +355,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                   controller: _descriptionController,
                   decoration: InputDecoration(
                     labelText: 'Descrição *',
+                    labelStyle: const TextStyle(fontSize: 12),
                     hintText: _descriptionController.text.isEmpty 
                         ? 'Toque para adicionar descrição...' 
                         : null,
@@ -376,12 +377,13 @@ class _NonConformityFormState extends State<NonConformityForm> {
                   controller: _correctiveActionController,
                   decoration: InputDecoration(
                     labelText: 'Ação Corretiva (opcional)',
+                    labelStyle: const TextStyle(fontSize: 12),
                     hintText: _correctiveActionController.text.isEmpty 
                         ? 'Toque para adicionar ação corretiva...' 
                         : null,
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.build),
-                    suffixIcon: const Icon(Icons.edit, size: 18),
+                    suffixIcon: const Icon(Icons.edit, size: 16),
                   ),
                   maxLines: 1,
                 ),
@@ -408,6 +410,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
     return DropdownButtonFormField<T>(
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
         border: const OutlineInputBorder(),
         prefixIcon: Icon(icon),
       ),
@@ -427,6 +430,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
         labelText: 'Severidade',
+        labelStyle: TextStyle(fontSize: 12),
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.priority_high),
       ),
@@ -476,6 +480,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         child: TextFormField(
           decoration: const InputDecoration(
             labelText: 'Prazo (opcional)',
+            labelStyle: TextStyle(fontSize: 12),
             hintText: 'Selecione uma data limite',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.calendar_today),
@@ -511,7 +516,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
             : const Icon(Icons.save),
         label: Text(
           _isCreating ? 'Salvando...' : 'Registrar Não Conformidade',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
         ),
       ),
     );

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class Inspection {
@@ -22,10 +21,9 @@ class Inspection {
   final String? inspectorId;
   final bool isTemplated;
   final String? templateId;
-  final DateTime? lastCheckpointAt;
-  final String? lastCheckpointBy;
-  final String? lastCheckpointMessage;
-  final double? lastCheckpointCompletion;
+  final bool isSynced;
+  final DateTime? lastSyncAt;
+  final bool hasLocalChanges;
   final List<Map<String, dynamic>>? topics;
 
   Inspection({
@@ -49,10 +47,9 @@ class Inspection {
     this.inspectorId,
     this.isTemplated = false,
     this.templateId,
-    this.lastCheckpointAt,
-    this.lastCheckpointBy,
-    this.lastCheckpointMessage,
-    this.lastCheckpointCompletion,
+    this.isSynced = true,
+    this.lastSyncAt,
+    this.hasLocalChanges = false,
     this.topics,
   });
 
@@ -77,10 +74,9 @@ class Inspection {
     String? inspectorId,
     bool? isTemplated,
     String? templateId,
-    DateTime? lastCheckpointAt,
-    String? lastCheckpointBy,
-    String? lastCheckpointMessage,
-    double? lastCheckpointCompletion,
+    bool? isSynced,
+    DateTime? lastSyncAt,
+    bool? hasLocalChanges,
     List<Map<String, dynamic>>? topics,
   }) {
     return Inspection(
@@ -104,12 +100,9 @@ class Inspection {
       inspectorId: inspectorId ?? this.inspectorId,
       isTemplated: isTemplated ?? this.isTemplated,
       templateId: templateId ?? this.templateId,
-      lastCheckpointAt: lastCheckpointAt ?? this.lastCheckpointAt,
-      lastCheckpointBy: lastCheckpointBy ?? this.lastCheckpointBy,
-      lastCheckpointMessage:
-          lastCheckpointMessage ?? this.lastCheckpointMessage,
-      lastCheckpointCompletion:
-          lastCheckpointCompletion ?? this.lastCheckpointCompletion,
+      isSynced: isSynced ?? this.isSynced,
+      lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+      hasLocalChanges: hasLocalChanges ?? this.hasLocalChanges,
       topics: topics ?? this.topics,
     );
   }
@@ -136,21 +129,11 @@ class Inspection {
       'inspector_id': inspectorId,
       'is_templated': isTemplated,
       'template_id': templateId,
+      'is_synced': isSynced,
+      'last_sync_at': lastSyncAt?.toIso8601String(),
+      'has_local_changes': hasLocalChanges,
       'topics': topics,
     };
-
-    if (lastCheckpointAt != null) {
-      data['last_checkpoint_at'] = lastCheckpointAt!.toIso8601String();
-    }
-    if (lastCheckpointBy != null) {
-      data['last_checkpoint_by'] = lastCheckpointBy;
-    }
-    if (lastCheckpointMessage != null) {
-      data['last_checkpoint_message'] = lastCheckpointMessage;
-    }
-    if (lastCheckpointCompletion != null) {
-      data['last_checkpoint_completion'] = lastCheckpointCompletion;
-    }
 
     return data;
   }
@@ -158,14 +141,6 @@ class Inspection {
   Map<String, dynamic> toMap() => toJson();
 
   factory Inspection.fromJson(Map<String, dynamic> json) {
-    DateTime? lastCheckpointAt;
-    if (json['last_checkpoint_at'] != null) {
-      if (json['last_checkpoint_at'] is Timestamp) {
-        lastCheckpointAt = (json['last_checkpoint_at'] as Timestamp).toDate();
-      } else if (json['last_checkpoint_at'] is String) {
-        lastCheckpointAt = DateTime.parse(json['last_checkpoint_at']);
-      }
-    }
 
     bool isTemplated = false;
     if (json.containsKey('is_templated')) {
@@ -208,12 +183,9 @@ class Inspection {
       inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,
       templateId: json['template_id']?.toString(),
-      lastCheckpointAt: lastCheckpointAt,
-      lastCheckpointBy: json['last_checkpoint_by'],
-      lastCheckpointMessage: json['last_checkpoint_message'],
-      lastCheckpointCompletion: json['last_checkpoint_completion'] != null
-          ? (json['last_checkpoint_completion'] as num).toDouble()
-          : null,
+      isSynced: json['is_synced'] ?? true,
+      lastSyncAt: _parseDateTime(json['last_sync_at']),
+      hasLocalChanges: json['has_local_changes'] ?? false,
       topics: topics,
     );
   }

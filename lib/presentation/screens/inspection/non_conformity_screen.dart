@@ -324,7 +324,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
-        title: const Text('Não Conformidades'),
+        title: const Text('Não Conformidades', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),),
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
         leading: Navigator.of(context).canPop()
@@ -395,9 +395,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             selectedItemColor: Theme.of(context).colorScheme.primary,
             unselectedItemColor: Colors.grey[400],
             selectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             unselectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
             showUnselectedLabels: true,
             items: const [
               BottomNavigationBarItem(

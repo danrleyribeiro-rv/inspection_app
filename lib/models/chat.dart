@@ -6,6 +6,7 @@ class Chat {
   final String inspectionId;
   final Map<String, dynamic> inspection;
   final Map<String, dynamic> inspector;
+  final Map<String, dynamic> manager;
   final List<String> participants;
   final Map<String, dynamic> lastMessage;
   final DateTime createdAt;
@@ -18,6 +19,7 @@ class Chat {
     required this.inspectionId,
     required this.inspection,
     required this.inspector,
+    this.manager = const {},
     required this.participants,
     required this.lastMessage,
     required this.createdAt,
@@ -34,6 +36,7 @@ class Chat {
       inspectionId: data['inspection_id'] ?? '',
       inspection: data['inspection'] ?? {},
       inspector: data['inspector'] ?? {},
+      manager: data['manager'] ?? {},
       participants: List<String>.from(data['participants'] ?? []),
       lastMessage: data['last_message'] ?? {},
       createdAt: _parseTimestamp(data['created_at']),
@@ -55,6 +58,7 @@ class Chat {
       'inspection_id': inspectionId,
       'inspection': inspection,
       'inspector': inspector,
+      'manager': manager,
       'participants': participants,
       'last_message': lastMessage,
       'created_at': Timestamp.fromDate(createdAt),

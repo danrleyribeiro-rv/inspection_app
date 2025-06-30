@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -31,7 +32,7 @@ Future<void> main() async {
 
   // 3. Inicializa todos os serviços da aplicação através do ServiceFactory
   //    Esta única chamada agora cria todas as instâncias e resolve as dependências.
-  ServiceFactory().initialize();
+  await ServiceFactory().initialize();
 
   // Configuração da UI
   SystemChrome.setSystemUIOverlayStyle(
@@ -55,6 +56,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Inspection App',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+      ],
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         primaryColor: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFF1E293B),
@@ -104,6 +114,48 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Inter',
         dividerTheme: DividerThemeData(
           color: Colors.grey[700],
+        ),
+        datePickerTheme: DatePickerThemeData(
+          backgroundColor: const Color(0xFF2A3749),
+          headerBackgroundColor: const Color(0xFF1E293B),
+          headerForegroundColor: Colors.white,
+          headerHeadlineStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+          headerHelpStyle: const TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+          ),
+          weekdayStyle: const TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          dayStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+          ),
+          yearStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+          dayOverlayColor: WidgetStateProperty.all(Colors.blue.withValues(alpha: 0.1)),
+          todayBackgroundColor: WidgetStateProperty.all(Colors.blue.withValues(alpha: 0.3)),
+          dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return Colors.blue;
+            }
+            return Colors.transparent;
+          }),
+          dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return Colors.white;
+            }
+            return Colors.white;
+          }),
         ),
       ),
       initialRoute: '/',

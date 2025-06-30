@@ -2,12 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/widgets/common/map_location_card.dart';
+import 'package:inspection_app/services/service_factory.dart';
 import 'dart:developer'; // Import log for potential debugging
 
 class InspectionCard extends StatelessWidget {
   final Map<String, dynamic> inspection;
   final Function() onViewDetails;
   final Function()? onComplete;
+  final Function()? onSync;
+  final Function()? onDownload;
+  final Function()? onSyncImages; // Callback para sincronizar imagens
+  final int? pendingImagesCount; // Contador de imagens pendentes
   final String googleMapsApiKey; // <<< Add this parameter
 
   const InspectionCard({
@@ -15,6 +20,10 @@ class InspectionCard extends StatelessWidget {
     required this.inspection,
     required this.onViewDetails,
     this.onComplete,
+    this.onSync,
+    this.onDownload,
+    this.onSyncImages,
+    this.pendingImagesCount,
     required this.googleMapsApiKey, // <<< Make it required in the constructor
   });
 
@@ -65,7 +74,7 @@ class InspectionCard extends StatelessWidget {
     log('[InspectionCard build] Title: $title, Address: "$address", Lat: $latitude, Lng: $longitude');
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       color: Colors.grey[850],
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -75,20 +84,19 @@ class InspectionCard extends StatelessWidget {
         onTap: onViewDetails,
         borderRadius: BorderRadius.circular(6),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title and status row
               Row(
-                // ... (Title and Status Chip code remains the same) ...
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -97,16 +105,18 @@ class InspectionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  _buildSyncIndicator(),
+                  const SizedBox(width: 4),
                   _buildStatusChip(status),
                 ],
               ),
 
               // Date
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                padding: const EdgeInsets.symmetric(vertical: 3.0),
                 child: Text(
                   'Data: $scheduledDate', // Changed 'Date' to 'Data'
-                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  style: const TextStyle(fontSize: 10, color: Colors.white70),
                 ),
               ),
 
@@ -122,35 +132,115 @@ class InspectionCard extends StatelessWidget {
 
               // Action buttons
               Row(
-                // ... (Button logic remains the same) ...
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Continue button (only for pending or in_progress)
-                  if (status == 'pending' || status == 'in_progress')
-                    ElevatedButton(
-                      onPressed: onViewDetails,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text(
-                        status == 'pending' ? 'Iniciar' : 'Continuar',
-                      ),
+                  // Left side buttons (Sync and Download)
+                  Flexible(
+                    flex: 1,
+                    child: Row(
+                      children: [
+                        // Sync button (upload)
+                        if (onSync != null)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: onSync,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                              ),
+                              icon: const Icon(Icons.cloud_upload, size: 12),
+                              label: const Text('Sync', style: TextStyle(fontSize: 10)),
+                            ),
+                          ),
+                        
+                        if (onSync != null && (onDownload != null || onSyncImages != null)) const SizedBox(width: 4),
+                        
+                        // Image sync button (sync media)
+                        if (onSyncImages != null)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: onSyncImages,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.purple,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                              ),
+                              icon: pendingImagesCount != null && pendingImagesCount! > 0
+                                ? Badge(
+                                    label: Text('${pendingImagesCount!}'),
+                                    child: const Icon(Icons.image, size: 12),
+                                  )
+                                : const Icon(Icons.image, size: 12),
+                              label: const Text('Fotos', style: TextStyle(fontSize: 10)),
+                            ),
+                          ),
+                        
+                        if (onSyncImages != null && onDownload != null) const SizedBox(width: 4),
+                        
+                        // Download button (download from cloud)
+                        if (onDownload != null)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: onDownload,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                              ),
+                              icon: const Icon(Icons.cloud_download, size: 12),
+                              label: const Text('Baixar', style: TextStyle(fontSize: 10)),
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
+                  
+                  const SizedBox(width: 8),
+                  
+                  // Right side buttons
+                  Flexible(
+                    flex: 2,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Continue button (only for pending or in_progress)
+                        if (status == 'pending' || status == 'in_progress')
+                          ElevatedButton(
+                            onPressed: onViewDetails,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 32),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            ),
+                            child: Text(
+                              status == 'pending' ? 'Iniciar' : 'Continuar',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
 
-                  // Complete button (only for in_progress)
-                  if (status == 'in_progress' && onComplete != null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: ElevatedButton(
-                        onPressed: onComplete,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Completar'),
-                      ),
+                        // Complete button (only for in_progress)
+                        if (status == 'in_progress' && onComplete != null) ...[
+                          const SizedBox(width: 6),
+                          ElevatedButton(
+                            onPressed: onComplete,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 32),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            ),
+                            child: const Text('Completar', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ],
                     ),
+                  ),
                 ],
               ),
             ],
@@ -263,8 +353,8 @@ class InspectionCard extends StatelessWidget {
         return 'Data inválida (Tipo)';
       }
 
-      // Format to Brazilian standard with time
-      return DateFormat('dd/MM/yyyy HH:mm').format(date);
+      // Format to Brazilian standard without time
+      return DateFormat('dd/MM/yyyy').format(date);
     } catch (e, s) {
       log('[_formatDate] Error formatting date: $dateValue',
           error: e, stackTrace: s);
@@ -310,7 +400,35 @@ class InspectionCard extends StatelessWidget {
       child: Text(
         label,
         style:
-            TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildSyncIndicator() {
+    final inspectionId = inspection['id']?.toString() ?? '';
+    if (inspectionId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Verificar se a inspeção está sincronizada
+    final syncService = ServiceFactory().syncService;
+    final isSynced = syncService.isInspectionSynced(inspectionId);
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: isSynced ? Colors.green.withAlpha(51) : Colors.orange.withAlpha(51),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSynced ? Colors.green : Colors.orange,
+          width: 1,
+        ),
+      ),
+      child: Icon(
+        isSynced ? Icons.cloud_done : Icons.cloud_sync,
+        size: 12,
+        color: isSynced ? Colors.green : Colors.orange,
       ),
     );
   }

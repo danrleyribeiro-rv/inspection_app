@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
+import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
 
 class MediaGrid extends StatelessWidget {
   final List<Map<String, dynamic>> media;
@@ -14,6 +16,8 @@ class MediaGrid extends StatelessWidget {
     required this.media,
     required this.onTap,
   });
+
+  ServiceFactory get _serviceFactory => ServiceFactory();
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +41,8 @@ class MediaGrid extends StatelessWidget {
       BuildContext context, Map<String, dynamic> mediaItem) {
     final bool isImage = mediaItem['type'] == 'image';
     final bool isNonConformity = mediaItem['is_non_conformity'] == true;
-    final bool hasUrl =
-        mediaItem['url'] != null && (mediaItem['url'] as String).isNotEmpty;
-    final bool hasLocalPath = mediaItem['localPath'] != null &&
-        (mediaItem['localPath'] as String).isNotEmpty;
+    final String? displayPath = _serviceFactory.mediaService.getDisplayPath(mediaItem);
+    final String? status = mediaItem['status'] as String?;
 
     // Format date
     String formattedDate = '';
@@ -71,17 +73,13 @@ class MediaGrid extends StatelessWidget {
     // Choose display widget
     Widget displayWidget;
     if (isImage) {
-      if (hasLocalPath) {
-        final file = File(mediaItem['localPath']);
-        if (file.existsSync()) {
-          displayWidget = Image.file(
-            file,
-            fit: BoxFit.cover,
-            errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
-          );
-        } else if (hasUrl) {
-          displayWidget = Image.network(
-            mediaItem['url'],
+      if (displayPath != null) {
+        // Determinar se é arquivo local ou URL
+        if (displayPath.startsWith('http') || displayPath.startsWith('https')) {
+          // É uma URL - usar widget de cache
+          displayWidget = CachedMediaImage(
+            mediaUrl: displayPath,
+            mediaId: mediaItem['id'] as String?,
             fit: BoxFit.cover,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
@@ -90,18 +88,13 @@ class MediaGrid extends StatelessWidget {
             errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
           );
         } else {
-          displayWidget = _buildNoSourcePlaceholder('image');
+          // É um arquivo local
+          displayWidget = Image.file(
+            File(displayPath),
+            fit: BoxFit.cover,
+            errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+          );
         }
-      } else if (hasUrl) {
-        displayWidget = Image.network(
-          mediaItem['url'],
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _buildLoadingIndicator();
-          },
-          errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
-        );
       } else {
         displayWidget = _buildNoSourcePlaceholder('image');
       }
@@ -173,7 +166,24 @@ class MediaGrid extends StatelessWidget {
                           size: 14,
                         ),
                       ),
-                    const SizedBox(width: 4),
+                    if (isNonConformity) const SizedBox(width: 4),
+                    
+                    // Status indicator
+                    if (status != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(status).withAlpha((255 * 0.8).round()),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Icon(
+                          _getStatusIcon(status),
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -183,7 +193,7 @@ class MediaGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
-                        isImage ? Icons.photo : Icons.videocam,
+                        _getMediaIcon(mediaItem, isImage),
                         color: Colors.white,
                         size: 14,
                       ),
@@ -274,6 +284,55 @@ class MediaGrid extends StatelessWidget {
     );
   }
 
+  // Métodos auxiliares para status
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'uploaded':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'processing':
+        return Colors.blue;
+      case 'local':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'uploaded':
+        return Icons.cloud_done;
+      case 'pending':
+        return Icons.cloud_upload;
+      case 'processing':
+        return Icons.refresh;
+      case 'local':
+        return Icons.storage;
+      default:
+        return Icons.help_outline;
+    }
+  }
+
+  IconData _getMediaIcon(Map<String, dynamic> mediaItem, bool isImage) {
+    final source = mediaItem['source'] as String?;
+    final metadata = mediaItem['metadata'] as Map<String, dynamic>?;
+    final metadataSource = metadata?['source'] as String?;
+    
+    // Verificar se é da camera (source direto ou no metadata)
+    final isFromCamera = source == 'camera' || metadataSource == 'camera';
+    
+    // Debug log para verificar os valores
+    debugPrint('MediaGrid._getMediaIcon: source=$source, metadataSource=$metadataSource, isFromCamera=$isFromCamera');
+    
+    if (isImage) {
+      return isFromCamera ? Icons.camera_alt : Icons.folder;
+    } else {
+      return isFromCamera ? Icons.videocam : Icons.video_library;
+    }
+  }
+
   Widget _buildLoadingIndicator() {
     return const Center(
       child: SizedBox(
@@ -316,7 +375,7 @@ class MediaGrid extends StatelessWidget {
             'Sem fonte',
             style: TextStyle(
               color: Colors.grey.shade400,
-              fontSize: 12,
+              fontSize: 10,
             ),
           ),
         ],

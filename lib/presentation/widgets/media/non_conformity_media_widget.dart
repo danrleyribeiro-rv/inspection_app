@@ -1,9 +1,5 @@
 // lib/presentation/widgets/media/non_conformity_media_widget.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
@@ -35,7 +31,6 @@ class NonConformityMediaWidget extends StatefulWidget {
 
 class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   final ServiceFactory _serviceFactory = ServiceFactory();
-  final _uuid = Uuid();
   int _processingCount = 0;
 
   void _showCameraCapture() {
@@ -88,69 +83,97 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     }
   }
 
-  Future<void> _processAndSaveMedia(String localPath, String type) async {
+  Future<Map<String, String?>> _getHierarchyIds() async {
     try {
-      final mediaDir = await getApplicationDocumentsDirectory();
-      final outputDir = Directory('${mediaDir.path}/processed_nc_media');
-      if (!await outputDir.exists()) await outputDir.create(recursive: true);
-
-      final fileExt = type == 'image' ? 'jpg' : 'mp4';
-      final filename = 'nc_${type}_${_uuid.v4()}.$fileExt';
-      final outputPath = '${outputDir.path}/$filename';
-      
-      final processedFile = await _serviceFactory.mediaService.processMedia43(
-        localPath,
-        outputPath,
-        type
-      );
-      
-      if (processedFile == null) {
-        throw Exception("Falha ao processar mídia de NC.");
+      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      if (inspection?.topics == null) {
+        return {'topicId': 'topic_${widget.topicIndex}', 'itemId': 'item_${widget.itemIndex}', 'detailId': 'detail_${widget.detailIndex}'};
       }
 
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
+      String? topicId;
+      String? itemId;
+      String? detailId;
 
-      final mediaData = {
-        'id': _uuid.v4(),
-        'type': type,
-        'localPath': processedFile.path,
-        'aspect_ratio': '4:3',
-        'source': 'camera',
-        'is_non_conformity': true, // Mídias deste widget sempre são de NC
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'metadata': {
-          'location': position != null ? {
-                  'latitude': position.latitude,
-                  'longitude': position.longitude,
-                  'accuracy': position.accuracy,
-                } : null,
-          'source': 'camera',
-        },
-      };
-      
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-          connectivityResult.contains(ConnectivityResult.mobile);
+      if (widget.topicIndex < inspection!.topics!.length) {
+        final topic = inspection.topics![widget.topicIndex];
+        topicId = topic['id'] ?? 'topic_${widget.topicIndex}';
 
-      if (isOnline) {
-        try {
-          final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
-            file: processedFile,
-            inspectionId: widget.inspectionId,
-            type: type,
-            topicId: 'topic_${widget.topicIndex}',
-            itemId: 'item_${widget.itemIndex}',
-            detailId: 'detail_${widget.detailIndex}',
-          );
-          mediaData['url'] = downloadUrl;
-        } catch (e) {
-          debugPrint('Error uploading to Firebase Storage: $e');
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        if (widget.itemIndex < items.length) {
+          final item = items[widget.itemIndex];
+          itemId = item['id'] ?? 'item_${widget.itemIndex}';
+
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          if (widget.detailIndex < details.length) {
+            final detail = details[widget.detailIndex];
+            detailId = detail['id'] ?? 'detail_${widget.detailIndex}';
+          }
         }
       }
 
+      return {
+        'topicId': topicId ?? 'topic_${widget.topicIndex}',
+        'itemId': itemId ?? 'item_${widget.itemIndex}',
+        'detailId': detailId ?? 'detail_${widget.detailIndex}',
+      };
+    } catch (e) {
+      debugPrint('Error getting hierarchy IDs: $e');
+      return {'topicId': 'topic_${widget.topicIndex}', 'itemId': 'item_${widget.itemIndex}', 'detailId': 'detail_${widget.detailIndex}'};
+    }
+  }
+
+  Future<void> _processAndSaveMedia(String localPath, String type) async {
+    try {
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
+      
+      // Obter IDs reais da hierarquia
+      final hierarchyIds = await _getHierarchyIds();
+      
+      debugPrint('NonConformityMediaWidget: Processing media');
+      debugPrint('  TopicId: ${hierarchyIds['topicId']}');
+      debugPrint('  ItemId: ${hierarchyIds['itemId']}');
+      debugPrint('  DetailId: ${hierarchyIds['detailId']}');
+      debugPrint('  NCIndex: ${widget.ncIndex}');
+      
+      // Usar o fluxo offline-first do MediaService
+      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
+        inputPath: localPath,
+        inspectionId: widget.inspectionId,
+        type: type,
+        topicId: hierarchyIds['topicId'],
+        itemId: hierarchyIds['itemId'],
+        detailId: hierarchyIds['detailId'],
+        metadata: {
+          'source': 'camera',
+          'is_non_conformity': true,
+          'nc_index': widget.ncIndex,
+          'location': position != null ? {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'accuracy': position.accuracy
+          } : null,
+        },
+      );
+      
+      debugPrint('NonConformityMediaWidget: OfflineMedia created with ID: ${offlineMedia.id}');
+      
+      // Converter OfflineMedia para formato esperado pelo coordinator
+      final mediaData = {
+        'id': offlineMedia.id,
+        'type': offlineMedia.type,
+        'localPath': offlineMedia.localPath,
+        'url': offlineMedia.uploadUrl,
+        'aspect_ratio': '4:3',
+        'source': 'camera',
+        'is_non_conformity': true,
+        'created_at': offlineMedia.createdAt.toIso8601String(),
+        'updated_at': offlineMedia.createdAt.toIso8601String(),
+        'metadata': offlineMedia.metadata,
+      };
+
       await _saveMediaToInspection(mediaData);
-      widget.onMediaAdded(processedFile.path);
+      debugPrint('NonConformityMediaWidget: Media saved to inspection');
+      widget.onMediaAdded(offlineMedia.localPath);
 
     } catch (e) {
       if (mounted) {
@@ -225,7 +248,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.camera_alt, size: 18),
-                      label: const Text('Capturar', style: TextStyle(fontSize: 12)),
+                      label: const Text('Capturar', style: TextStyle(fontSize: 8)),
                       onPressed: _showCameraCapture,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -237,7 +260,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.photo_library, size: 18),
-                      label: const Text('Ver Galeria', style: TextStyle(fontSize: 12)),
+                      label: const Text('Ver Galeria', style: TextStyle(fontSize: 8)),
                       onPressed: _openNonConformityMediaGallery,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple,

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
+import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/features/media_service.dart';
+import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> mediaItems;
@@ -23,12 +26,14 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late int _currentIndex;
   bool _showUI = true;
   final Map<int, VideoPlayerController?> _videoControllers = {};
+  late final MediaService _mediaService;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    _mediaService = ServiceFactory().mediaService;
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
@@ -66,60 +71,47 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Widget _buildMediaWidget(Map<String, dynamic> media, int index) {
     final bool isImage = media['type'] == 'image';
-    final bool hasLocalPath =
-        media['localPath'] != null && File(media['localPath']).existsSync();
-    final bool hasUrl = media['url'] != null;
+    final String? displayPath = _mediaService.getDisplayPath(media);
+    
+    // Check if media is available
+    if (displayPath == null) {
+      return _buildUnavailableWidget();
+    }
 
     if (isImage) {
-      if (hasLocalPath) {
-        return InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: Image.file(
-            File(media['localPath']),
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, error, _) => _buildErrorWidget(),
-          ),
-        );
-      } else if (hasUrl) {
-        return InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: Image.network(
-            media['url'],
-            fit: BoxFit.contain,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return _buildLoadingWidget();
-            },
-            errorBuilder: (ctx, error, _) => _buildErrorWidget(),
-          ),
-        );
-      }
+      return _buildImageWidget(displayPath);
     } else {
       // Video
       return _buildVideoPlayer(media, index);
     }
-    return _buildUnsupportedWidget();
   }
 
   Widget _buildVideoPlayer(Map<String, dynamic> media, int index) {
     VideoPlayerController? controller = _videoControllers[index];
     if (controller == null) {
-      // Initialize controller
-      if (media['localPath'] != null && File(media['localPath']).existsSync()) {
-        controller = VideoPlayerController.file(File(media['localPath']));
-      } else if (media['url'] != null) {
-        controller = VideoPlayerController.networkUrl(Uri.parse(media['url']));
+      // Get best available path using MediaService
+      final String? displayPath = _mediaService.getDisplayPath(media);
+      if (displayPath == null) {
+        return _buildUnavailableWidget();
       }
-      if (controller != null) {
-        _videoControllers[index] = controller;
-        controller.initialize().then((_) {
-          if (mounted) setState(() {});
-        });
+      
+      // Initialize controller based on path type
+      if (displayPath.startsWith('http')) {
+        controller = VideoPlayerController.networkUrl(Uri.parse(displayPath));
+      } else {
+        controller = VideoPlayerController.file(File(displayPath));
       }
+      
+      _videoControllers[index] = controller;
+      controller.initialize().then((_) {
+        if (mounted) setState(() {});
+      }).catchError((error) {
+        debugPrint('Error initializing video player: $error');
+        if (mounted) setState(() {});
+      });
     }
-    if (controller == null || !controller.value.isInitialized) {
+    
+    if (!controller.value.isInitialized) {
       return _buildLoadingWidget();
     }
     return Stack(
@@ -178,15 +170,41 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     );
   }
 
-  Widget _buildUnsupportedWidget() {
+  Widget _buildImageWidget(String displayPath) {
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: displayPath.startsWith('http')
+          ? CachedMediaImage(
+              mediaUrl: displayPath,
+              fit: BoxFit.contain,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return _buildLoadingWidget();
+              },
+              errorBuilder: (ctx, error, _) => _buildErrorWidget(),
+            )
+          : Image.file(
+              File(displayPath),
+              fit: BoxFit.contain,
+              errorBuilder: (ctx, error, _) => _buildErrorWidget(),
+            ),
+    );
+  }
+
+  Widget _buildUnavailableWidget() {
     return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.block, color: Colors.white, size: 64),
+          Icon(Icons.cloud_off_outlined, color: Colors.white, size: 64),
           SizedBox(height: 16),
-          Text('Tipo de mídia não suportado',
+          Text('Mídia não disponível',
               style: TextStyle(color: Colors.white)),
+          SizedBox(height: 8),
+          Text('A mídia pode estar sendo processada ou não foi sincronizada ainda',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+              textAlign: TextAlign.center),
         ],
       ),
     );
@@ -295,7 +313,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                               'Tópico: ${currentMedia['topic_name']}',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 16,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -339,7 +357,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.red.withAlpha((255 * 0.8).round()),
+                                    color: Colors.red
+                                        .withAlpha((255 * 0.8).round()),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Row(
@@ -355,7 +374,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                                         'NC',
                                         style: TextStyle(
                                           color: Colors.white,
-                                          fontSize: 12,
+                                          fontSize: 10,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -373,7 +392,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.black.withAlpha((255 * 0.3).round()),
+                                color:
+                                    Colors.black.withAlpha((255 * 0.3).round()),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(

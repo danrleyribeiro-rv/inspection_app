@@ -106,7 +106,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
   void _showQrCredentials() {
     if (_profile == null) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => QrCodeCredentialsDialog(
@@ -124,7 +124,7 @@ class _ProfileTabState extends State<ProfileTab> {
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
         titleTextStyle: const TextStyle(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -144,7 +144,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   // Avatar and name
                   _buildProfileImage(),
                   const SizedBox(height: 16),
-                  
+
                   // QR Code Credentials Button
                   ElevatedButton.icon(
                     onPressed: _showQrCredentials,
@@ -153,19 +153,20 @@ class _ProfileTabState extends State<ProfileTab> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   Text(
                     _getFullName(),
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
@@ -173,12 +174,12 @@ class _ProfileTabState extends State<ProfileTab> {
                   Text(
                     _profile?['profession'] ?? 'Not specified',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 12,
                       color: Colors.grey,
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
                   // Personal Information section
                   const Align(
@@ -186,7 +187,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Text(
                       'Informações Pessoais',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -208,7 +209,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Text(
                       'Endereço',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -267,7 +268,7 @@ class _ProfileTabState extends State<ProfileTab> {
       child: Text(
         _getInitials(),
         style: const TextStyle(
-          fontSize: 36,
+          fontSize: 24,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
@@ -338,7 +339,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 12,
                   ),
                 ),
               ],

@@ -378,7 +378,7 @@ class _DetailListItemState extends State<DetailListItem> {
         final controller =
             TextEditingController(text: _observationController.text);
         return AlertDialog(
-          title: const Text('Observações do Detalhe'),
+          title: const Text('Observações do Detalhe', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
@@ -387,6 +387,7 @@ class _DetailListItemState extends State<DetailListItem> {
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'Digite suas observações...',
+                hintStyle: TextStyle(fontSize: 12, color: Colors.grey),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -477,7 +478,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         child: Text(
                           _currentDetailName,
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: _isDamaged ? Colors.red : Colors.green.shade300,
                           ),
@@ -491,33 +492,33 @@ class _DetailListItemState extends State<DetailListItem> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.edit, size: 16),
+                        icon: const Icon(Icons.edit, size: 14),
                         onPressed: _renameDetail,
                         tooltip: 'Renomear',
-                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(4)),
+                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(3)),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.copy, size: 16),
+                        icon: const Icon(Icons.copy, size: 14),
                         onPressed: widget.onDetailDuplicated,
                         tooltip: 'Duplicar',
-                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(4)),
+                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(3)),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                        icon: const Icon(Icons.delete, size: 14, color: Colors.red),
                         onPressed: widget.onDetailDeleted,
                         tooltip: 'Excluir',
-                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(4)),
+                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(3)),
                       ),
                       Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, color: Colors.green.shade300, size: 20),
                     ],
                   ),
                   if (displayValue.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                             decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
                             child: Text(
                               'Valor: $displayValue',
@@ -535,17 +536,17 @@ class _DetailListItemState extends State<DetailListItem> {
           if (widget.isExpanded) ...[
             Divider(height: 1, thickness: 1, color: Colors.grey[300]),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildValueInput(),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   GestureDetector(
                     onTap: _editObservationDialog,
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.green.withAlpha((255 * 0.3).round())),
                         borderRadius: BorderRadius.circular(8),
@@ -555,14 +556,14 @@ class _DetailListItemState extends State<DetailListItem> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.note_alt, size: 16, color: Colors.green.shade300),
+                              Icon(Icons.note_alt, size: 14, color: Colors.green.shade300),
                               const SizedBox(width: 8),
-                              Text('Observações', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade300, fontSize: 14)),
+                              Text('Observações', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade300, fontSize: 12)),
                               const Spacer(),
                               Icon(Icons.edit, size: 16, color: Colors.green.shade300),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             _observationController.text.isEmpty ? 'Toque para adicionar observações...' : _observationController.text,
                             style: TextStyle(
@@ -575,48 +576,64 @@ class _DetailListItemState extends State<DetailListItem> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   
                   // THE FIX: BOTÕES REDUNDANTES REMOVIDOS
                   // A única linha de botões agora é o NC e o MediaHandlingWidget
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.report_problem, size: 16),
-                      label: const Text('Registrar Não Conformidade'),
-                      onPressed: () {
-                        if (widget.detail.id != null && widget.detail.topicId != null && widget.detail.itemId != null) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => NonConformityScreen(
-                                inspectionId: widget.inspectionId,
-                                preSelectedTopic: widget.detail.topicId,
-                                preSelectedItem: widget.detail.itemId,
-                                preSelectedDetail: widget.detail.id,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  Row(
+                    children: [
+                                            Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (widget.detail.id != null &&
+                                widget.detail.topicId != null &&
+                                widget.detail.itemId != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => NonConformityScreen(
+                                    inspectionId: widget.inspectionId,
+                                    preSelectedTopic: widget.detail.topicId,
+                                    preSelectedItem: widget.detail.itemId,
+                                    preSelectedDetail: widget.detail.id,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.report_problem, size: 16),
+                              SizedBox(height: 2),
+                              Text('NCs', style: TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      if (widget.detail.id != null &&
+                          widget.detail.topicId != null &&
+                          widget.detail.itemId != null) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: MediaHandlingWidget(
+                            inspectionId: widget.inspectionId,
+                            topicId: widget.detail.topicId!,
+                            itemId: widget.detail.itemId!,
+                            detailId: widget.detail.id!,
+                            onMediaAdded: (_) => setState(() {}),
+                            onMediaDeleted: (_) => setState(() {}),
+                          ),
+                        ),
+                      ]
+                    ],
                   ),
                   // Lógica de mídia centralizada aqui
-                  const SizedBox(height: 4),
-                  if (widget.detail.id != null && widget.detail.topicId != null && widget.detail.itemId != null)
-                    MediaHandlingWidget(
-                      inspectionId: widget.inspectionId,
-                      topicIndex: int.parse(widget.detail.topicId!.replaceFirst('topic_', '')),
-                      itemIndex: int.parse(widget.detail.itemId!.replaceFirst('item_', '')),
-                      detailIndex: int.parse(widget.detail.id!.replaceFirst('detail_', '')),
-                      onMediaAdded: (_) => setState(() {}),
-                      onMediaDeleted: (_) => setState(() {}),
-                    ),
                 ],
               ),
             ),
@@ -680,7 +697,7 @@ class _DetailListItemState extends State<DetailListItem> {
           children: [
             Text(
               'Valor:',
-              style: TextStyle(color: Colors.green.shade300, fontSize: 16),
+              style: TextStyle(color: Colors.green.shade300, fontSize: 14),
             ),
             const Spacer(),
             Switch(
@@ -693,7 +710,7 @@ class _DetailListItemState extends State<DetailListItem> {
             ),
             Text(
               _booleanValue ? 'Sim' : 'Não',
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
             ),
           ],
         );
@@ -706,11 +723,11 @@ class _DetailListItemState extends State<DetailListItem> {
               'Medidas:',
               style: TextStyle(
                 color: Colors.green.shade300,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
@@ -726,7 +743,7 @@ class _DetailListItemState extends State<DetailListItem> {
                     onChanged: (_) => _updateDetail(),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 Expanded(
                   child: TextFormField(
                     controller: _widthController,
@@ -740,7 +757,7 @@ class _DetailListItemState extends State<DetailListItem> {
                     onChanged: (_) => _updateDetail(),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 Expanded(
                   child: TextFormField(
                     controller: _depthController,

@@ -30,7 +30,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
         title: const Text('Conversas'),
         backgroundColor: const Color(0xFF1E293B),
         titleTextStyle: const TextStyle(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
         elevation: 0,
         actions: [
           IconButton(
@@ -142,14 +142,18 @@ class _ChatsScreenState extends State<ChatsScreen> {
       }
 
       if (_searchQuery.isNotEmpty) {
-        final inspectionTitle = chat.inspection['title'] ?? '';
+        final inspectionCod = chat.inspection['cod'] ?? '';
         final inspectorName = chat.inspector['name'] ?? '';
         final inspectorLastName = chat.inspector['last_name'] ?? '';
+        final managerName = chat.manager['name'] ?? '';
+        final managerLastName = chat.manager['last_name'] ?? '';
 
         final searchLower = _searchQuery.toLowerCase();
-        return inspectionTitle.toLowerCase().contains(searchLower) ||
+        return inspectionCod.toLowerCase().contains(searchLower) ||
             inspectorName.toLowerCase().contains(searchLower) ||
-            inspectorLastName.toLowerCase().contains(searchLower);
+            inspectorLastName.toLowerCase().contains(searchLower) ||
+            managerName.toLowerCase().contains(searchLower) ||
+            managerLastName.toLowerCase().contains(searchLower);
       }
 
       return true;
@@ -167,13 +171,88 @@ class ChatListItem extends StatelessWidget {
     required this.onTap,
   });
 
+  void _showReadOptionsDialog(BuildContext context, int unreadCount) {
+    final chatService = ChatService();
+    
+    showModalBottomSheet(
+      context: context,
+      elevation: 10,
+      useSafeArea: false,
+      builder: (context) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'Opções do Chat',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[300],
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: Icon(
+                  unreadCount > 0 ? Icons.mark_chat_read : Icons.mark_chat_unread,
+                  color: unreadCount > 0 ? Colors.green : Colors.orange,
+                ),
+                title: Text(unreadCount > 0 ? 'Marcar como Lida' : 'Marcar como Não Lida'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  try {
+                    if (unreadCount > 0) {
+                      await chatService.markChatAsRead(chat.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Chat marcado como lido')),
+                        );
+                      }
+                    } else {
+                      await chatService.markChatAsUnread(chat.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Chat marcado como não lido')),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Erro: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Colors.grey),
+                title: const Text('Cancelar'),
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final inspectorName = chat.inspector['name'] ?? '';
     final inspectorLastName = chat.inspector['last_name'] ?? '';
     final inspectorFullName = '$inspectorName $inspectorLastName';
-    final profileImageUrl = chat.inspector['profileImageUrl'];
+    
+    // Use manager data for avatar if available, otherwise fallback to inspector
+    final managerName = chat.manager['name'] ?? '';
+    final managerLastName = chat.manager['last_name'] ?? '';
+    final managerFullName = '$managerName $managerLastName';
+    final profileImageUrl = chat.manager['profileImageUrl'] ?? chat.inspector['profileImageUrl'];
+    final displayName = managerFullName.trim().isNotEmpty ? managerFullName : inspectorFullName;
 
     // Verificar se a última mensagem é do usuário atual
     final isCurrentUserSender =
@@ -243,6 +322,7 @@ class ChatListItem extends StatelessWidget {
           ),
           child: InkWell(
             onTap: onTap,
+            onLongPress: () => _showReadOptionsDialog(context, unreadCount),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12.0),
@@ -250,7 +330,7 @@ class ChatListItem extends StatelessWidget {
                 children: [
                   AvatarWidget(
                     imageUrl: profileImageUrl,
-                    name: inspectorFullName,
+                    name: displayName,
                     size: 50,
                   ),
                   const SizedBox(width: 12),
@@ -262,14 +342,14 @@ class ChatListItem extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              inspectorFullName.isEmpty
+                              displayName.isEmpty
                                   ? 'Chat da Inspeção'
-                                  : inspectorFullName,
+                                  : displayName,
                               style: TextStyle(
                                 fontWeight: unreadCount > 0
                                     ? FontWeight.bold
                                     : FontWeight.normal,
-                                fontSize: 16,
+                                fontSize: 10,
                                 color: Colors.white,
                               ),
                             ),
@@ -278,17 +358,17 @@ class ChatListItem extends StatelessWidget {
                               style: TextStyle(
                                 color:
                                     unreadCount > 0 ? Colors.blue : Colors.grey,
-                                fontSize: 12,
+                                fontSize: 10,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          chat.inspection['title'] ?? 'Inspeção',
+                          chat.inspection['cod'] ?? 'Inspeção',
                           style: const TextStyle(
                             color: Colors.grey,
-                            fontSize: 12,
+                            fontSize: 8,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -321,7 +401,7 @@ class ChatListItem extends StatelessWidget {
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                                    fontSize: 10,
                                   ),
                                 ),
                               ),

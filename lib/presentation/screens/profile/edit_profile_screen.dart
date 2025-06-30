@@ -57,15 +57,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   void _initControllers() {
     _nameController = TextEditingController(text: widget.profile['name'] ?? '');
-    _lastNameController = TextEditingController(text: widget.profile['last_name'] ?? '');
-    _emailController = TextEditingController(text: widget.profile['email'] ?? '');
-    _phoneController = TextEditingController(text: widget.profile['phonenumber'] ?? '');
-    _documentController = TextEditingController(text: widget.profile['document'] ?? '');
+    _lastNameController =
+        TextEditingController(text: widget.profile['last_name'] ?? '');
+    _emailController =
+        TextEditingController(text: widget.profile['email'] ?? '');
+    _phoneController =
+        TextEditingController(text: widget.profile['phonenumber'] ?? '');
+    _documentController =
+        TextEditingController(text: widget.profile['document'] ?? '');
     _cepController = TextEditingController(text: widget.profile['cep'] ?? '');
-    _streetController = TextEditingController(text: widget.profile['street'] ?? '');
-    _neighborhoodController = TextEditingController(text: widget.profile['neighborhood'] ?? '');
+    _streetController =
+        TextEditingController(text: widget.profile['street'] ?? '');
+    _neighborhoodController =
+        TextEditingController(text: widget.profile['neighborhood'] ?? '');
     _cityController = TextEditingController(text: widget.profile['city'] ?? '');
-    _stateController = TextEditingController(text: widget.profile['state'] ?? '');
+    _stateController =
+        TextEditingController(text: widget.profile['state'] ?? '');
     _selectedProfession = widget.profile['profession'];
     _profileImageUrl = widget.profile['profileImageUrl'];
   }
@@ -146,7 +153,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             _cityController.text = data['localidade'] ?? '';
             _stateController.text = data['uf'] ?? '';
           });
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Endereço preenchido automaticamente'),
@@ -199,7 +206,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       await _firestore.collection('inspectors').doc(userId).update(profileData);
 
       if (_profileImage != null) {
-        final downloadUrl = await _serviceFactory.mediaService.uploadProfileImage(
+        final downloadUrl =
+            await _serviceFactory.mediaService.uploadProfileImage(
           file: _profileImage!,
           userId: userId,
         );
@@ -241,11 +249,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: _isLoading 
+            icon: _isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.save),
             onPressed: _isLoading ? null : _saveProfile,
@@ -294,17 +303,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     )
                                   : _profileImageUrl != null
                                       ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(60),
+                                          borderRadius:
+                                              BorderRadius.circular(60),
                                           child: Image.network(
                                             _profileImageUrl!,
                                             width: 120,
                                             height: 120,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) =>
-                                                Text(
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    Text(
                                               _getInitials(),
                                               style: const TextStyle(
-                                                fontSize: 40,
+                                                fontSize: 32,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.white,
                                               ),
@@ -314,7 +325,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                       : Text(
                                           _getInitials(),
                                           style: const TextStyle(
-                                            fontSize: 40,
+                                            fontSize: 32,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.white,
                                           ),
@@ -329,14 +340,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withAlpha((255 * 0.3).round()),
+                                      color: Colors.black
+                                          .withAlpha((255 * 0.3).round()),
                                       blurRadius: 4,
                                       offset: const Offset(0, 2),
                                     ),
                                   ],
                                 ),
                                 child: IconButton(
-                                  icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                                  icon: const Icon(Icons.camera_alt,
+                                      color: Colors.white, size: 20),
                                   onPressed: _pickImage,
                                 ),
                               ),
@@ -350,7 +363,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     // Personal Information Section
                     _buildSectionHeader('Informações Pessoais', Icons.person),
                     const SizedBox(height: 16),
-                    
+
                     Row(
                       children: [
                         Expanded(
@@ -358,7 +371,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             controller: _nameController,
                             label: 'Primeiro Nome',
                             icon: Icons.person_outline,
-                            validator: (value) => value?.trim().isEmpty == true ? 'Campo obrigatório' : null,
+                            validator: (value) => value?.trim().isEmpty == true
+                                ? 'Campo obrigatório'
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -367,25 +382,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             controller: _lastNameController,
                             label: 'Sobrenome',
                             icon: Icons.person_outline,
-                            validator: (value) => value?.trim().isEmpty == true ? 'Campo obrigatório' : null,
+                            validator: (value) => value?.trim().isEmpty == true
+                                ? 'Campo obrigatório'
+                                : null,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
+
                     _buildDropdownField(),
                     const SizedBox(height: 16),
-                    
+
                     _buildTextField(
                       controller: _emailController,
                       label: 'Email',
                       icon: Icons.email_outlined,
                       readOnly: true,
-                      suffixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                      suffixIcon:
+                          const Icon(Icons.lock_outline, color: Colors.grey),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     _buildTextField(
                       controller: _phoneController,
                       label: 'Telefone',
@@ -396,9 +414,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         TelefoneInputFormatter(),
                       ],
                       hintText: '(99) 99999-9999',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextField(
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
                       controller: _documentController,
                       label: 'CNPJ/CPF',
                       icon: Icons.badge_outlined,
@@ -408,14 +426,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         CpfOuCnpjFormatter(),
                       ],
                       hintText: 'Digite o CNPJ ou CPF',
-                      ),
+                    ),
 
                     const SizedBox(height: 32),
 
                     // Address Section
                     _buildSectionHeader('Endereço', Icons.location_on),
                     const SizedBox(height: 16),
-                    
+
                     _buildTextField(
                       controller: _cepController,
                       label: 'CEP',
@@ -450,21 +468,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    
+
                     _buildTextField(
                       controller: _streetController,
                       label: 'Rua',
                       icon: Icons.location_city_outlined,
                     ),
                     const SizedBox(height: 16),
-                    
+
                     _buildTextField(
                       controller: _neighborhoodController,
                       label: 'Bairro',
                       icon: Icons.location_city_outlined,
                     ),
                     const SizedBox(height: 16),
-                    
+
                     Row(
                       children: [
                         Expanded(
@@ -503,7 +521,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
                           elevation: 4,
-                          shadowColor: Colors.blue.withAlpha((255 * 0.3).round()),
+                          shadowColor:
+                              Colors.blue.withAlpha((255 * 0.3).round()),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -525,7 +544,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   Text(
                                     'Salvar Alterações',
                                     style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -533,7 +552,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -557,7 +576,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Text(
             title,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 10,
               fontWeight: FontWeight.bold,
               color: Colors.blue,
             ),

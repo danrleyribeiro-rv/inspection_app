@@ -2,6 +2,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:inspection_app/presentation/widgets/common/cached_map_image.dart';
 
 class MapLocationCard extends StatelessWidget {
   final String address;
@@ -106,7 +107,7 @@ class MapLocationCard extends StatelessWidget {
     final String? staticMapUrl = _buildStaticMapUrl();
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
@@ -115,42 +116,22 @@ class MapLocationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Seção da Imagem do Mapa
-          SizedBox(
-            height: 110,
-            width: double.infinity,
-            child: staticMapUrl != null
-                ? Image.network(
-                    staticMapUrl,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      log('[MapLocationCard Image.network] Error loading map image.',
-                          error: error, stackTrace: stackTrace);
-                      return _buildPlaceholderMap(
-                          error: true); // Mostra placeholder com erro
-                    },
-                  )
-                : _buildPlaceholderMap(), // Mostra placeholder se a URL não pôde ser criada
-          ),
+          staticMapUrl != null
+              ? CachedMapImage(
+                  mapUrl: staticMapUrl,
+                  height: 80,
+                  fit: BoxFit.cover,
+                )
+              : _buildPlaceholderMap(), // Mostra placeholder se a URL não pôde ser criada
 
           // Detalhes da Localização (inalterado)
           Padding(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(3),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ... (Ícone e Texto do Endereço inalterados) ...
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Row(
                   children: [
                     const Icon(
@@ -165,7 +146,7 @@ class MapLocationCard extends StatelessWidget {
                             ? address
                             : 'Endereço não fornecido',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 10,
                           color: Colors.grey[400],
                         ),
                         maxLines: 2,
@@ -185,12 +166,13 @@ class MapLocationCard extends StatelessWidget {
                           ? _openMap
                           : null,
                       icon: const Icon(Icons.directions, size: 16),
-                      label: const Text('Abrir no Google Maps'),
+                      label: const Text('Abrir no Google Maps', style: TextStyle(fontSize: 12)),
                       style: TextButton.styleFrom(
                         foregroundColor: Theme.of(context).colorScheme.primary,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 0),
-                        disabledForegroundColor: Colors.grey.withAlpha((255 * 0.5).round()),
+                            horizontal: 6, vertical: 0),
+                        disabledForegroundColor:
+                            Colors.grey.withAlpha((255 * 0.5).round()),
                       ),
                     ),
                   ],
@@ -213,10 +195,10 @@ class MapLocationCard extends StatelessWidget {
         children: [
           Icon(
             error ? Icons.error_outline : Icons.map_outlined,
-            size: 48,
+            size: 36,
             color: Colors.grey[600],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             error
                 ? 'Não foi possível carregar o mapa'
@@ -224,7 +206,7 @@ class MapLocationCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.grey[400],
-              fontSize: 12,
+              fontSize: 10,
             ),
           ),
         ],

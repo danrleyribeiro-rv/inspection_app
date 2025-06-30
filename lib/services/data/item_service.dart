@@ -1,23 +1,50 @@
 // lib/services/data/item_service.dart
 import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/services/data/detail_service.dart'; // ADICIONADO
+import 'package:inspection_app/services/data/detail_service.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
+import 'package:inspection_app/services/utils/cache_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class ItemService {
   final InspectionService _inspectionService = InspectionService();
-  final DetailService _detailService = DetailService(); // ADICIONADO
+  DetailService get _detailService => DetailService();
+  CacheService get _cacheService => ServiceFactory().cacheService;
 
   Future<List<Item>> getItems(String inspectionId, String topicId) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
-    if (inspection?.topics != null &&
-        topicIndex != null &&
-        topicIndex < inspection!.topics!.length) {
-      final topic = inspection.topics![topicIndex];
-      return _extractItems(inspectionId, topicId, topic);
-    }
+    try {
+      final inspection = await _inspectionService.getInspection(inspectionId);
+      final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+      if (inspection?.topics != null &&
+          topicIndex != null &&
+          topicIndex < inspection!.topics!.length) {
+        final topic = inspection.topics![topicIndex];
+        return _extractItems(inspectionId, topicId, topic);
+      }
+      
+      // Fallback to cache
+      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
+      if (cachedInspection != null && topicIndex != null) {
+        final topics = cachedInspection.data['topics'] as List<dynamic>?;
+        if (topics != null && topicIndex < topics.length) {
+          final topic = topics[topicIndex];
+          return _extractItems(inspectionId, topicId, topic);
+        }
+      }
 
-    return [];
+      return [];
+    } catch (e) {
+      // Final fallback to cache
+      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
+      final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
+      if (cachedInspection != null && topicIndex != null) {
+        final topics = cachedInspection.data['topics'] as List<dynamic>?;
+        if (topics != null && topicIndex < topics.length) {
+          final topic = topics[topicIndex];
+          return _extractItems(inspectionId, topicId, topic);
+        }
+      }
+      return [];
+    }
   }
 
   // ADICIONADO: Novo método para calcular o progresso de um item.
@@ -148,7 +175,7 @@ class ItemService {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       topics[topicIndex] = topic;
 
-      await _inspectionService
+      await _cacheService
           .saveInspection(inspection.copyWith(topics: topics));
 
       return Item(
@@ -204,7 +231,7 @@ class ItemService {
       topic['items'] = items;
       topics[topicIndex] = topic;
 
-      await _inspectionService
+      await _cacheService
           .saveInspection(inspection.copyWith(topics: topics));
     }
   }
@@ -243,7 +270,7 @@ class ItemService {
         items.add(newItem);
         topic['items'] = items;
         topics[topicIndex] = topic;
-        await _inspectionService
+        await _cacheService
             .saveInspection(inspection.copyWith(topics: topics));
       }
     }
@@ -261,7 +288,7 @@ class ItemService {
           items[itemIndex] = updatedItem;
           topic['items'] = items;
           topics[topicIndex] = topic;
-          await _inspectionService
+          await _cacheService
               .saveInspection(inspection.copyWith(topics: topics));
         }
       }
@@ -280,7 +307,7 @@ class ItemService {
           items.removeAt(itemIndex);
           topic['items'] = items;
           topics[topicIndex] = topic;
-          await _inspectionService
+          await _cacheService
               .saveInspection(inspection.copyWith(topics: topics));
         }
       }

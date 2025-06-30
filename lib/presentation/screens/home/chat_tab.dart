@@ -12,7 +12,7 @@ class ChatTab extends StatelessWidget {
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
         titleTextStyle: const TextStyle(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [],
       ),

@@ -15,7 +15,7 @@ import 'package:inspection_app/presentation/screens/media/media_gallery_screen.d
 import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
 import 'package:inspection_app/services/features/chat_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/services/utils/checkpoint_dialog_service.dart';
+import 'package:inspection_app/presentation/widgets/sync/sync_progress_overlay.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -28,12 +28,12 @@ class InspectionDetailScreen extends StatefulWidget {
 
 class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   final ServiceFactory _serviceFactory = ServiceFactory();
-  late CheckpointDialogService _checkpointDialogService;
 
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
+  bool _hasUnsavedChanges = false; // Track if changes were made during this session
   Inspection? _inspection;
   List<Topic> _topics = [];
   final Map<String, List<Item>> _itemsCache = {};
@@ -43,18 +43,41 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   void initState() {
     super.initState();
     _listenToConnectivity();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _checkpointDialogService =
-            _serviceFactory.createCheckpointDialogService(
-          context,
-          _loadInspection,
-        );
-      }
-    });
-
     _loadInspection();
+  }
+  
+  @override
+  void dispose() {
+    // Limpar overlay ao sair da tela
+    SyncProgressOverlay.hide();
+    // Sincronizar ao sair da tela
+    _syncOnExit();
+    super.dispose();
+  }
+  
+  
+  Future<void> _syncOnExit() async {
+    try {
+      // Only auto-sync if:
+      // 1. User is online
+      // 2. No recent changes were made in this session (to let users see sync button)
+      // 3. Changes are older than 10 seconds
+      if (_isOnline && !_hasUnsavedChanges) {
+        final cached = _serviceFactory.cacheService.getCachedInspection(widget.inspectionId);
+        if (cached != null && cached.needsSync) {
+          // Check if changes were made recently (within last 10 seconds)
+          final timeSinceLastUpdate = DateTime.now().difference(cached.lastUpdated);
+          
+          // Only auto-sync if changes are older than 10 seconds
+          // This gives users time to see the sync button in the inspection list
+          if (timeSinceLastUpdate.inSeconds > 10) {
+            await _serviceFactory.syncService.syncSingleInspection(widget.inspectionId);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing on exit: $e');
+    }
   }
 
   void _listenToConnectivity() {
@@ -86,13 +109,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     });
   }
 
-  void _showCreateCheckpointDialog() {
-    _checkpointDialogService.showCreateCheckpointDialog(widget.inspectionId);
-  }
-
-  void _showCheckpointHistory() {
-    _checkpointDialogService.showCheckpointHistory(widget.inspectionId);
-  }
 
   Future<void> _loadInspection() async {
     if (!mounted) return;
@@ -223,6 +239,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
             updatedAt: DateTime.now(),
           );
           setState(() => _inspection = updatedInspection);
+
+          // Mark that changes were made in this session
+          _hasUnsavedChanges = true;
 
           await _loadInspection();
           if (!mounted) return;
@@ -366,10 +385,13 @@ Future<void> _addTopic() async {
   if (template == null || !mounted) return;
 
   try {
-    final newTopic = await _serviceFactory.coordinator.addTopicFromTemplate(
+    await _serviceFactory.coordinator.addTopicFromTemplate(
       widget.inspectionId,
       template,
     );
+    
+    // Mark that changes were made in this session
+    _hasUnsavedChanges = true;
     
     // Recarregar dados para garantir consistência
     await _loadAllData();
@@ -396,6 +418,8 @@ Future<void> _addTopic() async {
 }
 
   Future<void> _updateCache() async {
+    // Mark that changes were made in this session
+    _hasUnsavedChanges = true;
     // Recarregar dados sem setState global
     await _loadAllData();
   }
@@ -495,9 +519,6 @@ Future<void> _addTopic() async {
       case 'media':
         _navigateToMediaGallery();
         break;
-      case 'checkpointHistory':
-        _showCheckpointHistory();
-        break;
       case 'refresh':
         await _loadInspection();
         break;
@@ -560,7 +581,7 @@ Future<void> _addTopic() async {
                 _inspection?.cod ?? 'Inspeção',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -569,13 +590,6 @@ Future<void> _addTopic() async {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.save_outlined, size: 22),
-            tooltip: 'Criar Checkpoint',
-            onPressed: _showCreateCheckpointDialog,
-            padding: const EdgeInsets.all(8),
-            visualDensity: VisualDensity.compact,
-          ),
           if (_isOnline &&
               _inspection != null &&
               _inspection!.templateId != null)
@@ -613,26 +627,6 @@ Future<void> _addTopic() async {
                       Icon(Icons.file_upload),
                       SizedBox(width: 8),
                       Text('Importar Inspeção'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'checkpointHistory',
-                  child: Row(
-                    children: [
-                      Icon(Icons.history),
-                      SizedBox(width: 8),
-                      Text('Histórico de Checkpoints'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'refresh',
-                  child: Row(
-                    children: [
-                      Icon(Icons.refresh),
-                      SizedBox(width: 8),
-                      Text('Atualizar Dados'),
                     ],
                   ),
                 ),
@@ -774,7 +768,7 @@ Future<void> _addTopic() async {
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 8,
                   fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,

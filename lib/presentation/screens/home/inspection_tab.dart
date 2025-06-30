@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:async';
 import 'dart:developer';
 import 'package:inspection_app/presentation/screens/inspection/inspection_detail_screen.dart';
 import 'package:inspection_app/presentation/widgets/common/inspection_card.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 // Função auxiliar para formatação de data em pt-BR
 String formatDateBR(DateTime date) {
@@ -34,6 +36,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
   List<Map<String, dynamic>> _filteredInspections = [];
   bool _isSearching = false;
   final _searchController = TextEditingController();
+  
+  // Track inspections that have newer data in the cloud
+  final Set<String> _inspectionsWithCloudUpdates = <String>{};
 
   @override
   void initState() {
@@ -41,6 +46,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     _loadApiKey();
     _loadInspections();
     _searchController.addListener(_filterInspections);
+    _startCloudUpdateChecks();
   }
 
   @override
@@ -254,6 +260,330 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
+  Future<void> _downloadInspectionData(String inspectionId) async {
+    log('[InspectionsTab _downloadInspectionData] Starting download for inspection ID: $inspectionId');
+    try {
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Text('Baixando dados da nuvem...'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Force refresh inspection data from Firestore
+      await ServiceFactory().coordinator.refreshInspectionFromFirestore(inspectionId);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      log('[InspectionsTab _downloadInspectionData] Download completed successfully for inspection $inspectionId');
+
+      // Clear the cloud updates flag since we just downloaded the latest data
+      _inspectionsWithCloudUpdates.remove(inspectionId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dados baixados da nuvem com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Force UI update to hide download button immediately
+        setState(() {});
+        // Refresh the list to show updated data
+        _loadInspections();
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      log('[InspectionsTab _downloadInspectionData] Error downloading data for inspection $inspectionId: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao baixar dados: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _syncInspectionData(String inspectionId) async {
+    log('[InspectionsTab _syncInspectionData] Starting sync for inspection ID: $inspectionId');
+    try {
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                const Text('Sincronizando dados...'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Use the sync service to sync the inspection
+      await ServiceFactory().syncService.syncSingleInspection(inspectionId);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      log('[InspectionsTab _syncInspectionData] Sync completed successfully for inspection $inspectionId');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dados sincronizados com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Refresh the list to show updated sync status
+        _loadInspections();
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      log('[InspectionsTab _syncInspectionData] Error syncing data for inspection $inspectionId: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao sincronizar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _hasUnsyncedData(String inspectionId) {
+    try {
+      final cacheService = ServiceFactory().cacheService;
+      
+      // Check if inspection data needs sync
+      final hasUnsyncedInspection = cacheService.hasUnsyncedData(inspectionId);
+      
+      // Check if there are pending media uploads
+      final pendingMedia = cacheService.getPendingOfflineMedia()
+          .where((media) => media.inspectionId == inspectionId)
+          .toList();
+      
+      final hasUnsyncedData = hasUnsyncedInspection || pendingMedia.isNotEmpty;
+      
+      log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: unsynced inspection: $hasUnsyncedInspection, pending media: ${pendingMedia.length}, has unsynced: $hasUnsyncedData');
+      
+      return hasUnsyncedData;
+    } catch (e) {
+      log('[InspectionsTab _hasUnsyncedData] Error checking unsynced data: $e');
+      return false;
+    }
+  }
+
+  bool _shouldShowDownloadButton(String inspectionId) {
+    try {
+      final cacheService = ServiceFactory().cacheService;
+      
+      // Show download button ONLY if:
+      // 1. There's no local cache (new inspection to download)
+      final hasLocalCache = cacheService.isAvailableOffline(inspectionId);
+      
+      log('[InspectionsTab _shouldShowDownloadButton] Inspection $inspectionId: hasLocalCache=$hasLocalCache');
+      
+      if (!hasLocalCache) {
+        log('[InspectionsTab _shouldShowDownloadButton] Showing download button - no local cache for $inspectionId');
+        return true; // No local data, so download button should show
+      }
+      
+      // 2. If there's local cache, only show download button if there are confirmed cloud updates
+      final hasCloudUpdates = _inspectionsWithCloudUpdates.contains(inspectionId);
+      
+      log('[InspectionsTab _shouldShowDownloadButton] Inspection $inspectionId: hasCloudUpdates=$hasCloudUpdates');
+      
+      // Hide download button permanently once cached unless there are newer cloud updates
+      return hasCloudUpdates;
+    } catch (e) {
+      log('[InspectionsTab _shouldShowDownloadButton] Error checking download status: $e');
+      return false;
+    }
+  }
+
+  void _startCloudUpdateChecks() {
+    // Check for cloud updates every 15 seconds when online
+    Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      // Only check if we're not loading and have inspections
+      if (!_isLoading && _inspections.isNotEmpty) {
+        _checkForCloudUpdates();
+      }
+    });
+  }
+
+  Future<void> _checkForCloudUpdates() async {
+    try {
+      final cacheService = ServiceFactory().cacheService;
+      
+      // Only check if we're online
+      if (!(await _isConnected())) {
+        return;
+      }
+      
+      bool hasUpdates = false;
+      
+      for (final inspection in _inspections) {
+        final inspectionId = inspection['id'] as String;
+        
+        // Skip if inspection doesn't have local cache
+        if (!cacheService.isAvailableOffline(inspectionId)) {
+          continue;
+        }
+        
+        // Check if cloud has newer data
+        final hasNewerData = await cacheService.hasNewerDataInCloud(inspectionId);
+        
+        if (hasNewerData) {
+          _inspectionsWithCloudUpdates.add(inspectionId);
+          hasUpdates = true;
+        } else {
+          _inspectionsWithCloudUpdates.remove(inspectionId);
+        }
+      }
+      
+      // Update UI if there are changes
+      if (hasUpdates && mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      log('[InspectionsTab _checkForCloudUpdates] Error checking cloud updates: $e');
+    }
+  }
+
+  Future<bool> _isConnected() async {
+    try {
+      // Try to access Firestore to check connectivity
+      await _firestore.collection('inspections').limit(1).get();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  bool _hasPendingImages(String inspectionId) {
+    try {
+      final cacheService = ServiceFactory().cacheService;
+      
+      // Check if there are pending media uploads for this inspection
+      final pendingMedia = cacheService.getPendingOfflineMedia()
+          .where((media) => media.inspectionId == inspectionId && media.needsUpload)
+          .toList();
+      
+      final hasPendingImages = pendingMedia.isNotEmpty;
+      
+      log('[InspectionsTab _hasPendingImages] Inspection $inspectionId: pending images: ${pendingMedia.length}');
+      
+      return hasPendingImages;
+    } catch (e) {
+      log('[InspectionsTab _hasPendingImages] Error checking pending images: $e');
+      return false;
+    }
+  }
+
+  int _getPendingImagesCount(String inspectionId) {
+    try {
+      final cacheService = ServiceFactory().cacheService;
+      
+      // Count pending media uploads for this inspection
+      final pendingMedia = cacheService.getPendingOfflineMedia()
+          .where((media) => media.inspectionId == inspectionId && media.needsUpload)
+          .toList();
+      
+      return pendingMedia.length;
+    } catch (e) {
+      log('[InspectionsTab _getPendingImagesCount] Error counting pending images: $e');
+      return 0;
+    }
+  }
+
+  Future<void> _syncInspectionImages(String inspectionId) async {
+    log('[InspectionsTab _syncInspectionImages] Starting image sync for inspection ID: $inspectionId');
+    try {
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Text('Sincronizando imagens...'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Upload pending media for this specific inspection
+      await ServiceFactory().mediaService.uploadPendingMediaForInspection(inspectionId);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      log('[InspectionsTab _syncInspectionImages] Image sync completed successfully for inspection $inspectionId');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagens sincronizadas com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Refresh the list to show updated sync status
+        _loadInspections();
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      log('[InspectionsTab _syncInspectionImages] Error syncing images for inspection $inspectionId: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao sincronizar imagens: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isApiKeyAvailable =
@@ -285,7 +615,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
         titleTextStyle: const TextStyle(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           // Search Icon
@@ -330,7 +660,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                     'Filtros',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -342,7 +672,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                           value: _selectedStatusFilter,
                           decoration: const InputDecoration(
                             labelText: 'Status',
-                            labelStyle: TextStyle(color: Colors.white70),
+                            labelStyle: TextStyle(color: Colors.white70, fontSize: 12),
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 8),
@@ -397,26 +727,29 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               return Dialog(
                                 backgroundColor: const Color(0xFF2A3749),
                                 child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
+                                  padding: const EdgeInsets.all(8.0),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Text(
                                         'Selecionar Data',
                                         style: TextStyle(
-                                          fontSize: 18,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
                                         ),
                                       ),
-                                      const SizedBox(height: 16),
-                                      CalendarDatePicker(
-                                        initialDate: currentDate,
-                                        firstDate: DateTime(2020),
-                                        lastDate: DateTime(2030),
-                                        onDateChanged: (date) {
-                                          currentDate = date;
-                                        },
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        width: MediaQuery.of(context).size.width * 1.12,
+                                        child: CalendarDatePicker(
+                                          initialDate: currentDate,
+                                          firstDate: DateTime(2025),
+                                          lastDate: DateTime(2035),
+                                          onDateChanged: (date) {
+                                            currentDate = date;
+                                          },
+                                        ),
                                       ),
                                       const SizedBox(height: 16),
                                       Row(
@@ -484,7 +817,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                         onPressed: _clearFilters,
                         icon: const Icon(Icons.clear, color: Colors.white70),
                         label: const Text('Limpar Filtros',
-                            style: TextStyle(color: Colors.white70)),
+                            style: TextStyle(color: Colors.white70, fontSize: 12)),
                       ),
                     ],
                   ),
@@ -510,12 +843,22 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               inspection: inspection,
                               googleMapsApiKey: _googleMapsApiKey ?? '',
                               onViewDetails: () {
-                                log('[InspectionsTab] Navigating to details for inspection ID: \\${inspection['id']}');
+                                log('[InspectionsTab] Navigating to details for inspection ID: ${inspection['id']}');
                                 _navigateToInspectionDetail(inspection['id']);
                               },
                               onComplete: inspection['status'] == 'in_progress'
                                   ? () => _completeInspection(inspection['id'])
                                   : null,
+                              onSync: _hasUnsyncedData(inspection['id']) 
+                                  ? () => _syncInspectionData(inspection['id'])
+                                  : null,
+                              onDownload: _shouldShowDownloadButton(inspection['id'])
+                                  ? () => _downloadInspectionData(inspection['id'])
+                                  : null,
+                              onSyncImages: _hasPendingImages(inspection['id'])
+                                  ? () => _syncInspectionImages(inspection['id'])
+                                  : null,
+                              pendingImagesCount: _getPendingImagesCount(inspection['id']),
                             );
                           },
                         ),
@@ -545,7 +888,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
             isEmptySearch
                 ? 'Nenhuma vistoria encontrada para "${_searchController.text}"'
                 : 'Nenhuma vistoria encontrada',
-            style: const TextStyle(fontSize: 16, color: Colors.white70),
+            style: const TextStyle(fontSize: 10, color: Colors.white70),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -553,7 +896,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
             isEmptySearch
                 ? 'Tente outro termo de pesquisa'
                 : 'Novas vistorias aparecerão aqui.',
-            style: const TextStyle(fontSize: 12, color: Colors.white60),
+            style: const TextStyle(fontSize: 10, color: Colors.white60),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(

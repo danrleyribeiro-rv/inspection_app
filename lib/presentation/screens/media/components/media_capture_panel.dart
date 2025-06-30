@@ -1,15 +1,10 @@
 // lib/presentation/screens/media/components/media_capture_panel.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
-import 'package:uuid/uuid.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 class MediaCapturePanel extends StatefulWidget {
   final String inspectionId;
@@ -35,7 +30,6 @@ class MediaCapturePanel extends StatefulWidget {
 
 class _MediaCapturePanelState extends State<MediaCapturePanel> {
   final ServiceFactory _serviceFactory = ServiceFactory();
-  final _uuid = Uuid();
 
   String? _topicId;
   String? _itemId;
@@ -274,78 +268,29 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     try {
       setState(() => _isLoading = true);
 
-      final ext = path.extension(filePath);
-      final fileName =
-          '${widget.inspectionId}_${type}_${_uuid.v4().substring(0, 8)}$ext';
-      final appDir = await getApplicationDocumentsDirectory();
-      final localPath = path.join(appDir.path, fileName);
-
-      // THE FIX: Use the generic processMedia43 for both images and videos
-      final processedFile = await _serviceFactory.mediaService.processMedia43(
-        filePath,
-        localPath,
-        type, // Pass the type ('image' or 'video')
+      // Usar o novo sistema OfflineMedia
+      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
+        inputPath: filePath,
+        inspectionId: widget.inspectionId,
+        type: type,
+        topicId: _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
+        itemId: _detailId != null ? _itemId : null,
+        detailId: _detailId,
+        metadata: {
+          'source': isFromGallery ? 'gallery' : 'camera',
+          'is_non_conformity': _isNonConformity,
+          'observation': _observation.isEmpty ? null : _observation,
+        },
       );
 
-      // Use the processed file path, or fallback to the original if processing failed
-      final finalPath = processedFile?.path ?? localPath;
-      if (processedFile == null) {
-        await File(filePath).copy(localPath);
-      }
-      
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
-
-      final mediaData = {
-        'id': _uuid.v4(),
-        'type': type,
-        'localPath': finalPath, // Use the final path
-        'aspect_ratio': '4:3', // Always 4:3 now
-        'is_non_conformity': _isNonConformity,
-        'observation': _observation.isEmpty ? null : _observation,
-        'source': isFromGallery ? 'gallery' : 'camera',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'metadata': {
-          'location': position != null
-              ? {
-                  'latitude': position.latitude,
-                  'longitude': position.longitude,
-                  'accuracy': position.accuracy,
-                }
-              : null,
-          'source': isFromGallery ? 'gallery' : 'camera',
-        },
-      };
-
-      final connectivityResult = await Connectivity().checkConnectivity();
-      final isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-          connectivityResult.contains(ConnectivityResult.mobile);
-
-      if (isOnline) {
-        try {
-          final downloadUrl = await _serviceFactory.mediaService.uploadMedia(
-            file: File(finalPath),
-            inspectionId: widget.inspectionId,
-            type: type,
-            topicId: _topicId,
-            itemId: _topicOnly ? null : _itemId,
-            detailId: _topicOnly ? null : _detailId,
-          );
-          mediaData['url'] = downloadUrl;
-        } catch (e) {
-          debugPrint('Error uploading to Firebase Storage: $e');
-        }
-      }
-
-      await _saveMediaToInspection(mediaData);
-      widget.onMediaAdded(finalPath);
+      // Notificar o componente pai sobre a nova mídia
+      widget.onMediaAdded(offlineMedia.localPath);
 
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -364,64 +309,6 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     }
   }
 
-  Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
-    // ... (código existente sem alterações)
-    final inspection =
-        await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-    if (inspection?.topics == null) return;
-
-    final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
-    final topicIndex = int.tryParse(_topicId!.replaceFirst('topic_', '')) ?? 0;
-
-    if (topicIndex >= topics.length) return;
-
-    final topic = Map<String, dynamic>.from(topics[topicIndex]);
-
-    if (_topicOnly) {
-      // Salvar no tópico
-      if (!topic.containsKey('media')) {
-        topic['media'] = <Map<String, dynamic>>[];
-      }
-      final topicMedia = List<Map<String, dynamic>>.from(topic['media'] ?? []);
-      topicMedia.add(mediaData);
-      topic['media'] = topicMedia;
-    } else {
-      // Salvar no detalhe
-      final itemIndex = int.tryParse(_itemId!.replaceFirst('item_', '')) ?? 0;
-      final detailIndex =
-          int.tryParse(_detailId!.replaceFirst('detail_', '')) ?? 0;
-
-      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-      if (itemIndex < items.length) {
-        final item = Map<String, dynamic>.from(items[itemIndex]);
-        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-
-        if (detailIndex < details.length) {
-          final detail = Map<String, dynamic>.from(details[detailIndex]);
-          if (!detail.containsKey('media')) {
-            detail['media'] = <Map<String, dynamic>>[];
-          }
-          final detailMedia =
-              List<Map<String, dynamic>>.from(detail['media'] ?? []);
-          detailMedia.add(mediaData);
-          detail['media'] = detailMedia;
-
-          if (_isNonConformity) {
-            detail['is_damaged'] = true;
-          }
-
-          details[detailIndex] = detail;
-          item['details'] = details;
-          items[itemIndex] = item;
-        }
-      }
-      topic['items'] = items;
-    }
-
-    topics[topicIndex] = topic;
-    final updatedInspection = inspection.copyWith(topics: topics);
-    await _serviceFactory.coordinator.saveInspection(updatedInspection);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -457,7 +344,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                 const Text(
                   'Capturar Nova Mídia',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -525,7 +412,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                 ),
                 subtitle: const Text(
                   'Mídia será associada apenas ao tópico selecionado',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  style: TextStyle(color: Colors.white70, fontSize: 10),
                 ),
                 value: _topicOnly,
                 onChanged: (value) {
@@ -643,7 +530,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                 ),
                 subtitle: const Text(
                   'Marcar como item com problema',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  style: TextStyle(color: Colors.white70, fontSize: 10),
                 ),
                 value: _isNonConformity,
                 onChanged: (value) {

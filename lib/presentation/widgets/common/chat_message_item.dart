@@ -10,6 +10,8 @@ class ChatMessageItem extends StatelessWidget {
   final bool isCurrentUser;
   final VoidCallback onLongPress;
   final bool previousIsSameSender;
+  final Function(String messageId, String currentContent)? onEdit;
+  final Function(String messageId)? onDelete;
 
   const ChatMessageItem({
     super.key,
@@ -17,12 +19,14 @@ class ChatMessageItem extends StatelessWidget {
     required this.isCurrentUser,
     required this.onLongPress,
     this.previousIsSameSender = false,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onLongPress: onLongPress,
+      onLongPress: () => _showMessageOptions(context),
       child: Container(
         margin: EdgeInsets.only(
           left: isCurrentUser ? 40 : 0,
@@ -38,6 +42,118 @@ class ChatMessageItem extends StatelessWidget {
             _buildMessageContent(context),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showMessageOptions(BuildContext context) {
+    if (message.isDeleted) return; // Não mostrar opções para mensagens deletadas
+    
+    final options = <String, VoidCallback>{
+      'Copiar': () {
+        Clipboard.setData(ClipboardData(text: message.content));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mensagem copiada')),
+        );
+      },
+    };
+
+    // Adicionar opções de editar e apagar apenas para mensagens do usuário atual
+    if (isCurrentUser) {
+      if (message.type == 'text') {
+        options['Editar'] = () {
+          if (onEdit != null) {
+            onEdit!(message.id, message.content);
+          }
+        };
+      }
+      
+      options['Apagar'] = () {
+        _showDeleteConfirmation(context);
+      };
+    }
+
+    showModalBottomSheet(
+      context: context,
+      elevation: 10,
+      useSafeArea: false,
+      builder: (context) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _buildOptionTiles(options, context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildOptionTiles(Map<String, VoidCallback> options, BuildContext context) {
+    final List<Widget> tiles = [];
+    
+    for (final entry in options.entries) {
+      IconData icon;
+      Color? iconColor;
+      
+      switch (entry.key) {
+        case 'Copiar':
+          icon = Icons.copy;
+          iconColor = Colors.blue;
+          break;
+        case 'Editar':
+          icon = Icons.edit;
+          iconColor = Colors.orange;
+          break;
+        case 'Apagar':
+          icon = Icons.delete;
+          iconColor = Colors.red;
+          break;
+        default:
+          icon = Icons.more_horiz;
+          iconColor = Colors.grey;
+      }
+      
+      tiles.add(
+        ListTile(
+          leading: Icon(icon, color: iconColor),
+          title: Text(
+            entry.key,
+            style: const TextStyle(fontSize: 14),
+          ),
+          onTap: () {
+            Navigator.pop(context);
+            entry.value();
+          },
+        ),
+      );
+    }
+    
+    return tiles;
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Apagar Mensagem'),
+        content: const Text('Tem certeza que deseja apagar esta mensagem?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (onDelete != null) {
+                onDelete!(message.id);
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Apagar'),
+          ),
+        ],
       ),
     );
   }
@@ -130,7 +246,7 @@ class ChatMessageItem extends StatelessWidget {
                       style: TextStyle(
                         color:
                             isCurrentUser ? Colors.white70 : Colors.grey[400],
-                        fontSize: 10,
+                        fontSize: 8,
                       ),
                     ),
                     if (isCurrentUser) ...[
@@ -264,7 +380,7 @@ class ChatMessageItem extends StatelessWidget {
                               message.getFormattedFileSize(),
                               style: TextStyle(
                                 color: Colors.grey[400],
-                                fontSize: 12,
+                                fontSize: 10,
                               ),
                             ),
                           ],
@@ -292,7 +408,7 @@ class ChatMessageItem extends StatelessWidget {
                       style: TextStyle(
                         color:
                             isCurrentUser ? Colors.white70 : Colors.grey[400],
-                        fontSize: 10,
+                        fontSize: 8,
                       ),
                     ),
                     if (isCurrentUser) ...[
@@ -314,6 +430,43 @@ class ChatMessageItem extends StatelessWidget {
 
       case 'text':
       default:
+        // Se a mensagem foi deletada, mostrar indicador
+        if (message.isDeleted) {
+          return Container(
+            decoration: messageStyle.copyWith(
+              color: Colors.grey.shade600,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.delete,
+                  size: 16,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Mensagem apagada',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  timeText,
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 8,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return Container(
           decoration: messageStyle,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -321,37 +474,34 @@ class ChatMessageItem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Texto da mensagem
-              GestureDetector(
-                onLongPress: () {
-                  HapticFeedback.mediumImpact();
-                  Clipboard.setData(ClipboardData(text: message.content));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Texto copiado'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                },
-                child: Text(
-                  message.content,
-                  style: TextStyle(
-                    color: isCurrentUser ? Colors.white : Colors.white,
-                    fontSize: 16,
-                  ),
+              Text(
+                message.content,
+                style: TextStyle(
+                  color: isCurrentUser ? Colors.white : Colors.white,
+                  fontSize: 10,
                 ),
               ),
 
               const SizedBox(height: 4),
 
-              // Hora e status
+              // Hora, status e indicadores
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Indicador de editada
+                  if (message.isEdited) ...[
+                    Icon(
+                      Icons.edit,
+                      size: 10,
+                      color: isCurrentUser ? Colors.white70 : Colors.grey[400],
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Text(
                     timeText,
                     style: TextStyle(
                       color: isCurrentUser ? Colors.white70 : Colors.grey[400],
-                      fontSize: 10,
+                      fontSize: 8,
                     ),
                   ),
                   if (isCurrentUser) ...[

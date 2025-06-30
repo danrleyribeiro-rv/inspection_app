@@ -111,9 +111,9 @@ class _HomeScreenState extends State<HomeScreen> {
             selectedItemColor: Theme.of(context).colorScheme.primary,
             unselectedItemColor: Colors.grey[400],
             selectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             unselectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
             showUnselectedLabels: true,
             items: [
               BottomNavigationBarItem(
@@ -169,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 : _unreadMessagesCount.toString(),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: 8,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,

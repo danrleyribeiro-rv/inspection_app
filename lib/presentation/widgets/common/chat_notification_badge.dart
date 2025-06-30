@@ -37,7 +37,7 @@ class ChatNotificationBadge extends StatelessWidget {
                     unreadCount > 99 ? '99+' : unreadCount.toString(),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,

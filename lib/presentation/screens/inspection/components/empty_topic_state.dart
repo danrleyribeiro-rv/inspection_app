@@ -20,7 +20,7 @@ class EmptyTopicState extends StatelessWidget {
           const Text(
             'Nenhum tópico adicionado',
             style: TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 8),
           const Text(

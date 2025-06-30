@@ -76,7 +76,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   Future<void> _loadItems(String topicId) async {
     setState(() => _isLoadingItems = true);
     try {
-      final items = await _serviceFactory.coordinator.getItems(widget.inspectionId, topicId);
+      final items = await _serviceFactory.coordinator
+          .getItems(widget.inspectionId, topicId);
       if (mounted) setState(() => _items = items);
     } finally {
       if (mounted) setState(() => _isLoadingItems = false);
@@ -86,7 +87,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   Future<void> _loadDetails(String topicId, String itemId) async {
     setState(() => _isLoadingDetails = true);
     try {
-      final details = await _serviceFactory.coordinator.getDetails(widget.inspectionId, topicId, itemId);
+      final details = await _serviceFactory.coordinator
+          .getDetails(widget.inspectionId, topicId, itemId);
       if (mounted) setState(() => _details = details);
     } finally {
       if (mounted) setState(() => _isLoadingDetails = false);
@@ -124,18 +126,21 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: 16,
-        left: 16,
-        right: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: SingleChildScrollView(
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: EdgeInsets.only(
+          top: 16,
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 
+                  MediaQuery.of(context).padding.bottom + 16,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,8 +149,12 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Filtrar Mídia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                const Text('Filtrar Mídia',
+                    style:
+                        TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop()),
               ],
             ),
             const SizedBox(height: 16),
@@ -154,13 +163,22 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             const Text('Tópico', style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 5),
             Container(
-              decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(8)),
               child: DropdownButtonFormField<String>(
                 value: _topicId,
                 isExpanded: true,
                 dropdownColor: Colors.grey[800],
-                decoration: const InputDecoration(hintText: 'Todos os Tópicos', hintStyle: TextStyle(color: Colors.white70), contentPadding: EdgeInsets.symmetric(horizontal: 16), border: InputBorder.none),
-                items: widget.topics.map((topic) => DropdownMenuItem<String>(value: topic.id, child: Text(topic.topicName))).toList(),
+                decoration: const InputDecoration(
+                    hintText: 'Todos os Tópicos',
+                    hintStyle: TextStyle(color: Colors.white70),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                    border: InputBorder.none),
+                items: widget.topics
+                    .map((topic) => DropdownMenuItem<String>(
+                        value: topic.id, child: Text(topic.topicName)))
+                    .toList(),
                 onChanged: (value) {
                   setState(() {
                     _topicId = value;
@@ -180,7 +198,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             if (_topicId != null)
               CheckboxListTile(
                 title: const Text('Apenas do Tópico'),
-                subtitle: const Text('Incluir mídias apenas do tópico selecionado'),
+                subtitle:
+                    const Text('Incluir mídias apenas do tópico selecionado'),
                 value: _topicOnly,
                 onChanged: (value) {
                   setState(() {
@@ -205,13 +224,23 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
               _isLoadingItems
                   ? const LinearProgressIndicator()
                   : Container(
-                      decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(8)),
                       child: DropdownButtonFormField<String>(
                         value: _itemId,
                         isExpanded: true,
                         dropdownColor: Colors.grey[800],
-                        decoration: const InputDecoration(hintText: 'Todos os Itens', hintStyle: TextStyle(color: Colors.white70), contentPadding: EdgeInsets.symmetric(horizontal: 16), border: InputBorder.none),
-                        items: _items.map((item) => DropdownMenuItem<String>(value: item.id, child: Text(item.itemName))).toList(),
+                        decoration: const InputDecoration(
+                            hintText: 'Todos os Itens',
+                            hintStyle: TextStyle(color: Colors.white70),
+                            contentPadding:
+                                EdgeInsets.symmetric(horizontal: 16),
+                            border: InputBorder.none),
+                        items: _items
+                            .map((item) => DropdownMenuItem<String>(
+                                value: item.id, child: Text(item.itemName)))
+                            .toList(),
                         onChanged: (value) {
                           setState(() {
                             _itemId = value;
@@ -228,7 +257,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             if (_itemId != null && !_topicOnly)
               CheckboxListTile(
                 title: const Text('Apenas do Item'),
-                subtitle: const Text('Incluir mídias apenas do item selecionado'),
+                subtitle:
+                    const Text('Incluir mídias apenas do item selecionado'),
                 value: _itemOnly,
                 onChanged: (value) {
                   setState(() {
@@ -251,13 +281,24 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
               _isLoadingDetails
                   ? const LinearProgressIndicator()
                   : Container(
-                      decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(8)),
                       child: DropdownButtonFormField<String>(
                         value: _detailId,
                         isExpanded: true,
                         dropdownColor: Colors.grey[800],
-                        decoration: const InputDecoration(hintText: 'Todos os Detalhes', hintStyle: TextStyle(color: Colors.white70), contentPadding: EdgeInsets.symmetric(horizontal: 16), border: InputBorder.none),
-                        items: _details.map((detail) => DropdownMenuItem<String>(value: detail.id, child: Text(detail.detailName))).toList(),
+                        decoration: const InputDecoration(
+                            hintText: 'Todos os Detalhes',
+                            hintStyle: TextStyle(color: Colors.white70),
+                            contentPadding:
+                                EdgeInsets.symmetric(horizontal: 16),
+                            border: InputBorder.none),
+                        items: _details
+                            .map((detail) => DropdownMenuItem<String>(
+                                value: detail.id,
+                                child: Text(detail.detailName)))
+                            .toList(),
                         onChanged: (value) {
                           setState(() => _detailId = value);
                         },
@@ -270,24 +311,43 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             SwitchListTile(
               title: const Text('Apenas Não Conformidades'),
               value: _isNonConformityOnly ?? false,
-              onChanged: (value) => setState(() => _isNonConformityOnly = value),
+              onChanged: (value) =>
+                  setState(() => _isNonConformityOnly = value),
               activeColor: Colors.orange,
               contentPadding: EdgeInsets.zero,
             ),
             const SizedBox(height: 10),
 
             // --- MEDIA TYPE FILTER ---
-            const Text('Tipo de Mídia', style: TextStyle(color: Colors.white70)),
+            const Text('Tipo de Mídia',
+                style: TextStyle(color: Colors.white70)),
             const SizedBox(height: 5),
             Container(
-              decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(8)),
               child: Column(
                 children: [
-                  RadioListTile<String?>(title: const Text('Todos'), value: null, groupValue: _mediaType, onChanged: (value) => setState(() => _mediaType = value), activeColor: Colors.blue),
+                  RadioListTile<String?>(
+                      title: const Text('Todos'),
+                      value: null,
+                      groupValue: _mediaType,
+                      onChanged: (value) => setState(() => _mediaType = value),
+                      activeColor: Colors.blue),
                   Divider(height: 1, color: Colors.grey[700]),
-                  RadioListTile<String>(title: const Text('Fotos'), value: 'image', groupValue: _mediaType, onChanged: (value) => setState(() => _mediaType = value), activeColor: Colors.blue),
+                  RadioListTile<String>(
+                      title: const Text('Fotos'),
+                      value: 'image',
+                      groupValue: _mediaType,
+                      onChanged: (value) => setState(() => _mediaType = value),
+                      activeColor: Colors.blue),
                   Divider(height: 1, color: Colors.grey[700]),
-                  RadioListTile<String>(title: const Text('Vídeos'), value: 'video', groupValue: _mediaType, onChanged: (value) => setState(() => _mediaType = value), activeColor: Colors.blue),
+                  RadioListTile<String>(
+                      title: const Text('Vídeos'),
+                      value: 'video',
+                      groupValue: _mediaType,
+                      onChanged: (value) => setState(() => _mediaType = value),
+                      activeColor: Colors.blue),
                 ],
               ),
             ),
@@ -296,12 +356,17 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
             // --- ACTION BUTTONS ---
             Row(
               children: [
-                Expanded(child: TextButton(onPressed: _clearFilters, child: const Text('Limpar'))),
+                Expanded(
+                    child: TextButton(
+                        onPressed: _clearFilters, child: const Text('Limpar'))),
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _applyFilters,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12)),
                     child: const Text('Aplicar Filtros'),
                   ),
                 ),
@@ -310,6 +375,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
           ],
         ),
       ),
+    ),
     );
   }
 }

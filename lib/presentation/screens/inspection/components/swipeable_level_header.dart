@@ -69,6 +69,8 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      elevation: 10,
+      useSafeArea: false,
       builder: (context) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setState) {
           return Container(
@@ -178,7 +180,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                     },
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
               ],
             ),
           );
@@ -286,7 +288,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                               child: Text(
                                                 widget.title,
                                                 style: TextStyle(
-                                                  fontSize: 16,
+                                                  fontSize: 14,
                                                   fontWeight: FontWeight.bold,
                                                   color: _levelColor,
                                                 ),

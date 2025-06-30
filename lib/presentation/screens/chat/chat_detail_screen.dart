@@ -208,6 +208,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.grey[900],
+      elevation: 10,
+      useSafeArea: false,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -312,9 +314,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         title: Row(
           children: [
             AvatarWidget(
-              imageUrl: widget.chat.inspector['profileImageUrl'],
-              name:
-                  '${widget.chat.inspector['name']} ${widget.chat.inspector['last_name']}',
+              imageUrl: widget.chat.manager['profileImageUrl'] ?? widget.chat.inspector['profileImageUrl'],
+              name: widget.chat.manager.isNotEmpty 
+                  ? '${widget.chat.manager['name']} ${widget.chat.manager['last_name']}'
+                  : '${widget.chat.inspector['name']} ${widget.chat.inspector['last_name']}',
               size: 40,
             ),
             const SizedBox(width: 12),
@@ -323,12 +326,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${widget.chat.inspector['name']} ${widget.chat.inspector['last_name']}',
-                    style: const TextStyle(fontSize: 16),
+                    widget.chat.manager.isNotEmpty 
+                        ? '${widget.chat.manager['name']} ${widget.chat.manager['last_name']}'
+                        : '${widget.chat.inspector['name']} ${widget.chat.inspector['last_name']}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    widget.chat.inspection['title'] ?? 'Inspeção',
+                    widget.chat.inspection['cod'] ?? widget.chat.inspection['title'] ?? 'Inspeção',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -391,7 +396,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   child: Text(
                                       _formatDateSeparator(message.timestamp),
                                       style: const TextStyle(
-                                          color: Colors.grey, fontSize: 12)),
+                                          color: Colors.grey, fontSize: 10)),
                                 ),
                               ),
                             ChatMessageItem(
@@ -399,6 +404,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               isCurrentUser: isCurrentUser,
                               onLongPress: () => _showMessageOptions(message),
                               previousIsSameSender: previousIsSameSender,
+                              onEdit: _editMessage,
+                              onDelete: _deleteMessage,
                             ),
                           ],
                         );
@@ -426,12 +433,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ),
                   Expanded(
                     child: Container(
-                      constraints: const BoxConstraints(maxHeight: 120),
+                      constraints: const BoxConstraints(maxHeight: 100),
                       child: TextField(
                         controller: _messageController,
                         decoration: InputDecoration(
                           hintText: 'Digite uma mensagem...',
-                          hintStyle: TextStyle(color: Colors.grey),
+                          hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
                               borderSide: BorderSide.none),
@@ -483,6 +490,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.grey[900],
+      elevation: 10,
+      useSafeArea: false,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -514,5 +523,73 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       },
     );
+  }
+
+  void _editMessage(String messageId, String currentContent) {
+    final TextEditingController editController = TextEditingController(text: currentContent);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Mensagem'),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(
+            hintText: 'Digite a nova mensagem...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newContent = editController.text.trim();
+              if (newContent.isNotEmpty && newContent != currentContent) {
+                Navigator.pop(context);
+                try {
+                  await _chatService.editMessage(messageId, newContent);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Mensagem editada')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erro ao editar: $e')),
+                    );
+                  }
+                }
+              } else {
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteMessage(String messageId) async {
+    try {
+      await _chatService.deleteMessage(messageId, widget.chat.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mensagem apagada')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao apagar: $e')),
+        );
+      }
+    }
   }
 }

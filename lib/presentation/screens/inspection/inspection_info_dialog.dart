@@ -20,14 +20,13 @@ class InspectionInfoDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Informações da Vistoria'),
+      title: const Text('Informações da Vistoria', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.7,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _infoRow('Status:', inspection.status),
             _infoRow('Total de Tópicos:', totalTopics.toString()),
             _infoRow('Total de Itens:', totalItems.toString()),
             _infoRow('Total de Detalhes:', totalDetails.toString()),

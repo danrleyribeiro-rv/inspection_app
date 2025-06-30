@@ -83,13 +83,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     const Text(
                       'E-mail enviado com sucesso! Verifique sua caixa de entrada.',
                       style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     const Text(
                       'Por favor verifique sua caixa de email (e a pasta de Spam) para mais instruções.',
-                      style: TextStyle(fontSize: 16),
+                      style: TextStyle(fontSize: 10),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
@@ -111,7 +111,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     const Text(
                       'Redefina sua Senha',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 19,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,

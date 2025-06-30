@@ -1,10 +1,6 @@
 // lib/presentation/screens/inspection/components/topic_details_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:io';
-import 'package:uuid/uuid.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
@@ -31,7 +27,6 @@ class TopicDetailsSection extends StatefulWidget {
 
 class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   final ServiceFactory _serviceFactory = ServiceFactory();
-  final Uuid _uuid = Uuid();
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   String _currentTopicName = '';
@@ -106,28 +101,38 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
   Future<void> _processAndSaveMedia(String localPath, String type) async {
     try {
-      final mediaDir = await getApplicationDocumentsDirectory();
-      final outputDir = Directory('${mediaDir.path}/processed_media');
-      if (!await outputDir.exists()) await outputDir.create(recursive: true);
-
-      final filename = '${type}_${_uuid.v4()}.${type == 'image' ? 'jpg' : 'mp4'}';
-      final outputPath = '${outputDir.path}/$filename';
-      
-      final processedFile = await _serviceFactory.mediaService.processMedia43(localPath, outputPath, type);
-      if (processedFile == null) throw Exception("Falha ao processar mídia.");
-
       final position = await _serviceFactory.mediaService.getCurrentLocation();
+      
+      // Usar o fluxo offline-first do MediaService
+      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
+        inputPath: localPath,
+        inspectionId: widget.inspectionId,
+        type: type,
+        topicId: widget.topic.id,
+        metadata: {
+          'source': 'camera',
+          'is_non_conformity': false,
+          'location': position != null ? {
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'accuracy': position.accuracy
+          } : null,
+        },
+      );
+      
+      // Converter OfflineMedia para formato esperado pelo coordinator
       final mediaData = {
-        'id': _uuid.v4(), 'type': type, 'localPath': processedFile.path,
-        'aspect_ratio': '4:3', 'source': 'camera', 'is_non_conformity': false,
-        'created_at': DateTime.now().toIso8601String(), 'updated_at': DateTime.now().toIso8601String(),
-        'metadata': {'location': position != null ? {'latitude': position.latitude, 'longitude': position.longitude, 'accuracy': position.accuracy} : null, 'source': 'camera'},
+        'id': offlineMedia.id,
+        'type': offlineMedia.type,
+        'localPath': offlineMedia.localPath,
+        'url': offlineMedia.uploadUrl,
+        'aspect_ratio': '4:3',
+        'source': 'camera',
+        'is_non_conformity': false,
+        'created_at': offlineMedia.createdAt.toIso8601String(),
+        'updated_at': offlineMedia.createdAt.toIso8601String(),
+        'metadata': offlineMedia.metadata,
       };
-
-      final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult.contains(ConnectivityResult.mobile) || connectivityResult.contains(ConnectivityResult.wifi)) {
-        mediaData['url'] = await _serviceFactory.mediaService.uploadMedia(file: processedFile, inspectionId: widget.inspectionId, type: type, topicId: widget.topic.id);
-      }
       
       await _serviceFactory.coordinator.addMediaToTopic(widget.inspectionId, widget.topic.id!, mediaData);
     } catch (e) {
@@ -141,8 +146,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       builder: (context) {
         final controller = TextEditingController(text: _observationController.text);
         return AlertDialog(
-          title: const Text('Observações do Tópico'),
-          content: TextFormField(controller: controller, maxLines: 6, autofocus: true, decoration: const InputDecoration(hintText: 'Digite suas observações...', border: OutlineInputBorder())),
+          title: const Text('Observações do Tópico', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          content: TextFormField(controller: controller, maxLines: 6, autofocus: true, decoration: const InputDecoration(hintText: 'Digite suas observações...', hintStyle: TextStyle(fontSize: 12, color: Colors.grey), border: OutlineInputBorder())),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
             TextButton(onPressed: () => Navigator.of(context).pop(controller.text), child: const Text('Salvar')),
@@ -197,18 +202,18 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(color: Colors.blue.withAlpha(15), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.withAlpha(50))),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildActionButton(icon: Icons.camera_alt, label: 'Capturar', onPressed: _captureTopicMedia, color: Colors.purple),
               _buildActionButton(icon: Icons.photo_library, label: 'Galeria', onPressed: _openTopicGallery, color: Colors.purple),
-              const Spacer(),
               _buildActionButton(icon: Icons.edit, label: 'Renomear', onPressed: _renameTopic),
               _buildActionButton(icon: Icons.copy, label: 'Duplicar', onPressed: _duplicateTopic),
               _buildActionButton(icon: Icons.delete, label: 'Excluir', onPressed: _deleteTopic, color: Colors.red),
@@ -223,7 +228,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                 Text("Processando $_processingCount mídia(s)...", style: const TextStyle(fontStyle: FontStyle.italic)),
               ]),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
@@ -234,13 +239,13 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.note_alt, size: 16, color: Colors.blue.shade300),
-                    const SizedBox(width: 8),
-                    Text('Observações', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade300)),
+                    Icon(Icons.note_alt, size: 14, color: Colors.blue.shade300),
+                    const SizedBox(width: 4),
+                    Text('Observações', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade300)),
                     const Spacer(),
-                    Icon(Icons.edit, size: 16, color: Colors.blue.shade300),
+                    Icon(Icons.edit, size: 14, color: Colors.blue.shade300),
                   ]),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     _observationController.text.isEmpty ? 'Toque para adicionar observações...' : _observationController.text,
                     style: TextStyle(color: _observationController.text.isEmpty ? Colors.blue.shade200 : Colors.white, fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal),
@@ -249,7 +254,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

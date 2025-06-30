@@ -36,7 +36,7 @@ class MediaCapturePopup extends StatelessWidget {
          const Text(
            'Capturar Mídia',
            style: TextStyle(
-             fontSize: 18,
+             fontSize: 8,
              fontWeight: FontWeight.bold,
              color: Color.fromARGB(221, 255, 255, 255),
            ),
@@ -116,7 +116,7 @@ class MediaCapturePopup extends StatelessWidget {
              style: TextStyle(
                color: color,
                fontWeight: FontWeight.w600,
-               fontSize: 12,
+               fontSize: 8,
              ),
            ),
          ],

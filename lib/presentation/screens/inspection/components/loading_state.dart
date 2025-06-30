@@ -31,13 +31,13 @@ class LoadingState extends StatelessWidget {
                     ? 'Baixando dados da inspeção...'
                     : 'Carregando...',
             style: const TextStyle(
-                color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
           ),
           if (isApplyingTemplate) ...[
             const SizedBox(height: 12),
             const Text(
               'Por favor, aguarde. Isso pode levar alguns instantes...',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: Colors.white70, fontSize: 10),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),

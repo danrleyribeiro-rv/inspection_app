@@ -1,16 +1,40 @@
 // lib/services/data/topic_service.dart
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
-import 'package:inspection_app/services/data/item_service.dart'; // ADICIONADO
+import 'package:inspection_app/services/data/item_service.dart';
+import 'package:inspection_app/services/utils/cache_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TopicService {
   final InspectionService _inspectionService = InspectionService();
-  final ItemService _itemService = ItemService(); // ADICIONADO
+  ItemService get _itemService => ItemService();
+  CacheService get _cacheService => ServiceFactory().cacheService;
 
   Future<List<Topic>> getTopics(String inspectionId) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    return _extractTopics(inspectionId, inspection?.topics);
+    try {
+      final inspection = await _inspectionService.getInspection(inspectionId);
+      if (inspection != null) {
+        return _extractTopics(inspectionId, inspection.topics);
+      }
+      
+      // Fallback to cache if inspection service fails
+      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
+      if (cachedInspection != null) {
+        final topics = cachedInspection.data['topics'] as List<dynamic>?;
+        return _extractTopics(inspectionId, topics);
+      }
+      
+      return [];
+    } catch (e) {
+      // Final fallback to cache
+      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
+      if (cachedInspection != null) {
+        final topics = cachedInspection.data['topics'] as List<dynamic>?;
+        return _extractTopics(inspectionId, topics);
+      }
+      return [];
+    }
   }
 
   // ADICIONADO: Novo método para calcular o progresso de um tópico.
@@ -208,7 +232,7 @@ Future<Topic> addTopicFromTemplate(
         }
       }
 
-      await _inspectionService
+      await _cacheService
           .saveInspection(inspection.copyWith(topics: reorderedTopics));
     }
   }
@@ -363,7 +387,7 @@ Future<Topic> addTopicFromTemplate(
         ? List<Map<String, dynamic>>.from(inspection!.topics!)
         : <Map<String, dynamic>>[];
     topics.add(newTopic);
-    await _inspectionService
+    await _cacheService
         .saveInspection(inspection!.copyWith(topics: topics));
   }
 
@@ -374,7 +398,7 @@ Future<Topic> addTopicFromTemplate(
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics[topicIndex] = updatedTopic;
-        await _inspectionService
+        await _cacheService
             .saveInspection(inspection.copyWith(topics: topics));
       }
     }
@@ -386,7 +410,7 @@ Future<Topic> addTopicFromTemplate(
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics.removeAt(topicIndex);
-        await _inspectionService
+        await _cacheService
             .saveInspection(inspection.copyWith(topics: topics));
       }
     }

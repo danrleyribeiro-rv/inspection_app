@@ -77,9 +77,6 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
     }
   }
 
-  void _onItemChanged(int index) {
-    setState(() => _currentItemIndex = index);
-  }
 
   Future<void> _reloadCurrentData() async {
     widget.onUpdateCache();
@@ -162,7 +159,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
     if (widget.topics.isEmpty) {
       return const Center(
         child: Text('Nenhum tópico encontrado',
-            style: TextStyle(color: Colors.white70, fontSize: 16)),
+            style: TextStyle(color: Colors.white70, fontSize: 14)),
       );
     }
 
@@ -182,236 +179,247 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
 
                 return Column(
                   children: [
-                    // MODIFICADO: Usa FutureBuilder para obter o progresso do Tópico
-                    FutureBuilder<double>(
-                      key: ValueKey('topic_progress_${topic.id}'),
-                      future: _serviceFactory.coordinator
-                          .getTopicProgress(widget.inspectionId, topic.id!),
-                      builder: (context, snapshot) {
-                        return SwipeableLevelHeader(
-                          title: topic.topicName,
-                          subtitle: topic.topicLabel,
-                          currentIndex: topicIndex,
-                          totalCount: widget.topics.length,
-                          progress: snapshot.data ?? 0.0, // Passa o progresso
-                          items: widget.topics.map((t) => t.topicName).toList(),
-                          onIndexChanged: (index) {
-                            _topicPageController?.animateToPage(index,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut);
-                          },
-                          onReorder: _reorderTopics, // ADICIONADO
-                          onExpansionChanged: () {
-                            setState(() {
-                              _isTopicExpanded = !_isTopicExpanded;
-                              if (_isTopicExpanded) {
-                                _isItemExpanded = false;
-                                _isDetailsExpanded = false;
-                              }
-                            });
-                          },
-                          isExpanded:
-                              _isTopicExpanded && topicIndex == _currentTopicIndex,
-                          level: 1,
-                          icon: Icons.home_work_outlined,
-                        );
-                      },
-                    ),
-
-                    if (_isTopicExpanded && topicIndex == _currentTopicIndex)
-                      TopicDetailsSection(
-                        topic: topic,
-                        inspectionId: widget.inspectionId,
-                        onTopicUpdated: (updatedTopic) {
-                          final index = widget.topics
-                              .indexWhere((t) => t.id == updatedTopic.id);
-                          if (index >= 0) {
-                            widget.topics[index] = updatedTopic;
-                          }
+                      // MODIFICADO: Usa FutureBuilder para obter o progresso do Tópico
+                      FutureBuilder<double>(
+                        key: ValueKey('topic_progress_${topic.id}'),
+                        future: _serviceFactory.coordinator
+                            .getTopicProgress(widget.inspectionId, topic.id!),
+                        builder: (context, snapshot) {
+                          return SwipeableLevelHeader(
+                            title: topic.topicName,
+                            subtitle: topic.topicLabel,
+                            currentIndex: topicIndex,
+                            totalCount: widget.topics.length,
+                            progress: snapshot.data ?? 0.0, // Passa o progresso
+                            items: widget.topics.map((t) => t.topicName).toList(),
+                            onIndexChanged: (index) {
+                              _topicPageController?.animateToPage(index,
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut);
+                            },
+                            onReorder: _reorderTopics, // ADICIONADO
+                            onExpansionChanged: () {
+                              setState(() {
+                                _isTopicExpanded = !_isTopicExpanded;
+                                if (_isTopicExpanded) {
+                                  _isItemExpanded = false;
+                                  _isDetailsExpanded = false;
+                                }
+                              });
+                            },
+                            isExpanded:
+                                _isTopicExpanded && topicIndex == _currentTopicIndex,
+                            level: 1,
+                            icon: Icons.home_work_outlined,
+                          );
                         },
-                        onTopicAction: _handleTopicUpdate,
                       ),
 
-                    if (topicItems.isNotEmpty)
-                      Expanded(
-                        child: PageView.builder(
-                          controller: topicIndex == _currentTopicIndex
-                              ? _itemPageController
-                              : null,
-                          itemCount: topicItems.length,
-                          onPageChanged: topicIndex == _currentTopicIndex
-                              ? _onItemChanged
-                              : null,
-                          itemBuilder: (context, itemIndex) {
-                            final item = topicItems[itemIndex];
-                            final itemDetails =
-                                (topic.id != null && item.id != null)
-                                    ? (widget.detailsCache[
-                                            '${topic.id!}_${item.id!}'] ??
-                                        [])
-                                    : <Detail>[];
+                      if (_isTopicExpanded && topicIndex == _currentTopicIndex)
+                        Flexible(
+                          child: TopicDetailsSection(
+                            topic: topic,
+                            inspectionId: widget.inspectionId,
+                            onTopicUpdated: (updatedTopic) {
+                              final index = widget.topics
+                                  .indexWhere((t) => t.id == updatedTopic.id);
+                              if (index >= 0) {
+                                widget.topics[index] = updatedTopic;
+                                setState(() {}); // Atualização instantânea local
+                              }
+                            },
+                            onTopicAction: _handleTopicUpdate,
+                          ),
+                        ),
 
-                            return Column(
-                              children: [
-                                // MODIFICADO: Usa FutureBuilder para obter o progresso do Item
-                                FutureBuilder<double>(
-                                  key: ValueKey('item_progress_${item.id}'),
-                                  future: _serviceFactory.coordinator
-                                      .getItemProgress(widget.inspectionId,
-                                          topic.id!, item.id!),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState ==
-                                            ConnectionState.waiting &&
-                                        snapshot.data == null) {
-                                      // Retorna um cabeçalho com um placeholder de progresso
+                      if (topicItems.isNotEmpty)
+                        Expanded(
+                          child: PageView.builder(
+                            controller: topicIndex == _currentTopicIndex
+                                ? _itemPageController
+                                : null,
+                            itemCount: topicItems.length,
+                            onPageChanged: topicIndex == _currentTopicIndex
+                                ? (index) => setState(() => _currentItemIndex = index)
+                                : null,
+                            itemBuilder: (context, itemIndex) {
+                              final item = topicItems[itemIndex];
+                              final itemDetails =
+                                  (topic.id != null && item.id != null)
+                                      ? (widget.detailsCache[
+                                              '${topic.id!}_${item.id!}'] ??
+                                          [])
+                                      : <Detail>[];
+
+                              return SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                  // MODIFICADO: Usa FutureBuilder para obter o progresso do Item
+                                  FutureBuilder<double>(
+                                    key: ValueKey('item_progress_${item.id}'),
+                                    future: _serviceFactory.coordinator
+                                        .getItemProgress(widget.inspectionId,
+                                            topic.id!, item.id!),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                              ConnectionState.waiting &&
+                                          snapshot.data == null) {
+                                        return SwipeableLevelHeader(
+                                          title: item.itemName,
+                                          subtitle: item.itemLabel,
+                                          currentIndex: itemIndex,
+                                          totalCount: topicItems.length,
+                                          progress: 0,
+                                          items: topicItems
+                                              .map((i) => i.itemName)
+                                              .toList(),
+                                          onIndexChanged: (index) {
+                                            if (topicIndex == _currentTopicIndex) {
+                                              _itemPageController?.animateToPage(
+                                                  index,
+                                                  duration: const Duration(
+                                                      milliseconds: 300),
+                                                  curve: Curves.easeInOut);
+                                            }
+                                          },
+                                          onExpansionChanged: () {},
+                                          isExpanded: false,
+                                          level: 2,
+                                          icon: Icons.list_alt,
+                                        );
+                                      }
                                       return SwipeableLevelHeader(
                                         title: item.itemName,
                                         subtitle: item.itemLabel,
                                         currentIndex: itemIndex,
                                         totalCount: topicItems.length,
-                                        progress: 0,
+                                        progress: snapshot.data ?? 0.0,
                                         items: topicItems
                                             .map((i) => i.itemName)
                                             .toList(),
-                                        onIndexChanged: (_) {},
-                                        onExpansionChanged: () {},
-                                        isExpanded: false,
+                                        onIndexChanged: (index) {
+                                          if (topicIndex == _currentTopicIndex) {
+                                            _itemPageController?.animateToPage(
+                                                index,
+                                                duration: const Duration(
+                                                    milliseconds: 300),
+                                                curve: Curves.easeInOut);
+                                          }
+                                        },
+                                        onReorder: (oldIdx, newIdx) =>
+                                            _reorderItems(topic.id!, oldIdx, newIdx),
+                                        onExpansionChanged: () {
+                                          setState(() {
+                                            _isItemExpanded = !_isItemExpanded;
+                                            if (_isItemExpanded) {
+                                              _isTopicExpanded = false;
+                                              _isDetailsExpanded = false;
+                                            }
+                                          });
+                                        },
+                                        isExpanded: _isItemExpanded &&
+                                            topicIndex == _currentTopicIndex &&
+                                            itemIndex == _currentItemIndex,
                                         level: 2,
                                         icon: Icons.list_alt,
                                       );
-                                    }
-                                    return SwipeableLevelHeader(
-                                      title: item.itemName,
-                                      subtitle: item.itemLabel,
-                                      currentIndex: itemIndex,
-                                      totalCount: topicItems.length,
-                                      progress: snapshot.data ?? 0.0,
-                                      items: topicItems
-                                          .map((i) => i.itemName)
-                                          .toList(),
-                                      onIndexChanged: (index) {
-                                        if (topicIndex == _currentTopicIndex) {
-                                          _itemPageController?.animateToPage(
-                                              index,
-                                              duration: const Duration(
-                                                  milliseconds: 300),
-                                              curve: Curves.easeInOut);
-                                        }
-                                      },
-                                      onReorder: (oldIdx, newIdx) =>
-                                          _reorderItems(topic.id!, oldIdx, newIdx), // ADICIONADO
-                                      onExpansionChanged: () {
-                                        setState(() {
-                                          _isItemExpanded = !_isItemExpanded;
-                                          if (_isItemExpanded) {
-                                            _isTopicExpanded = false;
-                                            _isDetailsExpanded = false;
-                                          }
-                                        });
-                                      },
-                                      isExpanded: _isItemExpanded &&
-                                          topicIndex == _currentTopicIndex &&
-                                          itemIndex == _currentItemIndex,
-                                      level: 2,
-                                      icon: Icons.list_alt,
-                                    );
-                                  },
-                                ),
-
-                                if (_isItemExpanded &&
-                                    topicIndex == _currentTopicIndex &&
-                                    itemIndex == _currentItemIndex)
-                                  ItemDetailsSection(
-                                    item: item,
-                                    topic: topic,
-                                    inspectionId: widget.inspectionId,
-                                    onItemUpdated: (updatedItem) {
-                                      final topicId = topic.id!;
-                                      final items =
-                                          widget.itemsCache[topicId] ?? [];
-                                      final index = items.indexWhere(
-                                          (i) => i.id == updatedItem.id);
-                                      if (index >= 0) {
-                                        items[index] = updatedItem;
-                                        widget.itemsCache[topicId] = items;
-                                      }
                                     },
-                                    onItemAction: _handleItemUpdate,
                                   ),
 
-                                if (itemDetails.isNotEmpty)
-                                  Expanded(
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          margin: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green
-                                                .withAlpha((255 * 0.1).round()),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            border: Border.all(
-                                                color: Colors.green.withAlpha(
-                                                    (255 * 0.3).round())),
-                                          ),
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: InkWell(
-                                              onTap: () {
-                                                setState(() {
-                                                  _isDetailsExpanded =
-                                                      !_isDetailsExpanded;
-                                                  if (_isDetailsExpanded) {
-                                                    _isTopicExpanded = false;
-                                                    _isItemExpanded = false;
-                                                  }
-                                                });
-                                              },
+                                  if (_isItemExpanded &&
+                                      topicIndex == _currentTopicIndex &&
+                                      itemIndex == _currentItemIndex)
+                                    ItemDetailsSection(
+                                      item: item,
+                                      topic: topic,
+                                      inspectionId: widget.inspectionId,
+                                      onItemUpdated: (updatedItem) {
+                                        final topicId = topic.id!;
+                                        final items =
+                                            widget.itemsCache[topicId] ?? [];
+                                        final index = items.indexWhere(
+                                            (i) => i.id == updatedItem.id);
+                                        if (index >= 0) {
+                                          items[index] = updatedItem;
+                                          widget.itemsCache[topicId] = items;
+                                          setState(() {}); // Atualização instantânea local
+                                        }
+                                      },
+                                      onItemAction: _handleItemUpdate,
+                                    ),
+
+                                  if (itemDetails.isNotEmpty)
+                                    Column(
+                                        children: [
+                                          Container(
+                                            margin: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green
+                                                  .withAlpha((255 * 0.1).round()),
                                               borderRadius:
                                                   BorderRadius.circular(12),
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.all(12),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(Icons.details,
-                                                        color: Colors.green,
-                                                        size: 18),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Text(
-                                                        'Detalhes (${itemDetails.length})',
-                                                        style: const TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            color:
-                                                                Colors.green),
+                                              border: Border.all(
+                                                  color: Colors.green.withAlpha(
+                                                      (255 * 0.3).round())),
+                                            ),
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                onTap: () {
+                                                  setState(() {
+                                                    _isDetailsExpanded =
+                                                        !_isDetailsExpanded;
+                                                    if (_isDetailsExpanded) {
+                                                      _isTopicExpanded = false;
+                                                      _isItemExpanded = false;
+                                                    }
+                                                  });
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.all(12),
+                                                  child: Row(
+                                                    children: [
+                                                      const Icon(Icons.details,
+                                                          color: Colors.green,
+                                                          size: 16),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Text(
+                                                          'Detalhes (${itemDetails.length})',
+                                                          style: const TextStyle(
+                                                              fontSize: 14,
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                              color:
+                                                                  Colors.green),
+                                                        ),
                                                       ),
-                                                    ),
-                                                    Icon(
-                                                      _isDetailsExpanded &&
-                                                              topicIndex ==
-                                                                  _currentTopicIndex &&
-                                                              itemIndex ==
-                                                                  _currentItemIndex
-                                                          ? Icons.expand_less
-                                                          : Icons.expand_more,
-                                                      color: Colors.green,
-                                                      size: 24,
-                                                    ),
-                                                  ],
+                                                      Icon(
+                                                        _isDetailsExpanded &&
+                                                                topicIndex ==
+                                                                    _currentTopicIndex &&
+                                                                itemIndex ==
+                                                                    _currentItemIndex
+                                                            ? Icons.expand_less
+                                                            : Icons.expand_more,
+                                                        color: Colors.green,
+                                                        size: 24,
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        if (_isDetailsExpanded &&
-                                            topicIndex == _currentTopicIndex &&
-                                            itemIndex == _currentItemIndex)
-                                          Expanded(
-                                            child: DetailsListSection(
+                                          if (_isDetailsExpanded &&
+                                              topicIndex == _currentTopicIndex &&
+                                              itemIndex == _currentItemIndex)
+                                            DetailsListSection(
                                               key: ValueKey(
                                                   '${topic.id}_${item.id}_details'),
                                               details: itemDetails,
@@ -438,58 +446,60 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                                   widget.detailsCache[
                                                       cacheKey] = details;
                                                 }
-                                                // Dispara uma atualização de UI para refletir o progresso
                                                 setState(() {});
                                               },
                                               onDetailAction:
                                                   _handleDetailUpdate,
                                             ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-
-                                if (!_isDetailsExpanded && itemDetails.isEmpty)
-                                  const Expanded(
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.details,
-                                              size: 48, color: Colors.white30),
-                                          SizedBox(height: 16),
-                                          Text('Nenhum detalhe encontrado',
-                                              style: TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 16)),
                                         ],
                                       ),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
 
-                    if (topicItems.isEmpty)
-                      const Expanded(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.inbox,
-                                  size: 48, color: Colors.white30),
-                              SizedBox(height: 16),
-                              Text('Nenhum item encontrado',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 16)),
-                            ],
+                                  if (!_isDetailsExpanded && itemDetails.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.all(32.0),
+                                      child: Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.details,
+                                                  size: 48, color: Colors.white30),
+                                              SizedBox(height: 16),
+                                              Text('Nenhum detalhe encontrado',
+                                                  style: TextStyle(
+                                                      color: Colors.white70,
+                                                      fontSize: 12)),
+                                            ],
+                                          ),
+                                        ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
-                      ),
-                  ],
+
+                      if (topicItems.isEmpty)
+                        Expanded(
+                          child: const Padding(
+                            padding: EdgeInsets.all(32.0),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.inbox,
+                                      size: 48, color: Colors.white30),
+                                  SizedBox(height: 16),
+                                  Text('Nenhum item encontrado',
+                                      style: TextStyle(
+                                          color: Colors.white70, fontSize: 14)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                 );
               },
             ),

@@ -1,6 +1,6 @@
 // lib/services/coordinator/inspection_coordinator.dart
+import 'package:flutter/foundation.dart';
 import 'package:inspection_app/models/inspection.dart';
-import 'package:inspection_app/models/inspection_checkpoint.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
@@ -10,7 +10,6 @@ import 'package:inspection_app/services/data/item_service.dart';
 import 'package:inspection_app/services/data/detail_service.dart';
 import 'package:inspection_app/services/features/media_service.dart';
 import 'package:inspection_app/services/features/template_service.dart';
-import 'package:inspection_app/services/features/checkpoint_service.dart';
 import 'package:inspection_app/services/data/non_conformity_service.dart';
 
 class InspectionCoordinator {
@@ -21,7 +20,6 @@ class InspectionCoordinator {
   final NonConformityService _nonConformityService = NonConformityService();
   final MediaService _mediaService = MediaService();
   final TemplateService _templateService = TemplateService();
-  final CheckpointService _checkpointService = CheckpointService();
 
   // INSPECTION OPERATIONS
   Future<Inspection?> getInspection(String inspectionId) async {
@@ -30,6 +28,13 @@ class InspectionCoordinator {
 
   Future<void> saveInspection(Inspection inspection) async {
     await _inspectionService.saveInspection(inspection);
+  }
+
+  // Force refresh inspection data from Firestore (overriding local cache)
+  Future<void> refreshInspectionFromFirestore(String inspectionId) async {
+    debugPrint('InspectionCoordinator.refreshInspectionFromFirestore: Refreshing inspection $inspectionId from Firestore');
+    await _inspectionService.refreshFromFirestore(inspectionId);
+    debugPrint('InspectionCoordinator.refreshInspectionFromFirestore: Refresh completed for inspection $inspectionId');
   }
 
   // TOPIC OPERATIONS
@@ -257,6 +262,51 @@ class InspectionCoordinator {
     }
   }
 
+  Future<void> addMediaToDetail(String inspectionId, String topicId, String itemId, String detailId, Map<String, dynamic> mediaData) async {
+    debugPrint('InspectionCoordinator.addMediaToDetail: Adding media ${mediaData['id']} to detail $detailId');
+    final inspection = await getInspection(inspectionId);
+    if (inspection == null) {
+      debugPrint('InspectionCoordinator.addMediaToDetail: Inspection not found');
+      return;
+    }
+
+    final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+    final topicIndex = topics.indexWhere((t) => t['id'] == topicId);
+
+    if (topicIndex != -1) {
+      final topic = Map<String, dynamic>.from(topics[topicIndex]);
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      final itemIndex = items.indexWhere((i) => i['id'] == itemId);
+
+      if (itemIndex != -1) {
+        final item = Map<String, dynamic>.from(items[itemIndex]);
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        final detailIndex = details.indexWhere((d) => d['id'] == detailId);
+
+        if (detailIndex != -1) {
+          final detail = Map<String, dynamic>.from(details[detailIndex]);
+          final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+          mediaList.add(mediaData);
+          detail['media'] = mediaList;
+          details[detailIndex] = detail;
+          item['details'] = details;
+          items[itemIndex] = item;
+          topic['items'] = items;
+          topics[topicIndex] = topic;
+
+          debugPrint('InspectionCoordinator.addMediaToDetail: Saving inspection with ${mediaList.length} media items');
+          await saveInspection(inspection.copyWith(topics: topics));
+          debugPrint('InspectionCoordinator.addMediaToDetail: Inspection saved successfully');
+        } else {
+          debugPrint('InspectionCoordinator.addMediaToDetail: Detail not found');
+        }
+      } else {
+        debugPrint('InspectionCoordinator.addMediaToDetail: Item not found');
+      }
+    } else {
+      debugPrint('InspectionCoordinator.addMediaToDetail: Topic not found');
+    }
+  }
 
   // TEMPLATE OPERATIONS
   Future<bool> isTemplateAlreadyApplied(String inspectionId) async {
@@ -275,30 +325,4 @@ class InspectionCoordinator {
         inspectionId, templateId);
   }
 
-  // CHECKPOINT OPERATIONS
-  Future<InspectionCheckpoint> createCheckpoint({
-    required String inspectionId,
-    String? message,
-  }) async {
-    return await _checkpointService.createCheckpoint(
-      inspectionId: inspectionId,
-      message: message,
-    );
-  }
-
-  Future<List<InspectionCheckpoint>> getCheckpoints(String inspectionId) async {
-    return await _checkpointService.getCheckpoints(inspectionId);
-  }
-
-  Future<bool> restoreCheckpoint(
-      String inspectionId, String checkpointId) async {
-    return await _checkpointService.restoreCheckpoint(
-        inspectionId, checkpointId);
-  }
-
-  Future<Map<String, dynamic>> compareWithCheckpoint(
-      String inspectionId, String checkpointId) async {
-    return await _checkpointService.compareWithCheckpoint(
-        inspectionId, checkpointId);
-  }
 }

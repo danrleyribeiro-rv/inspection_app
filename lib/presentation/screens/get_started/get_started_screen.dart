@@ -21,7 +21,7 @@ class GetStartedScreen extends StatelessWidget {
               const Text(
                 'Bem-vindo ao Inspeções',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 19,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
@@ -30,7 +30,7 @@ class GetStartedScreen extends StatelessWidget {
               const Text(
                 'Realize suas vistorias de forma simples,\nrápida e eficiente.',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 10,
                   color: Colors.grey,
                 ),
                 textAlign: TextAlign.center,
@@ -48,11 +48,11 @@ class GetStartedScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'Entrar',
-                    style: TextStyle(fontSize: 16),
+                    style: TextStyle(fontSize: 12),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -65,7 +65,9 @@ class GetStartedScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'Criar Conta',
-                    style: TextStyle(fontSize: 16, color: Color.fromARGB(255, 235, 235, 235)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Color.fromARGB(255, 235, 235, 235)),
                   ),
                 ),
               ),

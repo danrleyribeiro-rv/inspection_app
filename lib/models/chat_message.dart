@@ -15,7 +15,11 @@ class ChatMessage {
   final int? fileSize;
   final List<String> readBy;
   final List<String> receivedBy;
-  final DateTime? readByTimestamp; // Adicionar este campo
+  final DateTime? readByTimestamp;
+  final bool isDeleted;
+  final bool isEdited;
+  final DateTime? editedAt;
+  final DateTime? deletedAt;
 
   ChatMessage({
     required this.id,
@@ -29,7 +33,11 @@ class ChatMessage {
     this.fileSize,
     List<String>? readBy,
     List<String>? receivedBy,
-    this.readByTimestamp, // Adicionar aqui
+    this.readByTimestamp,
+    this.isDeleted = false,
+    this.isEdited = false,
+    this.editedAt,
+    this.deletedAt,
   })  : readBy = readBy ?? [],
         receivedBy = receivedBy ?? [];
 
@@ -51,6 +59,10 @@ class ChatMessage {
           ? List<String>.from(data['received_by'])
           : [],
       readByTimestamp: _parseTimestamp(data['read_by_timestamp']),
+      isDeleted: data['is_deleted'] ?? false,
+      isEdited: data['is_edited'] ?? false,
+      editedAt: _parseTimestamp(data['edited_at']),
+      deletedAt: _parseTimestamp(data['deleted_at']),
     );
   }
 
@@ -112,6 +124,10 @@ class ChatMessage {
       'file_size': fileSize,
       'read_by': readBy,
       'received_by': receivedBy,
+      'is_deleted': isDeleted,
+      'is_edited': isEdited,
+      'edited_at': editedAt != null ? Timestamp.fromDate(editedAt!) : null,
+      'deleted_at': deletedAt != null ? Timestamp.fromDate(deletedAt!) : null,
     };
   }
 

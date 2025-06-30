@@ -379,7 +379,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                           'Localização:',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 10,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -729,7 +729,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                 label,
                 style: const TextStyle(
                   color: Colors.grey,
-                  fontSize: 12,
+                  fontSize: 10,
                 ),
               ),
               Text(value),

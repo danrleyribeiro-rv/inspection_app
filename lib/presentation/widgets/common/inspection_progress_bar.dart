@@ -38,7 +38,7 @@ class InspectionProgressBar extends StatelessWidget {
                 'Progresso: ${ProgressCalculationService.getFormattedProgress(progress)}',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -65,7 +65,7 @@ class InspectionProgressBar extends StatelessWidget {
                   '${stats!['filledDetails']}/${stats!['totalDetails']} detalhes',
                   style: const TextStyle(
                     color: Colors.white70,
-                    fontSize: 12,
+                    fontSize: 10,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -73,7 +73,7 @@ class InspectionProgressBar extends StatelessWidget {
                   '${stats!['totalMedia']} mídias',
                   style: const TextStyle(
                     color: Colors.white70,
-                    fontSize: 12,
+                    fontSize: 10,
                   ),
                 ),
               ],

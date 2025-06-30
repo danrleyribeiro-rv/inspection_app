@@ -1,12 +1,13 @@
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/data/inspection_service.dart';
+import 'package:inspection_app/services/utils/cache_service.dart';
+import 'package:inspection_app/services/service_factory.dart';
 
 class DetailService {
-  final InspectionService _inspectionService = InspectionService();
+  CacheService get _cacheService => ServiceFactory().cacheService;
 
   Future<List<Detail>> getDetails(
       String inspectionId, String topicId, String itemId) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
     if (inspection?.topics != null &&
@@ -84,7 +85,7 @@ class DetailService {
         int.tryParse(updatedDetail.id?.replaceFirst('detail_', '') ?? '');
     if (topicIndex != null && itemIndex != null && detailIndex != null) {
       final inspection =
-          await _inspectionService.getInspection(updatedDetail.inspectionId);
+          await _cacheService.getInspection(updatedDetail.inspectionId);
       if (inspection?.topics != null &&
           topicIndex < inspection!.topics!.length) {
         final topic = inspection.topics![topicIndex];
@@ -143,7 +144,7 @@ class DetailService {
 
   Future<void> _addDetailToItem(String inspectionId, int topicIndex,
       int itemIndex, Map<String, dynamic> newDetail) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -158,8 +159,9 @@ class DetailService {
           items[itemIndex] = item;
           topic['items'] = items;
           topics[topicIndex] = topic;
-          await _inspectionService
-              .saveInspection(inspection.copyWith(topics: topics));
+          final updatedInspection = inspection.copyWith(topics: topics);
+          // Use cache service to save locally and mark for sync
+          await ServiceFactory().cacheService.saveInspection(updatedInspection);
         }
       }
     }
@@ -177,7 +179,7 @@ class DetailService {
       throw Exception('Invalid topic or item ID');
     }
 
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topic = inspection.topics![topicIndex];
       final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
@@ -205,8 +207,9 @@ class DetailService {
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);
         topics[topicIndex] = topic;
 
-        await _inspectionService
-            .saveInspection(inspection.copyWith(topics: topics));
+        final updatedInspection = inspection.copyWith(topics: topics);
+        // Use cache service to save locally and mark for sync
+        await ServiceFactory().cacheService.saveInspection(updatedInspection);
 
         return Detail(
           id: 'detail_${details.length - 1}',
@@ -235,7 +238,7 @@ class DetailService {
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
     if (topicIndex == null || itemIndex == null) return null;
 
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topic = inspection.topics![topicIndex];
       final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
@@ -287,7 +290,7 @@ class DetailService {
 
   Future<void> _deleteDetailAtIndex(
       String inspectionId, int topicIndex, int itemIndex, int detailIndex) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -303,8 +306,9 @@ class DetailService {
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            await _inspectionService
-                .saveInspection(inspection.copyWith(topics: topics));
+            final updatedInspection = inspection.copyWith(topics: topics);
+            // Use cache service to save locally and mark for sync
+            await ServiceFactory().cacheService.saveInspection(updatedInspection);
           }
         }
       }
@@ -317,7 +321,7 @@ class DetailService {
       int itemIndex,
       int detailIndex,
       Map<String, dynamic> updatedDetail) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -333,8 +337,9 @@ class DetailService {
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            await _inspectionService
-                .saveInspection(inspection.copyWith(topics: topics));
+            final updatedInspection = inspection.copyWith(topics: topics);
+            // Use cache service to save locally and mark for sync
+            await ServiceFactory().cacheService.saveInspection(updatedInspection);
           }
         }
       }
@@ -348,7 +353,7 @@ class DetailService {
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
     if (topicIndex == null || itemIndex == null) return;
 
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _cacheService.getInspection(inspectionId);
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -377,8 +382,9 @@ class DetailService {
         topic['items'] = items;
         topics[topicIndex] = topic;
 
-        await _inspectionService
-            .saveInspection(inspection.copyWith(topics: topics));
+        final updatedInspection = inspection.copyWith(topics: topics);
+        // Use cache service to save locally and mark for sync
+        await ServiceFactory().cacheService.saveInspection(updatedInspection);
       }
     }
   }

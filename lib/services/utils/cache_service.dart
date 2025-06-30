@@ -3,25 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/models/cached_inspection.dart';
+import 'package:inspection_app/models/offline_media.dart';
 import 'package:inspection_app/models/inspection.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
-import 'package:inspection_app/services/inspection_coordinator.dart';
-
 class CacheService {
   static const String _inspectionsBoxName = 'inspections';
+  static const String _offlineMediaBoxName = 'offline_media';
   final InspectionService _inspectionService = InspectionService();
   final Connectivity _connectivity = Connectivity();
-  final InspectionCoordinator _coordinator = InspectionCoordinator();
 
   static Future<void> initialize() async {
     await Hive.initFlutter();
     Hive.registerAdapter(CachedInspectionAdapter());
+    Hive.registerAdapter(OfflineMediaAdapter());
     await Hive.openBox<CachedInspection>(_inspectionsBoxName);
+    await Hive.openBox<OfflineMedia>(_offlineMediaBoxName);
   }
 
   Box<CachedInspection> get _inspectionsBox =>
       Hive.box<CachedInspection>(_inspectionsBoxName);
+      
+  Box<OfflineMedia> get _offlineMediaBox =>
+      Hive.box<OfflineMedia>(_offlineMediaBoxName);
 
   Future<void> cacheInspection(String id, Map<String, dynamic> data) async {
     final cached = CachedInspection(
@@ -80,7 +84,8 @@ class CacheService {
       }
       final cached = getCachedInspection(inspectionId);
       if (cached != null) {
-        return Inspection.fromMap({'id': cached.id, ...cached.data});
+        final inspectionData = Map<String, dynamic>.from(cached.data);
+        return Inspection.fromMap({'id': cached.id, ...inspectionData});
       }
 
       return null;
@@ -110,12 +115,19 @@ class CacheService {
 
   Future<List<Topic>> getTopics(String inspectionId) async {
     try {
-      if (await _isOnline()) {
-        return await _coordinator.getTopics(inspectionId);
-      }
-      final cached = getCachedInspection(inspectionId);
-      if (cached != null) {
-        return _coordinator.getTopics(inspectionId);
+      final inspection = await _inspectionService.getInspection(inspectionId);
+      if (inspection?.topics != null) {
+        return inspection!.topics!.asMap().entries.map((entry) {
+          final index = entry.key;
+          final topic = entry.value;
+          return Topic(
+            id: 'topic_$index',
+            inspectionId: inspectionId,
+            position: index,
+            topicName: topic['name'] ?? 'Tópico ${index + 1}',
+            topicLabel: topic['description'] ?? '',
+          );
+        }).toList();
       }
       return [];
     } catch (e) {
@@ -124,31 +136,190 @@ class CacheService {
     }
   }
 
-  Future<Topic> addTopic(String inspectionId, String topicName,
-      {String? label, int? position}) async {
-    return await _coordinator.addTopic(
-      inspectionId,
-      topicName,
-      label: label,
-      position: position,
+  // TODO: Refactor to use direct service calls instead of coordinator
+  // This method should be called through InspectionCoordinator to avoid circular dependencies
+
+  // TODO: Refactor to use direct service calls instead of coordinator
+  // This method should be called through InspectionCoordinator to avoid circular dependencies
+
+  // TODO: Refactor to use direct service calls instead of coordinator
+  // This method should be called through InspectionCoordinator to avoid circular dependencies
+
+  // TODO: Refactor to use direct service calls instead of coordinator
+  // This method should be called through InspectionCoordinator to avoid circular dependencies
+
+  // Métodos para gerenciamento de mídia offline
+  Future<List<Map<String, dynamic>>> getPendingMediaForInspection(String inspectionId) async {
+    try {
+      final pendingMedia = _offlineMediaBox.values
+          .where((media) => media.inspectionId == inspectionId && media.needsUpload)
+          .toList();
+      
+      return pendingMedia.map((media) => {
+        'id': media.id,
+        'localPath': media.localPath,
+        'inspectionId': media.inspectionId,
+        'topicId': media.topicId,
+        'itemId': media.itemId,
+        'detailId': media.detailId,
+        'type': media.type,
+        'fileName': media.fileName,
+        'createdAt': media.createdAt.toIso8601String(),
+      }).toList();
+    } catch (e) {
+      debugPrint('Error getting pending media: $e');
+      return [];
+    }
+  }
+
+  Future<void> markMediaSynced(String mediaId) async {
+    try {
+      final media = _offlineMediaBox.get(mediaId);
+      if (media != null) {
+        media.isUploaded = true;
+        await media.save();
+      }
+    } catch (e) {
+      debugPrint('Error marking media as synced: $e');
+    }
+  }
+  
+  // Novos métodos para gerenciamento de mídia offline
+  Future<void> addOfflineMedia(OfflineMedia media) async {
+    try {
+      await _offlineMediaBox.put(media.id, media);
+    } catch (e) {
+      debugPrint('Error adding offline media: $e');
+    }
+  }
+  
+  OfflineMedia? getOfflineMedia(String mediaId) {
+    try {
+      return _offlineMediaBox.get(mediaId);
+    } catch (e) {
+      debugPrint('Error getting offline media: $e');
+      return null;
+    }
+  }
+  
+  List<OfflineMedia> getAllOfflineMediaForInspection(String inspectionId) {
+    try {
+      return _offlineMediaBox.values
+          .where((media) => media.inspectionId == inspectionId)
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting offline media for inspection: $e');
+      return [];
+    }
+  }
+  
+  List<OfflineMedia> getPendingOfflineMedia() {
+    try {
+      return _offlineMediaBox.values
+          .where((media) => media.needsUpload)
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting pending offline media: $e');
+      return [];
+    }
+  }
+  
+  Future<void> removeOfflineMedia(String mediaId) async {
+    try {
+      await _offlineMediaBox.delete(mediaId);
+    } catch (e) {
+      debugPrint('Error removing offline media: $e');
+    }
+  }
+  
+  Future<void> clearOfflineMedia() async {
+    try {
+      await _offlineMediaBox.clear();
+    } catch (e) {
+      debugPrint('Error clearing offline media: $e');
+    }
+  }
+
+  // Método para verificar se uma inspeção específica está sincronizada
+  bool isInspectionSynced(String inspectionId) {
+    final cached = getCachedInspection(inspectionId);
+    // Se não existe no cache, consideramos como sincronizado (não há mudanças locais)
+    // Se existe no cache, verificamos se precisa sync
+    return cached == null || cached.needsSync == false;
+  }
+  
+  // Método para verificar se uma inspeção tem dados que precisam ser sincronizados
+  bool hasUnsyncedData(String inspectionId) {
+    final cached = getCachedInspection(inspectionId);
+    return cached != null && cached.needsSync == true;
+  }
+  
+  // Método para verificar se há dados mais recentes na nuvem
+  Future<bool> hasNewerDataInCloud(String inspectionId) async {
+    try {
+      if (!(await _isOnline())) {
+        return false; // Se offline, não há como verificar
+      }
+      
+      final cached = getCachedInspection(inspectionId);
+      if (cached == null) {
+        return true; // Se não há cache local, pode haver dados na nuvem
+      }
+      
+      // Busca dados básicos da nuvem (apenas metadados, não dados completos)
+      final cloudInspection = await _inspectionService.getInspection(inspectionId);
+      if (cloudInspection == null) {
+        return false; // Não existe na nuvem
+      }
+      
+      // Compara timestamps
+      final cachedTime = cached.lastUpdated;
+      final cloudTime = cloudInspection.updatedAt;
+      
+      // Retorna true se a nuvem tem dados mais recentes
+      return cloudTime.isAfter(cachedTime);
+    } catch (e) {
+      debugPrint('Error checking cloud data: $e');
+      return false;
+    }
+  }
+  
+  // Método para verificar se uma inspeção está disponível localmente
+  bool isAvailableOffline(String inspectionId) {
+    final cached = getCachedInspection(inspectionId);
+    return cached != null;
+  }
+  
+  // Método para obter o status de sincronização completo
+  Future<SyncStatus> getSyncStatus(String inspectionId) async {
+    final hasUnsynced = hasUnsyncedData(inspectionId);
+    final hasNewer = await hasNewerDataInCloud(inspectionId);
+    final isOffline = isAvailableOffline(inspectionId);
+    final isOnline = await _isOnline();
+    
+    return SyncStatus(
+      needsUpload: hasUnsynced,
+      needsDownload: hasNewer,
+      isAvailableOffline: isOffline,
+      isOnline: isOnline,
     );
   }
+}
 
-  Future<void> updateTopic(Topic updatedTopic) async {
-    await _coordinator.updateTopic(updatedTopic);
-  }
-
-  Future<void> deleteTopic(String inspectionId, String topicId) async {
-    await _coordinator.deleteTopic(inspectionId, topicId);
-  }
-
-  // CORRIGIDO: Agora busca o tópico primeiro e passa o objeto Topic
-  Future<Topic> duplicateTopic(String inspectionId, String topicName) async {
-    final topics = await getTopics(inspectionId);
-    final sourceTopic = topics.firstWhere(
-      (topic) => topic.topicName == topicName,
-      orElse: () => throw Exception('Topic not found: $topicName'),
-    );
-    return await _coordinator.duplicateTopic(inspectionId, sourceTopic);
-  }
+// Classe para representar o status de sincronização
+class SyncStatus {
+  final bool needsUpload;
+  final bool needsDownload;
+  final bool isAvailableOffline;
+  final bool isOnline;
+  
+  const SyncStatus({
+    required this.needsUpload,
+    required this.needsDownload,
+    required this.isAvailableOffline,
+    required this.isOnline,
+  });
+  
+  bool get isSynced => !needsUpload && !needsDownload;
+  bool get hasConflict => needsUpload && needsDownload;
 }

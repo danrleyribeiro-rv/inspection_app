@@ -91,7 +91,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               const Text(
                 'Por favor, insira sua nova senha abaixo.',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 19,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,

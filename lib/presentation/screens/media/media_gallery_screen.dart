@@ -28,7 +28,7 @@ class MediaGalleryScreen extends StatefulWidget {
     this.initialIsNonConformityOnly,
     this.initialMediaType,
     this.initialTopicOnly = false, // Padrão é false
-    this.initialItemOnly = false,  // Padrão é false
+    this.initialItemOnly = false, // Padrão é false
   });
 
   @override
@@ -58,18 +58,19 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     _setInitialFilters();
     _loadData();
   }
-  
+
   void _setInitialFilters() {
     _selectedTopicId = widget.initialTopicId;
     _selectedItemId = widget.initialItemId;
     _selectedDetailId = widget.initialDetailId;
     _selectedMediaType = widget.initialMediaType;
     _selectedIsNonConformityOnly = widget.initialIsNonConformityOnly;
-    
+
     // THE FIX: Usa os parâmetros explícitos
     _topicOnly = widget.initialTopicOnly;
     _itemOnly = widget.initialItemOnly;
   }
+
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
@@ -108,7 +109,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     });
     _applyFilters();
   }
-  
+
   void _applyFilters() {
     setState(() {
       _filteredMedia = _serviceFactory.mediaService.filterMedia(
@@ -127,9 +128,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   void _clearFilters() {
     _onApplyFiltersCallback(
-      topicId: null, itemId: null, detailId: null,
-      isNonConformityOnly: null, mediaType: null,
-      topicOnly: false, itemOnly: false,
+      topicId: null,
+      itemId: null,
+      detailId: null,
+      isNonConformityOnly: null,
+      mediaType: null,
+      topicOnly: false,
+      itemOnly: false,
     );
   }
 
@@ -144,12 +149,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     if (_selectedMediaType != null) count++;
     _activeFiltersCount = count;
   }
-  
+
   void _openFilterPanel() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      elevation: 10,
+      useSafeArea: false,
       builder: (context) => MediaFilterPanel(
         inspectionId: widget.inspectionId,
         topics: _topics,
@@ -166,52 +173,68 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   void _showMediaViewer(int initialIndex) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => MediaViewerScreen(mediaItems: _filteredMedia, initialIndex: initialIndex),
+      builder: (_) => MediaViewerScreen(
+          mediaItems: _filteredMedia, initialIndex: initialIndex),
     ));
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Galeria de Mídia")),
-      body: _isLoading ? const Center(child: CircularProgressIndicator()) : Column(
-        children: [
-          if (_filteredMedia.isEmpty)
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                       Icon(Icons.image_search, size: 60, color: Colors.grey.shade600),
-                       const SizedBox(height: 16),
-                       const Text("Nenhuma mídia encontrada", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                       const SizedBox(height: 8),
-                      Text(
-                        _activeFiltersCount > 0 ? "Tente ajustar ou limpar os filtros para ver mais resultados." : "Capture fotos ou vídeos na inspeção para vê-los aqui.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey.shade400),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                if (_filteredMedia.isEmpty)
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.image_search,
+                                size: 60, color: Colors.grey.shade600),
+                            const SizedBox(height: 16),
+                            const Text("Nenhuma mídia encontrada",
+                                style: TextStyle(
+                                    fontSize: 10, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center),
+                            const SizedBox(height: 8),
+                            Text(
+                              _activeFiltersCount > 0
+                                  ? "Tente ajustar ou limpar os filtros para ver mais resultados."
+                                  : "Capture fotos ou vídeos na inspeção para vê-los aqui.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey.shade400),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8),
+                      itemCount: _filteredMedia.length,
+                      itemBuilder: (context, index) {
+                        final media = _filteredMedia[index];
+                        return _MediaGridTile(
+                            key: ValueKey(media['id']),
+                            media: media,
+                            onTap: () => _showMediaViewer(index));
+                      },
+                    ),
                   ),
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-                itemCount: _filteredMedia.length,
-                itemBuilder: (context, index) {
-                  final media = _filteredMedia[index];
-                  return _MediaGridTile(key: ValueKey(media['id']), media: media, onTap: () => _showMediaViewer(index));
-                },
-              ),
+              ],
             ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openFilterPanel,
         icon: const Icon(Icons.filter_list),
@@ -248,8 +271,13 @@ class _MediaGridTileState extends State<_MediaGridTile> {
     if (mounted) setState(() => _isLoadingThumbnail = true);
     try {
       final tempDir = await getTemporaryDirectory();
-      _thumbnailPath = await VideoThumbnail.thumbnailFile(video: videoPath, thumbnailPath: tempDir.path, imageFormat: ImageFormat.JPEG, quality: 50, maxWidth: 200);
-    } catch(e) {
+      _thumbnailPath = await VideoThumbnail.thumbnailFile(
+          video: videoPath,
+          thumbnailPath: tempDir.path,
+          imageFormat: ImageFormat.JPEG,
+          quality: 50,
+          maxWidth: 200);
+    } catch (e) {
       debugPrint("Error generating thumbnail: $e");
     } finally {
       if (mounted) setState(() => _isLoadingThumbnail = false);
@@ -259,7 +287,8 @@ class _MediaGridTileState extends State<_MediaGridTile> {
   ImageProvider? _getImageProvider() {
     if (widget.media['type'] == 'image') {
       final String? localPath = widget.media['localPath'];
-      if (localPath != null && File(localPath).existsSync()) return FileImage(File(localPath));
+      if (localPath != null && File(localPath).existsSync())
+        return FileImage(File(localPath));
       final String? url = widget.media['url'];
       if (url != null) return NetworkImage(url);
     }
@@ -270,24 +299,77 @@ class _MediaGridTileState extends State<_MediaGridTile> {
   @override
   Widget build(BuildContext context) {
     final imageProvider = _getImageProvider();
-    return GestureDetector(onTap: widget.onTap, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: GridTile(footer: _buildFooter(), child: Container(color: Colors.grey.shade800, child: Stack(fit: StackFit.expand, alignment: Alignment.center, children: [
-      if (imageProvider != null) Image(image: imageProvider, fit: BoxFit.cover) else if (_isLoadingThumbnail) const Center(child: CircularProgressIndicator(strokeWidth: 2)) else const Icon(Icons.movie_creation_outlined, color: Colors.grey),
-      if (widget.media['type'] == 'video') const Icon(Icons.play_circle_outline, color: Colors.white70, size: 40),
-    ])))));
+    return GestureDetector(
+        onTap: widget.onTap,
+        child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: GridTile(
+                footer: _buildFooter(),
+                child: Container(
+                    color: Colors.grey.shade800,
+                    child: Stack(
+                        fit: StackFit.expand,
+                        alignment: Alignment.center,
+                        children: [
+                          if (imageProvider != null)
+                            Image(image: imageProvider, fit: BoxFit.cover)
+                          else if (_isLoadingThumbnail)
+                            const Center(
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
+                          else
+                            const Icon(Icons.movie_creation_outlined,
+                                color: Colors.grey),
+                          if (widget.media['type'] == 'video')
+                            const Icon(Icons.play_circle_outline,
+                                color: Colors.white70, size: 40),
+                        ])))));
   }
 
   Widget _buildFooter() {
     final bool isNc = widget.media['is_non_conformity'] ?? false;
     final List<Widget> tags = [];
-    if (isNc) tags.add(const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 14));
+    if (isNc)
+      tags.add(const Icon(Icons.warning_amber_rounded,
+          color: Colors.orange, size: 14));
     if (widget.media['detail_name'] != null) {
       tags.add(const Icon(Icons.list_alt, color: Colors.white70, size: 14));
-    } else if (widget.media['item_name'] != null) tags.add(const Icon(Icons.category, color: Colors.white70, size: 14));
-    else if (widget.media['topic_name'] != null) tags.add(const Icon(Icons.topic, color: Colors.white70, size: 14));
-    String name = widget.media['detail_name'] ?? widget.media['item_name'] ?? widget.media['topic_name'] ?? 'Mídia';
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.black87, Colors.transparent], begin: Alignment.bottomCenter, end: Alignment.topCenter, stops: [0.0, 0.8])), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(name, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-      if (tags.isNotEmpty) ...[const SizedBox(height: 2), Row(children: tags.map((t) => Padding(padding: const EdgeInsets.only(right: 4.0), child: t)).toList())]
-    ]));
+    } else if (widget.media['item_name'] != null)
+      tags.add(const Icon(Icons.category, color: Colors.white70, size: 14));
+    else if (widget.media['topic_name'] != null)
+      tags.add(const Icon(Icons.topic, color: Colors.white70, size: 14));
+    String name = widget.media['detail_name'] ??
+        widget.media['item_name'] ??
+        widget.media['topic_name'] ??
+        'Mídia';
+    return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: const BoxDecoration(
+            gradient: LinearGradient(
+                colors: [Colors.black87, Colors.transparent],
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                stops: [0.0, 0.8])),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+              if (tags.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Row(
+                    children: tags
+                        .map((t) => Padding(
+                            padding: const EdgeInsets.only(right: 4.0),
+                            child: t))
+                        .toList())
+              ]
+            ]));
   }
 }

@@ -143,7 +143,7 @@ class NonConformityList extends StatelessWidget {
            if (item['deadline'] != null) ...[
              const SizedBox(height: 2),
              Text('Prazo: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(item['deadline']))}',
-               style: TextStyle(color: Colors.grey[600], fontSize: 10)),
+               style: TextStyle(color: Colors.grey[600], fontSize: 6)),
            ],
 
            const SizedBox(height: 6),
