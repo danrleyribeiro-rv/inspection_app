@@ -159,12 +159,12 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
     if (widget.topics.isEmpty) {
       return const Center(
         child: Text('Nenhum tópico encontrado',
-            style: TextStyle(color: Colors.white70, fontSize: 14)),
+            style: TextStyle(color: Colors.white70, fontSize: 12)),
       );
     }
 
     return Container(
-      color: const Color(0xFF1E293B),
+      color: const Color(0xFF312456),
       child: Column(
         children: [
           Expanded(
@@ -192,6 +192,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                             totalCount: widget.topics.length,
                             progress: snapshot.data ?? 0.0, // Passa o progresso
                             items: widget.topics.map((t) => t.topicName).toList(),
+                            hasObservation: topic.observation != null && topic.observation!.isNotEmpty,
                             onIndexChanged: (index) {
                               _topicPageController?.animateToPage(index,
                                   duration: const Duration(milliseconds: 300),
@@ -274,6 +275,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                           items: topicItems
                                               .map((i) => i.itemName)
                                               .toList(),
+                                          hasObservation: item.observation != null && item.observation!.isNotEmpty,
                                           onIndexChanged: (index) {
                                             if (topicIndex == _currentTopicIndex) {
                                               _itemPageController?.animateToPage(
@@ -298,6 +300,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                         items: topicItems
                                             .map((i) => i.itemName)
                                             .toList(),
+                                        hasObservation: item.observation != null && item.observation!.isNotEmpty,
                                         onIndexChanged: (index) {
                                           if (topicIndex == _currentTopicIndex) {
                                             _itemPageController?.animateToPage(
@@ -354,7 +357,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                         children: [
                                           Container(
                                             margin: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
+                                                horizontal: 4, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: Colors.green
                                                   .withAlpha((255 * 0.1).round()),
@@ -381,7 +384,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                                     BorderRadius.circular(12),
                                                 child: Padding(
                                                   padding:
-                                                      const EdgeInsets.all(12),
+                                                      const EdgeInsets.all(6),
                                                   child: Row(
                                                     children: [
                                                       const Icon(Icons.details,
@@ -392,7 +395,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                                         child: Text(
                                                           'Detalhes (${itemDetails.length})',
                                                           style: const TextStyle(
-                                                              fontSize: 14,
+                                                              fontSize: 12,
                                                               fontWeight:
                                                                   FontWeight.bold,
                                                               color:
@@ -464,7 +467,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                             children: [
                                               Icon(Icons.details,
                                                   size: 48, color: Colors.white30),
-                                              SizedBox(height: 16),
+                                              SizedBox(height: 4),
                                               Text('Nenhum detalhe encontrado',
                                                   style: TextStyle(
                                                       color: Colors.white70,
@@ -490,10 +493,10 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                 children: [
                                   Icon(Icons.inbox,
                                       size: 48, color: Colors.white30),
-                                  SizedBox(height: 16),
+                                  SizedBox(height: 4),
                                   Text('Nenhum item encontrado',
                                       style: TextStyle(
-                                          color: Colors.white70, fontSize: 14)),
+                                          color: Colors.white70, fontSize: 12)),
                                 ],
                               ),
                             ),

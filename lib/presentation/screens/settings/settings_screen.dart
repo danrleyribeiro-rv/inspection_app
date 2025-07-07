@@ -173,10 +173,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text('Configurações'),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF312456),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -190,7 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Receber alertas sobre novas vistorias e mensagens',
                       style: TextStyle(color: Colors.white70)),
                   value: _notificationsEnabled,
-                  activeColor: Colors.blue,
+                  activeColor: Color(0xFF6F4B99),
                   // CORREÇÃO: Callback Síncrono que chama a função Async
                   onChanged: (value) {
                     _handleNotificationChange(value);
@@ -204,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Permitir acesso à localização do dispositivo',
                       style: TextStyle(color: Colors.white70)),
                   value: _locationPermission,
-                  activeColor: Colors.blue,
+                  activeColor: Color(0xFF6F4B99),
                   // CORREÇÃO: Callback Síncrono que chama a função Async
                   onChanged: (value) {
                     _handleLocationPermissionChange(value);
@@ -217,7 +217,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Permitir acesso à câmera do dispositivo',
                       style: TextStyle(color: Colors.white70)),
                   value: _cameraPermission,
-                  activeColor: Colors.blue,
+                  activeColor: Color(0xFF6F4B99),
                   // CORREÇÃO: Callback Síncrono que chama a função Async
                   onChanged: (value) {
                     _handleCameraPermissionChange(value);
@@ -235,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _isLoading = true);
                     try {
                       await _serviceFactory.cacheService.clearCache();
-                      if (mounted) {
+                      if (mounted && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Cache limpo com sucesso'),
@@ -243,7 +243,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       }
                     } catch (e) {
-                      if (mounted) {
+                      if (mounted && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Erro ao limpar cache: $e')),
                         );
@@ -302,7 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: const TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.bold,
-          color: Colors.blue,
+          color: Color(0xFF6F4B99),
         ),
       ),
     );

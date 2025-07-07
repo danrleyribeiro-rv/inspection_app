@@ -115,8 +115,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final inspection =
-          await _serviceFactory.cacheService.getInspection(widget.inspectionId);
+      // Try offline service first, then fallback to cache service
+      Inspection? inspection = await _serviceFactory.offlineService.getOfflineInspection(widget.inspectionId);
+      
+      // Fallback to regular cache service if offline service doesn't have it
+      inspection ??= await _serviceFactory.cacheService.getInspection(widget.inspectionId);
       if (!mounted) return;
 
       if (inspection != null) {
@@ -133,7 +136,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           }
         }
       } else {
-        _showErrorSnackBar('Inspeção não encontrada.');
+        _showErrorSnackBar('Inspeção não encontrada. Baixe-a para usar offline.');
       }
     } catch (e) {
       if (mounted) {
@@ -294,7 +297,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
               TextButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: TextButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: Color(0xFF6F4B99),
                     foregroundColor: Colors.white),
                 child: const Text('Aplicar Template'),
               ),
@@ -356,8 +359,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final errorMessage = e.toString().contains('conexão com a internet') 
+            ? 'Chat não está disponível offline. Conecte-se à internet para usar o chat.'
+            : 'Erro ao abrir chat: $e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao abrir chat: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: e.toString().contains('conexão com a internet') ? Colors.orange : Colors.red,
+          ),
         );
       }
     }
@@ -572,7 +581,7 @@ Future<void> _addTopic() async {
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: Row(
           children: [
@@ -676,10 +685,10 @@ Future<void> _addTopic() async {
           if (keyboardHeight == 0 && !_isLoading && _topics.isNotEmpty)
             Container(
               padding: EdgeInsets.only(
-                top: 8,
-                bottom: bottomPadding + 8,
-                left: 16,
-                right: 16,
+                top: 4,
+                bottom: bottomPadding + 4,
+                left: 8,
+                right: 8,
               ),
               decoration: BoxDecoration(
                 color: Colors.grey[900],
@@ -691,8 +700,8 @@ Future<void> _addTopic() async {
                   ),
                 ],
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
               ),
               child: Row(
@@ -722,7 +731,7 @@ Future<void> _addTopic() async {
                     icon: Icons.add_circle_outline,
                     label: '+ Tópico',
                     onTap: _addTopic,
-                    color: Colors.blue,
+                    color: Color(0xFF6F4B99),
                   ),
                   _buildShortcutButton(
                     icon: Icons.download,
@@ -747,7 +756,7 @@ Future<void> _addTopic() async {
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
@@ -761,14 +770,14 @@ Future<void> _addTopic() async {
               Icon(
                 icon,
                 color: color,
-                size: 24,
+                size: 20,
               ),
               const SizedBox(height: 2),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,

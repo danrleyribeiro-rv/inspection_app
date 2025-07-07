@@ -96,7 +96,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(8),
+      margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.green.withAlpha((255 * 0.05).round()),
         borderRadius: BorderRadius.circular(8),
@@ -105,7 +105,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       child: ReorderableListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(4),
         itemCount: _localDetails.length,
         itemBuilder: (context, index) {
           final detail = _localDetails[index];
@@ -300,6 +300,7 @@ class _DetailListItemState extends State<DetailListItem> {
   void initState() {
     super.initState();
     _initializeControllers();
+    _observationController.addListener(_updateDetail);
   }
 
   @override
@@ -345,29 +346,31 @@ class _DetailListItemState extends State<DetailListItem> {
   void _updateDetail() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
 
+    String value = '';
+    
+    if (widget.detail.type == 'measure') {
+      value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
+      if (value == ',,') value = '';
+    } else if (widget.detail.type == 'boolean') {
+      value = _booleanValue.toString();
+    } else {
+      value = _valueController.text;
+    }
+
+    // Update UI immediately
+    final updatedDetail = widget.detail.copyWith(
+      detailValue: value.isEmpty ? null : value,
+      observation: _observationController.text.isEmpty
+          ? null
+          : _observationController.text,
+      isDamaged: _isDamaged,
+      updatedAt: DateTime.now(),
+    );
+    widget.onDetailUpdated(updatedDetail);
+
+    // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      String value = '';
-      
-      if (widget.detail.type == 'measure') {
-        value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
-        if (value == ',,') value = '';
-      } else if (widget.detail.type == 'boolean') {
-        value = _booleanValue.toString();
-      } else {
-        value = _valueController.text;
-      }
-
-      final updatedDetail = widget.detail.copyWith(
-        detailValue: value.isEmpty ? null : value,
-        observation: _observationController.text.isEmpty
-            ? null
-            : _observationController.text,
-        isDamaged: _isDamaged,
-        updatedAt: DateTime.now(),
-      );
-
       _serviceFactory.coordinator.updateDetail(updatedDetail);
-      widget.onDetailUpdated(updatedDetail);
     });
   }
 
@@ -378,7 +381,7 @@ class _DetailListItemState extends State<DetailListItem> {
         final controller =
             TextEditingController(text: _observationController.text);
         return AlertDialog(
-          title: const Text('Observações do Detalhe', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          title: const Text('Observações do Detalhe', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
@@ -447,7 +450,7 @@ class _DetailListItemState extends State<DetailListItem> {
     final displayValue = _getDisplayValue();
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 4),
       elevation: _isDamaged ? 2 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
@@ -462,7 +465,7 @@ class _DetailListItemState extends State<DetailListItem> {
             onTap: widget.onExpansionChanged,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: _isDamaged ? Colors.red.withAlpha((255 * 0.1).round()) : null,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -475,13 +478,27 @@ class _DetailListItemState extends State<DetailListItem> {
                         const Icon(Icons.warning, color: Colors.red, size: 18),
                       if (_isDamaged) const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          _currentDetailName,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: _isDamaged ? Colors.red : Colors.green.shade300,
-                          ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _currentDetailName,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _isDamaged ? Colors.red : Colors.green.shade300,
+                                ),
+                              ),
+                            ),
+                            if (_observationController.text.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.note_alt,
+                                color: Colors.amber,
+                                size: 14,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       ReorderableDragStartListener(
@@ -541,7 +558,7 @@ class _DetailListItemState extends State<DetailListItem> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildValueInput(),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   GestureDetector(
                     onTap: _editObservationDialog,
                     child: Container(
@@ -569,7 +586,7 @@ class _DetailListItemState extends State<DetailListItem> {
                             style: TextStyle(
                               color: _observationController.text.isEmpty ? Colors.green.shade200 : Colors.white,
                               fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal,
-                              fontSize: 14,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -675,7 +692,7 @@ class _DetailListItemState extends State<DetailListItem> {
               ),
               isDense: true,
             ),
-            dropdownColor: const Color(0xFF2A3749),
+            dropdownColor: const Color(0xFF4A3B6B),
             style: const TextStyle(color: Colors.white),
             items: widget.detail.options!.map((option) {
               return DropdownMenuItem<String>(
@@ -697,7 +714,7 @@ class _DetailListItemState extends State<DetailListItem> {
           children: [
             Text(
               'Valor:',
-              style: TextStyle(color: Colors.green.shade300, fontSize: 14),
+              style: TextStyle(color: Colors.green.shade300, fontSize: 12),
             ),
             const Spacer(),
             Switch(
@@ -710,7 +727,7 @@ class _DetailListItemState extends State<DetailListItem> {
             ),
             Text(
               _booleanValue ? 'Sim' : 'Não',
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ],
         );
@@ -727,7 +744,7 @@ class _DetailListItemState extends State<DetailListItem> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Row(
               children: [
                 Expanded(

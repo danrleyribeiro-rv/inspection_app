@@ -37,6 +37,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     super.initState();
     _observationController.text = widget.topic.observation ?? '';
     _currentTopicName = widget.topic.topicName;
+    _observationController.addListener(_updateTopicObservation);
   }
 
   @override
@@ -59,13 +60,17 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
   void _updateTopicObservation() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
+    
+    // Update UI immediately
+    final updatedTopic = widget.topic.copyWith(
+      observation: _observationController.text.isEmpty ? null : _observationController.text,
+      updatedAt: DateTime.now(),
+    );
+    widget.onTopicUpdated(updatedTopic);
+    
+    // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      final updatedTopic = widget.topic.copyWith(
-        observation: _observationController.text.isEmpty ? null : _observationController.text,
-        updatedAt: DateTime.now(),
-      );
       _serviceFactory.coordinator.updateTopic(updatedTopic);
-      widget.onTopicUpdated(updatedTopic);
     });
   }
   
@@ -146,7 +151,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       builder: (context) {
         final controller = TextEditingController(text: _observationController.text);
         return AlertDialog(
-          title: const Text('Observações do Tópico', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          title: const Text('Observações do Tópico', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: TextFormField(controller: controller, maxLines: 6, autofocus: true, decoration: const InputDecoration(hintText: 'Digite suas observações...', hintStyle: TextStyle(fontSize: 12, color: Colors.grey), border: OutlineInputBorder())),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
@@ -201,9 +206,9 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.blue.withAlpha(15), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.withAlpha(50))),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: Color(0xFF6F4B99).withAlpha(15), borderRadius: BorderRadius.circular(8), border: Border.all(color: Color(0xFF6F4B99).withAlpha(50))),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -228,27 +233,27 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                 Text("Processando $_processingCount mídia(s)...", style: const TextStyle(fontStyle: FontStyle.italic)),
               ]),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(border: Border.all(color: Colors.blue.withAlpha(75)), borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(border: Border.all(color: Color(0xFF6F4B99).withAlpha(75)), borderRadius: BorderRadius.circular(8)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.note_alt, size: 14, color: Colors.blue.shade300),
+                    Icon(Icons.note_alt, size: 14, color: Color(0xFF9F7FD1)),
                     const SizedBox(width: 4),
-                    Text('Observações', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade300)),
+                    Text('Observações', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF9F7FD1))),
                     const Spacer(),
-                    Icon(Icons.edit, size: 14, color: Colors.blue.shade300),
+                    Icon(Icons.edit, size: 14, color: Color(0xFF9F7FD1)),
                   ]),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     _observationController.text.isEmpty ? 'Toque para adicionar observações...' : _observationController.text,
-                    style: TextStyle(color: _observationController.text.isEmpty ? Colors.blue.shade200 : Colors.white, fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal),
+                    style: TextStyle(color: _observationController.text.isEmpty ? Color(0xFFB19EE5) : Colors.white, fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal),
                   ),
                 ],
               ),
@@ -269,12 +274,12 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
           height: 48,
           child: ElevatedButton(
             onPressed: onPressed,
-            style: ElevatedButton.styleFrom(backgroundColor: color ?? Colors.blue, foregroundColor: Colors.white, padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            style: ElevatedButton.styleFrom(backgroundColor: color ?? Color(0xFF6F4B99), foregroundColor: Colors.white, padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             child: Icon(icon, size: 20),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
       ],
     );
   }

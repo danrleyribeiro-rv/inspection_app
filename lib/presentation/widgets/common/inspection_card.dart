@@ -139,31 +139,21 @@ class InspectionCard extends StatelessWidget {
                     flex: 1,
                     child: Row(
                       children: [
-                        // Sync button (upload)
+                        // Combined sync button (upload inspection and media together)
                         if (onSync != null)
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: onSync,
+                              onPressed: () async {
+                                // Call both sync functions if they exist
+                                if (onSync != null) {
+                                  await onSync!();
+                                }
+                                if (onSyncImages != null) {
+                                  await onSyncImages!();
+                                }
+                              },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 32),
-                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                              ),
-                              icon: const Icon(Icons.cloud_upload, size: 12),
-                              label: const Text('Sync', style: TextStyle(fontSize: 10)),
-                            ),
-                          ),
-                        
-                        if (onSync != null && (onDownload != null || onSyncImages != null)) const SizedBox(width: 4),
-                        
-                        // Image sync button (sync media)
-                        if (onSyncImages != null)
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: onSyncImages,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.purple,
                                 foregroundColor: Colors.white,
                                 minimumSize: const Size(0, 32),
                                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
@@ -171,14 +161,14 @@ class InspectionCard extends StatelessWidget {
                               icon: pendingImagesCount != null && pendingImagesCount! > 0
                                 ? Badge(
                                     label: Text('${pendingImagesCount!}'),
-                                    child: const Icon(Icons.image, size: 12),
+                                    child: const Icon(Icons.cloud_upload, size: 12),
                                   )
-                                : const Icon(Icons.image, size: 12),
-                              label: const Text('Fotos', style: TextStyle(fontSize: 10)),
+                                : const Icon(Icons.cloud_upload, size: 12),
+                              label: const Text('Sincronizar', style: TextStyle(fontSize: 10)),
                             ),
                           ),
                         
-                        if (onSyncImages != null && onDownload != null) const SizedBox(width: 4),
+                        if (onSync != null && onDownload != null) const SizedBox(width: 4),
                         
                         // Download button (download from cloud)
                         if (onDownload != null)
@@ -213,7 +203,7 @@ class InspectionCard extends StatelessWidget {
                           ElevatedButton(
                             onPressed: onViewDetails,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
+                              backgroundColor: Color(0xFF6F4B99),
                               foregroundColor: Colors.white,
                               minimumSize: const Size(0, 32),
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -374,7 +364,7 @@ class InspectionCard extends StatelessWidget {
         break;
       case 'in_progress':
         label = 'Em Progresso';
-        color = Colors.blue;
+        color = Color(0xFF6F4B99);
         break;
       case 'completed':
         label = 'Concluído';

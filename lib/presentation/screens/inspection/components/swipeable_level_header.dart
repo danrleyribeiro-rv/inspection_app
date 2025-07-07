@@ -13,6 +13,7 @@ class SwipeableLevelHeader extends StatefulWidget {
   final bool isExpanded;
   final int level;
   final IconData icon;
+  final bool hasObservation;
   final VoidCallback? onRename;
   final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
@@ -31,6 +32,7 @@ class SwipeableLevelHeader extends StatefulWidget {
     required this.isExpanded,
     required this.level,
     required this.icon,
+    this.hasObservation = false,
     this.onRename,
     this.onDuplicate,
     this.onDelete,
@@ -45,7 +47,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
   Color get _levelColor {
     switch (widget.level) {
       case 1:
-        return Colors.blue;
+        return Color(0xFF6F4B99);
       case 2:
         return Colors.orange;
       case 3:
@@ -100,7 +102,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                         'Selecionar ${_getLevelName()}',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -232,7 +234,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
         color: _backgroundColor,
         borderRadius: BorderRadius.circular(12),
@@ -246,7 +248,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
               onTap: widget.onExpansionChanged,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
                 child: Row(
                   children: [
                     IconButton(
@@ -288,13 +290,21 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                               child: Text(
                                                 widget.title,
                                                 style: TextStyle(
-                                                  fontSize: 14,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.bold,
                                                   color: _levelColor,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
+                                            if (widget.hasObservation) ...[
+                                              const SizedBox(width: 4),
+                                              Icon(
+                                                Icons.note_alt,
+                                                color: Colors.amber,
+                                                size: 14,
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
@@ -310,7 +320,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                 _buildActionButton(
                                   icon: Icons.edit,
                                   onPressed: widget.onRename,
-                                  color: Colors.blue,
+                                  color: Color(0xFF6F4B99),
                                   size: 20,
                                 ),
                                 const SizedBox(width: 4),
@@ -343,11 +353,11 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             '${widget.currentIndex + 1} de ${widget.totalCount}',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: _levelColor
                                   .withAlpha((255 * 0.6).round()),
                             ),
@@ -379,13 +389,13 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10.0),
                 child: LinearProgressIndicator(
                   value: widget.progress,
                   minHeight: 6,
-                  backgroundColor: _levelColor.withOpacity(0.2),
+                  backgroundColor: _levelColor.withValues(alpha: 0.2),
                   valueColor: AlwaysStoppedAnimation<Color>(_levelColor),
                 ),
               ),
@@ -406,7 +416,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                             style: TextStyle(
                               color:
                                   _levelColor.withAlpha((255 * 0.5).round()),
-                              fontSize: 8,
+                              fontSize: 12,
                             ),
                           ),
                         );

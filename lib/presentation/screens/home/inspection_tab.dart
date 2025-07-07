@@ -74,47 +74,98 @@ class _InspectionsTabState extends State<InspectionsTab> {
       final userId = _auth.currentUser?.uid;
       if (userId == null) {
         log('[InspectionsTab _loadInspections] User not logged in.');
-        if (mounted) setState(() => _isLoading = false);
+        await _loadCachedInspections();
         return;
       }
 
       log('[InspectionsTab _loadInspections] Loading inspections for user ID: $userId');
 
-      final inspectorSnapshot = await _firestore
-          .collection('inspectors')
-          .where('user_id', isEqualTo: userId)
-          .limit(1)
-          .get(const GetOptions(source: Source.serverAndCache));
+      // Always load cached inspections first for immediate display
+      await _loadCachedInspections();
 
-      if (inspectorSnapshot.docs.isEmpty) {
-        log('[InspectionsTab _loadInspections] No inspector document found for user ID: $userId');
-        if (mounted) setState(() => _isLoading = false);
-        return;
+      // Check connectivity for online updates
+      try {
+        await _firestore.collection('inspections').limit(1).get(const GetOptions(source: Source.server));
+        log('[InspectionsTab _loadInspections] Online - will load updates from Firestore');
+      } catch (e) {
+        log('[InspectionsTab _loadInspections] Offline - showing cached inspections only');
+        return; // Already loaded cache above
       }
 
-      final inspectorId = inspectorSnapshot.docs[0].id;
-      log('[InspectionsTab _loadInspections] Found inspector ID: $inspectorId');
+      try {
+        // Try to load from Firestore first (only when online)
+        final inspectorSnapshot = await _firestore
+            .collection('inspectors')
+            .where('user_id', isEqualTo: userId)
+            .limit(1)
+            .get(const GetOptions(source: Source.serverAndCache));
 
-      final data = await _firestore
-          .collection('inspections')
-          .where('inspector_id', isEqualTo: inspectorId)
-          .where('deleted_at', isNull: true)
-          .orderBy('scheduled_date', descending: false)
-          .get(const GetOptions(source: Source.serverAndCache));
+        if (inspectorSnapshot.docs.isEmpty) {
+          log('[InspectionsTab _loadInspections] No inspector document found for user ID: $userId');
+          await _loadCachedInspections();
+          return;
+        }
 
-      log('[InspectionsTab _loadInspections] Found ${data.docs.length} inspections.');
+        final inspectorId = inspectorSnapshot.docs[0].id;
+        log('[InspectionsTab _loadInspections] Found inspector ID: $inspectorId');
 
-      if (mounted) {
-        setState(() {
-          _inspections = data.docs
-              .map((doc) => {
-                    ...doc.data(),
-                    'id': doc.id,
-                  })
-              .toList();
-          _filteredInspections = List.from(_inspections);
-          _isLoading = false;
-        });
+        final data = await _firestore
+            .collection('inspections')
+            .where('inspector_id', isEqualTo: inspectorId)
+            .where('deleted_at', isNull: true)
+            .orderBy('scheduled_date', descending: false)
+            .get(const GetOptions(source: Source.serverAndCache));
+
+        log('[InspectionsTab _loadInspections] Found ${data.docs.length} inspections from Firestore.');
+
+        // Get Firestore inspections
+        final firestoreInspections = data.docs
+            .map((doc) => {
+                  ...doc.data(),
+                  'id': doc.id,
+                })
+            .toList();
+
+        // Cache each Firestore inspection for offline access
+        final cacheService = ServiceFactory().cacheService;
+        for (final inspection in firestoreInspections) {
+          try {
+            await cacheService.cacheInspection(inspection['id'] as String, inspection, isFromCloud: true);
+            log('[InspectionsTab _loadInspections] Cached inspection ${inspection['id']} for offline access');
+          } catch (e) {
+            log('[InspectionsTab _loadInspections] Error caching inspection ${inspection['id']}: $e');
+          }
+        }
+
+        // Get cached inspections to merge
+        final cachedInspections = await _getCachedInspections();
+        
+        // Merge Firestore and cached inspections (prioritize Firestore for duplicates)
+        final allInspections = <String, Map<String, dynamic>>{};
+        
+        // Add cached inspections first
+        for (final cached in cachedInspections) {
+          allInspections[cached['id'] as String] = cached;
+        }
+        
+        // Add/override with Firestore data
+        for (final firestore in firestoreInspections) {
+          allInspections[firestore['id'] as String] = firestore;
+        }
+
+        if (mounted) {
+          setState(() {
+            _inspections = allInspections.values.toList();
+            _filteredInspections = List.from(_inspections);
+            _isLoading = false;
+          });
+        }
+        
+        log('[InspectionsTab _loadInspections] Loaded ${_inspections.length} total inspections (Firestore + Cache).');
+      } catch (e) {
+        log('[InspectionsTab _loadInspections] Error loading from Firestore: $e');
+        // Fallback to cached inspections if Firestore fails
+        await _loadCachedInspections();
       }
     } catch (e, s) {
       log('[InspectionsTab _loadInspections] Error loading inspections',
@@ -128,6 +179,66 @@ class _InspectionsTabState extends State<InspectionsTab> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _loadCachedInspections() async {
+    try {
+      log('[InspectionsTab _loadCachedInspections] Loading cached inspections only.');
+      
+      final cachedInspections = await _getCachedInspections();
+      
+      if (mounted) {
+        setState(() {
+          _inspections = cachedInspections;
+          _filteredInspections = List.from(_inspections);
+          _isLoading = false;
+        });
+      }
+      
+      log('[InspectionsTab _loadCachedInspections] Loaded ${_inspections.length} cached inspections.');
+    } catch (e) {
+      log('[InspectionsTab _loadCachedInspections] Error loading cached inspections: $e');
+      if (mounted) {
+        setState(() {
+          _inspections = [];
+          _filteredInspections = [];
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _getCachedInspections() async {
+    try {
+      final cacheService = ServiceFactory().cacheService;
+      final cachedInspections = <Map<String, dynamic>>[];
+      
+      // Get all cached inspections
+      final allCachedInspections = cacheService.getAllCachedInspections();
+      
+      for (final cachedInspection in allCachedInspections) {
+        // Extract the inspection data from the cached inspection
+        final inspectionData = Map<String, dynamic>.from(cachedInspection.data);
+        
+        // Create a Map format compatible with Firestore format
+        final inspectionMap = {
+          'id': cachedInspection.id,
+          ...inspectionData, // Include all the original inspection data
+          // Add cache-specific metadata
+          '_cached_at': cachedInspection.lastUpdated.toIso8601String(),
+          '_needs_sync': cachedInspection.needsSync,
+          '_is_cached': true, // Flag to identify cached inspections
+        };
+        
+        cachedInspections.add(inspectionMap);
+      }
+      
+      log('[InspectionsTab _getCachedInspections] Found ${cachedInspections.length} cached inspections.');
+      return cachedInspections;
+    } catch (e) {
+      log('[InspectionsTab _getCachedInspections] Error getting cached inspections: $e');
+      return [];
     }
   }
 
@@ -261,7 +372,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
   }
 
   Future<void> _downloadInspectionData(String inspectionId) async {
-    log('[InspectionsTab _downloadInspectionData] Starting download for inspection ID: $inspectionId');
+    log('[InspectionsTab _downloadInspectionData] Starting complete offline download for inspection ID: $inspectionId');
     try {
       // Show loading dialog
       if (mounted) {
@@ -274,7 +385,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                 const CircularProgressIndicator(),
                 const SizedBox(width: 16),
                 const Expanded(
-                  child: Text('Baixando dados da nuvem...'),
+                  child: Text('Baixando inspeção completa para uso offline...'),
                 ),
               ],
             ),
@@ -282,28 +393,33 @@ class _InspectionsTabState extends State<InspectionsTab> {
         );
       }
 
-      // Force refresh inspection data from Firestore
-      await ServiceFactory().coordinator.refreshInspectionFromFirestore(inspectionId);
+      // Download complete inspection for offline use
+      final success = await ServiceFactory().offlineService.downloadInspectionForOffline(inspectionId);
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
-      log('[InspectionsTab _downloadInspectionData] Download completed successfully for inspection $inspectionId');
+      if (success) {
+        log('[InspectionsTab _downloadInspectionData] Complete offline download completed successfully for inspection $inspectionId');
 
-      // Clear the cloud updates flag since we just downloaded the latest data
-      _inspectionsWithCloudUpdates.remove(inspectionId);
+        // Clear the cloud updates flag since we just downloaded the latest data
+        _inspectionsWithCloudUpdates.remove(inspectionId);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Dados baixados da nuvem com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Force UI update to hide download button immediately
-        setState(() {});
-        // Refresh the list to show updated data
-        _loadInspections();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Inspeção baixada para uso offline! Agora você pode editar sem internet.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          // Force UI update to hide download button immediately
+          setState(() {});
+          // Refresh the list to show updated data
+          _loadInspections();
+        }
+      } else {
+        throw Exception('Falha no download offline');
       }
     } catch (e) {
       // Close loading dialog
@@ -314,7 +430,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao baixar dados: $e'),
+            content: Text('Erro ao baixar para offline: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -342,8 +458,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
         );
       }
 
-      // Use the sync service to sync the inspection
-      await ServiceFactory().syncService.syncSingleInspection(inspectionId);
+      // Use the offline service to sync the inspection
+      final success = await ServiceFactory().offlineService.syncOfflineChanges(inspectionId);
+      
+      if (!success) {
+        throw Exception('Falha na sincronização offline');
+      }
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
@@ -353,7 +473,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Dados sincronizados com sucesso!'),
+            content: Text('Mudanças offline sincronizadas com sucesso!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -379,19 +499,17 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   bool _hasUnsyncedData(String inspectionId) {
     try {
-      final cacheService = ServiceFactory().cacheService;
+      final offlineService = ServiceFactory().offlineService;
       
-      // Check if inspection data needs sync
-      final hasUnsyncedInspection = cacheService.hasUnsyncedData(inspectionId);
+      // Check if inspection has unsaved changes
+      final hasUnsyncedInspection = offlineService.hasUnsavedChanges(inspectionId);
       
       // Check if there are pending media uploads
-      final pendingMedia = cacheService.getPendingOfflineMedia()
-          .where((media) => media.inspectionId == inspectionId)
-          .toList();
+      final pendingMediaCount = offlineService.getPendingMediaCount(inspectionId);
       
-      final hasUnsyncedData = hasUnsyncedInspection || pendingMedia.isNotEmpty;
+      final hasUnsyncedData = hasUnsyncedInspection || pendingMediaCount > 0;
       
-      log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: unsynced inspection: $hasUnsyncedInspection, pending media: ${pendingMedia.length}, has unsynced: $hasUnsyncedData');
+      log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: unsynced inspection: $hasUnsyncedInspection, pending media: $pendingMediaCount, has unsynced: $hasUnsyncedData');
       
       return hasUnsyncedData;
     } catch (e) {
@@ -402,11 +520,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   bool _shouldShowDownloadButton(String inspectionId) {
     try {
-      final cacheService = ServiceFactory().cacheService;
+      final offlineService = ServiceFactory().offlineService;
       
       // Show download button ONLY if:
       // 1. There's no local cache (new inspection to download)
-      final hasLocalCache = cacheService.isAvailableOffline(inspectionId);
+      final hasLocalCache = offlineService.isInspectionAvailableOffline(inspectionId);
       
       log('[InspectionsTab _shouldShowDownloadButton] Inspection $inspectionId: hasLocalCache=$hasLocalCache');
       
@@ -495,14 +613,14 @@ class _InspectionsTabState extends State<InspectionsTab> {
     try {
       final cacheService = ServiceFactory().cacheService;
       
-      // Check if there are pending media uploads for this inspection
+      // Check if there are pending media uploads for this inspection (only locally created)
       final pendingMedia = cacheService.getPendingOfflineMedia()
-          .where((media) => media.inspectionId == inspectionId && media.needsUpload)
+          .where((media) => media.inspectionId == inspectionId && media.needsUpload && media.isLocallyCreated)
           .toList();
       
       final hasPendingImages = pendingMedia.isNotEmpty;
       
-      log('[InspectionsTab _hasPendingImages] Inspection $inspectionId: pending images: ${pendingMedia.length}');
+      log('[InspectionsTab _hasPendingImages] Inspection $inspectionId: pending locally created images: ${pendingMedia.length}');
       
       return hasPendingImages;
     } catch (e) {
@@ -515,11 +633,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
     try {
       final cacheService = ServiceFactory().cacheService;
       
-      // Count pending media uploads for this inspection
+      // Count only locally created media that needs upload (exclude downloaded from cloud)
       final pendingMedia = cacheService.getPendingOfflineMedia()
-          .where((media) => media.inspectionId == inspectionId && media.needsUpload)
+          .where((media) => media.inspectionId == inspectionId && media.needsUpload && media.isLocallyCreated)
           .toList();
       
+      log('[InspectionsTab _getPendingImagesCount] Found ${pendingMedia.length} locally created pending images for inspection $inspectionId');
       return pendingMedia.length;
     } catch (e) {
       log('[InspectionsTab _getPendingImagesCount] Error counting pending images: $e');
@@ -594,7 +713,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: _isSearching
             ? TextField(
@@ -612,7 +731,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                 ),
               )
             : const Text('Inspeções'),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         titleTextStyle: const TextStyle(
             color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
@@ -651,7 +770,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
         children: [
           if (_showFilters)
             Container(
-              color: const Color(0xFF2A3749),
+              color: const Color(0xFF4A3B6B),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,7 +797,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                 horizontal: 12, vertical: 8),
                             border: OutlineInputBorder(),
                           ),
-                          dropdownColor: const Color(0xFF2A3749),
+                          dropdownColor: const Color(0xFF4A3B6B),
                           style: const TextStyle(color: Colors.white),
                           items: const [
                             DropdownMenuItem(
@@ -725,7 +844,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               DateTime currentDate =
                                   _selectedDateFilter ?? DateTime.now();
                               return Dialog(
-                                backgroundColor: const Color(0xFF2A3749),
+                                backgroundColor: const Color(0xFF4A3B6B),
                                 child: Padding(
                                   padding: const EdgeInsets.all(8.0),
                                   child: Column(
@@ -771,7 +890,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                             child: const Text(
                                               'Confirmar',
                                               style:
-                                                  TextStyle(color: Colors.blue),
+                                                  TextStyle(color: Color(0xFF6F4B99)),
                                             ),
                                           ),
                                         ],
@@ -803,7 +922,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                             'Data: ${formatDateBR(_selectedDateFilter!)}',
                             style: const TextStyle(color: Colors.white),
                           ),
-                          backgroundColor: Colors.blue,
+                          backgroundColor: Color(0xFF6F4B99),
                           deleteIcon: const Icon(Icons.close, size: 18),
                           onDeleted: () {
                             setState(() {
@@ -833,7 +952,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                     : RefreshIndicator(
                         onRefresh: _loadInspections,
                         color: Colors.white,
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Color(0xFF6F4B99),
                         child: ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: _filteredInspections.length,
@@ -901,7 +1020,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white, backgroundColor: Colors.blue),
+                foregroundColor: Colors.white, backgroundColor: Color(0xFF6F4B99)),
             onPressed: isEmptySearch
                 ? _clearSearch
                 : (_isLoading ? null : _loadInspections),
