@@ -18,11 +18,11 @@ class SyncProgressNotification extends StatelessWidget {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A3749),
+        color: const Color(0xFF4A3B6B),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -115,12 +115,12 @@ class SyncProgressNotification extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.2),
+            color: Color(0xFF6F4B99).withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
             Icons.sync,
-            color: Colors.blue,
+            color: Color(0xFF6F4B99),
             size: 24,
           ),
         );
@@ -129,7 +129,7 @@ class SyncProgressNotification extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.2),
+            color: Colors.orange.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
@@ -143,7 +143,7 @@ class SyncProgressNotification extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.purple.withOpacity(0.2),
+            color: Colors.purple.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
@@ -157,7 +157,7 @@ class SyncProgressNotification extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.2),
+            color: Colors.green.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
@@ -171,7 +171,7 @@ class SyncProgressNotification extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.2),
+            color: Colors.red.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
@@ -201,7 +201,7 @@ class SyncProgressNotification extends StatelessWidget {
   Color _getProgressColor() {
     switch (progress.phase) {
       case SyncPhase.starting:
-        return Colors.blue;
+        return Color(0xFF6F4B99);
       case SyncPhase.syncingInspection:
         return Colors.orange;
       case SyncPhase.syncingMedia:

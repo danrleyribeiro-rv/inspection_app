@@ -170,6 +170,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _clearCache() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Limpar Cache'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Esta ação irá remover:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text('• Todas as vistorias baixadas'),
+            Text('• Arquivos de mídia offline'),
+            Text('• Templates em cache'),
+            Text('• Dados temporários'),
+            SizedBox(height: 16),
+            Text(
+              'Você precisará baixar novamente as vistorias para trabalhar offline.',
+              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Tem certeza de que deseja continuar?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Limpar Tudo'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    
+    try {
+      // Limpar cache de inspeções
+      await _serviceFactory.cacheService.clearCache();
+      
+      // Limpar cache de mídia offline
+      await _serviceFactory.cacheService.clearOfflineMedia();
+      
+      // Limpar cache de templates (se disponível)
+      try {
+        await _serviceFactory.cacheService.clearTemplateCache();
+      } catch (e) {
+        debugPrint('Erro ao limpar templates: $e');
+      }
+      
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cache limpo com sucesso! Todas as vistorias baixadas foram removidas.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao limpar cache: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -227,31 +314,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   title: const Text('Limpar Cache',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Remover arquivos temporários',
+                  subtitle: const Text('Remover todas as vistorias baixadas e arquivos temporários',
                       style: TextStyle(color: Colors.white70)),
                   leading:
                       const Icon(Icons.cleaning_services, color: Colors.white),
-                  onTap: () async {
-                    setState(() => _isLoading = true);
-                    try {
-                      await _serviceFactory.cacheService.clearCache();
-                      if (mounted && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Cache limpo com sucesso'),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Erro ao limpar cache: $e')),
-                        );
-                      }
-                    } finally {
-                      if (mounted) setState(() => _isLoading = false);
-                    }
-                  },
+                  onTap: _clearCache,
                 ),
                 _buildSectionHeader('Conta'),
                 ListTile(

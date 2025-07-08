@@ -83,7 +83,7 @@ class Topic {
       position: position ?? this.position,
       topicName: topicName ?? this.topicName,
       topicLabel: topicLabel ?? this.topicLabel,
-      observation: observation ?? this.observation,
+      observation: observation,
       isDamaged: isDamaged ?? this.isDamaged,
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,

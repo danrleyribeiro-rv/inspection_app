@@ -47,7 +47,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
   Color get _levelColor {
     switch (widget.level) {
       case 1:
-        return Color(0xFF6F4B99);
+        return Color(0xFFBB8FEB);
       case 2:
         return Colors.orange;
       case 3:

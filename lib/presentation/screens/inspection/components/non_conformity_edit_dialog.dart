@@ -1,6 +1,7 @@
 // lib/presentation/screens/inspection/components/non_conformity_edit_dialog.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 
 class NonConformityEditDialog extends StatefulWidget {
   final Map<String, dynamic> nonConformity;
@@ -22,7 +23,8 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
   late TextEditingController _descriptionController;
   late TextEditingController _correctiveActionController;
   late String _severity;
-  DateTime? _deadline;
+  bool _isResolved = false;
+  final List<String> _resolutionImagePaths = [];
 
   @override
   void initState() {
@@ -32,14 +34,12 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
     _correctiveActionController = TextEditingController(
         text: widget.nonConformity['corrective_action'] ?? '');
     _severity = widget.nonConformity['severity'] ?? 'Média';
-
-    // Parse deadline if available
-    if (widget.nonConformity['deadline'] != null) {
-      try {
-        _deadline = DateTime.parse(widget.nonConformity['deadline']);
-      } catch (e) {
-        debugPrint('Error parsing deadline: $e');
-      }
+    _isResolved = widget.nonConformity['is_resolved'] ?? false;
+    
+    // Load existing resolution images if any
+    final resolutionImages = widget.nonConformity['resolution_images'] as List<dynamic>?;
+    if (resolutionImages != null) {
+      _resolutionImagePaths.addAll(resolutionImages.cast<String>());
     }
   }
 
@@ -50,16 +50,39 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
     super.dispose();
   }
 
-  Future<void> _pickDeadlineDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _deadline ?? DateTime.now().add(const Duration(days: 7)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-
-    if (date != null) {
-      setState(() => _deadline = date);
+  Future<void> _addResolutionMedia() async {
+    try {
+      // Abrir câmera diretamente para capturar imagem de resolução
+      final result = await Navigator.of(context).push<List<String>>(
+        MaterialPageRoute(
+          builder: (context) => NativeCameraWidget(
+            onImagesSelected: (List<String> imagePaths) {
+              Navigator.of(context).pop(imagePaths);
+            },
+            allowMultiple: true,
+          ),
+        ),
+      );
+      
+      if (result != null && result.isNotEmpty && mounted) {
+        setState(() {
+          _resolutionImagePaths.addAll(result);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${result.length} imagem(ns) de resolução capturada(s) com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        debugPrint('Imagens de resolução capturadas: $result');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao adicionar mídia: $e')),
+        );
+      }
     }
   }
 
@@ -131,27 +154,126 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
 
               const SizedBox(height: 16),
 
-              // Deadline picker
-              const Text('Prazo:'),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _pickDeadlineDate,
-                child: AbsorbPointer(
-                  child: TextFormField(
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      suffixIcon: Icon(Icons.calendar_today),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    ),
-                    controller: TextEditingController(
-                      text: _deadline != null
-                          ? DateFormat('dd/MM/yyyy').format(_deadline!)
-                          : '',
-                    ),
+              // Resolution status
+              CheckboxListTile(
+                title: const Text('Marcar como resolvida'),
+                subtitle: _isResolved 
+                    ? const Text('Esta não conformidade foi resolvida')
+                    : const Text('Marque quando a não conformidade for corrigida'),
+                value: _isResolved,
+                onChanged: (value) {
+                  setState(() => _isResolved = value ?? false);
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+              
+              if (_isResolved) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withAlpha((255 * 0.1).round()),
+                    border: Border.all(color: Colors.green.withAlpha((255 * 0.3).round())),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Imagens de Resolução',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (_isResolved) // Apenas mostra quando marcado como resolvido
+                        ElevatedButton.icon(
+                          onPressed: _addResolutionMedia,
+                          icon: const Icon(Icons.camera_alt, size: 16),
+                          label: const Text('Adicionar Fotos de Resolução'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      if (_resolutionImagePaths.isNotEmpty) ...[
+                        const Text('Imagens de Resolução:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _resolutionImagePaths.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final path = entry.value;
+                            return Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: path.startsWith('http') 
+                                    ? Image.network(
+                                        path,
+                                        width: 60,
+                                        height: 60,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 60,
+                                            height: 60,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.image, color: Colors.grey),
+                                          );
+                                        },
+                                      )
+                                    : Image.file(
+                                        File(path),
+                                        width: 60,
+                                        height: 60,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 60,
+                                            height: 60,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.image, color: Colors.grey),
+                                          );
+                                        },
+                                      ),
+                                ),
+                                Positioned(
+                                  top: 2,
+                                  right: 2,
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _resolutionImagePaths.removeAt(index);
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.close, size: 12, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -172,7 +294,8 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                     ? null
                     : _correctiveActionController.text,
                 'severity': _severity,
-                'deadline': _deadline?.toIso8601String(),
+                'is_resolved': _isResolved,
+                'resolution_images': _resolutionImagePaths,
               };
 
               widget.onSave(updatedData);

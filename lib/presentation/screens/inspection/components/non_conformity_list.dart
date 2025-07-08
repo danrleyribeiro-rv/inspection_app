@@ -1,4 +1,5 @@
 // lib/presentation/screens/inspection/components/non_conformity_list.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/widgets/media/non_conformity_media_widget.dart';
@@ -10,6 +11,8 @@ class NonConformityList extends StatelessWidget {
  final Function(String, String) onStatusUpdate;
  final Function(String) onDeleteNonConformity;
  final Function(Map<String, dynamic>) onEditNonConformity;
+ final String? filterByDetailId;
+ final Function()? onNonConformityUpdated;
 
  const NonConformityList({
    super.key,
@@ -18,6 +21,8 @@ class NonConformityList extends StatelessWidget {
    required this.onStatusUpdate,
    required this.onDeleteNonConformity,
    required this.onEditNonConformity,
+   this.filterByDetailId,
+   this.onNonConformityUpdated,
  });
 
  Color _getSeverityColor(String? severity) {
@@ -47,10 +52,14 @@ class NonConformityList extends StatelessWidget {
      );
    }
 
+   final filteredNCs = filterByDetailId != null 
+       ? nonConformities.where((nc) => nc['detail_id'] == filterByDetailId).toList()
+       : nonConformities;
+
    return ListView.builder(
      padding: const EdgeInsets.all(8),
-     itemCount: nonConformities.length,
-     itemBuilder: (context, index) => _buildCompactCard(context, nonConformities[index]),
+     itemCount: filteredNCs.length,
+     itemBuilder: (context, index) => _buildCompactCard(context, filteredNCs[index]),
    );
  }
 
@@ -62,19 +71,21 @@ class NonConformityList extends StatelessWidget {
    final severity = item['severity'] ?? 'Média';
    final status = item['status'] ?? 'pendente';
    
-   Color cardColor = switch (severity) {
-     'Alta' => Colors.red.shade50,
-     'Média' => Colors.orange.shade50,
-     'Baixa' => Colors.blue.shade50,
-     _ => Colors.grey.shade50,
-   };
+   final isResolved = item['is_resolved'] == true;
+   
+   // Se resolvido, usar cor verde. Senão, usar cor baseada na severidade
+   Color cardColor = isResolved 
+       ? const Color(0xFF1B5E20) // Verde escuro para resolvidos
+       : switch (severity) {
+           'Alta' => const Color(0xFF4A1E1E),
+           'Média' => const Color(0xFF4A3B1E),
+           'Baixa' => const Color(0xFF1E2A4A),
+           _ => const Color(0xFF3A3A3A),
+         };
 
-   final (statusColor, statusText) = switch (status) {
-     'pendente' => (Colors.red, 'Pendente'),
-     'em_andamento' => (Colors.orange, 'Em Andamento'),
-     'resolvido' => (Colors.green, 'Resolvido'),
-     _ => (Colors.grey, status),
-   };
+   final (statusColor, statusText) = isResolved 
+       ? (Colors.green, 'RESOLVIDO')
+       : (Colors.orange, 'PENDENTE');
 
    DateTime? createdAt;
    try {
@@ -120,30 +131,90 @@ class NonConformityList extends StatelessWidget {
            ),
            const SizedBox(height: 6),
 
-           // Localização compacta
-           Text('${topic['topic_name'] ?? "N/A"} > ${topicItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
-             style: TextStyle(color: Colors.grey[600], fontSize: 10),
-             maxLines: 1, overflow: TextOverflow.ellipsis),
+           // Localização compacta - mais visível
+           Container(
+             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+             decoration: BoxDecoration(
+               color: Colors.black26,
+               borderRadius: BorderRadius.circular(4),
+               border: Border.all(color: Colors.white24, width: 0.5),
+             ),
+             child: Text(
+               '${topic['topic_name'] ?? "N/A"} > ${topicItem['item_name'] ?? "N/A"} > ${detail['detail_name'] ?? "N/A"}',
+               style: const TextStyle(
+                 color: Colors.white,
+                 fontSize: 11,
+                 fontWeight: FontWeight.w600,
+               ),
+               maxLines: 1,
+               overflow: TextOverflow.ellipsis,
+             ),
+           ),
            const SizedBox(height: 4),
 
            // Descrição
            Text(item['description'] ?? "Sem descrição",
-             style: TextStyle(color: Colors.grey[700], fontSize: 11),
+             style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
              maxLines: 2, overflow: TextOverflow.ellipsis),
 
            // Ação corretiva se houver
            if (item['corrective_action'] != null) ...[
              const SizedBox(height: 4),
              Text('Ação: ${item['corrective_action']}',
-               style: TextStyle(color: Colors.grey[600], fontSize: 10),
+               style: const TextStyle(color: Colors.white60, fontSize: 10),
                maxLines: 1, overflow: TextOverflow.ellipsis),
            ],
 
-           // Prazo se houver
-           if (item['deadline'] != null) ...[
-             const SizedBox(height: 2),
-             Text('Prazo: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(item['deadline']))}',
-               style: TextStyle(color: Colors.grey[600], fontSize: 6)),
+           // Imagens de resolução se houver
+           if (isResolved && item['resolution_images'] != null && (item['resolution_images'] as List).isNotEmpty) ...[
+             const SizedBox(height: 8),
+             const Text('Imagens de Resolução:', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+             const SizedBox(height: 4),
+             SizedBox(
+               height: 40,
+               child: ListView.builder(
+                 scrollDirection: Axis.horizontal,
+                 itemCount: (item['resolution_images'] as List).length,
+                 itemBuilder: (context, index) {
+                   final imagePath = (item['resolution_images'] as List)[index] as String;
+                   return Container(
+                     margin: const EdgeInsets.only(right: 6),
+                     child: ClipRRect(
+                       borderRadius: BorderRadius.circular(6),
+                       child: imagePath.startsWith('http')
+                         ? Image.network(
+                             imagePath,
+                             width: 40,
+                             height: 40,
+                             fit: BoxFit.cover,
+                             errorBuilder: (context, error, stackTrace) {
+                               return Container(
+                                 width: 40,
+                                 height: 40,
+                                 color: Colors.grey[600],
+                                 child: const Icon(Icons.image, color: Colors.white54, size: 20),
+                               );
+                             },
+                           )
+                         : Image.file(
+                             File(imagePath),
+                             width: 40,
+                             height: 40,
+                             fit: BoxFit.cover,
+                             errorBuilder: (context, error, stackTrace) {
+                               return Container(
+                                 width: 40,
+                                 height: 40,
+                                 color: Colors.grey[600],
+                                 child: const Icon(Icons.image, color: Colors.white54, size: 20),
+                               );
+                             },
+                           ),
+                     ),
+                   );
+                 },
+               ),
+             ),
            ],
 
            const SizedBox(height: 6),
@@ -158,6 +229,7 @@ class NonConformityList extends StatelessWidget {
                ncIndex: ncIndex,
                isReadOnly: status == 'resolvido',
                onMediaAdded: (_) {},
+               onNonConformityUpdated: onNonConformityUpdated,
              ),
 
            // Data de criação e botões de ação
@@ -165,9 +237,8 @@ class NonConformityList extends StatelessWidget {
              children: [
                if (createdAt != null)
                  Text(DateFormat('dd/MM/yyyy HH:mm').format(createdAt),
-                   style: TextStyle(color: Colors.grey[500], fontSize: 9)),
+                   style: const TextStyle(color: Colors.white38, fontSize: 9)),
                const Spacer(),
-               if (status != 'resolvido') ..._buildActionButtons(status, nonConformityId),
              ],
            ),
          ],
@@ -210,36 +281,6 @@ class NonConformityList extends StatelessWidget {
    );
  }
 
- List<Widget> _buildActionButtons(String status, String nonConformityId) {
-   if (status == 'pendente') {
-     return [
-       ElevatedButton(
-         onPressed: () => onStatusUpdate(nonConformityId, 'em_andamento'),
-         style: ElevatedButton.styleFrom(
-           backgroundColor: Colors.orange,
-           foregroundColor: Colors.white,
-           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-           minimumSize: const Size(0, 28),
-         ),
-         child: const Text('Iniciar', style: TextStyle(fontSize: 10)),
-       ),
-     ];
-   } else if (status == 'em_andamento') {
-     return [
-       ElevatedButton(
-         onPressed: () => onStatusUpdate(nonConformityId, 'resolvido'),
-         style: ElevatedButton.styleFrom(
-           backgroundColor: Colors.green,
-           foregroundColor: Colors.white,
-           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-           minimumSize: const Size(0, 28),
-         ),
-         child: const Text('Resolver', style: TextStyle(fontSize: 10)),
-       ),
-     ];
-   }
-   return [];
- }
 
  void _showEditDialog(BuildContext context, Map<String, dynamic> item) {
    showDialog(

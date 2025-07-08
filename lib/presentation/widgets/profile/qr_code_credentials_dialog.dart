@@ -1,7 +1,6 @@
 // lib/presentation/widgets/profile/qr_code_credentials_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -23,7 +22,7 @@ class QrCodeCredentialsDialog extends StatelessWidget {
     final screenSize = MediaQuery.of(context).size;
 
     return Dialog(
-      backgroundColor: const Color(0xFF2A3749),
+      backgroundColor: const Color(0xFF4A3B6B),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: screenSize.width * 0.9,
@@ -138,16 +137,16 @@ class QrCodeCredentialsDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.blue.withAlpha((255 * 0.2).round()),
+                color: const Color(0xFF6F4B99).withAlpha((255 * 0.2).round()),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                    color: Colors.blue.withAlpha((255 * 0.3).round())),
+                    color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
               ),
               child: Text(
                 'ID: $inspectorId',
                 style: const TextStyle(
                   fontSize: 10,
-                  color: Colors.blue,
+                  color: Color(0xFF6F4B99),
                   fontFamily: 'monospace',
                   fontWeight: FontWeight.w500,
                 ),
@@ -156,34 +155,10 @@ class QrCodeCredentialsDialog extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Share button only
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _shareCredentials(qrData),
-                icon: const Icon(Icons.share, size: 18),
-                label: const Text('Compartilhar Credenciais'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  void _shareCredentials(String qrData) {
-    Share.share(
-      'Credenciais do Inspetor: ${profile['name']} ${profile['last_name']}\n'
-      'Acesse: $qrData',
-      subject: 'Credenciais do Inspetor',
-    );
-  }
 }

@@ -233,10 +233,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
-        title: const Text('Registrar'),
-        backgroundColor: const Color(0xFF1E293B),
+        title: const Text(
+          'Registrar',
+          style: TextStyle(fontSize: 14),
+        ),
+        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -251,7 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: [              
               // Personal Information Section
               _buildSectionHeader('Informações Pessoais', Icons.person),
               const SizedBox(height: 16),
@@ -261,7 +264,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Expanded(
                     child: _buildTextField(
                       controller: _nameController,
-                      label: 'Primeiro Nome',
+                      label: 'Nome',
                       icon: Icons.person_outline,
                       textCapitalization: TextCapitalization.words,
                       validator: (value) =>
@@ -543,15 +546,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shadowColor: Colors.blue.withAlpha((255 * 0.3).round()),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
                   onPressed: _isLoading ? null : _signUp,
                   child: _isLoading
                       ? const SizedBox(
@@ -570,7 +564,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             Text(
                               'Criar Conta',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -579,7 +573,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              // Espaço para garantir que o botão fique acima da barra de navegação
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
             ],
           ),
         ),
@@ -591,20 +586,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.blue.withAlpha((255 * 0.1).round()),
+        color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withAlpha((255 * 0.3).round())),
+        border: Border.all(color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.blue, size: 20),
+          Icon(icon, color: const Color(0xFF6F4B99), size: 20),
           const SizedBox(width: 8),
           Text(
             title,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              color: Color(0xFF6F4B99),
             ),
           ),
         ],
@@ -630,26 +625,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        prefixIcon: Icon(icon, color: Colors.blue),
+        prefixIcon: Icon(icon, color: const Color(0xFF6F4B99)),
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: Colors.grey[600]!),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF6F4B99), width: 2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: Colors.grey[600]!),
         ),
         filled: true,
-        fillColor: Colors.grey[850],
-        labelStyle: TextStyle(color: Colors.grey[400]),
-        hintStyle: TextStyle(color: Colors.grey),
+        fillColor: Colors.white10,
+        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+        hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
       ),
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 12),
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       validator: validator,
@@ -664,29 +659,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
       value: _selectedProfession,
       decoration: InputDecoration(
         labelText: 'Profissão',
-        prefixIcon: const Icon(Icons.work_outline, color: Colors.blue),
+        prefixIcon: const Icon(Icons.work_outline, color: Color(0xFF6F4B99)),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: Colors.grey[600]!),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF6F4B99), width: 2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: Colors.grey[600]!),
         ),
         filled: true,
-        fillColor: Colors.grey[850],
-        labelStyle: TextStyle(color: Colors.grey[400]),
+        fillColor: Colors.white10,
+        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
       ),
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 12),
       dropdownColor: Colors.grey[800],
       items: Constants.professions.map((String value) {
         return DropdownMenuItem<String>(
           value: value,
-          child: Text(value, style: const TextStyle(color: Colors.white)),
+          child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12)),
         );
       }).toList(),
       onChanged: (String? newValue) {

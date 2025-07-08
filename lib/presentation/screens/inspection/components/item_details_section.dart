@@ -6,7 +6,7 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 
 class ItemDetailsSection extends StatefulWidget {
   final Item item;
@@ -40,6 +40,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     super.initState();
     _observationController.text = widget.item.observation ?? '';
     _currentItemName = widget.item.itemName;
+    _observationController.addListener(_updateItemObservation);
   }
 
   @override
@@ -62,13 +63,17 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
   void _updateItemObservation() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
+    
+    // Update UI immediately
+    final updatedItem = widget.item.copyWith(
+      observation: _observationController.text.isEmpty ? null : _observationController.text,
+      updatedAt: DateTime.now(),
+    );
+    widget.onItemUpdated(updatedItem);
+    
+    // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      final updatedItem = widget.item.copyWith(
-        observation: _observationController.text.isEmpty ? null : _observationController.text,
-        updatedAt: DateTime.now(),
-      );
       _serviceFactory.coordinator.updateItem(updatedItem);
-      widget.onItemUpdated(updatedItem);
     });
   }
 
@@ -86,16 +91,20 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
   void _captureItemMedia() {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => CustomCameraWidget(
-        onMediaCaptured: _handleMediaCaptured,
+      builder: (context) => NativeCameraWidget(
+        onImagesSelected: _handleImagesSelected,
+        allowMultiple: true,
+        inspectionId: widget.inspectionId,
+        topicId: widget.topic.id,
+        itemId: widget.item.id,
       ),
     ));
   }
 
-  Future<void> _handleMediaCaptured(List<String> localPaths, String type) async {
-    if (mounted) setState(() => _processingCount += localPaths.length);
-    for (final path in localPaths) {
-      _processAndSaveMedia(path, type).whenComplete(() {
+  Future<void> _handleImagesSelected(List<String> imagePaths) async {
+    if (mounted) setState(() => _processingCount += imagePaths.length);
+    for (final path in imagePaths) {
+      _processAndSaveMedia(path, 'image').whenComplete(() {
         if (mounted) setState(() => _processingCount--);
       });
     }
@@ -150,7 +159,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       builder: (context) {
         final controller = TextEditingController(text: _observationController.text);
         return AlertDialog(
-          title: const Text('Observações do Item', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          title: const Text('Observações do Item', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: TextFormField(controller: controller, maxLines: 6, autofocus: true, decoration: const InputDecoration(hintText: 'Digite suas observações...', hintStyle: TextStyle(fontSize: 12, color: Colors.grey), border: OutlineInputBorder())),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
@@ -187,6 +196,40 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     widget.onItemAction();
   }
 
+  Future<void> _addItemNonConformity() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _NonConformityDialog(),
+    );
+    
+    if (result != null && mounted) {
+      try {
+        await _serviceFactory.coordinator.addNonConformityToItem(
+          widget.inspectionId,
+          widget.topic.id!,
+          widget.item.id!,
+          result,
+        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não conformidade adicionada ao item'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        widget.onItemAction();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao adicionar não conformidade: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _deleteItem() async {
     final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Excluir Item'), content: Text('Tem certeza que deseja excluir "${widget.item.itemName}"?\n\nTodos os detalhes serão excluídos permanentemente.'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')), TextButton(onPressed: () => Navigator.of(context).pop(true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Excluir'))]));
     if (confirmed != true) return;
@@ -202,18 +245,19 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: Colors.orange.withAlpha(15), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.withAlpha(50))),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          Wrap(
+            alignment: WrapAlignment.spaceEvenly,
             children: [
               _buildActionButton(icon: Icons.camera_alt, label: 'Capturar', onPressed: _captureItemMedia, color: Colors.purple),
               _buildActionButton(icon: Icons.photo_library, label: 'Galeria', onPressed: _openItemGallery, color: Colors.purple),
+              _buildActionButton(icon: Icons.warning, label: 'NC', onPressed: _addItemNonConformity, color: Colors.orange),
               _buildActionButton(icon: Icons.edit, label: 'Renomear', onPressed: _renameItem),
               _buildActionButton(icon: Icons.copy, label: 'Duplicar', onPressed: _duplicateItem),
               _buildActionButton(icon: Icons.delete, label: 'Excluir', onPressed: _deleteItem, color: Colors.red),
@@ -228,12 +272,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                 Text("Processando $_processingCount mídia(s)...", style: const TextStyle(fontStyle: FontStyle.italic)),
               ]),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(border: Border.all(color: Colors.orange.withAlpha(75)), borderRadius: BorderRadius.circular(8)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,11 +285,11 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   Row(children: [
                     Icon(Icons.note_alt, size: 16, color: Colors.orange.shade300),
                     const SizedBox(width: 8),
-                    Text('Observações', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade300)),
+                    Text('Observações', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade300)),
                     const Spacer(),
                     Icon(Icons.edit, size: 16, color: Colors.orange.shade300),
                   ]),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     _observationController.text.isEmpty ? 'Toque para adicionar observações...' : _observationController.text,
                     style: TextStyle(color: _observationController.text.isEmpty ? Colors.orange.shade200 : Colors.white, fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal),
@@ -272,8 +316,91 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             child: Icon(icon, size: 20),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+      ],
+    );
+  }
+}
+
+class _NonConformityDialog extends StatefulWidget {
+  @override
+  State<_NonConformityDialog> createState() => _NonConformityDialogState();
+}
+
+class _NonConformityDialogState extends State<_NonConformityDialog> {
+  final _descriptionController = TextEditingController();
+  final _correctiveActionController = TextEditingController();
+  String _severity = 'Média';
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _correctiveActionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Nova Não Conformidade'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              value: _severity,
+              decoration: const InputDecoration(
+                labelText: 'Severidade',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
+                DropdownMenuItem(value: 'Média', child: Text('Média')),
+                DropdownMenuItem(value: 'Alta', child: Text('Alta')),
+              ],
+              onChanged: (value) => setState(() => _severity = value!),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Descrição',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _correctiveActionController,
+              decoration: const InputDecoration(
+                labelText: 'Ação Corretiva (opcional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_descriptionController.text.isNotEmpty) {
+              Navigator.of(context).pop({
+                'description': _descriptionController.text,
+                'severity': _severity,
+                'corrective_action': _correctiveActionController.text.isEmpty 
+                    ? null 
+                    : _correctiveActionController.text,
+              });
+            }
+          },
+          child: const Text('Adicionar'),
+        ),
       ],
     );
   }

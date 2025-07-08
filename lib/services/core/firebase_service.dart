@@ -15,7 +15,16 @@ class FirebaseService {
   User? get currentUser => auth.currentUser;
 
   static Future<void> initialize() async {
-    // Firebase initialization logic if needed
+    // Enable offline persistence for better offline-first experience
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+      debugPrint('FirebaseService: Configured for offline-first operation');
+    } catch (e) {
+      debugPrint('FirebaseService: Settings already configured: $e');
+    }
   }
 
   Future<UserCredential> signInWithEmailAndPassword(

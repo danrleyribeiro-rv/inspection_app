@@ -242,10 +242,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text('Editar Perfil'),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         actions: [
           IconButton(
@@ -277,10 +277,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.blue, width: 2),
+                          border: Border.all(color: const Color(0xFF6F4B99), width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withAlpha((255 * 0.3).round()),
+                              color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round()),
                               blurRadius: 8,
                               spreadRadius: 2,
                             ),
@@ -336,7 +336,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               bottom: 0,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.blue,
+                                  color: const Color(0xFF6F4B99),
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
@@ -518,11 +518,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _saveProfile,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: const Color(0xFF6F4B99),
                           foregroundColor: Colors.white,
                           elevation: 4,
                           shadowColor:
-                              Colors.blue.withAlpha((255 * 0.3).round()),
+                              const Color(0xFF6F4B99).withAlpha((255 * 0.3).round()),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -565,20 +565,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.blue.withAlpha((255 * 0.1).round()),
+        color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withAlpha((255 * 0.3).round())),
+        border: Border.all(color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.blue, size: 20),
+          Icon(icon, color: const Color(0xFF6F4B99), size: 20),
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              color: Color(0xFF6F4B99),
             ),
           ),
         ],
@@ -604,7 +604,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        prefixIcon: Icon(icon, color: Colors.blue),
+        prefixIcon: Icon(icon, color: const Color(0xFF6F4B99)),
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -612,7 +612,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderSide: BorderSide(color: Color(0xFF6F4B99), width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -638,14 +638,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       value: _selectedProfession,
       decoration: InputDecoration(
         labelText: 'Profissão',
-        prefixIcon: const Icon(Icons.work_outline, color: Colors.blue),
+        prefixIcon: Icon(Icons.work_outline, color: Color(0xFF6F4B99)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[600]!),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderSide: BorderSide(color: Color(0xFF6F4B99), width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

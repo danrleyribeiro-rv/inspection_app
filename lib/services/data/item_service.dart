@@ -111,7 +111,7 @@ class ItemService {
         int.tryParse(updatedItem.id?.replaceFirst('item_', '') ?? '');
     if (topicIndex != null && itemIndex != null) {
       final inspection =
-          await _inspectionService.getInspection(updatedItem.inspectionId);
+          await _cacheService.getInspection(updatedItem.inspectionId);
       if (inspection?.topics != null &&
           topicIndex < inspection!.topics!.length) {
         final topic = inspection.topics![topicIndex];

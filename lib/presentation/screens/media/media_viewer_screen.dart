@@ -263,20 +263,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                         style: const TextStyle(color: Colors.white),
                       ),
                       iconTheme: const IconThemeData(color: Colors.white),
-                      actions: [
-                        IconButton(
-                          icon: const Icon(Icons.share),
-                          onPressed: () {
-                            // Implementar compartilhamento
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.download),
-                          onPressed: () {
-                            // Implementar download
-                          },
-                        ),
-                      ],
+                      actions: [],
                     ),
                   ),
                 ),

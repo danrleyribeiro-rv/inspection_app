@@ -1,8 +1,9 @@
 // lib/presentation/widgets/media/non_conformity_media_widget.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
+import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 
 class NonConformityMediaWidget extends StatefulWidget {
   final String inspectionId;
@@ -12,6 +13,7 @@ class NonConformityMediaWidget extends StatefulWidget {
   final int ncIndex;
   final bool isReadOnly;
   final Function(String) onMediaAdded;
+  final Function()? onNonConformityUpdated;
 
   const NonConformityMediaWidget({
     super.key,
@@ -22,6 +24,7 @@ class NonConformityMediaWidget extends StatefulWidget {
     required this.ncIndex,
     this.isReadOnly = false,
     required this.onMediaAdded,
+    this.onNonConformityUpdated,
   });
 
   @override
@@ -36,12 +39,81 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
   void _showCameraCapture() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => CustomCameraWidget(
-          onMediaCaptured: _handleMediaCaptured,
-          allowVideo: true,
+        builder: (context) => NativeCameraWidget(
+          onImagesSelected: _handleImagesSelected,
+          allowMultiple: true,
         ),
       ),
     );
+  }
+
+  Future<void> _editNonConformity() async {
+    try {
+      // Buscar a não conformidade específica
+      final hierarchyIds = await _getHierarchyIds();
+      final nonConformityId = '${widget.inspectionId}-${hierarchyIds['topicId']}-${hierarchyIds['itemId']}-${hierarchyIds['detailId']}-nc_${widget.ncIndex}';
+      
+      // Buscar todas as não conformidades para encontrar a específica
+      final allNonConformities = await _serviceFactory.coordinator.getNonConformitiesByInspection(widget.inspectionId);
+      
+      Map<String, dynamic>? targetNC;
+      for (final nc in allNonConformities) {
+        String currentNcId = nc['id'] ?? '';
+        if (!currentNcId.contains('-')) {
+          currentNcId = '${widget.inspectionId}-${nc['topic_id']}-${nc['item_id']}-${nc['detail_id']}-$currentNcId';
+        }
+        if (currentNcId == nonConformityId) {
+          targetNC = nc;
+          break;
+        }
+      }
+      
+      if (targetNC != null && mounted) {
+        final result = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (context) => NonConformityEditDialog(
+            nonConformity: targetNC!,
+            onSave: (updatedData) {
+              Navigator.of(context).pop(updatedData);
+            },
+          ),
+        );
+        
+        if (result != null) {
+          // Atualizar a não conformidade
+          await _serviceFactory.coordinator.updateNonConformity(nonConformityId, result);
+          
+          // Notificar o parent para atualizar a UI
+          widget.onNonConformityUpdated?.call();
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Não conformidade atualizada com sucesso!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade não encontrada'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error editing non-conformity: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao editar não conformidade: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _openNonConformityMediaGallery() {
@@ -59,21 +131,21 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     );
   }
 
-  Future<void> _handleMediaCaptured(List<String> localPaths, String type) async {
+  Future<void> _handleImagesSelected(List<String> imagePaths) async {
     if (mounted) {
       setState(() {
-        _processingCount += localPaths.length;
+        _processingCount += imagePaths.length;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Iniciando processamento de ${localPaths.length} arquivo(s) de NC...'),
+          content: Text('Iniciando processamento de ${imagePaths.length} imagem(ns) de NC...'),
           backgroundColor: Colors.blue,
         ),
       );
     }
     
-    for (final path in localPaths) {
-      _processAndSaveMedia(path, type).whenComplete(() {
+    for (final path in imagePaths) {
+      _processAndSaveMedia(path, 'image').whenComplete(() {
         if (mounted) {
           setState(() {
             _processingCount--;
@@ -264,6 +336,18 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                       onPressed: _openNonConformityMediaGallery,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.edit, size: 18),
+                      label: const Text('Editar NC', style: TextStyle(fontSize: 8)),
+                      onPressed: _editNonConformity,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                       ),
                     ),

@@ -78,18 +78,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.email,
-                        size: 60, color: Theme.of(context).primaryColor),
+                        size: 60, color: const Color(0xFF6F4B99)),
                     const SizedBox(height: 20),
                     const Text(
                       'E-mail enviado com sucesso! Verifique sua caixa de entrada.',
                       style:
-                          TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     const Text(
                       'Por favor verifique sua caixa de email (e a pasta de Spam) para mais instruções.',
-                      style: TextStyle(fontSize: 10),
+                      style: TextStyle(fontSize: 12),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
@@ -111,16 +111,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     const Text(
                       'Redefina sua Senha',
                       style: TextStyle(
-                        fontSize: 19,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Por favor, insira seu endereço de e-mail para redefinir sua senha.',
+                      'Por favor, insira seu endereço de e-mail \npara redefinir sua senha.',
                       style: TextStyle(
                         color: Colors.grey,
+                        fontSize: 12,
                       ),
                       textAlign: TextAlign.center,
                     ),

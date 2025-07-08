@@ -121,7 +121,7 @@ class _ProfileTabState extends State<ProfileTab> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Perfil'),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         titleTextStyle: const TextStyle(
             color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
@@ -151,7 +151,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     icon: const Icon(Icons.qr_code, size: 20),
                     label: const Text('Credenciais'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: const Color(0xFF6F4B99),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 12),

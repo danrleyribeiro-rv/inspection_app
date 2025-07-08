@@ -13,6 +13,7 @@ class SyncProgressOverlay {
     hide(); // Remove any existing overlay
 
     final syncService = ServiceFactory().syncService;
+    final overlay = Overlay.of(context);
     
     _subscription = syncService.syncProgressStream.listen((progress) {
       if (_overlayEntry != null) {
@@ -21,8 +22,8 @@ class SyncProgressOverlay {
       }
 
       _overlayEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          top: MediaQuery.of(context).padding.top + 16,
+        builder: (overlayContext) => Positioned(
+          top: MediaQuery.of(overlayContext).padding.top + 16,
           left: 0,
           right: 0,
           child: Material(
@@ -40,7 +41,7 @@ class SyncProgressOverlay {
         ),
       );
 
-      Overlay.of(context).insert(_overlayEntry!);
+      overlay.insert(_overlayEntry!);
 
       // Auto-hide after completion/error
       if (progress.phase == SyncPhase.completed || 

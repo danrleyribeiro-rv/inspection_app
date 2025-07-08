@@ -39,6 +39,13 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
     if (!mounted) return;
     
     try {
+      // Check if this is an offline URL
+      if (widget.mediaUrl.startsWith('offline://')) {
+        final mediaId = widget.mediaUrl.replaceFirst('offline://', '');
+        await _loadOfflineMedia(mediaId);
+        return;
+      }
+      
       final cacheService = ServiceFactory().cacheService;
       
       // First, try to find local cached media by URL or ID
@@ -72,6 +79,30 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
       
     } catch (e) {
       log('[CachedMediaImage] Error loading cached image: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+  
+  /// Load offline media (simplified for offline-first architecture)
+  Future<void> _loadOfflineMedia(String mediaId) async {
+    try {
+      // For offline-first architecture, we'll just mark as error for now
+      // since offline media handling needs to be redesigned
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'Offline media not available in current implementation';
+        });
+      }
+    } catch (e) {
+      log('[CachedMediaImage] Error loading offline media: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;

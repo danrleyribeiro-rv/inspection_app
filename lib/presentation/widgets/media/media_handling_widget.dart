@@ -1,7 +1,7 @@
 // lib/presentation/widgets/media/media_handling_widget.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
@@ -33,9 +33,13 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   void _showCameraCapture() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => CustomCameraWidget(
-          onMediaCaptured: _handleMediaCaptured,
-          allowVideo: true,
+        builder: (context) => NativeCameraWidget(
+          onImagesSelected: _handleImagesSelected,
+          allowMultiple: true,
+          inspectionId: widget.inspectionId,
+          topicId: widget.topicId,
+          itemId: widget.itemId,
+          detailId: widget.detailId,
         ),
       ),
     );
@@ -57,23 +61,22 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     );
   }
 
-  Future<void> _handleMediaCaptured(
-      List<String> localPaths, String type) async {
+  Future<void> _handleImagesSelected(List<String> imagePaths) async {
     if (mounted) {
       setState(() {
-        _processingCount += localPaths.length;
+        _processingCount += imagePaths.length;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Iniciando processamento de ${localPaths.length} arquivo(s)...'),
+              'Iniciando processamento de ${imagePaths.length} imagem(ns)...'),
           backgroundColor: Colors.blue,
         ),
       );
     }
 
-    for (final path in localPaths) {
-      _processAndSaveMedia(path, type).whenComplete(() {
+    for (final path in imagePaths) {
+      _processAndSaveMedia(path, 'image').whenComplete(() {
         if (mounted) {
           setState(() {
             _processingCount--;
@@ -166,12 +169,18 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(
-                    width: 16,
-                    height: 16,
+                    width: 14,
+                    height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2)),
-                const SizedBox(width: 12),
-                Text("Processando $_processingCount mídia(s)...",
-                    style: const TextStyle(fontStyle: FontStyle.italic)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Processando $_processingCount mídia(s)...",
+                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
@@ -183,31 +192,51 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  minimumSize: const Size(0, 0),
                 ),
                 child: const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.camera_alt, size: 16),
-                    SizedBox(height: 2),
-                    Text('Câmera', style: TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                    Icon(Icons.camera_alt, size: 14),
+                    SizedBox(height: 1),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Câmera', 
+                        style: TextStyle(fontSize: 10), 
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: ElevatedButton(
                 onPressed: _openDetailMediaGallery,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  minimumSize: const Size(0, 0),
                 ),
                 child: const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.photo_library, size: 16),
-                    SizedBox(height: 2),
-                    Text('Galeria', style: TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                    Icon(Icons.photo_library, size: 14),
+                    SizedBox(height: 1),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Galeria', 
+                        style: TextStyle(fontSize: 10), 
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -59,20 +59,7 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
         backgroundColor: Colors.black,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: () {
-              // Implementar download da mídia
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () {
-              // Implementar compartilhamento da mídia
-            },
-          ),
-        ],
+        actions: [],
       ),
       body: Center(
         child: widget.mediaType == 'video'

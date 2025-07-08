@@ -329,7 +329,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF1E293B),
+        color: Color(0xFF312456),
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Form(
@@ -424,7 +424,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                     }
                   });
                 },
-                activeColor: Colors.blue,
+                activeColor: const Color(0xFF6F4B99),
               ),
 
             // Item selector
@@ -432,7 +432,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
               const Text('Item', style: TextStyle(color: Colors.white70)),
               const SizedBox(height: 8),
               _isLoadingItems
-                  ? const LinearProgressIndicator(color: Colors.blue)
+                  ? const LinearProgressIndicator(color: Color(0xFF6F4B99))
                   : Container(
                       decoration: BoxDecoration(
                         color: Colors.grey[800],
@@ -479,7 +479,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
               const Text('Detalhe', style: TextStyle(color: Colors.white70)),
               const SizedBox(height: 8),
               _isLoadingDetails
-                  ? const LinearProgressIndicator(color: Colors.blue)
+                  ? const LinearProgressIndicator(color: Color(0xFF6F4B99))
                   : Container(
                       decoration: BoxDecoration(
                         color: Colors.grey[800],
@@ -590,7 +590,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                         : const Icon(Icons.camera_alt),
                     label: const Text('Tirar Foto'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: const Color(0xFF6F4B99),
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -639,7 +639,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
                     label: const Text('Galeria Fotos'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.blue),
+                      side: const BorderSide(color: Color(0xFF6F4B99)),
                     ),
                   ),
                 ),
@@ -669,7 +669,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
             ),
             if (_isLoading) ...[
               const SizedBox(height: 16),
-              const LinearProgressIndicator(color: Colors.blue),
+              const LinearProgressIndicator(color: Color(0xFF6F4B99)),
               const SizedBox(height: 8),
               const Center(
                 child: Text(

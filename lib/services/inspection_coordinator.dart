@@ -11,6 +11,8 @@ import 'package:inspection_app/services/data/detail_service.dart';
 import 'package:inspection_app/services/features/media_service.dart';
 import 'package:inspection_app/services/features/template_service.dart';
 import 'package:inspection_app/services/data/non_conformity_service.dart';
+import 'package:inspection_app/services/download_service.dart';
+import 'package:inspection_app/services/manual_sync_service.dart';
 
 class InspectionCoordinator {
   final InspectionService _inspectionService = InspectionService();
@@ -20,6 +22,8 @@ class InspectionCoordinator {
   final NonConformityService _nonConformityService = NonConformityService();
   final MediaService _mediaService = MediaService();
   final TemplateService _templateService = TemplateService();
+  final DownloadService _downloadService = DownloadService();
+  final ManualSyncService _syncService = ManualSyncService();
 
   // INSPECTION OPERATIONS
   Future<Inspection?> getInspection(String inspectionId) async {
@@ -30,11 +34,57 @@ class InspectionCoordinator {
     await _inspectionService.saveInspection(inspection);
   }
 
-  // Force refresh inspection data from Firestore (overriding local cache)
+  // OFFLINE-FIRST OPERATIONS
+  
+  /// Baixa uma inspeção do servidor para edição offline
+  Future<bool> downloadInspectionForOfflineEditing(String inspectionId, {Function(double)? onProgress}) async {
+    debugPrint('InspectionCoordinator.downloadInspectionForOfflineEditing: Downloading inspection $inspectionId');
+    final success = await _downloadService.downloadInspection(inspectionId, onProgress: onProgress);
+    if (success) {
+      debugPrint('InspectionCoordinator.downloadInspectionForOfflineEditing: Successfully downloaded inspection $inspectionId');
+    } else {
+      debugPrint('InspectionCoordinator.downloadInspectionForOfflineEditing: Failed to download inspection $inspectionId');
+    }
+    return success;
+  }
+
+  /// Sincroniza mudanças locais com a nuvem
+  Future<bool> syncInspectionToCloud(String inspectionId, {Function(double)? onProgress}) async {
+    debugPrint('InspectionCoordinator.syncInspectionToCloud: Syncing inspection $inspectionId to cloud');
+    final success = await _syncService.syncInspection(inspectionId, onProgress: onProgress);
+    if (success) {
+      debugPrint('InspectionCoordinator.syncInspectionToCloud: Successfully synced inspection $inspectionId');
+    } else {
+      debugPrint('InspectionCoordinator.syncInspectionToCloud: Failed to sync inspection $inspectionId');
+    }
+    return success;
+  }
+
+  /// Verifica se uma inspeção está disponível para edição offline
+  bool isInspectionAvailableOffline(String inspectionId) {
+    return _inspectionService.isInspectionAvailable(inspectionId);
+  }
+
+  /// Verifica se uma inspeção precisa ser sincronizada
+  bool doesInspectionNeedSync(String inspectionId) {
+    return _inspectionService.needsSync(inspectionId);
+  }
+
+  /// Obtém o status de uma inspeção (local/cloud/synced)
+  String? getInspectionStatus(String inspectionId) {
+    return _inspectionService.getInspectionStatus(inspectionId);
+  }
+
+  /// Verifica conectividade para sincronização
+  Future<bool> canSyncToCloud() async {
+    return await _syncService.canSync();
+  }
+
+  /// Force refresh inspection data from Firestore (DEPRECATED)
+  @Deprecated('Use downloadInspectionForOfflineEditing() instead')
   Future<void> refreshInspectionFromFirestore(String inspectionId) async {
-    debugPrint('InspectionCoordinator.refreshInspectionFromFirestore: Refreshing inspection $inspectionId from Firestore');
-    await _inspectionService.refreshFromFirestore(inspectionId);
-    debugPrint('InspectionCoordinator.refreshInspectionFromFirestore: Refresh completed for inspection $inspectionId');
+    debugPrint('InspectionCoordinator.refreshInspectionFromFirestore: Method deprecated - use downloadInspectionForOfflineEditing instead');
+    await downloadInspectionForOfflineEditing(inspectionId);
   }
 
   // TOPIC OPERATIONS
@@ -194,6 +244,14 @@ class InspectionCoordinator {
         nonConformityId, inspectionId);
   }
 
+  Future<String> addNonConformityToTopic(String inspectionId, String topicId, Map<String, dynamic> ncData) async {
+    return await _nonConformityService.addNonConformityToTopic(inspectionId, topicId, ncData);
+  }
+
+  Future<String> addNonConformityToItem(String inspectionId, String topicId, String itemId, Map<String, dynamic> ncData) async {
+    return await _nonConformityService.addNonConformityToItem(inspectionId, topicId, itemId, ncData);
+  }
+
   // MEDIA OPERATIONS
   Future<List<Map<String, dynamic>>> getAllMedia(String inspectionId) async {
     return await _mediaService.getAllMedia(inspectionId);
@@ -206,6 +264,8 @@ class InspectionCoordinator {
     String? detailId,
     bool? isNonConformityOnly,
     String? mediaType,
+    bool topicOnly = false,
+    bool itemOnly = false,
   }) {
     return _mediaService.filterMedia(
       allMedia: allMedia,
@@ -214,6 +274,8 @@ class InspectionCoordinator {
       detailId: detailId,
       isNonConformityOnly: isNonConformityOnly,
       mediaType: mediaType,
+      topicOnly: topicOnly,
+      itemOnly: itemOnly,
     );
   }
 
@@ -223,17 +285,22 @@ class InspectionCoordinator {
     if (inspection == null) return;
 
     final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
-    final topicIndex = topics.indexWhere((t) => t['id'] == topicId);
-
-    if (topicIndex != -1) {
-      final topic = Map<String, dynamic>.from(topics[topicIndex]);
-      final mediaList = List<Map<String, dynamic>>.from(topic['media'] ?? []);
-      mediaList.add(mediaData);
-      topic['media'] = mediaList;
-      topics[topicIndex] = topic;
-
-      await saveInspection(inspection.copyWith(topics: topics));
+    // Parse topic index from topicId format "topic_X"
+    final topicIndexStr = topicId.replaceFirst('topic_', '');
+    final topicIndex = int.tryParse(topicIndexStr);
+    
+    if (topicIndex == null || topicIndex >= topics.length) {
+      debugPrint('InspectionCoordinator.addMediaToTopic: Invalid topic index $topicIndex for topicId $topicId');
+      return;
     }
+
+    final topic = Map<String, dynamic>.from(topics[topicIndex]);
+    final mediaList = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+    mediaList.add(mediaData);
+    topic['media'] = mediaList;
+    topics[topicIndex] = topic;
+
+    await saveInspection(inspection.copyWith(topics: topics));
   }
 
   Future<void> addMediaToItem(String inspectionId, String topicId, String itemId, Map<String, dynamic> mediaData) async {
@@ -241,25 +308,35 @@ class InspectionCoordinator {
     if (inspection == null) return;
 
     final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
-    final topicIndex = topics.indexWhere((t) => t['id'] == topicId);
-
-    if (topicIndex != -1) {
-      final topic = Map<String, dynamic>.from(topics[topicIndex]);
-      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-      final itemIndex = items.indexWhere((i) => i['id'] == itemId);
-
-      if (itemIndex != -1) {
-        final item = Map<String, dynamic>.from(items[itemIndex]);
-        final mediaList = List<Map<String, dynamic>>.from(item['media'] ?? []);
-        mediaList.add(mediaData);
-        item['media'] = mediaList;
-        items[itemIndex] = item;
-        topic['items'] = items;
-        topics[topicIndex] = topic;
-
-        await saveInspection(inspection.copyWith(topics: topics));
-      }
+    // Parse topic index from topicId format "topic_X"
+    final topicIndexStr = topicId.replaceFirst('topic_', '');
+    final topicIndex = int.tryParse(topicIndexStr);
+    
+    if (topicIndex == null || topicIndex >= topics.length) {
+      debugPrint('InspectionCoordinator.addMediaToItem: Invalid topic index $topicIndex for topicId $topicId');
+      return;
     }
+
+    final topic = Map<String, dynamic>.from(topics[topicIndex]);
+    final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+    // Parse item index from itemId format "item_X"
+    final itemIndexStr = itemId.replaceFirst('item_', '');
+    final itemIndex = int.tryParse(itemIndexStr);
+    
+    if (itemIndex == null || itemIndex >= items.length) {
+      debugPrint('InspectionCoordinator.addMediaToItem: Invalid item index $itemIndex for itemId $itemId');
+      return;
+    }
+
+    final item = Map<String, dynamic>.from(items[itemIndex]);
+    final mediaList = List<Map<String, dynamic>>.from(item['media'] ?? []);
+    mediaList.add(mediaData);
+    item['media'] = mediaList;
+    items[itemIndex] = item;
+    topic['items'] = items;
+    topics[topicIndex] = topic;
+
+    await saveInspection(inspection.copyWith(topics: topics));
   }
 
   Future<void> addMediaToDetail(String inspectionId, String topicId, String itemId, String detailId, Map<String, dynamic> mediaData) async {
@@ -271,41 +348,50 @@ class InspectionCoordinator {
     }
 
     final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
-    final topicIndex = topics.indexWhere((t) => t['id'] == topicId);
-
-    if (topicIndex != -1) {
-      final topic = Map<String, dynamic>.from(topics[topicIndex]);
-      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-      final itemIndex = items.indexWhere((i) => i['id'] == itemId);
-
-      if (itemIndex != -1) {
-        final item = Map<String, dynamic>.from(items[itemIndex]);
-        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-        final detailIndex = details.indexWhere((d) => d['id'] == detailId);
-
-        if (detailIndex != -1) {
-          final detail = Map<String, dynamic>.from(details[detailIndex]);
-          final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
-          mediaList.add(mediaData);
-          detail['media'] = mediaList;
-          details[detailIndex] = detail;
-          item['details'] = details;
-          items[itemIndex] = item;
-          topic['items'] = items;
-          topics[topicIndex] = topic;
-
-          debugPrint('InspectionCoordinator.addMediaToDetail: Saving inspection with ${mediaList.length} media items');
-          await saveInspection(inspection.copyWith(topics: topics));
-          debugPrint('InspectionCoordinator.addMediaToDetail: Inspection saved successfully');
-        } else {
-          debugPrint('InspectionCoordinator.addMediaToDetail: Detail not found');
-        }
-      } else {
-        debugPrint('InspectionCoordinator.addMediaToDetail: Item not found');
-      }
-    } else {
-      debugPrint('InspectionCoordinator.addMediaToDetail: Topic not found');
+    // Parse topic index from topicId format "topic_X"
+    final topicIndexStr = topicId.replaceFirst('topic_', '');
+    final topicIndex = int.tryParse(topicIndexStr);
+    
+    if (topicIndex == null || topicIndex >= topics.length) {
+      debugPrint('InspectionCoordinator.addMediaToDetail: Invalid topic index $topicIndex for topicId $topicId, topics count: ${topics.length}');
+      return;
     }
+
+    final topic = Map<String, dynamic>.from(topics[topicIndex]);
+    final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+    // Parse item index from itemId format "item_X"
+    final itemIndexStr = itemId.replaceFirst('item_', '');
+    final itemIndex = int.tryParse(itemIndexStr);
+    
+    if (itemIndex == null || itemIndex >= items.length) {
+      debugPrint('InspectionCoordinator.addMediaToDetail: Invalid item index $itemIndex for itemId $itemId, items count: ${items.length}');
+      return;
+    }
+
+    final item = Map<String, dynamic>.from(items[itemIndex]);
+    final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+    // Parse detail index from detailId format "detail_X"
+    final detailIndexStr = detailId.replaceFirst('detail_', '');
+    final detailIndex = int.tryParse(detailIndexStr);
+    
+    if (detailIndex == null || detailIndex >= details.length) {
+      debugPrint('InspectionCoordinator.addMediaToDetail: Invalid detail index $detailIndex for detailId $detailId, details count: ${details.length}');
+      return;
+    }
+
+    final detail = Map<String, dynamic>.from(details[detailIndex]);
+    final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+    mediaList.add(mediaData);
+    detail['media'] = mediaList;
+    details[detailIndex] = detail;
+    item['details'] = details;
+    items[itemIndex] = item;
+    topic['items'] = items;
+    topics[topicIndex] = topic;
+
+    debugPrint('InspectionCoordinator.addMediaToDetail: Saving inspection with ${mediaList.length} media items');
+    await saveInspection(inspection.copyWith(topics: topics));
+    debugPrint('InspectionCoordinator.addMediaToDetail: Inspection saved successfully');
   }
 
   // TEMPLATE OPERATIONS
@@ -323,6 +409,35 @@ class InspectionCoordinator {
       String inspectionId, String templateId) async {
     return await _templateService.applyTemplateToInspection(
         inspectionId, templateId);
+  }
+
+  // OFFLINE TEMPLATE SUPPORT
+  Future<List<Map<String, dynamic>>> getAvailableTemplates() async {
+    return await _templateService.getAvailableTemplates();
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableTopicsFromTemplates() async {
+    return await _templateService.getAvailableTopicsFromTemplates();
+  }
+
+  Future<bool> applyTemplateToInspectionOfflineSafe(
+      String inspectionId, String templateId) async {
+    return await _templateService.applyTemplateToInspectionOfflineSafe(
+        inspectionId, templateId);
+  }
+
+  // OFFLINE TOPIC TEMPLATE SUPPORT
+  Future<List<Map<String, dynamic>>> getAvailableTemplateTopics() async {
+    return await _topicService.getAvailableTemplateTopics();
+  }
+
+  Future<Topic> addTopicFromTemplateOffline(String inspectionId, Map<String, dynamic> topicTemplate) async {
+    return await _topicService.addTopicFromTemplateOffline(inspectionId, topicTemplate);
+  }
+
+  // Get topics from a specific template
+  Future<List<Map<String, dynamic>>> getTopicsFromSpecificTemplate(String templateId) async {
+    return await _topicService.getTopicsFromSpecificTemplate(templateId);
   }
 
 }

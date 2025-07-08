@@ -31,7 +31,7 @@ class LoadingState extends StatelessWidget {
                     ? 'Baixando dados da inspeção...'
                     : 'Carregando...',
             style: const TextStyle(
-                color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
           ),
           if (isApplyingTemplate) ...[
             const SizedBox(height: 12),

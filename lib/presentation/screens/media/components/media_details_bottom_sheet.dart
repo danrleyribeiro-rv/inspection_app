@@ -2,7 +2,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -166,46 +165,6 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
     }
   }
 
-  Future<void> _shareMedia() async {
-    // Capturar o contexto antes de qualquer operação async.
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    try {
-      final mediaPath = widget.media['localPath'];
-      final mediaUrl = widget.media['url'];
-
-      // A API `share_plus` agora usa o `SharePlus.instance` e um objeto `ShareParams`.
-      if (mediaPath != null && await File(mediaPath).exists()) {
-        // Para compartilhar arquivos, use o parâmetro `files` dentro de `ShareParams`.
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [XFile(mediaPath)],
-          ),
-        );
-      } else if (mediaUrl != null) {
-        // Para compartilhar texto ou uma URL, use o parâmetro `text`.
-        await SharePlus.instance.share(
-          ShareParams(
-            text: mediaUrl,
-          ),
-        );
-      } else {
-        // Se nenhum estiver disponível, lance um erro.
-        throw Exception('Nenhum arquivo ou URL disponível para compartilhar');
-      }
-    } catch (e) {
-      debugPrint('Error sharing media: $e');
-      // Verifique se o widget ainda está montado antes de mostrar o SnackBar.
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Erro ao compartilhar mídia: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   Future<void> _updateMedia() async {
     setState(() => _isLoading = true);
@@ -578,11 +537,6 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                           });
                         },
                   tooltip: 'Editar',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.share),
-                  onPressed: _isLoading ? null : _shareMedia,
-                  tooltip: 'Compartilhar',
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),

@@ -1,15 +1,18 @@
 // lib/services/data/topic_service.dart
+import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/data/inspection_service.dart';
 import 'package:inspection_app/services/data/item_service.dart';
 import 'package:inspection_app/services/utils/cache_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/features/template_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TopicService {
   final InspectionService _inspectionService = InspectionService();
   ItemService get _itemService => ItemService();
   CacheService get _cacheService => ServiceFactory().cacheService;
+  TemplateService get _templateService => ServiceFactory().templateService;
 
   Future<List<Topic>> getTopics(String inspectionId) async {
     try {
@@ -139,20 +142,35 @@ Future<Topic> addTopicFromTemplate(
 }
 
   Future<void> updateTopic(Topic updatedTopic) async {
-    final inspection =
-        await _inspectionService.getInspection(updatedTopic.inspectionId);
-    if (inspection?.topics != null) {
-      final topicIndex =
-          int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
-      if (topicIndex != null && topicIndex < inspection!.topics!.length) {
-        final currentTopicData =
-            Map<String, dynamic>.from(inspection.topics![topicIndex]);
-        currentTopicData['name'] = updatedTopic.topicName;
-        currentTopicData['description'] = updatedTopic.topicLabel;
-        currentTopicData['observation'] = updatedTopic.observation;
-        await _updateTopicAtIndex(
-            updatedTopic.inspectionId, topicIndex, currentTopicData);
+    try {
+      final inspection = await _cacheService.getInspection(updatedTopic.inspectionId);
+      if (inspection?.topics != null) {
+        final topicIndex = int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
+        if (topicIndex != null && topicIndex < inspection!.topics!.length) {
+          final currentTopicData = _cacheService.ensureStringDynamicMap(inspection.topics![topicIndex]);
+          currentTopicData['name'] = updatedTopic.topicName;
+          currentTopicData['description'] = updatedTopic.topicLabel;
+          currentTopicData['observation'] = updatedTopic.observation;
+          currentTopicData['updated_at'] = DateTime.now().toIso8601String();
+          
+          // Save immediately to cache for offline persistence
+          final updatedTopics = List<Map<String, dynamic>>.from(inspection.topics!);
+          updatedTopics[topicIndex] = currentTopicData;
+          
+          final updatedInspection = inspection.copyWith(
+            topics: updatedTopics,
+            updatedAt: DateTime.now(),
+          );
+          
+          // Mark as locally modified to ensure sync when online
+          await _cacheService.markAsLocallyModified(updatedTopic.inspectionId, updatedInspection.toMap());
+          
+          debugPrint('TopicService.updateTopic: Topic ${updatedTopic.id} updated offline, will sync when online');
+        }
       }
+    } catch (e) {
+      debugPrint('TopicService.updateTopic: Error updating topic ${updatedTopic.id}: $e');
+      rethrow;
     }
   }
 
@@ -391,18 +409,6 @@ Future<Topic> addTopicFromTemplate(
         .saveInspection(inspection!.copyWith(topics: topics));
   }
 
-  Future<void> _updateTopicAtIndex(String inspectionId, int topicIndex,
-      Map<String, dynamic> updatedTopic) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    if (inspection != null && inspection.topics != null) {
-      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-      if (topicIndex < topics.length) {
-        topics[topicIndex] = updatedTopic;
-        await _cacheService
-            .saveInspection(inspection.copyWith(topics: topics));
-      }
-    }
-  }
 
   Future<void> _deleteTopicAtIndex(String inspectionId, int topicIndex) async {
     final inspection = await _inspectionService.getInspection(inspectionId);
@@ -410,7 +416,7 @@ Future<Topic> addTopicFromTemplate(
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics.removeAt(topicIndex);
-        await _cacheService
+        await _inspectionService
             .saveInspection(inspection.copyWith(topics: topics));
       }
     }
@@ -461,5 +467,166 @@ Future<Topic> addTopicFromTemplate(
       return data[key]['booleanValue'];
     }
     return defaultValue;
+  }
+
+  // OFFLINE TEMPLATE SUPPORT METHODS
+  Future<List<Map<String, dynamic>>> getAvailableTemplateTopics() async {
+    try {
+      return await _templateService.getAvailableTopicsFromTemplates();
+    } catch (e) {
+      debugPrint('TopicService.getAvailableTemplateTopics: Error getting template topics: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTopicsFromSpecificTemplate(String templateId) async {
+    try {
+      return await _templateService.getTopicsFromSpecificTemplate(templateId);
+    } catch (e) {
+      debugPrint('TopicService.getTopicsFromSpecificTemplate: Error getting topics from template $templateId: $e');
+      return [];
+    }
+  }
+
+  Future<Topic> addTopicFromTemplateOffline(String inspectionId, Map<String, dynamic> topicTemplate) async {
+    try {
+      final inspection = await _cacheService.getInspection(inspectionId);
+      if (inspection == null) {
+        throw Exception('Inspection not found in cache');
+      }
+
+      final existingTopics = inspection.topics ?? [];
+      final newPosition = existingTopics.length;
+      
+      final topicData = topicTemplate['topicData'] as Map<String, dynamic>;
+      final templateId = topicTemplate['templateId'] as String;
+      final templateName = topicTemplate['templateName'] as String;
+      
+      String topicName = topicData['name'] as String;
+      
+      // Check for duplicate names and modify if necessary
+      final existingNames = existingTopics.map((t) => t['name'] as String? ?? '').toSet();
+      String finalTopicName = topicName;
+      
+      if (existingNames.contains(topicName)) {
+        finalTopicName = '$topicName (cópia)';
+        int counter = 1;
+        while (existingNames.contains(finalTopicName)) {
+          finalTopicName = '$topicName (cópia $counter)';
+          counter++;
+        }
+      }
+
+      // Process the template topic data into inspection format
+      final newTopicData = {
+        'name': finalTopicName,
+        'description': topicData['description'],
+        'observation': null,
+        'items': _processTemplateItems(topicData['items'] as List<dynamic>? ?? []),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'template_id': templateId,
+        'template_name': templateName,
+      };
+
+      // Add topic to inspection
+      final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
+      updatedTopics.add(newTopicData);
+      
+      final updatedInspection = inspection.copyWith(
+        topics: updatedTopics,
+        updatedAt: DateTime.now(),
+      );
+
+      // Save to cache with sync flag
+      await _cacheService.markAsLocallyModified(inspectionId, updatedInspection.toMap());
+      
+      debugPrint('TopicService.addTopicFromTemplateOffline: Added topic "$finalTopicName" from template offline');
+
+      return Topic(
+        id: 'topic_$newPosition',
+        inspectionId: inspectionId,
+        topicName: finalTopicName,
+        topicLabel: newTopicData['description'],
+        position: newPosition,
+        observation: null,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      debugPrint('TopicService.addTopicFromTemplateOffline: Error adding topic from template: $e');
+      rethrow;
+    }
+  }
+
+  List<Map<String, dynamic>> _processTemplateItems(List<dynamic> itemsData) {
+    final processedItems = <Map<String, dynamic>>[];
+
+    for (final itemTemplate in itemsData) {
+      final itemFields = _extractFieldsFromTemplate(itemTemplate);
+      if (itemFields == null) continue;
+
+      final String itemName = _extractStringValue(itemFields, 'name', defaultValue: 'Item sem nome');
+      final String? itemDescription = _extractStringValue(itemFields, 'description').isNotEmpty
+          ? _extractStringValue(itemFields, 'description')
+          : null;
+
+      final detailsData = _extractArrayFromTemplate(itemFields, 'details');
+      final processedDetails = <Map<String, dynamic>>[];
+
+      for (final detailTemplate in detailsData) {
+        final detailFields = _extractFieldsFromTemplate(detailTemplate);
+        if (detailFields == null) continue;
+
+        final String detailName = _extractStringValue(detailFields, 'name', defaultValue: 'Detalhe sem nome');
+        final String detailType = _extractStringValue(detailFields, 'type', defaultValue: 'text');
+        final bool isRequired = _extractBooleanValue(detailFields, 'required', defaultValue: false);
+
+        List<String>? options;
+        if (detailType == 'select') {
+          final optionsArray = _extractArrayFromTemplate(detailFields, 'options');
+          options = <String>[];
+          for (var option in optionsArray) {
+            if (option is Map && option.containsKey('stringValue')) {
+              options.add(option['stringValue']);
+            } else if (option is String) {
+              options.add(option);
+            }
+          }
+
+          if (options.isEmpty && detailFields.containsKey('optionsText')) {
+            final String optionsText = _extractStringValue(detailFields, 'optionsText');
+            if (optionsText.isNotEmpty) {
+              options = optionsText.split(',').map((e) => e.trim()).toList();
+            }
+          }
+        }
+
+        processedDetails.add({
+          'name': detailName,
+          'type': detailType,
+          'required': isRequired,
+          'options': options,
+          'value': null,
+          'observation': null,
+          'is_damaged': false,
+          'media': <Map<String, dynamic>>[],
+          'non_conformities': <Map<String, dynamic>>[],
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+
+      processedItems.add({
+        'name': itemName,
+        'description': itemDescription,
+        'observation': null,
+        'details': processedDetails,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    }
+
+    return processedItems;
   }
 }

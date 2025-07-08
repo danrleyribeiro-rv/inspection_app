@@ -4,8 +4,6 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/services/service_factory.dart';
-import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NonConformityForm extends StatefulWidget {
   final List<Topic> topics;
@@ -48,7 +46,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
   final ServiceFactory _serviceFactory = ServiceFactory();
 
   bool _isCreating = false;
-  DateTime? _deadline;
   String _severity = 'Média';
 
   @override
@@ -178,10 +175,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
         'corrective_action': _correctiveActionController.text.trim().isEmpty
             ? null
             : _correctiveActionController.text.trim(),
-        'deadline': _deadline?.toIso8601String(),
         'status': 'pendente',
-        'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       };
 
       await _serviceFactory.coordinator.saveNonConformity({
@@ -220,24 +216,11 @@ class _NonConformityFormState extends State<NonConformityForm> {
     _descriptionController.clear();
     _correctiveActionController.clear();
     setState(() {
-      _deadline = null;
       _severity = 'Média';
       _isCreating = false;
     });
   }
 
-  Future<void> _pickDeadlineDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _deadline ?? DateTime.now().add(const Duration(days: 7)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-
-    if (date != null) {
-      setState(() => _deadline = date);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -389,9 +372,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-
-            _buildDeadlinePicker(),
           ],
         ),
       ),
@@ -473,28 +453,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
     );
   }
 
-  Widget _buildDeadlinePicker() {
-    return GestureDetector(
-      onTap: _pickDeadlineDate,
-      child: AbsorbPointer(
-        child: TextFormField(
-          decoration: const InputDecoration(
-            labelText: 'Prazo (opcional)',
-            labelStyle: TextStyle(fontSize: 12),
-            hintText: 'Selecione uma data limite',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.calendar_today),
-            suffixIcon: Icon(Icons.arrow_drop_down),
-          ),
-          controller: TextEditingController(
-            text: _deadline != null
-                ? DateFormat('dd/MM/yyyy').format(_deadline!)
-                : '',
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildSaveButton() {
     return SizedBox(

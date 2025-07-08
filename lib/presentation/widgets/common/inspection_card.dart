@@ -14,6 +14,9 @@ class InspectionCard extends StatelessWidget {
   final Function()? onSyncImages; // Callback para sincronizar imagens
   final int? pendingImagesCount; // Contador de imagens pendentes
   final String googleMapsApiKey; // <<< Add this parameter
+  final bool isFullyDownloaded; // Status de download completo
+  final double downloadProgress; // Progresso de download (0.0 a 1.0)
+  final bool needsSync; // Se a inspeção tem mudanças que precisam ser sincronizadas
 
   const InspectionCard({
     super.key,
@@ -25,6 +28,9 @@ class InspectionCard extends StatelessWidget {
     this.onSyncImages,
     this.pendingImagesCount,
     required this.googleMapsApiKey, // <<< Make it required in the constructor
+    this.isFullyDownloaded = false,
+    this.downloadProgress = 0.0,
+    this.needsSync = false,
   });
 
   @override
@@ -130,6 +136,62 @@ class InspectionCard extends StatelessWidget {
               ),
               // --- End Map card ---
 
+              // Download progress indicator (if downloading)
+              if (downloadProgress > 0.0 && downloadProgress < 1.0) ...[
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Baixando para uso offline...',
+                          style: TextStyle(fontSize: 10, color: Colors.white70),
+                        ),
+                        Text(
+                          '${(downloadProgress * 100).toInt()}%',
+                          style: const TextStyle(fontSize: 10, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: downloadProgress,
+                      backgroundColor: Colors.grey[700],
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                      minHeight: 3,
+                    ),
+                  ],
+                ),
+              ],
+              
+              // Offline status indicator
+              if (isFullyDownloaded) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withAlpha(51),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.green, width: 1),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.offline_pin, size: 12, color: Colors.green),
+                      SizedBox(width: 4),
+                      Text(
+                        'Disponível offline',
+                        style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 8),
+              
               // Action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -139,8 +201,8 @@ class InspectionCard extends StatelessWidget {
                     flex: 1,
                     child: Row(
                       children: [
-                        // Combined sync button (upload inspection and media together)
-                        if (onSync != null)
+                        // Sync button - only show if inspection has been downloaded and needs sync
+                        if (onSync != null && isFullyDownloaded && needsSync)
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () async {
@@ -168,22 +230,54 @@ class InspectionCard extends StatelessWidget {
                             ),
                           ),
                         
-                        if (onSync != null && onDownload != null) const SizedBox(width: 4),
+                        if (onSync != null && isFullyDownloaded && needsSync && onDownload != null) const SizedBox(width: 4),
                         
-                        // Download button (download from cloud)
-                        if (onDownload != null)
+                        // Download button - only show if inspection is not fully downloaded
+                        if (onDownload != null && !isFullyDownloaded)
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: onDownload,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 32),
-                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                              ),
-                              icon: const Icon(Icons.cloud_download, size: 12),
-                              label: const Text('Baixar', style: TextStyle(fontSize: 10)),
-                            ),
+                            child: downloadProgress > 0 && downloadProgress < 1 
+                              ? Container(
+                                  height: 32,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.green, width: 1),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.cloud_download, size: 10, color: Colors.green),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Baixando ${(downloadProgress * 100).toInt()}%',
+                                            style: const TextStyle(fontSize: 9, color: Colors.green),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      LinearProgressIndicator(
+                                        value: downloadProgress,
+                                        backgroundColor: Colors.grey[600],
+                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                                        minHeight: 2,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ElevatedButton.icon(
+                                  onPressed: onDownload,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(0, 32),
+                                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                  ),
+                                  icon: const Icon(Icons.cloud_download, size: 12),
+                                  label: const Text('Baixar', style: TextStyle(fontSize: 10)),
+                                ),
                           ),
                       ],
                     ),
@@ -198,24 +292,26 @@ class InspectionCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Continue button (only for pending or in_progress)
-                        if (status == 'pending' || status == 'in_progress')
+                        // Continue/View button - always available if downloaded, restricted if not
+                        if (status == 'pending' || status == 'in_progress' || status == 'completed')
                           ElevatedButton(
-                            onPressed: onViewDetails,
+                            onPressed: isFullyDownloaded ? onViewDetails : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF6F4B99),
+                              backgroundColor: isFullyDownloaded ? Color(0xFF6F4B99) : Colors.grey,
                               foregroundColor: Colors.white,
                               minimumSize: const Size(0, 32),
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                             ),
                             child: Text(
-                              status == 'pending' ? 'Iniciar' : 'Continuar',
+                              !isFullyDownloaded
+                                ? 'Baixar primeiro'
+                                : (status == 'pending' ? 'Iniciar' : status == 'completed' ? 'Visualizar' : 'Continuar'),
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
 
-                        // Complete button (only for in_progress)
-                        if (status == 'in_progress' && onComplete != null) ...[
+                        // Complete button (only for in_progress and if fully downloaded)
+                        if (status == 'in_progress' && onComplete != null && isFullyDownloaded) ...[
                           const SizedBox(width: 6),
                           ElevatedButton(
                             onPressed: onComplete,

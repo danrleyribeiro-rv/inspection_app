@@ -5,6 +5,7 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';
+import 'package:inspection_app/presentation/screens/media/components/media_grid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
@@ -41,6 +42,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   List<Map<String, dynamic>> _filteredMedia = [];
   List<Topic> _topics = [];
   bool _isLoading = true;
+  bool _isAvailableOffline = false;
 
   // Estado dos filtros
   String? _selectedTopicId;
@@ -75,19 +77,64 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final results = await Future.wait([
-        _serviceFactory.mediaService.getAllMedia(widget.inspectionId),
-        _serviceFactory.coordinator.getTopics(widget.inspectionId),
-      ]);
-      _allMedia = results[0] as List<Map<String, dynamic>>;
-      _topics = results[1] as List<Topic>;
+      // Check offline availability first
+      _isAvailableOffline = _serviceFactory.cacheService.getCachedInspection(widget.inspectionId) != null;
+
+      // Load data based on availability
+      List<Map<String, dynamic>> allMedia;
+      List<Topic> topics;
+
+      if (_isAvailableOffline) {
+        // Load from offline storage
+        final results = await Future.wait([
+          _loadOfflineMedia(),
+          _serviceFactory.coordinator.getTopics(widget.inspectionId),
+        ]);
+        allMedia = results[0] as List<Map<String, dynamic>>;
+        topics = results[1] as List<Topic>;
+      } else {
+        // Load from regular cache/cloud
+        final results = await Future.wait([
+          _serviceFactory.mediaService.getAllMedia(widget.inspectionId),
+          _serviceFactory.coordinator.getTopics(widget.inspectionId),
+        ]);
+        allMedia = results[0] as List<Map<String, dynamic>>;
+        topics = results[1] as List<Topic>;
+      }
+
+      _allMedia = allMedia;
+      _topics = topics;
       _applyFilters();
     } catch (e) {
       debugPrint("Error loading media data: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao carregar mídias: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  /// Load media from offline storage with full functionality
+  Future<List<Map<String, dynamic>>> _loadOfflineMedia() async {
+    try {
+      // Get all offline media for this inspection
+      final offlineMediaList = await _serviceFactory.cacheService.getPendingMediaForInspection(widget.inspectionId);
+      
+      // The offlineMediaList is already a list of Map<String, dynamic>
+      // Just return it directly since it's in the expected format
+      return offlineMediaList;
+    } catch (e) {
+      debugPrint('MediaGalleryScreen._loadOfflineMedia: Error loading offline media: $e');
+      return [];
+    }
+  }
+  
 
   void _onApplyFiltersCallback({
     String? topicId,
@@ -112,7 +159,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   void _applyFilters() {
     setState(() {
-      _filteredMedia = _serviceFactory.mediaService.filterMedia(
+      _filteredMedia = _serviceFactory.coordinator.filterMedia(
         allMedia: _allMedia,
         topicId: _selectedTopicId,
         itemId: _selectedItemId,
@@ -216,21 +263,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                   )
                 else
                   Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 8,
-                              mainAxisSpacing: 8),
-                      itemCount: _filteredMedia.length,
-                      itemBuilder: (context, index) {
-                        final media = _filteredMedia[index];
-                        return _MediaGridTile(
-                            key: ValueKey(media['id']),
-                            media: media,
-                            onTap: () => _showMediaViewer(index));
+                    child: MediaGrid(
+                      media: _filteredMedia,
+                      onTap: (mediaItem) {
+                        final index = _filteredMedia.indexOf(mediaItem);
+                        _showMediaViewer(index);
                       },
+                      onRefresh: _loadData,
                     ),
                   ),
               ],
@@ -239,7 +278,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         onPressed: _openFilterPanel,
         icon: const Icon(Icons.filter_list),
         label: Text('Filtros ($_activeFiltersCount)'),
-        backgroundColor: _activeFiltersCount > 0 ? Colors.blue : null,
+        backgroundColor: _activeFiltersCount > 0 ? const Color(0xFF6F4B99) : null,
       ),
     );
   }
@@ -248,7 +287,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 class _MediaGridTile extends StatefulWidget {
   final Map<String, dynamic> media;
   final VoidCallback onTap;
-  const _MediaGridTile({super.key, required this.media, required this.onTap});
+  const _MediaGridTile({required this.media, required this.onTap});
   @override
   State<_MediaGridTile> createState() => _MediaGridTileState();
 }
@@ -287,8 +326,9 @@ class _MediaGridTileState extends State<_MediaGridTile> {
   ImageProvider? _getImageProvider() {
     if (widget.media['type'] == 'image') {
       final String? localPath = widget.media['localPath'];
-      if (localPath != null && File(localPath).existsSync())
+      if (localPath != null && File(localPath).existsSync()) {
         return FileImage(File(localPath));
+      }
       final String? url = widget.media['url'];
       if (url != null) return NetworkImage(url);
     }
@@ -329,15 +369,18 @@ class _MediaGridTileState extends State<_MediaGridTile> {
   Widget _buildFooter() {
     final bool isNc = widget.media['is_non_conformity'] ?? false;
     final List<Widget> tags = [];
-    if (isNc)
+    if (isNc) {
       tags.add(const Icon(Icons.warning_amber_rounded,
           color: Colors.orange, size: 14));
+    }
     if (widget.media['detail_name'] != null) {
       tags.add(const Icon(Icons.list_alt, color: Colors.white70, size: 14));
-    } else if (widget.media['item_name'] != null)
+    } else if (widget.media['item_name'] != null) {
       tags.add(const Icon(Icons.category, color: Colors.white70, size: 14));
-    else if (widget.media['topic_name'] != null)
+    }
+    else if (widget.media['topic_name'] != null) {
       tags.add(const Icon(Icons.topic, color: Colors.white70, size: 14));
+    }
     String name = widget.media['detail_name'] ??
         widget.media['item_name'] ??
         widget.media['topic_name'] ??

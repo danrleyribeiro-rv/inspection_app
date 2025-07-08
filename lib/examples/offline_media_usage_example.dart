@@ -1,9 +1,7 @@
 // lib/examples/offline_media_usage_example.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/services/features/media_service.dart';
-import 'package:inspection_app/models/offline_media.dart';
 
 /// Exemplo de como usar o novo fluxo offline-first para mídia
 class OfflineMediaUsageExample {

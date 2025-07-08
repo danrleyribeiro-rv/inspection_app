@@ -12,22 +12,23 @@ import 'package:inspection_app/presentation/screens/auth/forgot_password_screen.
 import 'package:inspection_app/presentation/screens/auth/reset_password_screen.dart';
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
-import 'package:inspection_app/presentation/screens/chat/chat_detail_screen.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
 import 'package:inspection_app/services/utils/cache_service.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:inspection_app/models/chat.dart';
+import 'package:inspection_app/firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 1. Inicializa dependências de plataforma/pacotes externos
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   await dotenv.load(fileName: ".env");
 
   // 2. Inicializa serviços de base que não dependem de outros (são estáticos)
-  await CacheService.initialize(); // Prepara o Hive
+  await CacheService.initialize(); // Prepara o Hive e registra adapters
   await FirebaseService.initialize();
 
   // 3. Inicializa todos os serviços da aplicação através do ServiceFactory
@@ -66,22 +67,22 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       theme: ThemeData(
-        primaryColor: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFF1E293B),
+        primaryColor: const Color(0xFF6F4B99),
+        scaffoldBackgroundColor: const Color(0xFF312456),
         colorScheme: const ColorScheme.dark(
-          primary: Colors.blue,
+          primary: Color(0xFF6F4B99),
           secondary: Colors.orange,
-          surface: Color(0xFF1E293B),
+          surface: Color(0xFF312456),
           error: Colors.red,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E293B),
+          backgroundColor: Color(0xFF312456),
           foregroundColor: Colors.white,
           elevation: 0,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
+            backgroundColor: const Color(0xFF6F4B99),
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -90,7 +91,7 @@ class MyApp extends StatelessWidget {
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: Colors.blue,
+            foregroundColor: const Color(0xFF6F4B99),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
@@ -99,7 +100,7 @@ class MyApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.blue, width: 2),
+            borderSide: const BorderSide(color: Color(0xFF6F4B99), width: 2),
           ),
           fillColor: Colors.white10,
           filled: true,
@@ -116,8 +117,8 @@ class MyApp extends StatelessWidget {
           color: Colors.grey[700],
         ),
         datePickerTheme: DatePickerThemeData(
-          backgroundColor: const Color(0xFF2A3749),
-          headerBackgroundColor: const Color(0xFF1E293B),
+          backgroundColor: const Color(0xFF312456),
+          headerBackgroundColor: const Color(0xFF312456),
           headerForegroundColor: Colors.white,
           headerHeadlineStyle: const TextStyle(
             color: Colors.white,
@@ -142,11 +143,11 @@ class MyApp extends StatelessWidget {
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
-          dayOverlayColor: WidgetStateProperty.all(Colors.blue.withValues(alpha: 0.1)),
-          todayBackgroundColor: WidgetStateProperty.all(Colors.blue.withValues(alpha: 0.3)),
+          dayOverlayColor: WidgetStateProperty.all(const Color(0xFF6F4B99).withValues(alpha: 0.1)),
+          todayBackgroundColor: WidgetStateProperty.all(const Color(0xFF6F4B99).withValues(alpha: 0.3)),
           dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) {
-              return Colors.blue;
+              return const Color(0xFF6F4B99);
             }
             return Colors.transparent;
           }),
@@ -182,49 +183,6 @@ class MyApp extends StatelessWidget {
 
           return MediaGalleryScreen(inspectionId: inspectionId);
         },
-        '/chat-detail': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments
-              as Map<String, dynamic>?;
-          final chatId = args?['chatId'] as String?;
-
-          if (chatId == null) {
-            return const Scaffold(
-              backgroundColor: Color(0xFF1E293B),
-              body: Center(
-                child: Text(
-                  'Chat não encontrado',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            );
-          }
-
-          return FutureBuilder<Chat?>(
-            future: _getChatById(chatId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  backgroundColor: Color(0xFF1E293B),
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              if (snapshot.data == null) {
-                return const Scaffold(
-                  backgroundColor: Color(0xFF1E293B),
-                  body: Center(
-                    child: Text(
-                      'Chat não encontrado',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                );
-              }
-
-              return ChatDetailScreen(chat: snapshot.data!);
-            },
-          );
-        },
       },
     );
   }
@@ -255,21 +213,9 @@ class _RedirectState extends State<_Redirect> {
   Widget build(BuildContext context) {
     // Return a placeholder widget while the redirection is being scheduled.
     return const Scaffold(
-      backgroundColor: Color(0xFF1E293B),
+      backgroundColor: Color(0xFF312456),
       body: Center(child: CircularProgressIndicator()),
     );
   }
 }
 
-Future<Chat?> _getChatById(String chatId) async {
-  try {
-    final doc =
-        await FirebaseService().firestore.collection('chats').doc(chatId).get();
-    if (doc.exists) {
-      return Chat.fromFirestore(doc);
-    }
-  } catch (e) {
-    debugPrint('Erro ao buscar chat: $e');
-  }
-  return null;
-}

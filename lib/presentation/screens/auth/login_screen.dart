@@ -1,5 +1,6 @@
 // lib/presentation/screens/auth/login_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:inspection_app/services/core/auth_service.dart';
 
@@ -140,11 +141,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset(
-                          'assets/images/logo.png',
-                          height: 200,
+                        SvgPicture.asset(
+                          'assets/images/logo.svg',
+                          height: MediaQuery.of(context).size.height * 0.6 * 0.15,
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 36),
                         TextFormField(
                           controller: _emailController,
                           decoration: const InputDecoration(
@@ -167,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _passwordController,
                           decoration: InputDecoration(
-                            labelText: 'Password',
+                            labelText: 'Senha',
                             border: const OutlineInputBorder(),
                             prefixIcon: const Icon(Icons.lock),
                             suffixIcon: IconButton(
@@ -209,7 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _isLoading ? null : _signIn,
                             child: _isLoading
                                 ? const CircularProgressIndicator(
-                                    color: Colors.white)
+                                    color: Colors.black)
                                 : const Text('Login'),
                           ),
                         ),

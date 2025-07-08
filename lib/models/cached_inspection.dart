@@ -16,10 +16,14 @@ class CachedInspection extends HiveObject {
   @HiveField(3)
   bool needsSync;
 
+  @HiveField(4)
+  String localStatus; // Ex: 'cloud_only', 'downloaded', 'modified'
+
   CachedInspection({
     required this.id,
     required this.data,
     required this.lastUpdated,
     this.needsSync = false,
+    this.localStatus = 'cloud_only',
   });
 }

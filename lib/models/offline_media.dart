@@ -90,9 +90,11 @@ class OfflineMedia extends HiveObject {
   factory OfflineMedia.fromJson(Map<String, dynamic> json) => _$OfflineMediaFromJson(json);
   Map<String, dynamic> toJson() => _$OfflineMediaToJson(this);
 
-  bool get needsUpload => isProcessed && !isUploaded;
+  bool get needsUpload => isProcessed && !isUploaded && !isDownloadedFromCloud;
   bool get hasError => errorMessage != null;
-  bool get canRetry => isProcessed && !isUploaded && retryCount < 5;
+  bool get canRetry => isProcessed && !isUploaded && retryCount < 5 && !isDownloadedFromCloud;
+  bool get isLocallyCreated => !isDownloadedFromCloud;
+  bool get isSynced => isUploaded || isDownloadedFromCloud;
 
   void markProcessed() {
     isProcessed = true;
@@ -103,7 +105,7 @@ class OfflineMedia extends HiveObject {
     isUploaded = true;
     uploadUrl = url;
     errorMessage = null;
-    debugPrint('OfflineMedia.markUploaded: Media ${id} marked as uploaded with URL: $url');
+    debugPrint('OfflineMedia.markUploaded: Media $id marked as uploaded with URL: $url');
     save();
   }
 

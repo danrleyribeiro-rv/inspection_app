@@ -6,18 +6,210 @@ import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
+import 'package:inspection_app/presentation/widgets/dialogs/move_media_dialog.dart';
 
-class MediaGrid extends StatelessWidget {
+class MediaGrid extends StatefulWidget {
   final List<Map<String, dynamic>> media;
   final Function(Map<String, dynamic>) onTap;
+  final Function()? onRefresh;
 
   const MediaGrid({
     super.key,
     required this.media,
     required this.onTap,
+    this.onRefresh,
   });
 
+  @override
+  State<MediaGrid> createState() => _MediaGridState();
+}
+
+class _MediaGridState extends State<MediaGrid> {
+
   ServiceFactory get _serviceFactory => ServiceFactory();
+
+  Future<void> _moveMedia(BuildContext context, Map<String, dynamic> mediaItem) async {
+    final inspectionId = mediaItem['inspection_id'] as String? ?? mediaItem['inspectionId'] as String?;
+    final mediaId = mediaItem['id'] as String?;
+    
+    if (inspectionId == null || mediaId == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: IDs inválidos')),
+        );
+      }
+      return;
+    }
+
+    // Check if this is offline media
+    final isOfflineMedia = mediaItem['source'] == 'offline';
+    
+    // Criar descrição da localização atual
+    String currentLocation = '';
+    if (mediaItem['topic_name'] != null) {
+      currentLocation += 'Tópico: ${mediaItem['topic_name']}';
+    }
+    if (mediaItem['item_name'] != null) {
+      currentLocation += ' → Item: ${mediaItem['item_name']}';
+    }
+    if (mediaItem['detail_name'] != null) {
+      currentLocation += ' → Detalhe: ${mediaItem['detail_name']}';
+    }
+    if (mediaItem['is_non_conformity'] == true) {
+      currentLocation += ' (NC)';
+    }
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => MoveMediaDialog(
+        inspectionId: inspectionId,
+        mediaId: mediaId,
+        currentLocation: currentLocation.isEmpty ? 'Localização não especificada' : currentLocation,
+        isOfflineMode: isOfflineMedia,
+      ),
+    );
+
+    if (result == true && widget.onRefresh != null) {
+      widget.onRefresh!();
+    }
+  }
+
+  Future<void> _deleteMedia(BuildContext context, Map<String, dynamic> mediaItem) async {
+    final mediaId = mediaItem['id'] as String?;
+    
+    if (mediaId == null) {
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: ID da mídia inválido')),
+        );
+      }
+      return;
+    }
+
+    // Check if this is offline media
+    final isOfflineMedia = mediaItem['source'] == 'offline';
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: Text(
+          isOfflineMedia 
+            ? 'Tem certeza que deseja excluir esta mídia? Esta ação não pode ser desfeita e a mídia será removida permanentemente do armazenamento offline.'
+            : 'Tem certeza que deseja excluir esta imagem? Esta ação não pode ser desfeita.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        bool success;
+        
+        // For offline-first architecture, always use media service
+        success = await _serviceFactory.mediaService.deleteMedia(mediaId);
+        
+        if (mounted && context.mounted) {
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  isOfflineMedia 
+                    ? 'Mídia offline excluída com sucesso!'
+                    : 'Imagem excluída com sucesso!'
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+            if (widget.onRefresh != null) {
+              widget.onRefresh!();
+            }
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  isOfflineMedia
+                    ? 'Erro ao excluir mídia offline'
+                    : 'Erro ao excluir imagem'
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao excluir mídia: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _showMediaActions(BuildContext context, Map<String, dynamic> mediaItem) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.move_up, color: Color(0xFF6F4B99)),
+              title: const Text('Mover Mídia', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Mover para outro tópico, item ou detalhe', style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _moveMedia(context, mediaItem);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Excluir Mídia', style: TextStyle(color: Colors.white)),
+              subtitle: Text(
+                mediaItem['source'] == 'offline'
+                  ? 'Remover permanentemente esta mídia offline'
+                  : 'Remover permanentemente esta imagem',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _deleteMedia(context, mediaItem);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +221,9 @@ class MediaGrid extends StatelessWidget {
         mainAxisSpacing: 8,
         childAspectRatio: 1,
       ),
-      itemCount: media.length,
+      itemCount: widget.media.length,
       itemBuilder: (context, index) {
-        final mediaItem = media[index];
+        final mediaItem = widget.media[index];
         return _buildMediaGridItem(context, mediaItem);
       },
     );
@@ -116,17 +308,20 @@ class MediaGrid extends StatelessWidget {
       );
     }
 
-    return InkWell(
+    return GestureDetector(
       onTap: () {
-        final currentIndex = media.indexOf(mediaItem);
+        final currentIndex = widget.media.indexOf(mediaItem);
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => MediaViewerScreen(
-              mediaItems: media,
+              mediaItems: widget.media,
               initialIndex: currentIndex,
             ),
           ),
         );
+      },
+      onLongPress: () {
+        _showMediaActions(context, mediaItem);
       },
       child: Card(
         elevation: 2,
@@ -188,7 +383,7 @@ class MediaGrid extends StatelessWidget {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: isImage
-                            ? Colors.blue.withAlpha((255 * 0.8).round())
+                            ? const Color(0xFF6F4B99).withAlpha((255 * 0.8).round())
                             : Colors.purple.withAlpha((255 * 0.8).round()),
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -199,6 +394,27 @@ class MediaGrid extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              // Botão de ações no canto superior direito
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => _showMediaActions(context, mediaItem),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
                 ),
               ),
 
@@ -292,7 +508,7 @@ class MediaGrid extends StatelessWidget {
       case 'pending':
         return Colors.orange;
       case 'processing':
-        return Colors.blue;
+        return const Color(0xFF6F4B99);
       case 'local':
         return Colors.grey;
       default:

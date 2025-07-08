@@ -43,11 +43,17 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   Detail? _selectedDetail;
 
   bool _isProcessing = false;
+  String? _filterByDetailId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
 
     // Call checkConnectivity to get the initial state
     Connectivity().checkConnectivity().then((result) {
@@ -322,10 +328,10 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text('Não Conformidades', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         leading: Navigator.of(context).canPop()
             ? IconButton(
@@ -353,25 +359,74 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                   onDetailSelected: _detailSelected,
                   onNonConformitySaved: _onNonConformitySaved,
                 ),
-                NonConformityList(
-                  nonConformities: _nonConformities,
-                  inspectionId: widget.inspectionId,
-                  onStatusUpdate: _updateNonConformityStatus,
-                  onDeleteNonConformity: _deleteNonConformity,
-                  onEditNonConformity: _updateNonConformity,
+                Column(
+                  children: [
+                    // Filtros
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      color: const Color(0xFF312456),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Filtros:',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => setState(() => _filterByDetailId = null),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _filterByDetailId == null ? const Color(0xFFBB8FEB) : Colors.grey[700],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  child: const Text('Todas', style: TextStyle(fontSize: 10)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _selectedDetail != null 
+                                      ? () => setState(() => _filterByDetailId = _selectedDetail!.id)
+                                      : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _filterByDetailId == _selectedDetail?.id ? const Color(0xFFBB8FEB) : Colors.grey[700],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  child: Text(
+                                    _selectedDetail != null ? 'Detalhe Atual' : 'Selecionar Detalhe',
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Lista de não conformidades
+                    Expanded(
+                      child: NonConformityList(
+                        nonConformities: _nonConformities,
+                        inspectionId: widget.inspectionId,
+                        onStatusUpdate: _updateNonConformityStatus,
+                        onDeleteNonConformity: _deleteNonConformity,
+                        onEditNonConformity: _updateNonConformity,
+                        filterByDetailId: _filterByDetailId,
+                        onNonConformityUpdated: _loadNonConformities,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.grey[900],
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          color: const Color(0xFF312456),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
@@ -392,12 +447,12 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            selectedItemColor: Theme.of(context).colorScheme.primary,
+            selectedItemColor: const Color(0xFFBB8FEB),
             unselectedItemColor: Colors.grey[400],
             selectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
             unselectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.w500, fontSize: 10),
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
             showUnselectedLabels: true,
             items: const [
               BottomNavigationBarItem(

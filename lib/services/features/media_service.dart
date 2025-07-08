@@ -18,6 +18,7 @@ import 'package:inspection_app/models/offline_media.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:http/http.dart' as http;
 import 'package:ffmpeg_kit_flutter_new/stream_information.dart';
 
 class MediaService {
@@ -54,8 +55,8 @@ class MediaService {
         await _processedMediaDir!.create(recursive: true);
       }
       
-      // Iniciar processamento em background das mídias pendentes
-      _startBackgroundUpload();
+      // OFFLINE-FIRST: Don't start automatic background upload
+      debugPrint('MediaService.initialize: Initialized in offline-first mode');
     } catch (e) {
       debugPrint('Error initializing MediaService: $e');
     }
@@ -126,7 +127,7 @@ class MediaService {
           height: cropHeight
         );
         
-        debugPrint('MediaService: Cropped image to ${cropWidth}x${cropHeight} from ${processedImage.width}x${processedImage.height}');
+        debugPrint('MediaService: Cropped image to ${cropWidth}x$cropHeight from ${processedImage.width}x${processedImage.height}');
       }
 
       // Redimensionar para tamanho máximo se muito grande
@@ -213,15 +214,11 @@ class MediaService {
         return;
       }
 
-      final StreamInformation? videoStream = streams.firstWhere(
+      final StreamInformation videoStream = streams.firstWhere(
         (s) => s.getType() == 'video',
         orElse: () => streams.first,
       );
       
-      if (videoStream == null) {
-         sendPort.send({'success': false, 'error': 'No video stream found'});
-        return;
-      }
 
       final width = videoStream.getWidth();
       final height = videoStream.getHeight();
@@ -241,9 +238,9 @@ class MediaService {
       double currentAspectRatio = effectiveWidth / effectiveHeight;
 
       if (currentAspectRatio > targetAspectRatio) {
-        cropFilter = 'crop=ih*${targetAspectRatio}:ih';
+        cropFilter = 'crop=ih*$targetAspectRatio:ih';
       } else {
-        cropFilter = 'crop=iw:iw/${targetAspectRatio}';
+        cropFilter = 'crop=iw:iw/$targetAspectRatio';
       }
 
       final command = '-i "$inputPath" -vf "$cropFilter" -preset ultrafast -c:a copy "$outputPath"';
@@ -286,6 +283,38 @@ class MediaService {
       debugPrint("Error processing media: ${result['error']}");
       return null;
     }
+  }
+
+  // Capturar/processar múltiplas mídias com fluxo offline-first
+  Future<List<OfflineMedia>> captureAndProcessMultipleMedia({
+    required List<String> inputPaths,
+    required String inspectionId,
+    required String type,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final results = <OfflineMedia>[];
+    
+    for (final inputPath in inputPaths) {
+      try {
+        final media = await captureAndProcessMedia(
+          inputPath: inputPath,
+          inspectionId: inspectionId,
+          type: type,
+          topicId: topicId,
+          itemId: itemId,
+          detailId: detailId,
+          metadata: metadata,
+        );
+        results.add(media);
+      } catch (e) {
+        debugPrint('Error processing media $inputPath: $e');
+      }
+    }
+    
+    return results;
   }
 
   // Capturar/processar mídia com fluxo offline-first
@@ -336,10 +365,10 @@ class MediaService {
     }
   }
   
-  // Processar mídia em background
+  // Processar mídia em background - DEVICE ONLY (sem upload para nuvem)
   Future<void> _processMediaInBackground(OfflineMedia offlineMedia) async {
     try {
-      // Determinar caminho de saída
+      // Determinar caminho de saída permanente no dispositivo
       final outputPath = path.join(
         _processedMediaDir!.path,
         'processed_${offlineMedia.fileName}',
@@ -358,18 +387,21 @@ class MediaService {
         offlineMedia.fileSize = await processedFile.length();
         offlineMedia.markProcessed();
         
+        // DEVICE ONLY: Marcar como "uploaded" para indicar que está pronto para uso
+        // (mas armazenado apenas no dispositivo)
+        offlineMedia.markUploaded(processedFile.path); // Use local path as "URL"
+        
         // Salvar as alterações no Hive
         await _offlineMediaBox!.put(offlineMedia.id, offlineMedia);
         
         // Notificar que o processamento foi concluído
         _uploadEventController.add(OfflineMediaUploadEvent(
           mediaId: offlineMedia.id,
-          status: UploadStatus.processed,
-          message: 'Mídia processada com sucesso - pronta para sincronização manual',
+          status: UploadStatus.completed, // Marca como "enviado" mas é só local
+          message: 'Mídia processada e armazenada no dispositivo',
         ));
         
-        // Upload automático removido - agora só manual
-        debugPrint('Media ${offlineMedia.id} processed successfully. Use manual sync to upload.');
+        debugPrint('Media ${offlineMedia.id} processed successfully and stored locally at: ${processedFile.path}');
       } else {
         offlineMedia.markError('Falha ao processar mídia');
         _uploadEventController.add(OfflineMediaUploadEvent(
@@ -389,68 +421,9 @@ class MediaService {
     }
   }
   
-  // Tentar fazer upload da mídia
-  Future<void> _attemptUpload(OfflineMedia offlineMedia) async {
-    try {
-      // Verificar conectividade
-      if (!await _isOnline()) {
-        return; // Upload será tentado quando voltar a conectividade
-      }
-      
-      if (!offlineMedia.isProcessed || offlineMedia.isUploaded) {
-        return;
-      }
-      
-      // Notificar início do upload
-      _uploadEventController.add(OfflineMediaUploadEvent(
-        mediaId: offlineMedia.id,
-        status: UploadStatus.uploading,
-        message: 'Fazendo upload...',
-      ));
-      
-      // Fazer upload para Firebase
-      final downloadUrl = await uploadCachedMedia(
-        localPath: offlineMedia.localPath,
-        inspectionId: offlineMedia.inspectionId,
-        topicId: offlineMedia.topicId,
-        itemId: offlineMedia.itemId,
-        detailId: offlineMedia.detailId,
-      );
-      
-      // Marcar como enviado
-      offlineMedia.markUploaded(downloadUrl);
-      
-      // CRITICAL FIX: Update inspection document with the new URL
-      await _updateInspectionMediaUrl(offlineMedia, downloadUrl);
-      
-      // Notificar sucesso
-      _uploadEventController.add(OfflineMediaUploadEvent(
-        mediaId: offlineMedia.id,
-        status: UploadStatus.completed,
-        message: 'Upload concluído com sucesso',
-        downloadUrl: downloadUrl,
-      ));
-      
-      debugPrint('Successfully uploaded media: ${offlineMedia.id}');
-      
-    } catch (e) {
-      debugPrint('Error uploading media ${offlineMedia.id}: $e');
-      offlineMedia.markError('Erro no upload: $e');
-      
-      _uploadEventController.add(OfflineMediaUploadEvent(
-        mediaId: offlineMedia.id,
-        status: UploadStatus.error,
-        message: 'Erro no upload: $e',
-      ));
-    }
-  }
+  // Removed old disabled _attemptUpload method - using full implementation below
   
-  // Background upload disabled - now manual only
-  void _startBackgroundUpload() {
-    // Upload automático desabilitado para funcionar 100% offline
-    // As imagens agora devem ser sincronizadas manualmente
-    debugPrint('MediaService: Background upload disabled - images will be processed offline only');
-  }
+  // Removed _startBackgroundUpload - not needed in offline-first mode
   
   // Verificar se está online
   Future<bool> _isOnline() async {
@@ -463,11 +436,259 @@ class MediaService {
     }
   }
   
+  /// OFFLINE-FIRST: Capture and store media locally
+  Future<String?> captureMediaOffline({
+    required File sourceFile,
+    required String inspectionId,
+    required String type,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    bool isNonConformity = false,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      if (_offlineMediaBox == null || _processedMediaDir == null) {
+        throw Exception('MediaService not initialized');
+      }
+      
+      // Generate unique ID for this media
+      final mediaId = _uuid.v4();
+      final fileExt = path.extension(sourceFile.path);
+      final fileName = '${type}_${DateTime.now().millisecondsSinceEpoch}_$mediaId$fileExt';
+      final localPath = path.join(_processedMediaDir!.path, fileName);
+      
+      // Process the media file (crop to 4:3 for images, etc.)
+      File? processedFile;
+      if (type == 'image') {
+        processedFile = await processImageFast(sourceFile.path, localPath);
+      } else {
+        // For videos and other types, just copy for now
+        processedFile = await sourceFile.copy(localPath);
+      }
+      
+      if (processedFile == null) {
+        throw Exception('Failed to process media file');
+      }
+      
+      // Get location if available
+      final location = await getCurrentLocation();
+      
+      // Create offline media record
+      final offlineMedia = OfflineMedia(
+        id: mediaId,
+        type: type,
+        localPath: processedFile.path,
+        fileName: fileName,
+        inspectionId: inspectionId,
+        topicId: topicId,
+        itemId: itemId,
+        detailId: detailId,
+        isProcessed: true,
+        isUploaded: false,
+        isDownloadedFromCloud: false,
+        createdAt: DateTime.now(),
+        metadata: {
+          ...?metadata,
+          'is_non_conformity': isNonConformity,
+          'source': 'camera',
+          'aspect_ratio': type == 'image' ? '4:3' : null,
+          'latitude': location?.latitude,
+          'longitude': location?.longitude,
+        },
+      );
+      
+      // Save to offline storage
+      await _offlineMediaBox!.put(mediaId, offlineMedia);
+      
+      // Add to inspection document immediately (offline)
+      await _addMediaToInspectionOffline(offlineMedia);
+      
+      debugPrint('MediaService.captureMediaOffline: Captured media $mediaId for inspection $inspectionId');
+      return mediaId;
+      
+    } catch (e) {
+      debugPrint('MediaService.captureMediaOffline: Error capturing media: $e');
+      return null;
+    }
+  }
+  
+  /// Add media to inspection document structure (offline)
+  Future<void> _addMediaToInspectionOffline(OfflineMedia offlineMedia) async {
+    try {
+      final inspection = await _inspectionService.getInspection(offlineMedia.inspectionId);
+      if (inspection?.topics == null) {
+        debugPrint('MediaService._addMediaToInspectionOffline: Inspection not found');
+        return;
+      }
+      
+      // Create media data for inspection document
+      final mediaData = {
+        'id': offlineMedia.id,
+        'type': offlineMedia.type,
+        'localPath': offlineMedia.localPath,
+        'fileName': offlineMedia.fileName,
+        'aspect_ratio': offlineMedia.metadata?['aspect_ratio'] ?? '4:3',
+        'source': offlineMedia.metadata?['source'] ?? 'camera',
+        'is_non_conformity': offlineMedia.metadata?['is_non_conformity'] ?? false,
+        'created_at': offlineMedia.createdAt.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'status': 'local',
+        'metadata': offlineMedia.metadata ?? {},
+      };
+      
+      // Use the coordinator to add media to the appropriate hierarchy level
+      if (offlineMedia.detailId != null) {
+        if (offlineMedia.metadata?['is_non_conformity'] == true) {
+          // Non-conformity media - this would need special handling
+          debugPrint('MediaService._addMediaToInspectionOffline: Adding NC media not implemented yet');
+        } else {
+          // Detail level media - use direct inspection update to avoid circular dependency
+          await _addMediaToDetailDirectly(offlineMedia.inspectionId, offlineMedia.topicId!, offlineMedia.itemId!, offlineMedia.detailId!, mediaData);
+        }
+      } else if (offlineMedia.itemId != null) {
+        // Item level media
+        await _addMediaToItemDirectly(offlineMedia.inspectionId, offlineMedia.topicId!, offlineMedia.itemId!, mediaData);
+      } else if (offlineMedia.topicId != null) {
+        // Topic level media
+        await _addMediaToTopicDirectly(offlineMedia.inspectionId, offlineMedia.topicId!, mediaData);
+      }
+      
+      debugPrint('MediaService._addMediaToInspectionOffline: Added media ${offlineMedia.id} to inspection structure');
+    } catch (e) {
+      debugPrint('MediaService._addMediaToInspectionOffline: Error adding media to inspection: $e');
+    }
+  }
+  
+  /// Add media directly to topic level (avoiding circular dependency)
+  Future<void> _addMediaToTopicDirectly(String inspectionId, String topicId, Map<String, dynamic> mediaData) async {
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection == null) return;
+
+    final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+    final topicIndexStr = topicId.replaceFirst('topic_', '');
+    final topicIndex = int.tryParse(topicIndexStr);
+    
+    if (topicIndex != null && topicIndex < topics.length) {
+      final topic = Map<String, dynamic>.from(topics[topicIndex]);
+      final mediaList = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+      mediaList.add(mediaData);
+      topic['media'] = mediaList;
+      topics[topicIndex] = topic;
+
+      await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+    }
+  }
+  
+  /// Add media directly to item level (avoiding circular dependency)
+  Future<void> _addMediaToItemDirectly(String inspectionId, String topicId, String itemId, Map<String, dynamic> mediaData) async {
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection == null) return;
+
+    final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+    final topicIndexStr = topicId.replaceFirst('topic_', '');
+    final topicIndex = int.tryParse(topicIndexStr);
+    
+    if (topicIndex != null && topicIndex < topics.length) {
+      final topic = Map<String, dynamic>.from(topics[topicIndex]);
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      final itemIndexStr = itemId.replaceFirst('item_', '');
+      final itemIndex = int.tryParse(itemIndexStr);
+      
+      if (itemIndex != null && itemIndex < items.length) {
+        final item = Map<String, dynamic>.from(items[itemIndex]);
+        final mediaList = List<Map<String, dynamic>>.from(item['media'] ?? []);
+        mediaList.add(mediaData);
+        item['media'] = mediaList;
+        items[itemIndex] = item;
+        topic['items'] = items;
+        topics[topicIndex] = topic;
+
+        await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+      }
+    }
+  }
+  
+  /// Add media directly to detail level (avoiding circular dependency)
+  Future<void> _addMediaToDetailDirectly(String inspectionId, String topicId, String itemId, String detailId, Map<String, dynamic> mediaData) async {
+    final inspection = await _inspectionService.getInspection(inspectionId);
+    if (inspection == null) return;
+
+    final topics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+    final topicIndexStr = topicId.replaceFirst('topic_', '');
+    final topicIndex = int.tryParse(topicIndexStr);
+    
+    if (topicIndex != null && topicIndex < topics.length) {
+      final topic = Map<String, dynamic>.from(topics[topicIndex]);
+      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+      final itemIndexStr = itemId.replaceFirst('item_', '');
+      final itemIndex = int.tryParse(itemIndexStr);
+      
+      if (itemIndex != null && itemIndex < items.length) {
+        final item = Map<String, dynamic>.from(items[itemIndex]);
+        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+        final detailIndexStr = detailId.replaceFirst('detail_', '');
+        final detailIndex = int.tryParse(detailIndexStr);
+        
+        if (detailIndex != null && detailIndex < details.length) {
+          final detail = Map<String, dynamic>.from(details[detailIndex]);
+          final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+          mediaList.add(mediaData);
+          detail['media'] = mediaList;
+          details[detailIndex] = detail;
+          item['details'] = details;
+          items[itemIndex] = item;
+          topic['items'] = items;
+          topics[topicIndex] = topic;
+
+          await _inspectionService.saveInspection(inspection.copyWith(topics: topics));
+        }
+      }
+    }
+  }
+  
+  // OFFLINE-FIRST: Manual upload attempt
+  Future<void> _attemptUpload(OfflineMedia media) async {
+    debugPrint('MediaService._attemptUpload: Attempting to upload ${media.id}');
+    try {
+      if (!await _isOnline()) {
+        throw Exception('No internet connection');
+      }
+      
+      final file = File(media.localPath);
+      if (!await file.exists()) {
+        throw Exception('Local file not found: ${media.localPath}');
+      }
+      
+      // Upload to Firebase Storage
+      final uploadUrl = await uploadCachedMedia(
+        localPath: media.localPath,
+        inspectionId: media.inspectionId,
+        topicId: media.topicId,
+        itemId: media.itemId,
+        detailId: media.detailId,
+      );
+      
+      // Update offline media record using the markUploaded method
+      media.markUploaded(uploadUrl);
+      
+      // Update inspection document with new URL
+      await _updateInspectionMediaUrl(media, uploadUrl);
+      
+      debugPrint('MediaService._attemptUpload: Successfully uploaded ${media.id}');
+    } catch (e) {
+      debugPrint('MediaService._attemptUpload: Error uploading ${media.id}: $e');
+      media.errorMessage = e.toString();
+      await media.save();
+      rethrow;
+    }
+  }
+  
   // Obter mídias pendentes de upload
   List<OfflineMedia> getPendingMedia() {
     if (_offlineMediaBox == null) return [];
     return _offlineMediaBox!.values
-        .where((media) => media.needsUpload)
+        .where((media) => media.needsUpload && media.isLocallyCreated)
         .toList();
   }
   
@@ -475,7 +696,7 @@ class MediaService {
   List<OfflineMedia> getPendingMediaForInspection(String inspectionId) {
     if (_offlineMediaBox == null) return [];
     return _offlineMediaBox!.values
-        .where((media) => media.inspectionId == inspectionId && media.needsUpload)
+        .where((media) => media.inspectionId == inspectionId && media.needsUpload && media.isLocallyCreated)
         .toList();
   }
   
@@ -572,15 +793,17 @@ class MediaService {
         'pending': 0,
         'uploaded': 0,
         'errors': 0,
+        'downloaded': 0,
       };
     }
     
     final allMedia = _offlineMediaBox!.values.toList();
     return {
       'total': allMedia.length,
-      'pending': allMedia.where((m) => m.needsUpload).length,
-      'uploaded': allMedia.where((m) => m.isUploaded).length,
-      'errors': allMedia.where((m) => m.hasError).length,
+      'pending': allMedia.where((m) => m.needsUpload && m.isLocallyCreated).length,
+      'uploaded': allMedia.where((m) => m.isSynced).length,
+      'errors': allMedia.where((m) => m.hasError && m.isLocallyCreated).length,
+      'downloaded': allMedia.where((m) => m.isDownloadedFromCloud).length,
     };
   }
 
@@ -655,6 +878,69 @@ class MediaService {
 
     await ref.putFile(file, metadata);
     return await ref.getDownloadURL();
+  }
+
+  // Adicionado para o fluxo de download
+  Future<OfflineMedia?> downloadAndCacheMedia({
+    required String url,
+    required String inspectionId,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      if (_offlineMediaBox == null || _processedMediaDir == null) {
+        throw Exception('MediaService not initialized');
+      }
+
+      final mediaId = _uuid.v4();
+      final fileName = path.basename(url.split('?').first);
+      final localPath = path.join(_processedMediaDir!.path, fileName);
+      final file = File(localPath);
+
+      // Fazer o download do arquivo
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        await file.writeAsBytes(response.bodyBytes);
+      } else {
+        throw Exception('Failed to download media: ${response.statusCode}');
+      }
+
+      final offlineMedia = OfflineMedia(
+        id: mediaId,
+        localPath: localPath,
+        uploadUrl: url,
+        inspectionId: inspectionId,
+        topicId: topicId,
+        itemId: itemId,
+        detailId: detailId,
+        type: _getMediaTypeFromUrl(url),
+        fileName: fileName,
+        createdAt: DateTime.now(),
+        isProcessed: true,
+        isUploaded: true, // Já está na nuvem
+        isDownloadedFromCloud: true,
+        metadata: metadata ?? {},
+        fileSize: await file.length(),
+      );
+
+      await _offlineMediaBox!.put(mediaId, offlineMedia);
+      debugPrint('MediaService.downloadAndCacheMedia: Downloaded and cached media $mediaId from $url');
+      return offlineMedia;
+    } catch (e) {
+      debugPrint('MediaService.downloadAndCacheMedia: Error: $e');
+      return null;
+    }
+  }
+
+  String _getMediaTypeFromUrl(String url) {
+    if (url.contains('.jpg') || url.contains('.jpeg') || url.contains('.png')) {
+      return 'image';
+    } else if (url.contains('.mp4') || url.contains('.mov')) {
+      return 'video';
+    }
+    return 'file';
   }
 
   // Método auxiliar para buscar mídias offline do cache
@@ -1299,9 +1585,392 @@ class MediaService {
     await ref.putFile(file, metadata);
     return await ref.getDownloadURL();
   }
+
+  // Mover imagem entre tópicos, itens, detalhes ou não conformidades
+  Future<bool> moveMedia({
+    required String mediaId,
+    String? newTopicId,
+    String? newItemId,
+    String? newDetailId,
+    bool isNonConformity = false,
+    String? nonConformityId,
+  }) async {
+    try {
+      // Buscar mídia offline
+      final offlineMedia = _offlineMediaBox?.get(mediaId);
+      if (offlineMedia != null) {
+        // Atualizar hierarquia
+        offlineMedia.topicId = newTopicId;
+        offlineMedia.itemId = newItemId;
+        offlineMedia.detailId = newDetailId;
+        
+        // Atualizar metadata
+        offlineMedia.metadata = {
+          ...?offlineMedia.metadata,
+          'is_non_conformity': isNonConformity,
+          'non_conformity_id': nonConformityId,
+        };
+        
+        await offlineMedia.save();
+              debugPrint('MediaService.moveOfflineMedia: Moved media $mediaId to topic:${newTopicId ?? 'null'} item:${newItemId ?? 'null'} detail:${newDetailId ?? 'null'} NC:$isNonConformity');
+        return true;
+      }
+
+      // Se não encontrou offline, buscar online via InspectionService
+      final inspectionService = _inspectionService;
+      final inspection = await inspectionService.getInspection(offlineMedia?.inspectionId ?? '');
+      
+      if (inspection?.topics != null) {
+        return await _moveOnlineMedia(
+          inspection!.topics!,
+          mediaId,
+          newTopicId,
+          newItemId,
+          newDetailId,
+          isNonConformity,
+          nonConformityId,
+        );
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('MediaService.moveMedia: Error moving media $mediaId: $e');
+      return false;
+    }
+  }
+
+  // Mover mídia online na estrutura do Firestore
+  Future<bool> _moveOnlineMedia(
+    List<Map<String, dynamic>> topics,
+    String mediaId,
+    String? newTopicId,
+    String? newItemId,
+    String? newDetailId,
+    bool isNonConformity,
+    String? nonConformityId,
+  ) async {
+    try {
+      Map<String, dynamic>? mediaToMove;
+      List<dynamic>? sourceMediaList;
+      
+      // Procurar a mídia na estrutura hierárquica
+      bool found = false;
+      for (final topic in topics) {
+        if (found) break;
+        
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        for (final item in items) {
+          if (found) break;
+          
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          for (final detail in details) {
+            if (found) break;
+            
+            // Verificar mídia em detalhes
+            final detailMedia = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+            for (int i = 0; i < detailMedia.length; i++) {
+              if (detailMedia[i]['id'] == mediaId) {
+                mediaToMove = detailMedia[i];
+                sourceMediaList = detailMedia;
+                found = true;
+                break;
+              }
+            }
+            
+            // Verificar mídia em não conformidades
+            final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            for (final nc in nonConformities) {
+              final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+              for (int i = 0; i < ncMedia.length; i++) {
+                if (ncMedia[i]['id'] == mediaId) {
+                  mediaToMove = ncMedia[i];
+                  sourceMediaList = ncMedia;
+                  found = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      if (mediaToMove == null || sourceMediaList == null) {
+        debugPrint('MediaService._moveOnlineMedia: Media $mediaId not found');
+        return false;
+      }
+      
+      // Remover da posição original
+      sourceMediaList.removeWhere((m) => m['id'] == mediaId);
+      
+      // Adicionar na nova posição
+      return await _addMediaToDestination(
+        topics,
+        mediaToMove,
+        newTopicId,
+        newItemId,
+        newDetailId,
+        isNonConformity,
+        nonConformityId,
+      );
+    } catch (e) {
+      debugPrint('MediaService._moveOnlineMedia: Error: $e');
+      return false;
+    }
+  }
+
+  // Adicionar mídia no destino especificado
+  Future<bool> _addMediaToDestination(
+    List<Map<String, dynamic>> topics,
+    Map<String, dynamic> media,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    bool isNonConformity,
+    String? nonConformityId,
+  ) async {
+    try {
+      // Encontrar o destino
+      for (final topic in topics) {
+        final currentTopicId = topic['id'];
+        if (topicId == null || currentTopicId == topicId) {
+          
+          final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+          for (final item in items) {
+            final currentItemId = item['id'];
+            if (itemId == null || currentItemId == itemId) {
+              
+              final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+              for (final detail in details) {
+                final currentDetailId = detail['id'];
+                if (detailId == null || currentDetailId == detailId) {
+                  
+                  if (isNonConformity) {
+                    // Adicionar em não conformidade
+                    final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+                    
+                    if (nonConformityId != null) {
+                      // Mover para não conformidade específica
+                      bool found = false;
+                      for (final nc in nonConformities) {
+                        if (nc['id'] == nonConformityId) {
+                          final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+                          ncMedia.add(media);
+                          nc['media'] = ncMedia;
+                          found = true;
+                          break;
+                        }
+                      }
+                      if (!found) {
+                        debugPrint('MediaService._addMediaToDestination: Não conformidade $nonConformityId não encontrada');
+                        return false;
+                      }
+                    } else {
+                      // Usar primeira não conformidade ou criar nova
+                      if (nonConformities.isNotEmpty) {
+                        final ncMedia = List<Map<String, dynamic>>.from(nonConformities[0]['media'] ?? []);
+                        ncMedia.add(media);
+                        nonConformities[0]['media'] = ncMedia;
+                      } else {
+                        // Criar nova não conformidade se não existir
+                        nonConformities.add({
+                          'id': 'nc_${DateTime.now().millisecondsSinceEpoch}',
+                          'description': 'Não conformidade criada automaticamente',
+                          'severity': 'Média',
+                          'media': [media],
+                          'is_resolved': false,
+                        });
+                      }
+                    }
+                    detail['non_conformities'] = nonConformities;
+                  } else {
+                    // Adicionar em mídia do detalhe
+                    final detailMedia = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+                    detailMedia.add(media);
+                    detail['media'] = detailMedia;
+                  }
+                  
+                  debugPrint('MediaService._addMediaToDestination: Added media to topic:$topicId item:$itemId detail:$detailId NC:$isNonConformity');
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('MediaService._addMediaToDestination: Error: $e');
+      return false;
+    }
+  }
+
+  // Deletar imagem
+  Future<bool> deleteMedia(String mediaId) async {
+    try {
+      // Buscar mídia offline
+      final offlineMedia = _offlineMediaBox?.get(mediaId);
+      if (offlineMedia != null) {
+        // Deletar arquivo local
+        final file = File(offlineMedia.localPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+        
+        // Deletar da nuvem se já foi enviado
+        if (offlineMedia.isUploaded && offlineMedia.uploadUrl != null) {
+          try {
+            final ref = _firebase.storage.refFromURL(offlineMedia.uploadUrl!);
+            await ref.delete();
+          } catch (e) {
+            debugPrint('MediaService.deleteMedia: Error deleting from cloud: $e');
+          }
+        }
+        
+        // Remover da estrutura da inspeção se necessário
+        await _removeMediaFromInspection(offlineMedia);
+        
+        // Remover do cache
+        await _offlineMediaBox?.delete(mediaId);
+        debugPrint('MediaService.deleteMedia: Deleted offline media $mediaId');
+        return true;
+      }
+
+      // Se não encontrou offline, buscar online na estrutura da inspeção
+      return await _deleteOnlineMedia(mediaId);
+      
+    } catch (e) {
+      debugPrint('MediaService.deleteMedia: Error deleting media $mediaId: $e');
+      return false;
+    }
+  }
+
+  // Remover mídia da estrutura da inspeção
+  Future<void> _removeMediaFromInspection(OfflineMedia offlineMedia) async {
+    try {
+      final inspection = await _inspectionService.getInspection(offlineMedia.inspectionId);
+      if (inspection?.topics == null) return;
+
+      final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
+      bool updated = false;
+
+      // Procurar e remover a mídia da estrutura hierárquica
+      for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
+        final topic = Map<String, dynamic>.from(topics[topicIndex]);
+        
+        // Check topic-level media
+        if (offlineMedia.topicId != null && topic['id'] == offlineMedia.topicId && 
+            offlineMedia.itemId == null && offlineMedia.detailId == null) {
+          final mediaList = List<Map<String, dynamic>>.from(topic['media'] ?? []);
+          final originalLength = mediaList.length;
+          mediaList.removeWhere((m) => m['id'] == offlineMedia.id);
+          if (mediaList.length < originalLength) {
+            topic['media'] = mediaList;
+            topics[topicIndex] = topic;
+            updated = true;
+            break;
+          }
+        }
+
+        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+          final item = Map<String, dynamic>.from(items[itemIndex]);
+          
+          // Check item-level media
+          if (offlineMedia.itemId != null && item['id'] == offlineMedia.itemId && 
+              offlineMedia.detailId == null) {
+            final mediaList = List<Map<String, dynamic>>.from(item['media'] ?? []);
+            final originalLength = mediaList.length;
+            mediaList.removeWhere((m) => m['id'] == offlineMedia.id);
+            if (mediaList.length < originalLength) {
+              item['media'] = mediaList;
+              items[itemIndex] = item;
+              topic['items'] = items;
+              topics[topicIndex] = topic;
+              updated = true;
+              break;
+            }
+          }
+
+          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
+            final detail = Map<String, dynamic>.from(details[detailIndex]);
+            
+            // Check detail-level media
+            if (offlineMedia.detailId != null && detail['id'] == offlineMedia.detailId) {
+              // Regular detail media
+              final mediaList = List<Map<String, dynamic>>.from(detail['media'] ?? []);
+              final originalLength = mediaList.length;
+              mediaList.removeWhere((m) => m['id'] == offlineMedia.id);
+              if (mediaList.length < originalLength) {
+                detail['media'] = mediaList;
+                details[detailIndex] = detail;
+                item['details'] = details;
+                items[itemIndex] = item;
+                topic['items'] = items;
+                topics[topicIndex] = topic;
+                updated = true;
+                break;
+              }
+
+              // Check non-conformity media
+              final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+              for (int ncIndex = 0; ncIndex < nonConformities.length; ncIndex++) {
+                final nc = Map<String, dynamic>.from(nonConformities[ncIndex]);
+                final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
+                final originalLength = ncMedia.length;
+                ncMedia.removeWhere((m) => m['id'] == offlineMedia.id);
+                if (ncMedia.length < originalLength) {
+                  nc['media'] = ncMedia;
+                  nonConformities[ncIndex] = nc;
+                  detail['non_conformities'] = nonConformities;
+                  details[detailIndex] = detail;
+                  item['details'] = details;
+                  items[itemIndex] = item;
+                  topic['items'] = items;
+                  topics[topicIndex] = topic;
+                  updated = true;
+                  break;
+                }
+              }
+              if (updated) break;
+            }
+          }
+          if (updated) break;
+        }
+        if (updated) break;
+      }
+
+      if (updated) {
+        final updatedInspection = inspection.copyWith(topics: topics);
+        await _inspectionService.saveInspection(updatedInspection);
+        debugPrint('MediaService._removeMediaFromInspection: Successfully removed media ${offlineMedia.id} from inspection');
+      }
+    } catch (e) {
+      debugPrint('MediaService._removeMediaFromInspection: Error: $e');
+    }
+  }
+
+  // Deletar mídia online da estrutura da inspeção
+  Future<bool> _deleteOnlineMedia(String mediaId) async {
+    try {
+      // Buscar em todas as inspeções (isso pode ser otimizado com índices)
+      // Por enquanto, vamos buscar na inspeção atual se tivermos o contexto
+      debugPrint('MediaService._deleteOnlineMedia: Looking for online media $mediaId');
+      
+      // Aqui seria necessário ter uma forma de identificar qual inspeção contém a mídia
+      // Por enquanto, retornamos false para indicar que não conseguimos deletar
+      return false;
+      
+    } catch (e) {
+      debugPrint('MediaService._deleteOnlineMedia: Error: $e');
+      return false;
+    }
+  }
 }
 
-// Classes auxiliares para eventos de upload
+  // Classes auxiliares para eventos de upload
+
 class OfflineMediaUploadEvent {
   final String mediaId;
   final UploadStatus status;
@@ -1324,4 +1993,162 @@ enum UploadStatus {
   uploading,
   completed,
   error,
+}
+
+// Métodos adicionais para integração completa com OfflineService
+extension MediaServiceOfflineExtension on MediaService {
+  
+  /// Get offline media data as bytes for display
+  Future<List<int>?> getOfflineMediaBytes(String mediaId) async {
+    try {
+      final media = _offlineMediaBox?.get(mediaId);
+      if (media == null) return null;
+      
+      final file = File(media.localPath);
+      if (!await file.exists()) return null;
+      
+      return await file.readAsBytes();
+    } catch (e) {
+      debugPrint('MediaService.getOfflineMediaBytes: Error reading media $mediaId: $e');
+      return null;
+    }
+  }
+  
+  /// Delete offline media completely (file + metadata)
+  Future<bool> deleteOfflineMediaCompletely(String mediaId) async {
+    try {
+      final media = _offlineMediaBox?.get(mediaId);
+      if (media == null) return false;
+      
+      // Delete local file
+      final file = File(media.localPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      
+      // Remove from offline box
+      await _offlineMediaBox?.delete(mediaId);
+      
+      // Remove from inspection structure if needed
+      await _removeMediaFromInspection(media);
+      
+      debugPrint('MediaService.deleteOfflineMediaCompletely: Deleted offline media $mediaId completely');
+      return true;
+    } catch (e) {
+      debugPrint('MediaService.deleteOfflineMediaCompletely: Error deleting $mediaId: $e');
+      return false;
+    }
+  }
+  
+  /// Move offline media to new location
+  Future<bool> moveOfflineMedia(String mediaId, String? newTopicId, String? newItemId, String? newDetailId) async {
+    try {
+      final media = _offlineMediaBox?.get(mediaId);
+      if (media == null) return false;
+      
+      // Update media hierarchy
+      media.topicId = newTopicId;
+      media.itemId = newItemId;
+      media.detailId = newDetailId;
+      
+      await media.save();
+      
+      debugPrint('MediaService.moveOfflineMedia: Moved media $mediaId to topic:$newTopicId item:$newItemId detail:$newDetailId');
+      return true;
+    } catch (e) {
+      debugPrint('MediaService.moveOfflineMedia: Error moving $mediaId: $e');
+      return false;
+    }
+  }
+  
+  /// Get all offline media for inspection with full metadata
+  List<Map<String, dynamic>> getOfflineMediaForInspection(String inspectionId) {
+    if (_offlineMediaBox == null) return [];
+    
+    return _offlineMediaBox!.values
+        .where((media) => media.inspectionId == inspectionId)
+        .map((media) => {
+          'id': media.id,
+          'type': media.type,
+          'localPath': media.localPath,
+          'fileName': media.fileName,
+          'inspectionId': media.inspectionId,
+          'topicId': media.topicId,
+          'itemId': media.itemId,
+          'detailId': media.detailId,
+          'isProcessed': media.isProcessed,
+          'isUploaded': media.isUploaded,
+          'isDownloadedFromCloud': media.isDownloadedFromCloud,
+          'isLocallyCreated': media.isLocallyCreated,
+          'needsUpload': media.needsUpload,
+          'createdAt': media.createdAt.toIso8601String(),
+          'uploadUrl': media.uploadUrl,
+          'cloudUrl': media.cloudUrl,
+          'metadata': media.metadata,
+          'status': media.isUploaded ? 'uploaded' : 
+                   media.isProcessed ? 'pending' : 'processing',
+        })
+        .toList();
+  }
+  
+  /// Check if media file exists locally
+  bool isMediaAvailableLocally(String mediaId) {
+    final media = _offlineMediaBox?.get(mediaId);
+    if (media == null) return false;
+    
+    return File(media.localPath).existsSync();
+  }
+  
+  /// Get local file path for media
+  String? getLocalMediaPath(String mediaId) {
+    final media = _offlineMediaBox?.get(mediaId);
+    if (media == null) return null;
+    
+    final file = File(media.localPath);
+    return file.existsSync() ? media.localPath : null;
+  }
+  
+  /// Mark media for sync after offline modification
+  Future<void> markMediaForSync(String mediaId) async {
+    try {
+      final media = _offlineMediaBox?.get(mediaId);
+      if (media != null && media.isLocallyCreated) {
+        // Mark as needing upload (clear any errors)
+        media.errorMessage = null;
+        await media.save();
+        
+        // OFFLINE-FIRST: No automatic restart, manual sync only
+        debugPrint('MediaService.markMediaForSync: Media marked for sync, use manual sync to upload');
+      }
+    } catch (e) {
+      debugPrint('MediaService.markMediaForSync: Error marking $mediaId for sync: $e');
+    }
+  }
+  
+  /// Get offline media statistics for inspection
+  Map<String, int> getOfflineMediaStatsForInspection(String inspectionId) {
+    if (_offlineMediaBox == null) {
+      return {
+        'total': 0,
+        'downloaded': 0,
+        'locallyCreated': 0,
+        'uploaded': 0,
+        'pending': 0,
+        'errors': 0,
+      };
+    }
+    
+    final inspectionMedia = _offlineMediaBox!.values
+        .where((media) => media.inspectionId == inspectionId)
+        .toList();
+    
+    return {
+      'total': inspectionMedia.length,
+      'downloaded': inspectionMedia.where((m) => m.isDownloadedFromCloud).length,
+      'locallyCreated': inspectionMedia.where((m) => m.isLocallyCreated).length,
+      'uploaded': inspectionMedia.where((m) => m.isUploaded).length,
+      'pending': inspectionMedia.where((m) => m.needsUpload).length,
+      'errors': inspectionMedia.where((m) => m.hasError).length,
+    };
+  }
 }

@@ -2,7 +2,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:flutter/services.dart';
 
 enum CaptureMode { photo, video }
 
@@ -233,7 +232,7 @@ class _CustomCameraWidgetState extends State<CustomCameraWidget>
       right: 0,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        color: Colors.black.withOpacity(0.3),
+        color: Colors.black.withValues(alpha: 0.3),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -247,7 +246,7 @@ class _CustomCameraWidgetState extends State<CustomCameraWidget>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -276,7 +275,7 @@ class _CustomCameraWidgetState extends State<CustomCameraWidget>
       left: 0,
       right: 0,
       child: Container(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         child: Column(
           children: [
             _buildThumbnailGallery(),

@@ -5,7 +5,7 @@ import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/services/service_factory.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:inspection_app/presentation/widgets/media/custom_camera_widget.dart';
+import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 
 class TopicDetailsSection extends StatefulWidget {
   final Topic topic;
@@ -87,17 +87,20 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   
   void _captureTopicMedia() {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => CustomCameraWidget(
-        onMediaCaptured: _handleMediaCaptured,
+      builder: (context) => NativeCameraWidget(
+        onImagesSelected: _handleImagesSelected,
+        allowMultiple: true,
+        inspectionId: widget.inspectionId,
+        topicId: widget.topic.id,
       ),
     ));
   }
   
-  Future<void> _handleMediaCaptured(List<String> localPaths, String type) async {
-    if (mounted) setState(() => _processingCount += localPaths.length);
+  Future<void> _handleImagesSelected(List<String> imagePaths) async {
+    if (mounted) setState(() => _processingCount += imagePaths.length);
     
-    for (final path in localPaths) {
-      _processAndSaveMedia(path, type).whenComplete(() {
+    for (final path in imagePaths) {
+      _processAndSaveMedia(path, 'image').whenComplete(() {
         if (mounted) setState(() => _processingCount--);
       });
     }
@@ -191,6 +194,39 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     widget.onTopicAction();
   }
 
+  Future<void> _addTopicNonConformity() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _NonConformityDialog(),
+    );
+    
+    if (result != null && mounted) {
+      try {
+        await _serviceFactory.coordinator.addNonConformityToTopic(
+          widget.inspectionId,
+          widget.topic.id!,
+          result,
+        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Não conformidade adicionada ao tópico'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        widget.onTopicAction();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao adicionar não conformidade: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _deleteTopic() async {
     final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Excluir Tópico'), content: Text('Tem certeza que deseja excluir "${widget.topic.topicName}"?\n\nTodos os itens e detalhes serão excluídos permanentemente.'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')), TextButton(onPressed: () => Navigator.of(context).pop(true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Excluir'))]));
     if (confirmed != true) return;
@@ -214,11 +250,12 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          Wrap(
+            alignment: WrapAlignment.spaceEvenly,
             children: [
               _buildActionButton(icon: Icons.camera_alt, label: 'Capturar', onPressed: _captureTopicMedia, color: Colors.purple),
               _buildActionButton(icon: Icons.photo_library, label: 'Galeria', onPressed: _openTopicGallery, color: Colors.purple),
+              _buildActionButton(icon: Icons.warning, label: 'NC', onPressed: _addTopicNonConformity, color: Colors.orange),
               _buildActionButton(icon: Icons.edit, label: 'Renomear', onPressed: _renameTopic),
               _buildActionButton(icon: Icons.copy, label: 'Duplicar', onPressed: _duplicateTopic),
               _buildActionButton(icon: Icons.delete, label: 'Excluir', onPressed: _deleteTopic, color: Colors.red),
@@ -280,6 +317,89 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         ),
         const SizedBox(height: 2),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+      ],
+    );
+  }
+}
+
+class _NonConformityDialog extends StatefulWidget {
+  @override
+  State<_NonConformityDialog> createState() => _NonConformityDialogState();
+}
+
+class _NonConformityDialogState extends State<_NonConformityDialog> {
+  final _descriptionController = TextEditingController();
+  final _correctiveActionController = TextEditingController();
+  String _severity = 'Média';
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _correctiveActionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Nova Não Conformidade'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              value: _severity,
+              decoration: const InputDecoration(
+                labelText: 'Severidade',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
+                DropdownMenuItem(value: 'Média', child: Text('Média')),
+                DropdownMenuItem(value: 'Alta', child: Text('Alta')),
+              ],
+              onChanged: (value) => setState(() => _severity = value!),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Descrição',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _correctiveActionController,
+              decoration: const InputDecoration(
+                labelText: 'Ação Corretiva (opcional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_descriptionController.text.isNotEmpty) {
+              Navigator.of(context).pop({
+                'description': _descriptionController.text,
+                'severity': _severity,
+                'corrective_action': _correctiveActionController.text.isEmpty 
+                    ? null 
+                    : _correctiveActionController.text,
+              });
+            }
+          },
+          child: const Text('Adicionar'),
+        ),
       ],
     );
   }
