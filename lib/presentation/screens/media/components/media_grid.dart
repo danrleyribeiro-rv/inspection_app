@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/move_media_dialog.dart';
 
@@ -26,7 +26,7 @@ class MediaGrid extends StatefulWidget {
 
 class _MediaGridState extends State<MediaGrid> {
 
-  ServiceFactory get _serviceFactory => ServiceFactory();
+  EnhancedOfflineServiceFactory get _serviceFactory => EnhancedOfflineServiceFactory.instance;
 
   Future<void> _moveMedia(BuildContext context, Map<String, dynamic> mediaItem) async {
     final inspectionId = mediaItem['inspection_id'] as String? ?? mediaItem['inspectionId'] as String?;
@@ -114,37 +114,22 @@ class _MediaGridState extends State<MediaGrid> {
 
     if (confirmed == true) {
       try {
-        bool success;
-        
         // For offline-first architecture, always use media service
-        success = await _serviceFactory.mediaService.deleteMedia(mediaId);
+        await _serviceFactory.mediaService.deleteMedia(mediaId);
         
         if (mounted && context.mounted) {
-          if (success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  isOfflineMedia 
-                    ? 'Mídia offline excluída com sucesso!'
-                    : 'Imagem excluída com sucesso!'
-                ),
-                backgroundColor: Colors.green,
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isOfflineMedia 
+                  ? 'Mídia offline excluída com sucesso!'
+                  : 'Imagem excluída com sucesso!'
               ),
-            );
-            if (widget.onRefresh != null) {
-              widget.onRefresh!();
-            }
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  isOfflineMedia
-                    ? 'Erro ao excluir mídia offline'
-                    : 'Erro ao excluir imagem'
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
+              backgroundColor: Colors.green,
+            ),
+          );
+          if (widget.onRefresh != null) {
+            widget.onRefresh!();
           }
         }
       } catch (e) {
@@ -233,7 +218,7 @@ class _MediaGridState extends State<MediaGrid> {
       BuildContext context, Map<String, dynamic> mediaItem) {
     final bool isImage = mediaItem['type'] == 'image';
     final bool isNonConformity = mediaItem['is_non_conformity'] == true;
-    final String? displayPath = _serviceFactory.mediaService.getDisplayPath(mediaItem);
+    final String displayPath = mediaItem['local_path'] ?? mediaItem['url'] ?? '';
     final String? status = mediaItem['status'] as String?;
 
     // Format date
@@ -265,30 +250,27 @@ class _MediaGridState extends State<MediaGrid> {
     // Choose display widget
     Widget displayWidget;
     if (isImage) {
-      if (displayPath != null) {
-        // Determinar se é arquivo local ou URL
-        if (displayPath.startsWith('http') || displayPath.startsWith('https')) {
-          // É uma URL - usar widget de cache
-          displayWidget = CachedMediaImage(
-            mediaUrl: displayPath,
-            mediaId: mediaItem['id'] as String?,
-            fit: BoxFit.cover,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return _buildLoadingIndicator();
-            },
-            errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
-          );
-        } else {
-          // É um arquivo local
-          displayWidget = Image.file(
-            File(displayPath),
-            fit: BoxFit.cover,
-            errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
-          );
-        }
+      // displayPath is never null here based on earlier logic
+      // Determinar se é arquivo local ou URL
+      if (displayPath.startsWith('http') || displayPath.startsWith('https')) {
+        // É uma URL - usar widget de cache
+        displayWidget = CachedMediaImage(
+          mediaUrl: displayPath,
+          mediaId: mediaItem['id'] as String?,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _buildLoadingIndicator();
+          },
+          errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+        );
       } else {
-        displayWidget = _buildNoSourcePlaceholder('image');
+        // É um arquivo local
+        displayWidget = Image.file(
+          File(displayPath),
+          fit: BoxFit.cover,
+          errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+        );
       }
     } else {
       // Video
@@ -575,27 +557,5 @@ class _MediaGridState extends State<MediaGrid> {
     );
   }
 
-  Widget _buildNoSourcePlaceholder(String type) {
-    return Container(
-      color: Colors.grey.shade800,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            type == 'image' ? Icons.image_not_supported : Icons.videocam_off,
-            color: Colors.grey.shade400,
-            size: 32,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Sem fonte',
-            style: TextStyle(
-              color: Colors.grey.shade400,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Method removed - not used anywhere
 }

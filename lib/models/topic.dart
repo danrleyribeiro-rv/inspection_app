@@ -25,6 +25,29 @@ class Topic {
   });
 
   factory Topic.fromJson(Map<String, dynamic> json) {
+    // Converter boolean corretamente
+    bool? isDamaged;
+    if (json['is_damaged'] != null) {
+      if (json['is_damaged'] is bool) {
+        isDamaged = json['is_damaged'];
+      } else if (json['is_damaged'] is int) {
+        isDamaged = json['is_damaged'] == 1;
+      } else if (json['is_damaged'] is String) {
+        isDamaged = json['is_damaged'].toLowerCase() == 'true';
+      }
+    }
+    
+    // Converter tags corretamente
+    List<String>? tags;
+    if (json['tags'] != null) {
+      if (json['tags'] is List) {
+        tags = List<String>.from(json['tags']);
+      } else if (json['tags'] is String) {
+        final tagsString = json['tags'] as String;
+        tags = tagsString.isEmpty ? [] : tagsString.split(',');
+      }
+    }
+    
     return Topic(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
@@ -32,8 +55,8 @@ class Topic {
       topicName: json['topic_name'],
       topicLabel: json['topic_label'],
       observation: json['observation'],
-      isDamaged: json['is_damaged'],
-      tags: json['tags'] != null ? List<String>.from(json['tags']) : null,
+      isDamaged: isDamaged,
+      tags: tags,
       createdAt: json['created_at'] != null
           ? (json['created_at'] is String
               ? DateTime.parse(json['created_at'])
@@ -55,10 +78,12 @@ class Topic {
       'topic_name': topicName,
       'topic_label': topicLabel,
       'observation': observation,
-      'is_damaged': isDamaged,
-      'tags': tags,
+      'is_damaged': isDamaged == true ? 1 : 0,
+      'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+      'needs_sync': 1,
+      'is_deleted': 0,
     };
   }
 

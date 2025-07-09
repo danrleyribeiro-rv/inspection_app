@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:brasil_fields/brasil_fields.dart';
 import 'package:inspection_app/utils/constants.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> profile;
@@ -27,7 +27,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final _serviceFactory = ServiceFactory();
+  // final _serviceFactory = EnhancedOfflineServiceFactory.instance; // Removed - not used
 
   bool _isLoading = false;
   bool _isCepLoading = false;
@@ -205,16 +205,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       await _firestore.collection('inspectors').doc(userId).update(profileData);
 
+      // Upload profile image if selected
       if (_profileImage != null) {
-        final downloadUrl =
-            await _serviceFactory.mediaService.uploadProfileImage(
-          file: _profileImage!,
-          userId: userId,
-        );
-
-        await _firestore.collection('inspectors').doc(userId).update({
-          'profileImageUrl': downloadUrl,
-        });
+        try {
+          final mediaService = EnhancedOfflineServiceFactory.instance.mediaService;
+          await mediaService.uploadProfileImage(_profileImage!.path, userId);
+        } catch (e) {
+          debugPrint('Error uploading profile image: $e');
+        }
       }
 
       if (mounted) {

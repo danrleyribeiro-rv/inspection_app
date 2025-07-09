@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
-import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/services/features/media_service.dart';
 import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
 
 class MediaViewerScreen extends StatefulWidget {
@@ -26,14 +24,14 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late int _currentIndex;
   bool _showUI = true;
   final Map<int, VideoPlayerController?> _videoControllers = {};
-  late final MediaService _mediaService;
+  // MediaService removed - not used in this implementation
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    _mediaService = ServiceFactory().mediaService;
+    // MediaService initialization removed - not used
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
@@ -71,10 +69,10 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Widget _buildMediaWidget(Map<String, dynamic> media, int index) {
     final bool isImage = media['type'] == 'image';
-    final String? displayPath = _mediaService.getDisplayPath(media);
+    final String displayPath = media['local_path'] ?? media['url'] ?? '';
     
     // Check if media is available
-    if (displayPath == null) {
+    if (displayPath.isEmpty) {
       return _buildUnavailableWidget();
     }
 
@@ -90,8 +88,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     VideoPlayerController? controller = _videoControllers[index];
     if (controller == null) {
       // Get best available path using MediaService
-      final String? displayPath = _mediaService.getDisplayPath(media);
-      if (displayPath == null) {
+      final String displayPath = media['local_path'] ?? media['url'] ?? '';
+      if (displayPath.isEmpty) {
         return _buildUnavailableWidget();
       }
       

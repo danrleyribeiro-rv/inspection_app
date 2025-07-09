@@ -4,7 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/models/offline_media.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class MediaCapturePanel extends StatefulWidget {
   final String inspectionId;
@@ -29,13 +30,13 @@ class MediaCapturePanel extends StatefulWidget {
 }
 
 class _MediaCapturePanelState extends State<MediaCapturePanel> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
 
   String? _topicId;
   String? _itemId;
   String? _detailId;
   bool _isNonConformity = false;
-  String _observation = '';
+  // String _observation = ''; // Removed - not used
   bool _topicOnly = false;
 
   List<Item> _items = [];
@@ -79,10 +80,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     setState(() => _isLoadingItems = true);
 
     try {
-      final items = await _serviceFactory.coordinator.getItems(
-        widget.inspectionId,
-        topicId,
-      );
+      final items = await _serviceFactory.dataService.getItems(topicId);
 
       setState(() {
         _items = items;
@@ -98,11 +96,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
     setState(() => _isLoadingDetails = true);
 
     try {
-      final details = await _serviceFactory.coordinator.getDetails(
-        widget.inspectionId,
-        topicId,
-        itemId,
-      );
+      final details = await _serviceFactory.dataService.getDetails(itemId);
 
       setState(() {
         _details = details;
@@ -269,19 +263,26 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       setState(() => _isLoading = true);
 
       // Usar o novo sistema OfflineMedia
-      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
-        inputPath: filePath,
-        inspectionId: widget.inspectionId,
-        type: type,
-        topicId: _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
-        itemId: _detailId != null ? _itemId : null,
-        detailId: _detailId,
-        metadata: {
-          'source': isFromGallery ? 'gallery' : 'camera',
-          'is_non_conformity': _isNonConformity,
-          'observation': _observation.isEmpty ? null : _observation,
-        },
-      );
+      final OfflineMedia offlineMedia;
+      if (type == 'image') {
+        offlineMedia = await _serviceFactory.mediaService.capturePhoto(
+          imageFile: XFile(filePath),
+          inspectionId: widget.inspectionId,
+          topicId: _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
+          itemId: _detailId != null ? _itemId : null,
+          detailId: _detailId,
+          nonConformityId: _isNonConformity ? 'temp_nc_id' : null,
+        );
+      } else {
+        offlineMedia = await _serviceFactory.mediaService.captureVideo(
+          videoFile: XFile(filePath),
+          inspectionId: widget.inspectionId,
+          topicId: _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
+          itemId: _detailId != null ? _itemId : null,
+          detailId: _detailId,
+          nonConformityId: _isNonConformity ? 'temp_nc_id' : null,
+        );
+      }
 
       // Notificar o componente pai sobre a nova mídia
       widget.onMediaAdded(offlineMedia.localPath);
@@ -566,7 +567,7 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
               ),
               maxLines: 2,
               onChanged: (value) {
-                _observation = value;
+                // _observation = value; // Removed - not used
               },
             ),
             const SizedBox(height: 24),

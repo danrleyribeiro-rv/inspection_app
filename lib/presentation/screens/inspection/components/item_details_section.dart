@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/models/non_conformity.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
@@ -29,7 +30,7 @@ class ItemDetailsSection extends StatefulWidget {
 }
 
 class _ItemDetailsSectionState extends State<ItemDetailsSection> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   String _currentItemName = '';
@@ -73,7 +74,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     
     // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      _serviceFactory.coordinator.updateItem(updatedItem);
+      _serviceFactory.dataService.updateItem(updatedItem);
     });
   }
 
@@ -116,7 +117,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       final position = await _serviceFactory.mediaService.getCurrentLocation();
       
       // Usar o fluxo offline-first do MediaService
-      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
+      await _serviceFactory.mediaService.captureAndProcessMedia(
         inputPath: localPath,
         inspectionId: widget.inspectionId,
         type: type,
@@ -126,28 +127,14 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           'source': 'camera',
           'is_non_conformity': false,
           'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy
+            'latitude': position['latitude'],
+            'longitude': position['longitude'],
           } : null,
         },
       );
       
-      // Converter OfflineMedia para formato esperado pelo coordinator
-      final mediaData = {
-        'id': offlineMedia.id,
-        'type': offlineMedia.type,
-        'localPath': offlineMedia.localPath,
-        'url': offlineMedia.uploadUrl,
-        'aspect_ratio': '4:3',
-        'source': 'camera',
-        'is_non_conformity': false,
-        'created_at': offlineMedia.createdAt.toIso8601String(),
-        'updated_at': offlineMedia.createdAt.toIso8601String(),
-        'metadata': offlineMedia.metadata,
-      };
+      // A mídia já foi salva pelo MediaService, não precisa fazer nada mais
       
-      await _serviceFactory.coordinator.addMediaToItem(widget.inspectionId, widget.topic.id!, widget.item.id!, mediaData);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar mídia: $e')));
     }
@@ -180,7 +167,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       final updatedItem = widget.item.copyWith(itemName: newName, updatedAt: DateTime.now());
       setState(() => _currentItemName = newName);
       widget.onItemUpdated(updatedItem);
-      await _serviceFactory.coordinator.updateItem(updatedItem);
+      await _serviceFactory.dataService.updateItem(updatedItem);
     }
   }
 
@@ -188,7 +175,15 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Duplicar Item'), content: Text('Deseja duplicar o item "${widget.item.itemName}"?'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')), TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Duplicar'))]));
     if (confirmed != true) return;
     try {
-      await _serviceFactory.coordinator.duplicateItem(widget.inspectionId, widget.topic.id!, widget.item);
+      // Create a new item based on the current one
+      final newItem = widget.item.copyWith(
+        id: null, // Will be generated
+        itemName: '${widget.item.itemName} (Cópia)',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      await _serviceFactory.dataService.saveItem(newItem);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item duplicado com sucesso'), backgroundColor: Colors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao duplicar item: $e')));
@@ -204,12 +199,17 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     
     if (result != null && mounted) {
       try {
-        await _serviceFactory.coordinator.addNonConformityToItem(
-          widget.inspectionId,
-          widget.topic.id!,
-          widget.item.id!,
-          result,
+        // Create a non-conformity object
+        final nonConformity = NonConformity.create(
+          inspectionId: widget.inspectionId,
+          topicId: widget.topic.id,
+          itemId: widget.item.id,
+          title: result['description'], // Use description as title
+          description: result['description'],
+          severity: result['severity'].toLowerCase(),
         );
+        
+        await _serviceFactory.dataService.saveNonConformity(nonConformity);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -234,8 +234,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Excluir Item'), content: Text('Tem certeza que deseja excluir "${widget.item.itemName}"?\n\nTodos os detalhes serão excluídos permanentemente.'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')), TextButton(onPressed: () => Navigator.of(context).pop(true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Excluir'))]));
     if (confirmed != true) return;
     try {
-      await _serviceFactory.coordinator.deleteItem(widget.inspectionId, widget.topic.id!, widget.item.id!);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item excluído com sucesso'), backgroundColor: Colors.green));
+      if (widget.item.id != null) {
+        await _serviceFactory.dataService.deleteItem(widget.item.id!);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item excluído com sucesso'), backgroundColor: Colors.green));
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao excluir item: $e')));
     }

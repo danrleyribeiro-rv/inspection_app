@@ -1,30 +1,30 @@
 // lib/services/data/inspection_service.dart
 import 'package:flutter/foundation.dart';
 import 'package:inspection_app/models/inspection.dart';
-import 'package:inspection_app/services/utils/cache_service.dart';
+import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Import SQLiteStorageService
 
 /// InspectionService que funciona com dados locais
-/// Todas as operações são feitas usando o cache local
+/// Todas as operações são feitas usando o SQLiteStorageService
 class InspectionService {
-  final CacheService _cacheService = CacheService();
+  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService directly
 
   /// Obtém uma inspeção usando dados locais
   Future<Inspection?> getInspection(String inspectionId) async {
     try {
-      debugPrint('InspectionService.getInspection: Getting inspection $inspectionId from cache');
-      return await _cacheService.getInspection(inspectionId);
+      debugPrint('InspectionService.getInspection: Getting inspection $inspectionId from SQLite');
+      return await _localStorage.getInspection(inspectionId);
     } catch (e) {
       debugPrint('InspectionService.getInspection: Error: $e');
       return null;
     }
   }
 
-  /// Salva uma inspeção usando cache local
+  /// Salva uma inspeção usando SQLiteStorageService
   /// Marca automaticamente para sincronização posterior
   Future<void> saveInspection(Inspection inspection) async {
     try {
-      debugPrint('InspectionService.saveInspection: Saving inspection ${inspection.id} to cache');
-      await _cacheService.markAsLocallyModified(inspection.id, inspection.toJson());
+      debugPrint('InspectionService.saveInspection: Saving inspection ${inspection.id} to SQLite');
+      await _localStorage.saveInspection(inspection); // SQLiteStorageService handles marking for sync
     } catch (e) {
       debugPrint('InspectionService.saveInspection: Error: $e');
       rethrow;
@@ -32,22 +32,10 @@ class InspectionService {
   }
 
   /// Obtém todas as inspeções locais
-  Future<List<Inspection>> getAllInspections() async {
+  Future<List<Inspection>> getAllInspections(String inspectorId) async { // Added inspectorId parameter
     try {
-      debugPrint('InspectionService.getAllInspections: Getting all inspections from cache');
-      final cachedInspections = _cacheService.getAllCachedInspections();
-      final inspections = <Inspection>[];
-      
-      for (final cached in cachedInspections) {
-        try {
-          final inspection = Inspection.fromJson(cached.data);
-          inspections.add(inspection);
-        } catch (e) {
-          debugPrint('InspectionService.getAllInspections: Error parsing inspection ${cached.id}: $e');
-        }
-      }
-      
-      return inspections;
+      debugPrint('InspectionService.getAllInspections: Getting all inspections from SQLite');
+      return await _localStorage.getInspectionsByInspector(inspectorId); // Use getInspectionsByInspector
     } catch (e) {
       debugPrint('InspectionService.getAllInspections: Error: $e');
       return [];
@@ -55,43 +43,34 @@ class InspectionService {
   }
 
   /// Verifica se uma inspeção está disponível localmente
-  bool isInspectionAvailable(String inspectionId) {
-    return _cacheService.getCachedInspection(inspectionId) != null;
+  Future<bool> isInspectionAvailable(String inspectionId) async { // Made async
+    return await _localStorage.hasInspection(inspectionId);
   }
 
   /// Verifica se uma inspeção precisa ser sincronizada
-  bool needsSync(String inspectionId) {
-    final cached = _cacheService.getCachedInspection(inspectionId);
-    return cached?.needsSync ?? false;
+  Future<bool> needsSync(String inspectionId) async { // Made async
+    final inspection = await _localStorage.getInspection(inspectionId);
+    return (inspection?.hasLocalChanges ?? false) || !(inspection?.isSynced ?? true);
   }
 
-  /// Obtém o status de uma inspeção
+  /// Obtém o status de uma inspeção (this logic might need to be re-evaluated based on your status definitions)
   String? getInspectionStatus(String inspectionId) {
-    final cached = _cacheService.getCachedInspection(inspectionId);
-    return cached?.localStatus;
+    // This method's logic needs to be adapted if status is not directly available from Inspection model
+    // For now, returning null as it's not directly supported by SQLiteStorageService without fetching the full object
+    debugPrint('InspectionService.getInspectionStatus: Direct status retrieval not supported by SQLiteStorageService without fetching full object.');
+    return null;
   }
 
-  /// Remove uma inspeção do armazenamento local
+  /// Remove uma inspeção do armazenamento local (SQLiteStorageService does not have a direct deleteInspection method for now)
   Future<void> deleteInspection(String inspectionId) async {
-    try {
-      debugPrint('InspectionService.deleteInspection: Deleting inspection $inspectionId from cache');
-      final cached = _cacheService.getCachedInspection(inspectionId);
-      if (cached != null) {
-        await cached.delete();
-      }
-    } catch (e) {
-      debugPrint('InspectionService.deleteInspection: Error: $e');
-      rethrow;
-    }
+    debugPrint('InspectionService.deleteInspection: Direct deletion of inspection not yet implemented in SQLiteStorageService.');
+    // This would require a delete method in SQLiteStorageService for inspections
+    throw UnimplementedError('Deletion of inspection not yet implemented via SQLiteStorageService');
   }
 
   /// Obtém estatísticas do armazenamento local
-  Map<String, int> getStorageStats() {
-    final allCached = _cacheService.getAllCachedInspections();
-    return {
-      'total': allCached.length,
-      'needsSync': allCached.where((i) => i.needsSync).length,
-    };
+  Future<Map<String, int>> getStorageStats() async { // Made async
+    return await _localStorage.getStats();
   }
 
   /// MÉTODO DEPRECATED - mantido para compatibilidade

@@ -6,7 +6,7 @@ import 'package:inspection_app/presentation/screens/inspection/components/swipea
 import 'package:inspection_app/presentation/screens/inspection/components/topic_details_section.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/item_details_section.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/details_list_section.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class HierarchicalInspectionView extends StatefulWidget {
   final String inspectionId;
@@ -30,7 +30,7 @@ class HierarchicalInspectionView extends StatefulWidget {
 }
 
 class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
 
   int _currentTopicIndex = 0;
   int _currentItemIndex = 0;
@@ -92,9 +92,10 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
     widget.topics.insert(newIndex, item);
     setState(() {});
 
-    // Persiste a mudança
-    await _serviceFactory.coordinator.reorderTopics(
-        widget.inspectionId, widget.topics.map((t) => t.id!).toList());
+    // Persiste a mudança - pass the reordered topic IDs
+    final topicIds = widget.topics.map((t) => t.id!).toList();
+    await _serviceFactory.dataService.reorderTopics(
+        widget.inspectionId, topicIds);
     
     // Recarrega para garantir consistência
     await _reloadCurrentData();
@@ -113,9 +114,10 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
     widget.itemsCache[topicId] = items;
     setState(() {});
 
-    // Persiste a mudança
-    await _serviceFactory.coordinator
-        .reorderItems(widget.inspectionId, topicId, oldIndex, newIndex);
+    // Persiste a mudança - pass the reordered item IDs
+    final itemIds = items.map((i) => i.id!).toList();
+    await _serviceFactory.dataService
+        .reorderItems(topicId, itemIds);
 
     // Recarrega para garantir consistência
     await _handleItemUpdate();
@@ -126,10 +128,10 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
   }
 
   Future<void> _handleItemUpdate() async {
-    if (widget.topics[_currentTopicIndex].id != null) {
+    if (_currentTopicIndex < widget.topics.length) {
       final topicId = widget.topics[_currentTopicIndex].id!;
       final items =
-          await _serviceFactory.coordinator.getItems(widget.inspectionId, topicId);
+          await _serviceFactory.dataService.getItems(widget.topics[_currentTopicIndex].id!);
       widget.itemsCache[topicId] = items;
 
       if (_currentItemIndex >= items.length && items.isNotEmpty) {
@@ -141,13 +143,13 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
   }
 
   Future<void> _handleDetailUpdate() async {
-    if (widget.topics[_currentTopicIndex].id != null &&
+    if (_currentTopicIndex < widget.topics.length &&
         _currentItems.isNotEmpty &&
         _currentItemIndex < _currentItems.length) {
       final topicId = widget.topics[_currentTopicIndex].id!;
       final itemId = _currentItems[_currentItemIndex].id!;
-      final details = await _serviceFactory.coordinator
-          .getDetails(widget.inspectionId, topicId, itemId);
+      final details = await _serviceFactory.dataService
+          .getDetails(itemId);
       widget.detailsCache['${topicId}_$itemId'] = details;
     }
 
@@ -179,18 +181,13 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
 
                 return Column(
                   children: [
-                      // MODIFICADO: Usa FutureBuilder para obter o progresso do Tópico
-                      FutureBuilder<double>(
-                        key: ValueKey('topic_progress_${topic.id}'),
-                        future: _serviceFactory.coordinator
-                            .getTopicProgress(widget.inspectionId, topic.id!),
-                        builder: (context, snapshot) {
-                          return SwipeableLevelHeader(
-                            title: topic.topicName,
-                            subtitle: topic.topicLabel,
-                            currentIndex: topicIndex,
-                            totalCount: widget.topics.length,
-                            progress: snapshot.data ?? 0.0, // Passa o progresso
+                      // MODIFICADO: Usa progresso calculado diretamente
+                      SwipeableLevelHeader(
+                        title: topic.topicName,
+                        subtitle: topic.topicLabel,
+                        currentIndex: topicIndex,
+                        totalCount: widget.topics.length,
+                        progress: _calculateTopicProgress(topic),
                             items: widget.topics.map((t) => t.topicName).toList(),
                             hasObservation: topic.observation != null && topic.observation!.isNotEmpty,
                             onIndexChanged: (index) {
@@ -212,8 +209,6 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                 _isTopicExpanded && topicIndex == _currentTopicIndex,
                             level: 1,
                             icon: Icons.home_work_outlined,
-                          );
-                        },
                       ),
 
                       if (_isTopicExpanded && topicIndex == _currentTopicIndex)
@@ -259,9 +254,7 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
                                   // MODIFICADO: Usa FutureBuilder para obter o progresso do Item
                                   FutureBuilder<double>(
                                     key: ValueKey('item_progress_${item.id}'),
-                                    future: _serviceFactory.coordinator
-                                        .getItemProgress(widget.inspectionId,
-                                            topic.id!, item.id!),
+                                    future: _calculateItemProgress(item),
                                     builder: (context, snapshot) {
                                       if (snapshot.connectionState ==
                                               ConnectionState.waiting &&
@@ -510,5 +503,52 @@ class _HierarchicalInspectionViewState extends State<HierarchicalInspectionView>
         ],
       ),
     );
+  }
+
+  // Progress calculation methods
+  double _calculateTopicProgress(Topic topic) {
+    if (topic.id == null) return 0.0;
+    
+    final items = widget.itemsCache[topic.id] ?? [];
+    if (items.isEmpty) return 0.0;
+    
+    int totalItems = items.length;
+    int completedItems = 0;
+    
+    for (final item in items) {
+      if (item.id != null) {
+        final details = widget.detailsCache[item.id] ?? [];
+        if (details.isNotEmpty) {
+          final requiredDetails = details.where((d) => d.isRequired == true).toList();
+          if (requiredDetails.isNotEmpty) {
+            // Se tem detalhes obrigatórios, todos devem estar completos
+            final completedRequired = requiredDetails.where((d) => d.status == 'completed').toList();
+            if (completedRequired.length == requiredDetails.length) {
+              completedItems++;
+            }
+          } else {
+            // Se não tem detalhes obrigatórios, considera completo se tem pelo menos um detalhe preenchido
+            final completedDetails = details.where((d) => d.status == 'completed').toList();
+            if (completedDetails.isNotEmpty) {
+              completedItems++;
+            }
+          }
+        }
+      }
+    }
+    
+    return totalItems > 0 ? (completedItems / totalItems) : 0.0;
+  }
+  
+  Future<double> _calculateItemProgress(Item item) async {
+    if (item.id == null) return 0.0;
+    
+    final details = widget.detailsCache[item.id] ?? [];
+    if (details.isEmpty) return 0.0;
+    
+    int totalDetails = details.length;
+    int completedDetails = details.where((d) => d.status == 'completed').length;
+    
+    return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
   }
 }

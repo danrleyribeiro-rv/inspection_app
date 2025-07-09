@@ -2,7 +2,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';
 import 'package:inspection_app/presentation/screens/media/components/media_grid.dart';
@@ -37,7 +37,7 @@ class MediaGalleryScreen extends StatefulWidget {
 }
 
 class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   List<Map<String, dynamic>> _allMedia = [];
   List<Map<String, dynamic>> _filteredMedia = [];
   List<Topic> _topics = [];
@@ -78,7 +78,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     setState(() => _isLoading = true);
     try {
       // Check offline availability first
-      _isAvailableOffline = _serviceFactory.cacheService.getCachedInspection(widget.inspectionId) != null;
+      _isAvailableOffline = await _serviceFactory.dataService.getInspection(widget.inspectionId) != null;
 
       // Load data based on availability
       List<Map<String, dynamic>> allMedia;
@@ -88,15 +88,15 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         // Load from offline storage
         final results = await Future.wait([
           _loadOfflineMedia(),
-          _serviceFactory.coordinator.getTopics(widget.inspectionId),
+          _serviceFactory.dataService.getTopics(widget.inspectionId),
         ]);
         allMedia = results[0] as List<Map<String, dynamic>>;
         topics = results[1] as List<Topic>;
       } else {
         // Load from regular cache/cloud
         final results = await Future.wait([
-          _serviceFactory.mediaService.getAllMedia(widget.inspectionId),
-          _serviceFactory.coordinator.getTopics(widget.inspectionId),
+          _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId),
+          _serviceFactory.dataService.getTopics(widget.inspectionId),
         ]);
         allMedia = results[0] as List<Map<String, dynamic>>;
         topics = results[1] as List<Topic>;
@@ -124,11 +124,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   Future<List<Map<String, dynamic>>> _loadOfflineMedia() async {
     try {
       // Get all offline media for this inspection
-      final offlineMediaList = await _serviceFactory.cacheService.getPendingMediaForInspection(widget.inspectionId);
+      final offlineMediaList = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
       
-      // The offlineMediaList is already a list of Map<String, dynamic>
-      // Just return it directly since it's in the expected format
-      return offlineMediaList;
+      // Convert OfflineMedia objects to Map<String, dynamic>
+      return offlineMediaList.map((media) => media.toJson()).toList();
     } catch (e) {
       debugPrint('MediaGalleryScreen._loadOfflineMedia: Error loading offline media: $e');
       return [];
@@ -157,18 +156,28 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     _applyFilters();
   }
 
-  void _applyFilters() {
+  void _applyFilters() async {
+    List<Map<String, dynamic>> filteredMedia = _allMedia;
+    
+    // Apply filters directly
+    if (_selectedTopicId != null) {
+      filteredMedia = filteredMedia.where((media) => media['topic_id'] == _selectedTopicId).toList();
+    }
+    if (_selectedItemId != null) {
+      filteredMedia = filteredMedia.where((media) => media['item_id'] == _selectedItemId).toList();
+    }
+    if (_selectedDetailId != null) {
+      filteredMedia = filteredMedia.where((media) => media['detail_id'] == _selectedDetailId).toList();
+    }
+    if (_selectedMediaType != null) {
+      filteredMedia = filteredMedia.where((media) => media['type'] == _selectedMediaType).toList();
+    }
+    if (_selectedIsNonConformityOnly == true) {
+      filteredMedia = filteredMedia.where((media) => media['non_conformity_id'] != null).toList();
+    }
+    
     setState(() {
-      _filteredMedia = _serviceFactory.coordinator.filterMedia(
-        allMedia: _allMedia,
-        topicId: _selectedTopicId,
-        itemId: _selectedItemId,
-        detailId: _selectedDetailId,
-        isNonConformityOnly: _selectedIsNonConformityOnly,
-        mediaType: _selectedMediaType,
-        topicOnly: _topicOnly,
-        itemOnly: _itemOnly,
-      );
+      _filteredMedia = filteredMedia;
       _updateActiveFiltersCount();
     });
   }

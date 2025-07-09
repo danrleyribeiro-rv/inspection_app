@@ -1,18 +1,16 @@
 // lib/services/data/item_service.dart
+import 'package:flutter/foundation.dart'; // Added for debugPrint
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/services/data/detail_service.dart';
-import 'package:inspection_app/services/data/inspection_service.dart';
-import 'package:inspection_app/services/utils/cache_service.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
 
 class ItemService {
-  final InspectionService _inspectionService = InspectionService();
+  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
   DetailService get _detailService => DetailService();
-  CacheService get _cacheService => ServiceFactory().cacheService;
 
   Future<List<Item>> getItems(String inspectionId, String topicId) async {
     try {
-      final inspection = await _inspectionService.getInspection(inspectionId);
+      final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
       final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
       if (inspection?.topics != null &&
           topicIndex != null &&
@@ -20,29 +18,9 @@ class ItemService {
         final topic = inspection.topics![topicIndex];
         return _extractItems(inspectionId, topicId, topic);
       }
-      
-      // Fallback to cache
-      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
-      if (cachedInspection != null && topicIndex != null) {
-        final topics = cachedInspection.data['topics'] as List<dynamic>?;
-        if (topics != null && topicIndex < topics.length) {
-          final topic = topics[topicIndex];
-          return _extractItems(inspectionId, topicId, topic);
-        }
-      }
-
       return [];
     } catch (e) {
-      // Final fallback to cache
-      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
-      final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
-      if (cachedInspection != null && topicIndex != null) {
-        final topics = cachedInspection.data['topics'] as List<dynamic>?;
-        if (topics != null && topicIndex < topics.length) {
-          final topic = topics[topicIndex];
-          return _extractItems(inspectionId, topicId, topic);
-        }
-      }
+      debugPrint('ItemService.getItems: Error getting items: $e');
       return [];
     }
   }
@@ -79,17 +57,40 @@ class ItemService {
       throw Exception('Invalid topic ID');
     }
 
-    final existingItems = await getItems(inspectionId, topicId);
-    final newPosition = existingItems.length;
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    if (inspection == null) {
+      throw Exception('Inspection not found: $inspectionId');
+    }
+
+    final existingTopics = inspection.topics ?? [];
+    if (topicIndex < 0 || topicIndex >= existingTopics.length) {
+      throw Exception('Topic index out of bounds: $topicIndex');
+    }
+
+    final topic = Map<String, dynamic>.from(existingTopics[topicIndex]);
+    final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+    final newPosition = items.length;
 
     final newItemData = {
       'name': itemName,
       'description': description,
       'observation': observation,
       'details': <Map<String, dynamic>>[],
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
 
-    await _addItemToTopic(inspectionId, topicIndex, newItemData);
+    items.add(newItemData);
+    topic['items'] = items;
+
+    final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
+    updatedTopics[topicIndex] = topic;
+
+    final updatedInspection = inspection.copyWith(
+      topics: updatedTopics,
+      updatedAt: DateTime.now(),
+    );
+    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
     return Item(
       id: 'item_$newPosition',
@@ -111,19 +112,29 @@ class ItemService {
         int.tryParse(updatedItem.id?.replaceFirst('item_', '') ?? '');
     if (topicIndex != null && itemIndex != null) {
       final inspection =
-          await _cacheService.getInspection(updatedItem.inspectionId);
+          await _localStorage.getInspection(updatedItem.inspectionId); // Get from SQLite
       if (inspection?.topics != null &&
           topicIndex < inspection!.topics!.length) {
-        final topic = inspection.topics![topicIndex];
+        final topic = Map<String, dynamic>.from(inspection.topics![topicIndex]);
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final currentItemData = Map<String, dynamic>.from(items[itemIndex]);
           currentItemData['name'] = updatedItem.itemName;
           currentItemData['description'] = updatedItem.itemLabel;
           currentItemData['observation'] = updatedItem.observation;
+          currentItemData['updated_at'] = DateTime.now().toIso8601String();
 
-          await _updateItemAtIndex(
-              updatedItem.inspectionId, topicIndex, itemIndex, currentItemData);
+          items[itemIndex] = currentItemData;
+          topic['items'] = items;
+
+          final updatedTopics = List<Map<String, dynamic>>.from(inspection.topics!);
+          updatedTopics[topicIndex] = topic;
+
+          final updatedInspection = inspection.copyWith(
+            topics: updatedTopics,
+            updatedAt: DateTime.now(),
+          );
+          await _localStorage.saveInspection(updatedInspection); // Save to SQLite
         }
       }
     }
@@ -139,59 +150,66 @@ class ItemService {
       throw Exception('Invalid topic ID');
     }
 
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
-      final topic = Map<String, dynamic>.from(inspection.topics![topicIndex]);
-      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-
-      final sourceItemIndex =
-          int.tryParse(sourceItem.id?.replaceFirst('item_', '') ?? '');
-      if (sourceItemIndex == null || sourceItemIndex >= items.length) {
-        throw Exception('Source item not found');
-      }
-
-      final sourceItemData = Map<String, dynamic>.from(items[sourceItemIndex]);
-
-      final duplicateItemData = Map<String, dynamic>.from(sourceItemData);
-      duplicateItemData['name'] = '${sourceItem.itemName} (cópia)';
-
-      if (duplicateItemData['details'] is List) {
-        final details =
-            List<Map<String, dynamic>>.from(duplicateItemData['details']);
-        for (int i = 0; i < details.length; i++) {
-          details[i] = Map<String, dynamic>.from(details[i]);
-          details[i]['media'] = <Map<String, dynamic>>[];
-          details[i]['non_conformities'] = <Map<String, dynamic>>[];
-          details[i]['value'] = null;
-          details[i]['observation'] = null;
-          details[i]['is_damaged'] = false;
-        }
-        duplicateItemData['details'] = details;
-      }
-
-      items.add(duplicateItemData);
-      topic['items'] = items;
-
-      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-      topics[topicIndex] = topic;
-
-      await _cacheService
-          .saveInspection(inspection.copyWith(topics: topics));
-
-      return Item(
-        id: 'item_${items.length - 1}',
-        inspectionId: inspectionId,
-        topicId: topicId,
-        position: items.length - 1,
-        itemName: '${sourceItem.itemName} (cópia)',
-        itemLabel: sourceItem.itemLabel,
-        observation: sourceItem.observation,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    if (inspection == null) {
+      throw Exception('Inspection not found');
     }
 
-    throw Exception('Failed to duplicate item');
+    final existingTopics = inspection.topics ?? [];
+    if (topicIndex < 0 || topicIndex >= existingTopics.length) {
+      throw Exception('Topic index out of bounds: $topicIndex');
+    }
+
+    final topic = Map<String, dynamic>.from(existingTopics[topicIndex]);
+    final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+
+    final sourceItemIndex =
+        int.tryParse(sourceItem.id?.replaceFirst('item_', '') ?? '');
+    if (sourceItemIndex == null || sourceItemIndex >= items.length) {
+      throw Exception('Source item not found');
+    }
+
+    final sourceItemData = Map<String, dynamic>.from(items[sourceItemIndex]);
+
+    final duplicateItemData = Map<String, dynamic>.from(sourceItemData);
+    duplicateItemData['name'] = '${sourceItem.itemName} (cópia)';
+
+    if (duplicateItemData['details'] is List) {
+      final details =
+          List<Map<String, dynamic>>.from(duplicateItemData['details']);
+      for (int i = 0; i < details.length; i++) {
+        details[i] = Map<String, dynamic>.from(details[i]);
+        details[i]['media'] = <Map<String, dynamic>>[];
+        details[i]['non_conformities'] = <Map<String, dynamic>>[];
+        details[i]['value'] = null;
+        details[i]['observation'] = null;
+        details[i]['is_damaged'] = false;
+      }
+      duplicateItemData['details'] = details;
+    }
+    duplicateItemData['created_at'] = DateTime.now().toIso8601String();
+    duplicateItemData['updated_at'] = DateTime.now().toIso8601String();
+
+    items.add(duplicateItemData);
+    topic['items'] = items;
+
+    final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
+    updatedTopics[topicIndex] = topic;
+
+    final updatedInspection = inspection.copyWith(topics: updatedTopics);
+    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+
+    return Item(
+      id: 'item_${items.length - 1}',
+      inspectionId: inspectionId,
+      topicId: topicId,
+      position: items.length - 1,
+      itemName: '${sourceItem.itemName} (cópia)',
+      itemLabel: sourceItem.itemLabel,
+      observation: sourceItem.observation,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
   }
 
   Future<void> deleteItem(
@@ -208,7 +226,7 @@ class ItemService {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     if (topicIndex == null) return;
 
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -231,8 +249,8 @@ class ItemService {
       topic['items'] = items;
       topics[topicIndex] = topic;
 
-      await _cacheService
-          .saveInspection(inspection.copyWith(topics: topics));
+      final updatedInspection = inspection.copyWith(topics: topics);
+      await _localStorage.saveInspection(updatedInspection); // Save to SQLite
     }
   }
 
@@ -259,45 +277,9 @@ class ItemService {
     return items;
   }
 
-  Future<void> _addItemToTopic(
-      String inspectionId, int topicIndex, Map<String, dynamic> newItem) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    if (inspection != null && inspection.topics != null) {
-      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-      if (topicIndex < topics.length) {
-        final topic = Map<String, dynamic>.from(topics[topicIndex]);
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        items.add(newItem);
-        topic['items'] = items;
-        topics[topicIndex] = topic;
-        await _cacheService
-            .saveInspection(inspection.copyWith(topics: topics));
-      }
-    }
-  }
-
-  Future<void> _updateItemAtIndex(String inspectionId, int topicIndex,
-      int itemIndex, Map<String, dynamic> updatedItem) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    if (inspection != null && inspection.topics != null) {
-      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-      if (topicIndex < topics.length) {
-        final topic = Map<String, dynamic>.from(topics[topicIndex]);
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-        if (itemIndex < items.length) {
-          items[itemIndex] = updatedItem;
-          topic['items'] = items;
-          topics[topicIndex] = topic;
-          await _cacheService
-              .saveInspection(inspection.copyWith(topics: topics));
-        }
-      }
-    }
-  }
-
   Future<void> _deleteItemAtIndex(
       String inspectionId, int topicIndex, int itemIndex) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -307,8 +289,8 @@ class ItemService {
           items.removeAt(itemIndex);
           topic['items'] = items;
           topics[topicIndex] = topic;
-          await _cacheService
-              .saveInspection(inspection.copyWith(topics: topics));
+          final updatedInspection = inspection.copyWith(topics: topics);
+          await _localStorage.saveInspection(updatedInspection); // Save to SQLite
         }
       }
     }

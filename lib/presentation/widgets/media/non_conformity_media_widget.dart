@@ -1,6 +1,7 @@
 // lib/presentation/widgets/media/non_conformity_media_widget.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:inspection_app/models/non_conformity.dart';
 import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
@@ -33,7 +34,7 @@ class NonConformityMediaWidget extends StatefulWidget {
 }
 
 class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   int _processingCount = 0;
 
   void _showCameraCapture() {
@@ -54,7 +55,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       final nonConformityId = '${widget.inspectionId}-${hierarchyIds['topicId']}-${hierarchyIds['itemId']}-${hierarchyIds['detailId']}-nc_${widget.ncIndex}';
       
       // Buscar todas as não conformidades para encontrar a específica
-      final allNonConformities = await _serviceFactory.coordinator.getNonConformitiesByInspection(widget.inspectionId);
+      final allNonConformitiesObjects = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+      final allNonConformities = allNonConformitiesObjects.map((nc) => nc.toJson()).toList();
       
       Map<String, dynamic>? targetNC;
       for (final nc in allNonConformities) {
@@ -81,7 +83,22 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         
         if (result != null) {
           // Atualizar a não conformidade
-          await _serviceFactory.coordinator.updateNonConformity(nonConformityId, result);
+          final nonConformity = NonConformity(
+            id: nonConformityId,
+            inspectionId: result['inspection_id'] ?? widget.inspectionId,
+            topicId: result['topic_id'],
+            itemId: result['item_id'],
+            detailId: result['detail_id'],
+            title: result['title'] ?? '',
+            description: result['description'] ?? '',
+            severity: result['severity'] ?? 'medium',
+            status: result['status'] ?? 'open',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            needsSync: true,
+            isDeleted: false,
+          );
+          await _serviceFactory.dataService.updateNonConformity(nonConformity);
           
           // Notificar o parent para atualizar a UI
           widget.onNonConformityUpdated?.call();
@@ -157,7 +174,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
   Future<Map<String, String?>> _getHierarchyIds() async {
     try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics == null) {
         return {'topicId': 'topic_${widget.topicIndex}', 'itemId': 'item_${widget.itemIndex}', 'detailId': 'detail_${widget.detailIndex}'};
       }
@@ -208,7 +225,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       debugPrint('  NCIndex: ${widget.ncIndex}');
       
       // Usar o fluxo offline-first do MediaService
-      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
+      await _serviceFactory.mediaService.captureAndProcessMedia(
         inputPath: localPath,
         inspectionId: widget.inspectionId,
         type: type,
@@ -220,32 +237,14 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           'is_non_conformity': true,
           'nc_index': widget.ncIndex,
           'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy
+            'latitude': position['latitude'],
+            'longitude': position['longitude'],
           } : null,
         },
       );
       
-      debugPrint('NonConformityMediaWidget: OfflineMedia created with ID: ${offlineMedia.id}');
-      
-      // Converter OfflineMedia para formato esperado pelo coordinator
-      final mediaData = {
-        'id': offlineMedia.id,
-        'type': offlineMedia.type,
-        'localPath': offlineMedia.localPath,
-        'url': offlineMedia.uploadUrl,
-        'aspect_ratio': '4:3',
-        'source': 'camera',
-        'is_non_conformity': true,
-        'created_at': offlineMedia.createdAt.toIso8601String(),
-        'updated_at': offlineMedia.createdAt.toIso8601String(),
-        'metadata': offlineMedia.metadata,
-      };
-
-      await _saveMediaToInspection(mediaData);
-      debugPrint('NonConformityMediaWidget: Media saved to inspection');
-      widget.onMediaAdded(offlineMedia.localPath);
+      // Media already saved by service, just notify callback
+      widget.onMediaAdded(localPath);
 
     } catch (e) {
       if (mounted) {
@@ -256,42 +255,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     }
   }
 
-  Future<void> _saveMediaToInspection(Map<String, dynamic> mediaData) async {
-    final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
-    if (inspection?.topics != null && widget.topicIndex < inspection!.topics!.length) {
-      final topics = List<Map<String, dynamic>>.from(inspection.topics!);
-      final topic = topics[widget.topicIndex];
-      final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-
-      if (widget.itemIndex < items.length) {
-        final item = items[widget.itemIndex];
-        final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
-
-        if (widget.detailIndex < details.length) {
-          final detail = Map<String, dynamic>.from(details[widget.detailIndex]);
-          final nonConformities = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
-
-          if (widget.ncIndex < nonConformities.length) {
-            final nc = Map<String, dynamic>.from(nonConformities[widget.ncIndex]);
-            final ncMedia = List<Map<String, dynamic>>.from(nc['media'] ?? []);
-
-            ncMedia.add(mediaData);
-            nc['media'] = ncMedia;
-            nonConformities[widget.ncIndex] = nc;
-            detail['non_conformities'] = nonConformities;
-            details[widget.detailIndex] = detail;
-            item['details'] = details;
-            items[widget.itemIndex] = item;
-            topic['items'] = items;
-            topics[widget.topicIndex] = topic;
-
-            final updatedInspection = inspection.copyWith(topics: topics);
-            await _serviceFactory.coordinator.saveInspection(updatedInspection);
-          }
-        }
-      }
-    }
-  }
+  // Method removed - media is now handled directly by the service
 
   @override
   Widget build(BuildContext context) {

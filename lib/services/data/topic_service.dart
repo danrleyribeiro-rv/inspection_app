@@ -1,41 +1,25 @@
-// lib/services/data/topic_service.dart
 import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/data/inspection_service.dart';
 import 'package:inspection_app/services/data/item_service.dart';
-import 'package:inspection_app/services/utils/cache_service.dart';
-import 'package:inspection_app/services/service_factory.dart';
-import 'package:inspection_app/services/features/template_service.dart';
+import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:inspection_app/services/features/template_service.dart'; // Import TemplateService directly
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+
 class TopicService {
-  final InspectionService _inspectionService = InspectionService();
   ItemService get _itemService => ItemService();
-  CacheService get _cacheService => ServiceFactory().cacheService;
-  TemplateService get _templateService => ServiceFactory().templateService;
+  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
+  final TemplateService _templateService = TemplateService(); // Use TemplateService directly
 
   Future<List<Topic>> getTopics(String inspectionId) async {
     try {
-      final inspection = await _inspectionService.getInspection(inspectionId);
+      final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
       if (inspection != null) {
         return _extractTopics(inspectionId, inspection.topics);
       }
-      
-      // Fallback to cache if inspection service fails
-      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
-      if (cachedInspection != null) {
-        final topics = cachedInspection.data['topics'] as List<dynamic>?;
-        return _extractTopics(inspectionId, topics);
-      }
-      
       return [];
     } catch (e) {
-      // Final fallback to cache
-      final cachedInspection = _cacheService.getCachedInspection(inspectionId);
-      if (cachedInspection != null) {
-        final topics = cachedInspection.data['topics'] as List<dynamic>?;
-        return _extractTopics(inspectionId, topics);
-      }
+      debugPrint('TopicService.getTopics: Error getting topics: $e');
       return [];
     }
   }
@@ -59,17 +43,30 @@ class TopicService {
 
   Future<Topic> addTopic(String inspectionId, String topicName,
       {String? label, int? position, String? observation}) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    final existingTopics = inspection?.topics ?? [];
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    if (inspection == null) {
+      throw Exception('Inspection not found: $inspectionId');
+    }
+
+    final existingTopics = inspection.topics ?? [];
     final newPosition = position ?? existingTopics.length;
     final newTopicData = {
       'name': topicName,
       'description': label,
       'observation': observation,
       'items': <Map<String, dynamic>>[],
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
 
-    await _addTopicToInspection(inspectionId, newTopicData);
+    final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
+    updatedTopics.add(newTopicData);
+
+    final updatedInspection = inspection.copyWith(
+      topics: updatedTopics,
+      updatedAt: DateTime.now(),
+    );
+    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
     return Topic(
       id: 'topic_$newPosition',
@@ -87,8 +84,12 @@ Future<Topic> addTopicFromTemplate(
   String inspectionId,
   Map<String, dynamic> templateData,
 ) async {
-  final inspection = await _inspectionService.getInspection(inspectionId);
-  final existingTopics = inspection?.topics ?? [];
+  final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+  if (inspection == null) {
+    throw Exception('Inspection not found: $inspectionId');
+  }
+
+  final existingTopics = inspection.topics ?? [];
   final newPosition = existingTopics.length;
   String topicName = templateData['name'] as String;
   final isCustom = templateData['isCustom'] as bool? ?? false;
@@ -114,6 +115,8 @@ Future<Topic> addTopicFromTemplate(
       'description': templateData['value'],
       'observation': null,
       'items': <Map<String, dynamic>>[],
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   } else {
     // Usar dados completos do template
@@ -127,7 +130,14 @@ Future<Topic> addTopicFromTemplate(
     }
   }
 
-  await _addTopicToInspection(inspectionId, newTopicData);
+  final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
+  updatedTopics.add(newTopicData);
+
+  final updatedInspection = inspection.copyWith(
+    topics: updatedTopics,
+    updatedAt: DateTime.now(),
+  );
+  await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
   return Topic(
     id: 'topic_$newPosition',
@@ -143,17 +153,16 @@ Future<Topic> addTopicFromTemplate(
 
   Future<void> updateTopic(Topic updatedTopic) async {
     try {
-      final inspection = await _cacheService.getInspection(updatedTopic.inspectionId);
+      final inspection = await _localStorage.getInspection(updatedTopic.inspectionId); // Get from SQLite
       if (inspection?.topics != null) {
         final topicIndex = int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
         if (topicIndex != null && topicIndex < inspection!.topics!.length) {
-          final currentTopicData = _cacheService.ensureStringDynamicMap(inspection.topics![topicIndex]);
+          final currentTopicData = Map<String, dynamic>.from(inspection.topics![topicIndex]);
           currentTopicData['name'] = updatedTopic.topicName;
           currentTopicData['description'] = updatedTopic.topicLabel;
           currentTopicData['observation'] = updatedTopic.observation;
           currentTopicData['updated_at'] = DateTime.now().toIso8601String();
           
-          // Save immediately to cache for offline persistence
           final updatedTopics = List<Map<String, dynamic>>.from(inspection.topics!);
           updatedTopics[topicIndex] = currentTopicData;
           
@@ -162,10 +171,9 @@ Future<Topic> addTopicFromTemplate(
             updatedAt: DateTime.now(),
           );
           
-          // Mark as locally modified to ensure sync when online
-          await _cacheService.markAsLocallyModified(updatedTopic.inspectionId, updatedInspection.toMap());
+          await _localStorage.saveInspection(updatedInspection); // Save to SQLite
           
-          debugPrint('TopicService.updateTopic: Topic ${updatedTopic.id} updated offline, will sync when online');
+          debugPrint('TopicService.updateTopic: Topic ${updatedTopic.id} updated offline');
         }
       }
     } catch (e) {
@@ -176,14 +184,14 @@ Future<Topic> addTopicFromTemplate(
 
   Future<Topic> duplicateTopic(
       String inspectionId, Topic sourceTopic) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    if (inspection?.topics == null) {
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    if (inspection == null) {
       throw Exception('Inspection not found');
     }
     final sourceTopicIndex =
         int.tryParse(sourceTopic.id?.replaceFirst('topic_', '') ?? '');
     if (sourceTopicIndex == null ||
-        sourceTopicIndex >= inspection!.topics!.length) {
+        sourceTopicIndex >= inspection.topics!.length) {
       throw Exception('Source topic not found');
     }
 
@@ -215,8 +223,17 @@ Future<Topic> addTopicFromTemplate(
       }
       duplicateTopicData['items'] = items;
     }
+    duplicateTopicData['created_at'] = DateTime.now().toIso8601String();
+    duplicateTopicData['updated_at'] = DateTime.now().toIso8601String();
 
-    await _addTopicToInspection(inspectionId, duplicateTopicData);
+    final updatedTopics = List<Map<String, dynamic>>.from(inspection.topics!);
+    updatedTopics.add(duplicateTopicData);
+
+    final updatedInspection = inspection.copyWith(
+      topics: updatedTopics,
+      updatedAt: DateTime.now(),
+    );
+    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
     return Topic(
       id: 'topic_${inspection.topics!.length}',
@@ -239,7 +256,7 @@ Future<Topic> addTopicFromTemplate(
 
   Future<void> reorderTopics(
       String inspectionId, List<String> topicIds) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
       final reorderedTopics = <Map<String, dynamic>>[];
@@ -250,8 +267,11 @@ Future<Topic> addTopicFromTemplate(
         }
       }
 
-      await _cacheService
-          .saveInspection(inspection.copyWith(topics: reorderedTopics));
+      final updatedInspection = inspection.copyWith(
+        topics: reorderedTopics,
+        updatedAt: DateTime.now(),
+      );
+      await _localStorage.saveInspection(updatedInspection); // Save to SQLite
     }
   }
 
@@ -398,26 +418,20 @@ Future<Topic> addTopicFromTemplate(
     return topics;
   }
 
-  Future<void> _addTopicToInspection(
-      String inspectionId, Map<String, dynamic> newTopic) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
-    final topics = inspection?.topics != null
-        ? List<Map<String, dynamic>>.from(inspection!.topics!)
-        : <Map<String, dynamic>>[];
-    topics.add(newTopic);
-    await _cacheService
-        .saveInspection(inspection!.copyWith(topics: topics));
-  }
+  // Method removed - not used anywhere
 
 
   Future<void> _deleteTopicAtIndex(String inspectionId, int topicIndex) async {
-    final inspection = await _inspectionService.getInspection(inspectionId);
+    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
         topics.removeAt(topicIndex);
-        await _inspectionService
-            .saveInspection(inspection.copyWith(topics: topics));
+        final updatedInspection = inspection.copyWith(
+          topics: topics,
+          updatedAt: DateTime.now(),
+        );
+        await _localStorage.saveInspection(updatedInspection); // Save to SQLite
       }
     }
   }
@@ -490,7 +504,7 @@ Future<Topic> addTopicFromTemplate(
 
   Future<Topic> addTopicFromTemplateOffline(String inspectionId, Map<String, dynamic> topicTemplate) async {
     try {
-      final inspection = await _cacheService.getInspection(inspectionId);
+      final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
       if (inspection == null) {
         throw Exception('Inspection not found in cache');
       }
@@ -538,8 +552,7 @@ Future<Topic> addTopicFromTemplate(
         updatedAt: DateTime.now(),
       );
 
-      // Save to cache with sync flag
-      await _cacheService.markAsLocallyModified(inspectionId, updatedInspection.toMap());
+      await _localStorage.saveInspection(updatedInspection); // Save to SQLite
       
       debugPrint('TopicService.addTopicFromTemplateOffline: Added topic "$finalTopicName" from template offline');
 

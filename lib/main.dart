@@ -13,8 +13,7 @@ import 'package:inspection_app/presentation/screens/auth/reset_password_screen.d
 import 'package:inspection_app/presentation/screens/home/home_screen.dart';
 import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
 import 'package:inspection_app/services/core/firebase_service.dart';
-import 'package:inspection_app/services/utils/cache_service.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:inspection_app/firebase_options.dart';
 
@@ -28,12 +27,12 @@ Future<void> main() async {
   await dotenv.load(fileName: ".env");
 
   // 2. Inicializa serviços de base que não dependem de outros (são estáticos)
-  await CacheService.initialize(); // Prepara o Hive e registra adapters
   await FirebaseService.initialize();
-
-  // 3. Inicializa todos os serviços da aplicação através do ServiceFactory
-  //    Esta única chamada agora cria todas as instâncias e resolve as dependências.
-  await ServiceFactory().initialize();
+  
+  // 3. Inicializa o novo sistema offline SQLite com Enhanced Service Factory
+  await EnhancedOfflineServiceFactory.instance.initialize();
+  
+  debugPrint('Main: All services initialized successfully');
 
   // Configuração da UI
   SystemChrome.setSystemUIOverlayStyle(
@@ -69,6 +68,27 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primaryColor: const Color(0xFF6F4B99),
         scaffoldBackgroundColor: const Color(0xFF312456),
+        fontFamily: 'Inter', // Fonte padrão para o corpo do texto
+        textTheme: const TextTheme(
+          // Títulos usarão BricolageGrotesque
+          displayLarge: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
+          displayMedium: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
+          displaySmall: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
+          headlineLarge: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
+          headlineMedium: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
+          headlineSmall: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
+          titleLarge: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.w600),
+          titleMedium: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.w600),
+          titleSmall: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.w600),
+
+          // O corpo do texto e outros usarão Inter por herança
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Colors.white),
+          bodySmall: TextStyle(color: Colors.white),
+          labelLarge: TextStyle(color: Colors.white),
+          labelMedium: TextStyle(color: Colors.white70),
+          labelSmall: TextStyle(color: Colors.white),
+        ),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF6F4B99),
           secondary: Colors.orange,
@@ -79,6 +99,12 @@ class MyApp extends StatelessWidget {
           backgroundColor: Color(0xFF312456),
           foregroundColor: Colors.white,
           elevation: 0,
+          titleTextStyle: TextStyle(
+            fontFamily: 'BricolageGrotesque',
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -112,7 +138,6 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
         ),
-        fontFamily: 'Inter',
         dividerTheme: DividerThemeData(
           color: Colors.grey[700],
         ),
@@ -121,6 +146,7 @@ class MyApp extends StatelessWidget {
           headerBackgroundColor: const Color(0xFF312456),
           headerForegroundColor: Colors.white,
           headerHeadlineStyle: const TextStyle(
+            fontFamily: 'BricolageGrotesque',
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w600,

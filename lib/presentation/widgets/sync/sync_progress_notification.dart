@@ -1,6 +1,6 @@
 // lib/presentation/widgets/sync/sync_progress_notification.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/utils/sync_service.dart';
+import 'package:inspection_app/models/sync_progress.dart'; // Import SyncProgress and SyncPhase
 
 class SyncProgressNotification extends StatelessWidget {
   final SyncProgress progress;
@@ -115,7 +115,7 @@ class SyncProgressNotification extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Color(0xFF6F4B99).withValues(alpha: 0.2),
+            color: const Color(0xFF6F4B99).withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
@@ -124,7 +124,21 @@ class SyncProgressNotification extends StatelessWidget {
             size: 24,
           ),
         );
-      case SyncPhase.syncingInspection:
+      case SyncPhase.downloading:
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(
+            Icons.cloud_download,
+            color: Colors.blue,
+            size: 24,
+          ),
+        );
+      case SyncPhase.uploading:
         return Container(
           width: 40,
           height: 40,
@@ -135,20 +149,6 @@ class SyncProgressNotification extends StatelessWidget {
           child: const Icon(
             Icons.cloud_upload,
             color: Colors.orange,
-            size: 24,
-          ),
-        );
-      case SyncPhase.syncingMedia:
-        return Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.purple.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Icon(
-            Icons.photo_library,
-            color: Colors.purple,
             size: 24,
           ),
         );
@@ -187,10 +187,10 @@ class SyncProgressNotification extends StatelessWidget {
     switch (progress.phase) {
       case SyncPhase.starting:
         return 'Preparando sincronização';
-      case SyncPhase.syncingInspection:
-        return 'Sincronizando dados';
-      case SyncPhase.syncingMedia:
-        return 'Enviando mídias';
+      case SyncPhase.downloading:
+        return 'Baixando dados';
+      case SyncPhase.uploading:
+        return 'Enviando dados';
       case SyncPhase.completed:
         return 'Sincronização concluída';
       case SyncPhase.error:
@@ -201,11 +201,11 @@ class SyncProgressNotification extends StatelessWidget {
   Color _getProgressColor() {
     switch (progress.phase) {
       case SyncPhase.starting:
-        return Color(0xFF6F4B99);
-      case SyncPhase.syncingInspection:
+        return const Color(0xFF6F4B99);
+      case SyncPhase.downloading:
+        return Colors.blue;
+      case SyncPhase.uploading:
         return Colors.orange;
-      case SyncPhase.syncingMedia:
-        return Colors.purple;
       case SyncPhase.completed:
         return Colors.green;
       case SyncPhase.error:

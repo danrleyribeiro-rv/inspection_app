@@ -15,6 +15,8 @@ class Detail {
   final DateTime? updatedAt;
   final String? type; // Tipo do detalhe (text, select, number, boolean)
   final List<String>? options; // Opções para o tipo select
+  final String? status; // Status do detalhe (pending, completed, etc)
+  final bool? isRequired; // Se o detalhe é obrigatório
 
   Detail(
       {this.id,
@@ -31,7 +33,9 @@ class Detail {
       this.createdAt,
       this.updatedAt,
       this.type,
-      this.options});
+      this.options,
+      this.status,
+      this.isRequired});
 
   factory Detail.fromJson(Map<String, dynamic> json) {
     List<String>? parseOptions(dynamic optionsData) {
@@ -71,6 +75,8 @@ class Detail {
           : null,
       type: json['type']?.toString(),
       options: parseOptions(json['options']),
+      status: json['status']?.toString(),
+      isRequired: json['is_required'],
     );
   }
 
@@ -81,16 +87,22 @@ class Detail {
       'id': id,
       'inspection_id': inspectionId,
       'topic_id': topicId,
+      'item_id': itemId,
+      'detail_id': detailId,
       'position': position,
       'detail_name': detailName,
       'detail_value': detailValue,
       'observation': observation,
-      'is_damaged': isDamaged,
-      'tags': tags,
+      'is_damaged': isDamaged == true ? 1 : 0,
+      'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'type': type,
-      'options': options,
+      'options': options?.join(',') ?? '',
+      'status': status,
+      'is_required': isRequired == true ? 1 : 0,
+      'needs_sync': 1,
+      'is_deleted': 0,
     };
   }
 
@@ -109,6 +121,8 @@ class Detail {
       'position': position,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'status': status,
+      'is_required': isRequired,
     };
   }
 
@@ -128,6 +142,8 @@ class Detail {
     DateTime? updatedAt,
     String? type,
     List<String>? options,
+    String? status,
+    bool? isRequired,
   }) {
     return Detail(
       id: id ?? this.id,
@@ -145,6 +161,8 @@ class Detail {
       updatedAt: updatedAt ?? this.updatedAt,
       type: type ?? this.type,
       options: options ?? this.options,
+      status: status ?? this.status,
+      isRequired: isRequired ?? this.isRequired,
     );
   }
 }

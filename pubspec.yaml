@@ -9,53 +9,52 @@ environment:
   sdk: ^3.6.2
 
 dependencies:
+  brasil_fields: ^1.15.0
+  cached_network_image: ^3.4.1
+  camera: ^0.11.1
+  cloud_firestore: ^5.6.6
+  connectivity_plus: ^6.1.3
+  cpf_cnpj_validator: ^2.0.0
+  crypto: ^3.0.6
+  cupertino_icons: ^1.0.8
+  drift: ^2.14.1
+  equatable: ^2.0.7
+  ffmpeg_kit_flutter_new: ^1.6.1
+  file_picker: ^8.1.2
+  firebase_auth: ^5.5.2
+  firebase_core: ^3.13.0
+  firebase_messaging: ^15.2.6
+  firebase_storage: ^12.4.5
   flutter:
     sdk: flutter
+  flutter_bloc: ^9.0.0
+  flutter_dotenv: ^5.2.1
+  flutter_lints: ^5.0.0
   flutter_localizations:
     sdk: flutter
-
-  cupertino_icons: ^1.0.8
   flutter_secure_storage: ^9.2.4
-  cached_network_image: ^3.4.1
-  path_provider: ^2.1.5
-  search_cep: ^4.0.2
-  camera: ^0.11.1
-  permission_handler: ^11.4.0
-  connectivity_plus: ^6.1.3
-  flutter_bloc: ^9.0.0
-  equatable: ^2.0.7
-  file_picker: ^8.1.2
-  flutter_dotenv: ^5.2.1
-  http: ^1.3.0
-  shared_preferences: ^2.3.2
-  brasil_fields: ^1.15.0
-  image_picker: ^1.0.8
-  path: ^1.9.1
-  uuid: ^4.5.1
-  json_annotation: ^4.9.0
-  intl: ^0.19.0
-  crypto: ^3.0.6
-  firebase_core: ^3.13.0
-  firebase_auth: ^5.5.2
-  cloud_firestore: ^5.6.6
-  firebase_storage: ^12.4.5
-  flutter_lints: ^5.0.0
-  cpf_cnpj_validator: ^2.0.0
-  speech_to_text: ^7.0.0
-  url_launcher: ^6.3.1
-  google_maps_flutter: ^2.12.1
-  geolocator: ^14.0.0
-  geocoding: ^3.0.0
-  video_player: ^2.8.7
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-  hive_generator: ^2.0.1
-  firebase_messaging: ^15.2.6
-  image: ^4.5.4
-  qr_flutter: ^4.1.0
   flutter_svg: ^2.1.0
-  ffmpeg_kit_flutter_new: ^1.6.1
+  geocoding: ^3.0.0
+  geolocator: ^14.0.2
+  google_maps_flutter: ^2.12.1
+  http: ^1.3.0
+  image: ^4.5.4
+  image_picker: ^1.0.8
+  intl: ^0.19.0
+  json_annotation: ^4.9.0
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  permission_handler: ^11.4.0
   photo_view: ^0.15.0
+  qr_flutter: ^4.1.0
+  search_cep: ^4.0.2
+  shared_preferences: ^2.3.2
+  speech_to_text: ^7.0.0
+  sqflite: ^2.4.2
+  sqlite3_flutter_libs: ^0.5.0
+  url_launcher: ^6.3.1
+  uuid: ^4.5.1
+  video_player: ^2.8.7
   video_thumbnail: ^0.5.6
   
 
@@ -67,6 +66,7 @@ dev_dependencies:
 
   json_serializable: ^6.9.0
   build_runner: ^2.4.8
+  drift_dev: ^2.14.1
 
 flutter:
 
@@ -80,13 +80,23 @@ flutter:
     
   # Adicione suas fontes se necessário
   fonts:
-    - family: Roboto
+    - family: Inter
       fonts:
-        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Inter-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Roboto-Medium.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Roboto-Bold.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: BricolageGrotesque
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque_24pt-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/BricolageGrotesque_24pt-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/BricolageGrotesque_24pt-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BricolageGrotesque_24pt-Bold.ttf
           weight: 700
 
 flutter_launcher_icons:

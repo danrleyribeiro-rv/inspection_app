@@ -4,10 +4,11 @@ import 'dart:async';
 import 'package:inspection_app/models/detail.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:inspection_app/presentation/widgets/media/media_handling_widget.dart';
+import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 
 // O widget DetailsListSection e seu State permanecem os mesmos.
 // A mudança principal está dentro do DetailListItem.
@@ -54,13 +55,37 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   }
 
   Future<void> _reorderDetail(int oldIndex, int newIndex) async {
-    final future = ServiceFactory().coordinator.reorderDetails(
-          widget.inspectionId,
-          widget.topic.id!,
-          widget.item.id!,
-          oldIndex,
-          newIndex,
-        );
+    // For now, just reorder the local list and update the entire item
+    final reorderedDetails = List<Detail>.from(widget.details);
+    if (oldIndex < newIndex) newIndex -= 1;
+    final detail = reorderedDetails.removeAt(oldIndex);
+    reorderedDetails.insert(newIndex, detail);
+    
+    // Update positions
+    for (int i = 0; i < reorderedDetails.length; i++) {
+      final detail = reorderedDetails[i];
+      reorderedDetails[i] = Detail(
+        id: detail.id,
+        inspectionId: detail.inspectionId,
+        topicId: detail.topicId,
+        itemId: detail.itemId,
+        detailId: detail.detailId,
+        position: i,
+        detailName: detail.detailName,
+        detailValue: detail.detailValue,
+        observation: detail.observation,
+        isDamaged: detail.isDamaged,
+        tags: detail.tags,
+        createdAt: detail.createdAt,
+        updatedAt: DateTime.now(),
+        type: detail.type,
+        options: detail.options,
+      );
+    }
+    
+    final future = Future.wait(reorderedDetails.map((d) => 
+      EnhancedOfflineServiceFactory.instance.dataService.updateDetail(d)
+    ));
 
     setState(() {
       if (oldIndex < newIndex) {
@@ -163,11 +188,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     if (confirmed != true) return;
 
     try {
-      await ServiceFactory().coordinator.deleteDetail(
-            widget.inspectionId,
-            widget.topic.id!,
-            widget.item.id!,
-            detail.id!,
+      await EnhancedOfflineServiceFactory.instance.dataService.deleteDetail(
+            detail.id ?? '',
           );
 
       setState(() {
@@ -219,17 +241,30 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     if (confirmed != true) return;
 
     try {
-      final duplicatedDetail =
-          await ServiceFactory().coordinator.duplicateDetail(
-                widget.inspectionId,
-                widget.topic.id!,
-                widget.item.id!,
-                detail,
-              );
+      final duplicatedDetail = Detail(
+        id: null, // New detail will get a new ID
+        inspectionId: detail.inspectionId,
+        topicId: detail.topicId,
+        itemId: detail.itemId,
+        detailId: detail.detailId,
+        position: _localDetails.length,
+        detailName: '${detail.detailName} (cópia)',
+        detailValue: detail.detailValue,
+        observation: detail.observation,
+        isDamaged: detail.isDamaged,
+        tags: detail.tags,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        type: detail.type,
+        options: detail.options,
+      );
+      
+      await EnhancedOfflineServiceFactory.instance.dataService.saveDetail(
+        duplicatedDetail,
+      );
 
-      setState(() {
-        _localDetails.add(duplicatedDetail);
-      });
+      // Reload the details to show the duplicated item
+      widget.onDetailAction();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -249,7 +284,6 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     widget.onDetailAction();
   }
 }
-
 
 // AQUI ESTÁ A MUDANÇA PRINCIPAL
 class DetailListItem extends StatefulWidget {
@@ -283,14 +317,14 @@ class DetailListItem extends StatefulWidget {
 }
 
 class _DetailListItemState extends State<DetailListItem> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   final TextEditingController _valueController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
-  
+
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _widthController = TextEditingController();
   final TextEditingController _depthController = TextEditingController();
-  
+
   Timer? _debounce;
   bool _isDamaged = false;
   bool _booleanValue = false;
@@ -315,18 +349,21 @@ class _DetailListItemState extends State<DetailListItem> {
 
   void _initializeControllers() {
     final detailValue = widget.detail.detailValue ?? '';
-    
+
     if (widget.detail.type == 'measure') {
       final measurements = detailValue.split(',');
-      _heightController.text = measurements.isNotEmpty ? measurements[0].trim() : '';
-      _widthController.text = measurements.length > 1 ? measurements[1].trim() : '';
-      _depthController.text = measurements.length > 2 ? measurements[2].trim() : '';
+      _heightController.text =
+          measurements.isNotEmpty ? measurements[0].trim() : '';
+      _widthController.text =
+          measurements.length > 1 ? measurements[1].trim() : '';
+      _depthController.text =
+          measurements.length > 2 ? measurements[2].trim() : '';
     } else if (widget.detail.type == 'boolean') {
       _booleanValue = detailValue.toLowerCase() == 'true' || detailValue == '1';
     } else {
       _valueController.text = detailValue;
     }
-    
+
     _observationController.text = widget.detail.observation ?? '';
     _isDamaged = widget.detail.isDamaged ?? false;
     _currentDetailName = widget.detail.detailName;
@@ -347,9 +384,10 @@ class _DetailListItemState extends State<DetailListItem> {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
 
     String value = '';
-    
+
     if (widget.detail.type == 'measure') {
-      value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
+      value =
+          '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue.toString();
@@ -358,19 +396,30 @@ class _DetailListItemState extends State<DetailListItem> {
     }
 
     // Update UI immediately
-    final updatedDetail = widget.detail.copyWith(
+    final updatedDetail = Detail(
+      id: widget.detail.id,
+      inspectionId: widget.detail.inspectionId,
+      topicId: widget.detail.topicId,
+      itemId: widget.detail.itemId,
+      detailId: widget.detail.detailId,
+      position: widget.detail.position,
+      detailName: widget.detail.detailName,
       detailValue: value.isEmpty ? null : value,
       observation: _observationController.text.isEmpty
           ? null
           : _observationController.text,
       isDamaged: _isDamaged,
+      tags: widget.detail.tags,
+      createdAt: widget.detail.createdAt,
       updatedAt: DateTime.now(),
+      type: widget.detail.type,
+      options: widget.detail.options,
     );
     widget.onDetailUpdated(updatedDetail);
 
     // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      _serviceFactory.coordinator.updateDetail(updatedDetail);
+      _serviceFactory.dataService.updateDetail(updatedDetail);
     });
   }
 
@@ -381,7 +430,8 @@ class _DetailListItemState extends State<DetailListItem> {
         final controller =
             TextEditingController(text: _observationController.text);
         return AlertDialog(
-          title: const Text('Observações do Detalhe', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          title: const Text('Observações do Detalhe',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
@@ -428,9 +478,22 @@ class _DetailListItemState extends State<DetailListItem> {
     );
 
     if (newName != null && newName != widget.detail.detailName) {
-      final updatedDetail = widget.detail.copyWith(
+      final updatedDetail = Detail(
+        id: widget.detail.id,
+        inspectionId: widget.detail.inspectionId,
+        topicId: widget.detail.topicId,
+        itemId: widget.detail.itemId,
+        detailId: widget.detail.detailId,
+        position: widget.detail.position,
         detailName: newName,
+        detailValue: widget.detail.detailValue,
+        observation: widget.detail.observation,
+        isDamaged: widget.detail.isDamaged,
+        tags: widget.detail.tags,
+        createdAt: widget.detail.createdAt,
         updatedAt: DateTime.now(),
+        type: widget.detail.type,
+        options: widget.detail.options,
       );
 
       setState(() {
@@ -438,7 +501,7 @@ class _DetailListItemState extends State<DetailListItem> {
       });
 
       widget.onDetailUpdated(updatedDetail);
-      _serviceFactory.coordinator.updateDetail(updatedDetail);
+      _serviceFactory.dataService.updateDetail(updatedDetail);
     }
   }
 
@@ -448,14 +511,16 @@ class _DetailListItemState extends State<DetailListItem> {
   @override
   Widget build(BuildContext context) {
     final displayValue = _getDisplayValue();
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
       elevation: _isDamaged ? 2 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: _isDamaged ? Colors.red : Colors.green.withAlpha((255 * 0.3).round()),
+          color: _isDamaged
+              ? Colors.red
+              : Colors.green.withAlpha((255 * 0.3).round()),
           width: _isDamaged ? 2 : 1,
         ),
       ),
@@ -467,8 +532,11 @@ class _DetailListItemState extends State<DetailListItem> {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: _isDamaged ? Colors.red.withAlpha((255 * 0.1).round()) : null,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                color: _isDamaged
+                    ? Colors.red.withAlpha((255 * 0.1).round())
+                    : null,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(8)),
               ),
               child: Column(
                 children: [
@@ -486,7 +554,9 @@ class _DetailListItemState extends State<DetailListItem> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: _isDamaged ? Colors.red : Colors.green.shade300,
+                                  color: _isDamaged
+                                      ? Colors.red
+                                      : Colors.green.shade300,
                                 ),
                               ),
                             ),
@@ -505,28 +575,41 @@ class _DetailListItemState extends State<DetailListItem> {
                         index: widget.index,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: Icon(Icons.drag_handle, size: 20, color: Colors.grey.shade400),
+                          child: Icon(Icons.drag_handle,
+                              size: 20, color: Colors.grey.shade400),
                         ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.edit, size: 14),
                         onPressed: _renameDetail,
                         tooltip: 'Renomear',
-                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(3)),
+                        style: IconButton.styleFrom(
+                            minimumSize: const Size(32, 32),
+                            padding: const EdgeInsets.all(3)),
                       ),
                       IconButton(
                         icon: const Icon(Icons.copy, size: 14),
                         onPressed: widget.onDetailDuplicated,
                         tooltip: 'Duplicar',
-                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(3)),
+                        style: IconButton.styleFrom(
+                            minimumSize: const Size(32, 32),
+                            padding: const EdgeInsets.all(3)),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 14, color: Colors.red),
+                        icon: const Icon(Icons.delete,
+                            size: 14, color: Colors.red),
                         onPressed: widget.onDetailDeleted,
                         tooltip: 'Excluir',
-                        style: IconButton.styleFrom(minimumSize: const Size(32, 32), padding: const EdgeInsets.all(3)),
+                        style: IconButton.styleFrom(
+                            minimumSize: const Size(32, 32),
+                            padding: const EdgeInsets.all(3)),
                       ),
-                      Icon(widget.isExpanded ? Icons.expand_less : Icons.expand_more, color: Colors.green.shade300, size: 20),
+                      Icon(
+                          widget.isExpanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          color: Colors.green.shade300,
+                          size: 20),
                     ],
                   ),
                   if (displayValue.isNotEmpty) ...[
@@ -535,11 +618,17 @@ class _DetailListItemState extends State<DetailListItem> {
                       children: [
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(4)),
                             child: Text(
                               'Valor: $displayValue',
-                              style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w500),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green.shade800,
+                                  fontWeight: FontWeight.w500),
                             ),
                           ),
                         ),
@@ -565,7 +654,8 @@ class _DetailListItemState extends State<DetailListItem> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.green.withAlpha((255 * 0.3).round())),
+                        border: Border.all(
+                            color: Colors.green.withAlpha((255 * 0.3).round())),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -573,19 +663,31 @@ class _DetailListItemState extends State<DetailListItem> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.note_alt, size: 14, color: Colors.green.shade300),
+                              Icon(Icons.note_alt,
+                                  size: 14, color: Colors.green.shade300),
                               const SizedBox(width: 8),
-                              Text('Observações', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade300, fontSize: 12)),
+                              Text('Observações',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green.shade300,
+                                      fontSize: 12)),
                               const Spacer(),
-                              Icon(Icons.edit, size: 16, color: Colors.green.shade300),
+                              Icon(Icons.edit,
+                                  size: 16, color: Colors.green.shade300),
                             ],
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _observationController.text.isEmpty ? 'Toque para adicionar observações...' : _observationController.text,
+                            _observationController.text.isEmpty
+                                ? 'Toque para adicionar observações...'
+                                : _observationController.text,
                             style: TextStyle(
-                              color: _observationController.text.isEmpty ? Colors.green.shade200 : Colors.white,
-                              fontStyle: _observationController.text.isEmpty ? FontStyle.italic : FontStyle.normal,
+                              color: _observationController.text.isEmpty
+                                  ? Colors.green.shade200
+                                  : Colors.white,
+                              fontStyle: _observationController.text.isEmpty
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
                               fontSize: 12,
                             ),
                           ),
@@ -594,63 +696,155 @@ class _DetailListItemState extends State<DetailListItem> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  
+
                   // THE FIX: BOTÕES REDUNDANTES REMOVIDOS
                   // A única linha de botões agora é o NC e o MediaHandlingWidget
-                  Row(
-                    children: [
-                                            Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            if (widget.detail.id != null &&
-                                widget.detail.topicId != null &&
-                                widget.detail.itemId != null) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => NonConformityScreen(
-                                    inspectionId: widget.inspectionId,
-                                    preSelectedTopic: widget.detail.topicId,
-                                    preSelectedItem: widget.detail.itemId,
-                                    preSelectedDetail: widget.detail.id,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: const Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.report_problem, size: 16),
-                              SizedBox(height: 2),
-                              Text('NCs', style: TextStyle(fontSize: 12), textAlign: TextAlign.center),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (widget.detail.id != null &&
-                          widget.detail.topicId != null &&
-                          widget.detail.itemId != null) ...[
-                        const SizedBox(width: 8),
+                  if (widget.detail.id != null &&
+                      widget.detail.topicId != null &&
+                      widget.detail.itemId != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Botão NCs (vermelho, mesmo ícone da barra inferior)
                         Expanded(
-                          child: MediaHandlingWidget(
-                            inspectionId: widget.inspectionId,
-                            topicId: widget.detail.topicId!,
-                            itemId: widget.detail.itemId!,
-                            detailId: widget.detail.id!,
-                            onMediaAdded: (_) => setState(() {}),
-                            onMediaDeleted: (_) => setState(() {}),
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => NonConformityScreen(
+                                      inspectionId: widget.inspectionId,
+                                      preSelectedTopic: widget.detail.topicId,
+                                      preSelectedItem: widget.detail.itemId,
+                                      preSelectedDetail: widget.detail.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 0),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 1,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.warning_amber_rounded, size: 22),
+                                  SizedBox(height: 2),
+                                  Text('NCs',
+                                      style: TextStyle(fontSize: 13),
+                                      textAlign: TextAlign.center),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ]
-                    ],
-                  ),
-                  // Lógica de mídia centralizada aqui
+                        const SizedBox(width: 10),
+                        // Botão Capturar (apenas câmera)
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // Abrir apenas a câmera do MediaHandlingWidget
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    insetPadding: EdgeInsets.zero,
+                                    child: SizedBox(
+                                      width: 1,
+                                      height: 1,
+                                      child: MediaHandlingWidget(
+                                        inspectionId: widget.inspectionId,
+                                        topicId: widget.detail.topicId!,
+                                        itemId: widget.detail.itemId!,
+                                        detailId: widget.detail.id!,
+                                        onMediaAdded: (_) => setState(() {}),
+                                        onMediaDeleted: (_) => setState(() {}),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 0),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 1,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.camera_alt, size: 22),
+                                  SizedBox(height: 2),
+                                  Text('Capturar',
+                                      style: TextStyle(fontSize: 13),
+                                      textAlign: TextAlign.center),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Botão Galeria (apenas galeria)
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // Abrir apenas a galeria
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => MediaGalleryScreen(
+                                      inspectionId: widget.inspectionId,
+                                      initialTopicId: widget.detail.topicId!,
+                                      initialItemId: widget.detail.itemId!,
+                                      initialDetailId: widget.detail.id!,
+                                      initialIsNonConformityOnly: false,
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.purple,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 0),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 1,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.photo_library, size: 22),
+                                  SizedBox(height: 2),
+                                  Text('Galeria',
+                                      style: TextStyle(fontSize: 13),
+                                      textAlign: TextAlign.center),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -670,18 +864,22 @@ class _DetailListItemState extends State<DetailListItem> {
           _widthController.text.trim(),
           _depthController.text.trim()
         ].where((m) => m.isNotEmpty).toList();
-        return measurements.isNotEmpty ? 'A:${measurements.isNotEmpty ? measurements[0] : ''} L:${measurements.length > 1 ? measurements[1] : ''} P:${measurements.length > 2 ? measurements[2] : ''}' : '';
+        return measurements.isNotEmpty
+            ? 'A:${measurements.isNotEmpty ? measurements[0] : ''} L:${measurements.length > 1 ? measurements[1] : ''} P:${measurements.length > 2 ? measurements[2] : ''}'
+            : '';
       default:
         return _valueController.text;
     }
   }
-  
+
   Widget _buildValueInput() {
     switch (widget.detail.type) {
       case 'select':
-        if (widget.detail.options != null && widget.detail.options!.isNotEmpty) {
+        if (widget.detail.options != null &&
+            widget.detail.options!.isNotEmpty) {
           return DropdownButtonFormField<String>(
-            value: _valueController.text.isNotEmpty ? _valueController.text : null,
+            value:
+                _valueController.text.isNotEmpty ? _valueController.text : null,
             decoration: InputDecoration(
               labelText: 'Valor',
               border: const OutlineInputBorder(),
@@ -709,7 +907,7 @@ class _DetailListItemState extends State<DetailListItem> {
           );
         }
         break;
-        case 'boolean':
+      case 'boolean':
         return Row(
           children: [
             Text(
@@ -731,7 +929,7 @@ class _DetailListItemState extends State<DetailListItem> {
             ),
           ],
         );
-        
+
       case 'measure':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,7 +953,8 @@ class _DetailListItemState extends State<DetailListItem> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: Colors.white),
                     onChanged: (_) => _updateDetail(),
                   ),
@@ -769,7 +968,8 @@ class _DetailListItemState extends State<DetailListItem> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: Colors.white),
                     onChanged: (_) => _updateDetail(),
                   ),
@@ -783,7 +983,8 @@ class _DetailListItemState extends State<DetailListItem> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: Colors.white),
                     onChanged: (_) => _updateDetail(),
                   ),
@@ -792,7 +993,7 @@ class _DetailListItemState extends State<DetailListItem> {
             ),
           ],
         );
-        
+
       case 'text':
       default:
         return TextFormField(
@@ -811,7 +1012,7 @@ class _DetailListItemState extends State<DetailListItem> {
           onChanged: (_) => _updateDetail(),
         );
     }
-    
+
     return TextFormField(
       controller: _valueController,
       decoration: InputDecoration(

@@ -1,6 +1,6 @@
 // lib/presentation/widgets/media/media_handling_widget.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
 import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
 
@@ -27,7 +27,7 @@ class MediaHandlingWidget extends StatefulWidget {
 }
 
 class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   int _processingCount = 0;
 
   void _showCameraCapture() {
@@ -91,7 +91,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       final position = await _serviceFactory.mediaService.getCurrentLocation();
       
       // Usar o fluxo offline-first do MediaService
-      final offlineMedia = await _serviceFactory.mediaService.captureAndProcessMedia(
+      await _serviceFactory.mediaService.captureAndProcessMedia(
         inputPath: localPath,
         inspectionId: widget.inspectionId,
         type: type,
@@ -102,29 +102,14 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
           'source': 'camera',
           'is_non_conformity': false,
           'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy
+            'latitude': position['latitude'],
+            'longitude': position['longitude'],
           } : null,
         },
       );
       
-      // Converter OfflineMedia para formato esperado pelo coordinator
-      final mediaData = {
-        'id': offlineMedia.id,
-        'type': offlineMedia.type,
-        'localPath': offlineMedia.localPath,
-        'url': offlineMedia.uploadUrl,
-        'aspect_ratio': '4:3',
-        'source': 'camera',
-        'is_non_conformity': false,
-        'created_at': offlineMedia.createdAt.toIso8601String(),
-        'updated_at': offlineMedia.createdAt.toIso8601String(),
-        'metadata': offlineMedia.metadata,
-      };
-
-      await _addMediaToInspection(mediaData);
-      widget.onMediaAdded(offlineMedia.localPath);
+      // Media já foi salva, apenas notificar o callback
+      widget.onMediaAdded(localPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -134,29 +119,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     }
   }
 
-  Future<void> _addMediaToInspection(Map<String, dynamic> mediaData) async {
-    try {
-      debugPrint('MediaHandlingWidget: Adding media to detail');
-      debugPrint('  InspectionId: ${widget.inspectionId}');
-      debugPrint('  TopicId: ${widget.topicId}');
-      debugPrint('  ItemId: ${widget.itemId}');
-      debugPrint('  DetailId: ${widget.detailId}');
-      debugPrint('  MediaData: ${mediaData['id']}');
-      
-      await _serviceFactory.coordinator.addMediaToDetail(
-        widget.inspectionId, 
-        widget.topicId, 
-        widget.itemId, 
-        widget.detailId, 
-        mediaData
-      );
-      
-      debugPrint('MediaHandlingWidget: Media added successfully');
-    } catch (e) {
-      debugPrint('MediaHandlingWidget: Error adding media to detail: $e');
-      rethrow;
-    }
-  }
+  // Method removed as media is now handled directly by the service
 
   @override
   Widget build(BuildContext context) {

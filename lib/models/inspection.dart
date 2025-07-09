@@ -118,7 +118,7 @@ class Inspection {
       'state': state,
       'zip_code': zipCode,
       'address_string': addressString,
-      'address': address,
+      'address': address?.toString(),
       'status': status,
       'observation': observation,
       'scheduled_date': scheduledDate?.toIso8601String(),
@@ -127,12 +127,12 @@ class Inspection {
       'updated_at': updatedAt.toIso8601String(),
       'project_id': projectId,
       'inspector_id': inspectorId,
-      'is_templated': isTemplated,
+      'is_templated': isTemplated ? 1 : 0,
       'template_id': templateId,
-      'is_synced': isSynced,
+      'is_synced': isSynced ? 1 : 0,
       'last_sync_at': lastSyncAt?.toIso8601String(),
-      'has_local_changes': hasLocalChanges,
-      'topics': topics,
+      'has_local_changes': hasLocalChanges ? 1 : 0,
+      'topics': topics?.toString(),
     };
 
     return data;
@@ -153,10 +153,50 @@ class Inspection {
       }
     }
 
+    bool isSynced = true;
+    if (json.containsKey('is_synced')) {
+      if (json['is_synced'] is bool) {
+        isSynced = json['is_synced'];
+      } else if (json['is_synced'] is String) {
+        isSynced = json['is_synced'].toLowerCase() == 'true';
+      } else if (json['is_synced'] == 1) {
+        isSynced = true;
+      } else if (json['is_synced'] == 0) {
+        isSynced = false;
+      }
+    }
+
+    bool hasLocalChanges = false;
+    if (json.containsKey('has_local_changes')) {
+      if (json['has_local_changes'] is bool) {
+        hasLocalChanges = json['has_local_changes'];
+      } else if (json['has_local_changes'] is String) {
+        hasLocalChanges = json['has_local_changes'].toLowerCase() == 'true';
+      } else if (json['has_local_changes'] == 1) {
+        hasLocalChanges = true;
+      }
+    }
+
     List<Map<String, dynamic>>? topics;
     if (json['topics'] != null) {
       if (json['topics'] is List) {
-        topics = List<Map<String, dynamic>>.from(json['topics']);
+        topics = List<Map<String, dynamic>>.from(json['topics'].map((item) {
+          if (item is Map) {
+            return Map<String, dynamic>.from(item);
+          }
+          return item;
+        }));
+      } else if (json['topics'] is String) {
+        // Tentar parsear string JSON se necessário
+        try {
+          final parsed = json['topics'];
+          if (parsed.startsWith('[')) {
+            // É um array JSON em string - mas não fazer parse aqui, deixar como string
+            topics = null; // Será processado depois
+          }
+        } catch (e) {
+          // Se não conseguir parsear, ignorar
+        }
       }
     }
 
@@ -183,9 +223,9 @@ class Inspection {
       inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,
       templateId: json['template_id']?.toString(),
-      isSynced: json['is_synced'] ?? true,
+      isSynced: isSynced,
       lastSyncAt: _parseDateTime(json['last_sync_at']),
-      hasLocalChanges: json['has_local_changes'] ?? false,
+      hasLocalChanges: hasLocalChanges,
       topics: topics,
     );
   }

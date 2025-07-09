@@ -237,7 +237,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         title: const Text(
           'Registrar',
-          style: TextStyle(fontSize: 14),
         ),
         backgroundColor: const Color(0xFF312456),
         elevation: 0,

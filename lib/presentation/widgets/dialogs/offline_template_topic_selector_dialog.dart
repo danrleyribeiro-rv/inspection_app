@@ -1,6 +1,10 @@
 // lib/presentation/widgets/dialogs/offline_template_topic_selector_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:uuid/uuid.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:inspection_app/models/topic.dart';
+import 'package:inspection_app/models/item.dart';
+import 'package:inspection_app/models/detail.dart';
 
 class OfflineTemplateTopicSelectorDialog extends StatefulWidget {
   final String inspectionId;
@@ -17,7 +21,7 @@ class OfflineTemplateTopicSelectorDialog extends StatefulWidget {
 }
 
 class _OfflineTemplateTopicSelectorDialogState extends State<OfflineTemplateTopicSelectorDialog> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   
   bool _isLoading = true;
   List<Map<String, dynamic>> _templateTopics = [];
@@ -26,6 +30,66 @@ class _OfflineTemplateTopicSelectorDialogState extends State<OfflineTemplateTopi
   void initState() {
     super.initState();
     _loadTemplateTopics();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTopicsFromTemplate(String templateId) async {
+    try {
+      // First try to get template from SQLite storage
+      final template = await _serviceFactory.storageService.getTemplate(templateId);
+      if (template != null) {
+        debugPrint('OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Found template in SQLite storage');
+        return _extractTopicsFromTemplate(template);
+      }
+      
+      // Template not found in SQLite storage, check if we need to download it
+      debugPrint('OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Template not found in local storage, would need to download from cloud');
+      
+      debugPrint('OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Template not found in local storage');
+      return [];
+    } catch (e) {
+      debugPrint('OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Error loading template: $e');
+      return [];
+    }
+  }
+
+  List<Map<String, dynamic>> _extractTopicsFromTemplate(Map<String, dynamic> template) {
+    try {
+      final List<Map<String, dynamic>> topics = [];
+      
+      // Try different possible structures
+      if (template['structure'] != null) {
+        final structure = template['structure'];
+        if (structure is Map<String, dynamic> && structure['topics'] != null) {
+          final topicsList = structure['topics'] as List<dynamic>? ?? [];
+          for (final topicData in topicsList) {
+            if (topicData is Map<String, dynamic>) {
+              topics.add({
+                'topicData': topicData,
+                'templateId': template['id'],
+                'templateName': template['name'],
+              });
+            }
+          }
+        }
+      } else if (template['topics'] != null) {
+        final topicsList = template['topics'] as List<dynamic>? ?? [];
+        for (final topicData in topicsList) {
+          if (topicData is Map<String, dynamic>) {
+            topics.add({
+              'topicData': topicData,
+              'templateId': template['id'],
+              'templateName': template['name'],
+            });
+          }
+        }
+      }
+      
+      debugPrint('OfflineTemplateTopicSelectorDialog._extractTopicsFromTemplate: Extracted ${topics.length} topics from template');
+      return topics;
+    } catch (e) {
+      debugPrint('OfflineTemplateTopicSelectorDialog._extractTopicsFromTemplate: Error extracting topics: $e');
+      return [];
+    }
   }
 
   Future<void> _loadTemplateTopics() async {
@@ -39,13 +103,13 @@ class _OfflineTemplateTopicSelectorDialogState extends State<OfflineTemplateTopi
       
       if (widget.templateId != null && widget.templateId!.isNotEmpty) {
         // Get topics from specific template
-        topics = await _serviceFactory.coordinator.getTopicsFromSpecificTemplate(widget.templateId!);
+        topics = await _loadTopicsFromTemplate(widget.templateId!);
         debugPrint('OfflineTemplateTopicSelectorDialog._loadTemplateTopics: Loaded ${topics.length} topics from template ${widget.templateId}');
       } else {
         // Fallback: try to get template from inspection
-        final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+        final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
         if (inspection?.templateId != null) {
-          topics = await _serviceFactory.coordinator.getTopicsFromSpecificTemplate(inspection!.templateId!);
+          topics = await _loadTopicsFromTemplate(inspection!.templateId!);
           debugPrint('OfflineTemplateTopicSelectorDialog._loadTemplateTopics: Loaded ${topics.length} topics from inspection template ${inspection.templateId}');
         } else {
           debugPrint('OfflineTemplateTopicSelectorDialog._loadTemplateTopics: No template ID found for inspection');
@@ -81,18 +145,99 @@ class _OfflineTemplateTopicSelectorDialogState extends State<OfflineTemplateTopi
     super.dispose();
   }
 
+  Future<int> _getNextTopicOrder() async {
+    try {
+      final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
+      return topics.length;
+    } catch (e) {
+      debugPrint('OfflineTemplateTopicSelectorDialog._getNextTopicOrder: Error: $e');
+      return 0;
+    }
+  }
 
   Future<void> _addTopicFromTemplate(Map<String, dynamic> topicTemplate) async {
     try {
-      final topic = await _serviceFactory.coordinator.addTopicFromTemplateOffline(
-        widget.inspectionId,
-        topicTemplate,
+      final topicData = topicTemplate['topicData'] as Map<String, dynamic>;
+      final selectedTemplateTopic = topicData; // Variável para o contexto do template
+      
+      // Create topic using the data service
+      final newTopic = Topic(
+        inspectionId: widget.inspectionId,
+        topicName: topicData['name'] ?? topicData['title'] ?? 'Tópico do Template',
+        topicLabel: topicData['description'] ?? '',
+        position: await _getNextTopicOrder(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
       
+      final topicId = await _serviceFactory.dataService.saveTopic(newTopic);
+      
+      debugPrint('OfflineTemplateTopicSelectorDialog._addTopicFromTemplate: Created topic $topicId from template');
+        
+      // Criar items e details do template se disponíveis
+      try {
+        if (selectedTemplateTopic['items'] != null) {
+          final templateItems = selectedTemplateTopic['items'] as List<dynamic>;
+          
+          for (final templateItem in templateItems) {
+            final itemId = const Uuid().v4();
+            final newItem = Item(
+              id: itemId,
+              inspectionId: widget.inspectionId,
+              topicId: topicId,
+              itemId: itemId,
+              position: templateItem['position'] ?? 0,
+              itemName: templateItem['itemName'] ?? 'Item',
+              itemLabel: templateItem['itemLabel'] ?? 'Item',
+              evaluation: '',
+              observation: '',
+            );
+            
+            await _serviceFactory.dataService.saveItem(newItem);
+            debugPrint('Created item $itemId from template');
+            
+            // Criar details do item se disponíveis
+            if (templateItem['details'] != null) {
+              final templateDetails = templateItem['details'] as List<dynamic>;
+              
+              for (final templateDetail in templateDetails) {
+                final detailId = const Uuid().v4();
+                final newDetail = Detail(
+                  id: detailId,
+                  inspectionId: widget.inspectionId,
+                  topicId: topicId,
+                  itemId: itemId,
+                  detailId: detailId,
+                  position: templateDetail['position'] ?? 0,
+                  detailName: templateDetail['detailName'] ?? 'Detalhe',
+                  detailValue: '',
+                  observation: '',
+                  type: templateDetail['type'] ?? 'text',
+                  options: templateDetail['options'],
+                  isRequired: templateDetail['isRequired'] ?? false,
+                );
+                
+                await _serviceFactory.dataService.saveDetail(newDetail);
+                debugPrint('Created detail $detailId from template');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Erro ao criar items e details do template: $e');
+      }
+      
       if (mounted) {
-        Navigator.of(context).pop(topic);
+        Navigator.of(context).pop(newTopic);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tópico "${topicData['name'] ?? 'Tópico'}" adicionado com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
+      debugPrint('OfflineTemplateTopicSelectorDialog._addTopicFromTemplate: Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao adicionar tópico do template: $e')),

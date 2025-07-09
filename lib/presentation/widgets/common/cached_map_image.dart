@@ -1,8 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'dart:developer';
+import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart';
+import 'dart:convert'; // For utf8.encode
 
 class CachedMapImage extends StatefulWidget {
   final String mapUrl;
@@ -41,12 +45,16 @@ class _CachedMapImageState extends State<CachedMapImage> {
     });
 
     try {
-      final mapCacheService = ServiceFactory().mapCacheService;
+      final fileName = _generateFileName(widget.mapUrl);
+      final appDir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory(p.join(appDir.path, 'map_cache'));
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+      final cachedFilePath = p.join(cacheDir.path, fileName);
+      final cachedFile = File(cachedFilePath);
       
-      // Check if we have cached image
-      final cachedFile = await mapCacheService.getCachedImage(widget.mapUrl);
-      
-      if (cachedFile != null) {
+      if (await cachedFile.exists()) {
         // We have cached image, use it
         if (mounted) {
           setState(() {
@@ -66,20 +74,26 @@ class _CachedMapImageState extends State<CachedMapImage> {
       if (_isOnline) {
         // Online and no cache, download and cache
         log('[CachedMapImage] Downloading and caching image for URL: ${widget.mapUrl}');
-        final downloadedFile = await mapCacheService.downloadAndCacheImage(widget.mapUrl);
+        final response = await http.get(Uri.parse(widget.mapUrl));
         
-        if (mounted) {
-          setState(() {
-            _cachedImageFile = downloadedFile;
-            _isLoading = false;
-            _hasError = downloadedFile == null;
-          });
-        }
-        
-        if (downloadedFile != null) {
+        if (response.statusCode == 200) {
+          await cachedFile.writeAsBytes(response.bodyBytes);
+          if (mounted) {
+            setState(() {
+              _cachedImageFile = cachedFile;
+              _isLoading = false;
+              _hasError = false;
+            });
+          }
           log('[CachedMapImage] Successfully downloaded and cached image');
         } else {
-          log('[CachedMapImage] Failed to download image');
+          log('[CachedMapImage] Failed to download image: HTTP ${response.statusCode}');
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _hasError = true;
+            });
+          }
         }
       } else {
         // Offline and no cache - still show placeholder but without error
@@ -100,6 +114,12 @@ class _CachedMapImageState extends State<CachedMapImage> {
         });
       }
     }
+  }
+
+  String _generateFileName(String url) {
+    final bytes = utf8.encode(url); // data being hashed
+    final digest = md5.convert(bytes);
+    return '${digest.toString()}.png'; // Assuming PNG for map tiles
   }
 
   Widget _buildPlaceholder({bool error = false}) {

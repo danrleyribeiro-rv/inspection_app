@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
+import 'package:inspection_app/models/non_conformity.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_form.dart';
 import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_list.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class NonConformityScreen extends StatefulWidget {
   final String inspectionId;
@@ -28,7 +29,7 @@ class NonConformityScreen extends StatefulWidget {
 
 class _NonConformityScreenState extends State<NonConformityScreen>
     with SingleTickerProviderStateMixin {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   late TabController _tabController;
 
   bool _isLoading = true;
@@ -88,7 +89,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     try {
       final topics =
-          await _serviceFactory.coordinator.getTopics(widget.inspectionId);
+          await _serviceFactory.dataService.getTopics(widget.inspectionId);
       setState(() => _topics = topics);
 
       if (widget.preSelectedTopic != null) {
@@ -158,8 +159,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   Future<void> _loadNonConformities() async {
     try {
-      final nonConformities = await _serviceFactory.coordinator
-          .getNonConformitiesByInspection(widget.inspectionId);
+      final nonConformitiesObjects = await _serviceFactory.dataService
+          .getNonConformities(widget.inspectionId);
+      final nonConformities = nonConformitiesObjects.map((nc) => nc.toJson()).toList();
 
       if (mounted) {
         setState(() {
@@ -187,8 +189,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     if (topic.id != null) {
       try {
-        final items = await _serviceFactory.coordinator
-            .getItems(widget.inspectionId, topic.id!);
+        final items = await _serviceFactory.dataService
+            .getItems(topic.id!);
         setState(() => _items = items);
       } catch (e) {
         debugPrint('Erro ao carregar itens: $e');
@@ -205,8 +207,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     if (item.id != null && item.topicId != null) {
       try {
-        final details = await _serviceFactory.coordinator
-            .getDetails(widget.inspectionId, item.topicId!, item.id!);
+        final details = await _serviceFactory.dataService
+            .getDetails(item.id!);
         setState(() => _details = details);
       } catch (e) {
         debugPrint('Erro ao carregar detalhes: $e');
@@ -224,7 +226,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     setState(() => _isProcessing = true);
 
     try {
-      await _serviceFactory.coordinator
+      await _serviceFactory.dataService
           .updateNonConformityStatus(id, newStatus);
 
       await _loadNonConformities();
@@ -262,8 +264,24 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             '${widget.inspectionId}-${updatedData['topic_id']}-${updatedData['item_id']}-${updatedData['detail_id']}-$nonConformityId';
       }
 
-      await _serviceFactory.coordinator
-          .updateNonConformity(nonConformityId, updatedData);
+      // Convert updatedData to NonConformity object
+      final nonConformity = NonConformity(
+        id: nonConformityId,
+        inspectionId: updatedData['inspection_id'] ?? widget.inspectionId,
+        topicId: updatedData['topic_id'],
+        itemId: updatedData['item_id'],
+        detailId: updatedData['detail_id'],
+        title: updatedData['title'] ?? '',
+        description: updatedData['description'] ?? '',
+        severity: updatedData['severity'] ?? 'medium',
+        status: updatedData['status'] ?? 'open',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        needsSync: true,
+        isDeleted: false,
+      );
+      await _serviceFactory.dataService
+          .updateNonConformity(nonConformity);
 
       await _loadNonConformities();
 
@@ -294,8 +312,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     setState(() => _isProcessing = true);
 
     try {
-      await _serviceFactory.coordinator
-          .deleteNonConformity(id, widget.inspectionId);
+      await _serviceFactory.dataService
+          .deleteNonConformity(id);
 
       await _loadNonConformities();
 

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/models/non_conformity.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class NonConformityForm extends StatefulWidget {
   final List<Topic> topics;
@@ -43,7 +44,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _correctiveActionController = TextEditingController();
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
 
   bool _isCreating = false;
   String _severity = 'Média';
@@ -169,24 +170,19 @@ class _NonConformityFormState extends State<NonConformityForm> {
         throw Exception('Tópico, item ou detalhe sem ID válido');
       }
 
-      final nonConformityData = {
-        'description': _descriptionController.text.trim(),
-        'severity': _severity,
-        'corrective_action': _correctiveActionController.text.trim().isEmpty
-            ? null
-            : _correctiveActionController.text.trim(),
-        'status': 'pendente',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      };
+      // Create a non-conformity object
+      final nonConformity = NonConformity.create(
+        inspectionId: widget.inspectionId,
+        topicId: widget.selectedTopic!.id,
+        itemId: widget.selectedItem!.id,
+        detailId: widget.selectedDetail!.id,
+        title: _descriptionController.text.trim(),
+        description: _descriptionController.text.trim(),
+        severity: _severity.toLowerCase(),
+        status: 'open',
+      );
 
-      await _serviceFactory.coordinator.saveNonConformity({
-        'inspection_id': widget.inspectionId,
-        'topic_id': topicId,
-        'item_id': itemId,
-        'detail_id': detailId,
-        ...nonConformityData,
-      });
+      await _serviceFactory.dataService.saveNonConformity(nonConformity);
 
       _resetForm();
       widget.onNonConformitySaved();

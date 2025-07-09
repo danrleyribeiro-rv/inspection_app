@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:inspection_app/models/topic.dart';
 import 'package:inspection_app/models/item.dart';
 import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class MediaFilterPanel extends StatefulWidget {
   final String inspectionId;
@@ -42,7 +42,7 @@ class MediaFilterPanel extends StatefulWidget {
 }
 
 class _MediaFilterPanelState extends State<MediaFilterPanel> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
 
   String? _topicId;
   String? _itemId;
@@ -76,8 +76,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   Future<void> _loadItems(String topicId) async {
     setState(() => _isLoadingItems = true);
     try {
-      final items = await _serviceFactory.coordinator
-          .getItems(widget.inspectionId, topicId);
+      final items = await _serviceFactory.dataService
+          .getItems(topicId);
       if (mounted) setState(() => _items = items);
     } finally {
       if (mounted) setState(() => _isLoadingItems = false);
@@ -87,8 +87,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   Future<void> _loadDetails(String topicId, String itemId) async {
     setState(() => _isLoadingDetails = true);
     try {
-      final details = await _serviceFactory.coordinator
-          .getDetails(widget.inspectionId, topicId, itemId);
+      final details = await _serviceFactory.dataService
+          .getDetails(itemId);
       if (mounted) setState(() => _details = details);
     } finally {
       if (mounted) setState(() => _isLoadingDetails = false);

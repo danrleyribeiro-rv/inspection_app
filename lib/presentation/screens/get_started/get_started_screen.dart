@@ -13,10 +13,10 @@ class GetStartedScreen extends StatelessWidget {
         children: [
           // Background SVG image - 50% da tela, posicionado no canto superior esquerdo
           Positioned(
-            top: 0,
+            top: 25,
             left: 0,
-            width: MediaQuery.of(context).size.width * 0.8,
-            height: MediaQuery.of(context).size.height * 0.8,
+            width: MediaQuery.of(context).size.width * 0.914,
+            height: MediaQuery.of(context).size.height * 0.914,
             child: SvgPicture.asset(
               'assets/images/LINCE_POS1.svg',
               fit: BoxFit.contain,
@@ -32,14 +32,16 @@ class GetStartedScreen extends StatelessWidget {
                   const Spacer(),
                   // Texto principal
                   const Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.center,
                     child: Text(
                       'Bem-vindo\nao Inspeções.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 36,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.2,
+                        fontFamily: 'BricolageGrotesque',
                       ),
                     ),
                   ),
@@ -48,7 +50,8 @@ class GetStartedScreen extends StatelessWidget {
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Realize suas vistorias de forma simples, rápida e eficiente.',
+                      'Realize suas inspeções de forma simples, rápida e eficiente.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white,
@@ -58,75 +61,46 @@ class GetStartedScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   // Botões
-                  Container(
+                  SizedBox(
                     width: double.infinity,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
+                    height: 67,
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pushReplacementNamed(context, '/login');
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF6F4B99),
-                        elevation: 0,
+                        elevation: 5,
+                        shadowColor: Colors.black.withValues(alpha: 0.8),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
                         'Login',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontSize: 17),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Container(
+                  SizedBox(
                     width: double.infinity,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6F4B99),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          blurRadius: 0,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 0),
-                        ),
-                      ],
-                    ),
+                    height: 67,
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pushNamed(context, '/register');
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shadowColor: Colors.transparent,
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF6F4B99),
+                        elevation: 5,
+                        shadowColor: Colors.black.withValues(alpha: 0.8),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
                         'Cadastro',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontSize: 17),
                       ),
                     ),
                   ),

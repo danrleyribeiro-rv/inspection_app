@@ -119,12 +119,11 @@ class _ProfileTabState extends State<ProfileTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text('Perfil'),
         backgroundColor: const Color(0xFF312456),
         elevation: 0,
-        titleTextStyle: const TextStyle(
-            color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -187,7 +186,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Text(
                       'Informações Pessoais',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

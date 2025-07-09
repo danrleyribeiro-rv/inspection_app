@@ -13,6 +13,7 @@ class FirebaseService {
   final FirebaseStorage storage = FirebaseStorage.instance;
 
   User? get currentUser => auth.currentUser;
+  String? get currentUserId => auth.currentUser?.uid;
 
   static Future<void> initialize() async {
     // Enable offline persistence for better offline-first experience

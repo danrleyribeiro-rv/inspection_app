@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:inspection_app/presentation/widgets/common/map_location_card.dart';
-import 'package:inspection_app/services/service_factory.dart';
 import 'dart:developer'; // Import log for potential debugging
 
 class InspectionCard extends StatelessWidget {
@@ -146,7 +145,7 @@ class InspectionCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Baixando para uso offline...',
+                          'Baixando...',
                           style: TextStyle(fontSize: 10, color: Colors.white70),
                         ),
                         Text(
@@ -166,29 +165,6 @@ class InspectionCard extends StatelessWidget {
                 ),
               ],
               
-              // Offline status indicator
-              if (isFullyDownloaded) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withAlpha(51),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.green, width: 1),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.offline_pin, size: 12, color: Colors.green),
-                      SizedBox(width: 4),
-                      Text(
-                        'Disponível offline',
-                        style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               
               const SizedBox(height: 8),
               
@@ -292,20 +268,18 @@ class InspectionCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Continue/View button - always available if downloaded, restricted if not
-                        if (status == 'pending' || status == 'in_progress' || status == 'completed')
+                        // Continue/View button - only show if downloaded
+                        if (isFullyDownloaded && (status == 'pending' || status == 'in_progress' || status == 'completed'))
                           ElevatedButton(
-                            onPressed: isFullyDownloaded ? onViewDetails : null,
+                            onPressed: onViewDetails,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isFullyDownloaded ? Color(0xFF6F4B99) : Colors.grey,
+                              backgroundColor: Color(0xFF6F4B99),
                               foregroundColor: Colors.white,
                               minimumSize: const Size(0, 32),
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                             ),
                             child: Text(
-                              !isFullyDownloaded
-                                ? 'Baixar primeiro'
-                                : (status == 'pending' ? 'Iniciar' : status == 'completed' ? 'Visualizar' : 'Continuar'),
+                              status == 'pending' ? 'Iniciar' : status == 'completed' ? 'Visualizar' : 'Continuar',
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
@@ -492,29 +466,21 @@ class InspectionCard extends StatelessWidget {
   }
 
   Widget _buildSyncIndicator() {
-    final inspectionId = inspection['id']?.toString() ?? '';
-    if (inspectionId.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // Verificar se a inspeção está sincronizada
-    final syncService = ServiceFactory().syncService;
-    final isSynced = syncService.isInspectionSynced(inspectionId);
-
+    // Use the needsSync property directly
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: isSynced ? Colors.green.withAlpha(51) : Colors.orange.withAlpha(51),
+        color: needsSync ? Colors.orange.withAlpha(51) : Colors.green.withAlpha(51),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSynced ? Colors.green : Colors.orange,
+          color: needsSync ? Colors.orange : Colors.green,
           width: 1,
         ),
       ),
       child: Icon(
-        isSynced ? Icons.cloud_done : Icons.cloud_sync,
+        needsSync ? Icons.cloud_sync : Icons.cloud_done,
         size: 12,
-        color: isSynced ? Colors.green : Colors.orange,
+        color: needsSync ? Colors.orange : Colors.green,
       ),
     );
   }

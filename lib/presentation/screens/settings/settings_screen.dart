@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,7 +16,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
 
   bool _notificationsEnabled = true;
   bool _locationPermission = true;
@@ -29,22 +30,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final settings = await _serviceFactory.settingsService.loadSettings();
-    if (mounted) {
-      setState(() {
-        _notificationsEnabled = settings['notificationsEnabled'] ?? true;
-        _locationPermission = settings['locationPermission'] ?? true;
-        _cameraPermission = settings['cameraPermission'] ?? true;
-      });
+    try {
+      // Carregar configurações do sistema
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+          _locationPermission = prefs.getBool('location_permission') ?? true;
+          _cameraPermission = prefs.getBool('camera_permission') ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar configurações: $e');
+      if (mounted) {
+        setState(() {
+          _notificationsEnabled = true;
+          _locationPermission = true;
+          _cameraPermission = true;
+        });
+      }
     }
   }
 
   Future<void> _saveSettings() async {
-    await _serviceFactory.settingsService.saveSettings(
-      notificationsEnabled: _notificationsEnabled,
-      locationPermission: _locationPermission,
-      cameraPermission: _cameraPermission,
-    );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('notifications_enabled', _notificationsEnabled);
+      await prefs.setBool('location_permission', _locationPermission);
+      await prefs.setBool('camera_permission', _cameraPermission);
+      debugPrint('Configurações salvas com sucesso');
+    } catch (e) {
+      debugPrint('Erro ao salvar configurações: $e');
+    }
   }
 
   Future<void> _signOut() async {
@@ -221,23 +238,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
     
     try {
-      // Limpar cache de inspeções
-      await _serviceFactory.cacheService.clearCache();
+      // Limpar dados locais usando o serviço de armazenamento
+      await _serviceFactory.storageService.clearAllData();
       
-      // Limpar cache de mídia offline
-      await _serviceFactory.cacheService.clearOfflineMedia();
-      
-      // Limpar cache de templates (se disponível)
-      try {
-        await _serviceFactory.cacheService.clearTemplateCache();
-      } catch (e) {
-        debugPrint('Erro ao limpar templates: $e');
-      }
+      // Limpar preferências
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
       
       if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Cache limpo com sucesso! Todas as vistorias baixadas foram removidas.'),
+            content: Text('Cache limpo com sucesso! Todas as vistorias baixadas e dados temporários foram removidos.'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),

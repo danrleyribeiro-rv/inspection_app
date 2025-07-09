@@ -1,131 +1,273 @@
-// lib/models/offline_media.dart
-import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 part 'offline_media.g.dart';
 
-@HiveType(typeId: 2)
 @JsonSerializable()
-class OfflineMedia extends HiveObject {
-  @HiveField(0)
-  String id;
-
-  @HiveField(1)
-  String localPath;
-
-  @HiveField(2)
-  String inspectionId;
-
-  @HiveField(3)
-  String? topicId;
-
-  @HiveField(4)
-  String? itemId;
-
-  @HiveField(5)
-  String? detailId;
-
-  @HiveField(6)
-  String type; // 'image' or 'video'
-
-  @HiveField(7)
-  String fileName;
-
-  @HiveField(8)
-  DateTime createdAt;
-
-  @HiveField(9)
-  bool isProcessed;
-
-  @HiveField(10)
-  bool isUploaded;
-
-  @HiveField(11)
-  String? uploadUrl;
-
-  @HiveField(12)
-  Map<String, dynamic>? metadata;
-
-  @HiveField(13)
-  int? fileSize;
-
-  @HiveField(14)
-  int retryCount;
-
-  @HiveField(15)
-  DateTime? lastRetryAt;
-
-  @HiveField(16)
-  String? errorMessage;
-
-  @HiveField(17)
-  String? cloudUrl; // URL da mídia na nuvem (Firebase Storage)
-
-  @HiveField(18)
-  bool isDownloadedFromCloud; // Indica se foi baixada da nuvem
+class OfflineMedia {
+  final String id;
+  final String inspectionId;
+  final String? topicId;
+  final String? itemId;
+  final String? detailId;
+  final String? nonConformityId;
+  final String type; // image, video
+  final String localPath;
+  final String? cloudUrl;
+  final String filename;
+  final int? fileSize;
+  final String? mimeType;
+  final String? thumbnailPath;
+  final int? duration; // Para vídeos, em segundos
+  final int? width;
+  final int? height;
+  final bool isProcessed;
+  final bool isUploaded;
+  final double uploadProgress;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool needsSync;
+  final bool isDeleted;
 
   OfflineMedia({
     required this.id,
-    required this.localPath,
     required this.inspectionId,
     this.topicId,
     this.itemId,
     this.detailId,
+    this.nonConformityId,
     required this.type,
-    required this.fileName,
-    required this.createdAt,
+    required this.localPath,
+    this.cloudUrl,
+    required this.filename,
+    this.fileSize,
+    this.mimeType,
+    this.thumbnailPath,
+    this.duration,
+    this.width,
+    this.height,
     this.isProcessed = false,
     this.isUploaded = false,
-    this.uploadUrl,
-    this.metadata,
-    this.fileSize,
-    this.retryCount = 0,
-    this.lastRetryAt,
-    this.errorMessage,
-    this.cloudUrl,
-    this.isDownloadedFromCloud = false,
+    this.uploadProgress = 0.0,
+    required this.createdAt,
+    required this.updatedAt,
+    this.needsSync = false,
+    this.isDeleted = false,
   });
 
-  factory OfflineMedia.fromJson(Map<String, dynamic> json) => _$OfflineMediaFromJson(json);
+  factory OfflineMedia.create({
+    required String inspectionId,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    String? nonConformityId,
+    required String type,
+    required String localPath,
+    required String filename,
+    int? fileSize,
+    String? mimeType,
+    int? width,
+    int? height,
+    int? duration,
+  }) {
+    final now = DateTime.now();
+    return OfflineMedia(
+      id: const Uuid().v4(),
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: itemId,
+      detailId: detailId,
+      nonConformityId: nonConformityId,
+      type: type,
+      localPath: localPath,
+      filename: filename,
+      fileSize: fileSize,
+      mimeType: mimeType,
+      width: width,
+      height: height,
+      duration: duration,
+      createdAt: now,
+      updatedAt: now,
+      needsSync: true,
+      isDeleted: false,
+    );
+  }
+
+  factory OfflineMedia.fromJson(Map<String, dynamic> json) =>
+      _$OfflineMediaFromJson(json);
+
   Map<String, dynamic> toJson() => _$OfflineMediaToJson(this);
 
-  bool get needsUpload => isProcessed && !isUploaded && !isDownloadedFromCloud;
-  bool get hasError => errorMessage != null;
-  bool get canRetry => isProcessed && !isUploaded && retryCount < 5 && !isDownloadedFromCloud;
-  bool get isLocallyCreated => !isDownloadedFromCloud;
-  bool get isSynced => isUploaded || isDownloadedFromCloud;
-
-  void markProcessed() {
-    isProcessed = true;
-    save();
+  factory OfflineMedia.fromMap(Map<String, dynamic> map) {
+    return OfflineMedia(
+      id: map['id'] as String,
+      inspectionId: map['inspection_id'] as String,
+      topicId: map['topic_id'] as String?,
+      itemId: map['item_id'] as String?,
+      detailId: map['detail_id'] as String?,
+      nonConformityId: map['non_conformity_id'] as String?,
+      type: map['type'] as String,
+      localPath: map['local_path'] as String,
+      cloudUrl: map['cloud_url'] as String?,
+      filename: map['filename'] as String,
+      fileSize: map['file_size'] as int?,
+      mimeType: map['mime_type'] as String?,
+      thumbnailPath: map['thumbnail_path'] as String?,
+      duration: map['duration'] as int?,
+      width: map['width'] as int?,
+      height: map['height'] as int?,
+      isProcessed: (map['is_processed'] as int? ?? 0) == 1,
+      isUploaded: (map['is_uploaded'] as int? ?? 0) == 1,
+      uploadProgress: (map['upload_progress'] as num?)?.toDouble() ?? 0.0,
+      createdAt: DateTime.parse(map['created_at'] as String),
+      updatedAt: DateTime.parse(map['updated_at'] as String),
+      needsSync: (map['needs_sync'] as int? ?? 0) == 1,
+      isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
+    );
   }
 
-  void markUploaded(String url) {
-    isUploaded = true;
-    uploadUrl = url;
-    errorMessage = null;
-    debugPrint('OfflineMedia.markUploaded: Media $id marked as uploaded with URL: $url');
-    save();
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'inspection_id': inspectionId,
+      'topic_id': topicId,
+      'item_id': itemId,
+      'detail_id': detailId,
+      'non_conformity_id': nonConformityId,
+      'type': type,
+      'local_path': localPath,
+      'cloud_url': cloudUrl,
+      'filename': filename,
+      'file_size': fileSize,
+      'mime_type': mimeType,
+      'thumbnail_path': thumbnailPath,
+      'duration': duration,
+      'width': width,
+      'height': height,
+      'is_processed': isProcessed ? 1 : 0,
+      'is_uploaded': isUploaded ? 1 : 0,
+      'upload_progress': uploadProgress,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'needs_sync': needsSync ? 1 : 0,
+      'is_deleted': isDeleted ? 1 : 0,
+    };
   }
 
-  void markError(String error) {
-    errorMessage = error;
-    retryCount++;
-    lastRetryAt = DateTime.now();
-    save();
+  OfflineMedia copyWith({
+    String? id,
+    String? inspectionId,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    String? nonConformityId,
+    String? type,
+    String? localPath,
+    String? cloudUrl,
+    String? filename,
+    int? fileSize,
+    String? mimeType,
+    String? thumbnailPath,
+    int? duration,
+    int? width,
+    int? height,
+    bool? isProcessed,
+    bool? isUploaded,
+    double? uploadProgress,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? needsSync,
+    bool? isDeleted,
+  }) {
+    return OfflineMedia(
+      id: id ?? this.id,
+      inspectionId: inspectionId ?? this.inspectionId,
+      topicId: topicId ?? this.topicId,
+      itemId: itemId ?? this.itemId,
+      detailId: detailId ?? this.detailId,
+      nonConformityId: nonConformityId ?? this.nonConformityId,
+      type: type ?? this.type,
+      localPath: localPath ?? this.localPath,
+      cloudUrl: cloudUrl ?? this.cloudUrl,
+      filename: filename ?? this.filename,
+      fileSize: fileSize ?? this.fileSize,
+      mimeType: mimeType ?? this.mimeType,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      duration: duration ?? this.duration,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      isProcessed: isProcessed ?? this.isProcessed,
+      isUploaded: isUploaded ?? this.isUploaded,
+      uploadProgress: uploadProgress ?? this.uploadProgress,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      needsSync: needsSync ?? this.needsSync,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
   }
 
-  void resetError() {
-    errorMessage = null;
-    save();
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is OfflineMedia && other.id == id;
   }
 
-  void markDownloadedFromCloud(String cloudUrlParam) {
-    isDownloadedFromCloud = true;
-    cloudUrl = cloudUrlParam;
-    isProcessed = true;
-    errorMessage = null;
-    save();
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() {
+    return 'OfflineMedia(id: $id, filename: $filename, type: $type, isProcessed: $isProcessed, isUploaded: $isUploaded)';
+  }
+
+  // Getters utilitários
+  bool get isImage => type == 'image';
+  bool get isVideo => type == 'video';
+  bool get isReadyForUpload => isProcessed && !isUploaded;
+  bool get isFullyUploaded => isUploaded && uploadProgress >= 100.0;
+  bool get isProcessing => !isProcessed && !isUploaded;
+  bool get isUploading => isProcessed && !isUploaded && uploadProgress > 0.0 && uploadProgress < 100.0;
+  
+  String get displayName => filename.split('.').first;
+  String get extension => filename.split('.').last;
+  
+  String get statusDisplayName {
+    if (isUploaded) return 'Enviado';
+    if (isUploading) return 'Enviando...';
+    if (isReadyForUpload) return 'Pronto para envio';
+    if (isProcessing) return 'Processando...';
+    return 'Pendente';
+  }
+  
+  String get typeDisplayName {
+    switch (type) {
+      case 'image':
+        return 'Imagem';
+      case 'video':
+        return 'Vídeo';
+      default:
+        return type;
+    }
+  }
+
+  String get fileSizeDisplayName {
+    if (fileSize == null) return 'Tamanho desconhecido';
+    
+    final sizeInBytes = fileSize!;
+    if (sizeInBytes < 1024) {
+      return '$sizeInBytes B';
+    } else if (sizeInBytes < 1024 * 1024) {
+      return '${(sizeInBytes / 1024).toStringAsFixed(1)} KB';
+    } else {
+      return '${(sizeInBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+  }
+
+  String get durationDisplayName {
+    if (duration == null) return '';
+    
+    final minutes = duration! ~/ 60;
+    final seconds = duration! % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 }

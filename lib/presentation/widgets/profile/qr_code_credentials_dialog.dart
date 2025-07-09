@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class QrCodeCredentialsDialog extends StatelessWidget {
   final String inspectorId;
@@ -38,7 +37,7 @@ class QrCodeCredentialsDialog extends StatelessWidget {
                   child: Text(
                     'Credenciais do Inspetor',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -72,7 +71,7 @@ class QrCodeCredentialsDialog extends StatelessWidget {
                   QrImageView(
                     data: qrData,
                     version: QrVersions.auto,
-                    size: 240.0,
+                    size: 200.0,
                     backgroundColor: Colors.white,
                     eyeStyle: const QrEyeStyle(
                       eyeShape: QrEyeShape.square,
@@ -87,29 +86,27 @@ class QrCodeCredentialsDialog extends StatelessWidget {
                   Container(
                     width: 50,
                     height: 50,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withAlpha((255 * 0.1).round()),
-                          blurRadius: 4,
+                          blurRadius: 1,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: SvgPicture.asset(
-                      'assets/icons/logo.svg',
+                    child: Image.asset(
+                      'assets/icons/logo.png',
                       fit: BoxFit.contain,
                     ),
                   ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 20),
-
+            const SizedBox(height: 12),
             // Profile Info
             Text(
               '${profile['name']} ${profile['last_name']}',
@@ -146,7 +143,7 @@ class QrCodeCredentialsDialog extends StatelessWidget {
                 'ID: $inspectorId',
                 style: const TextStyle(
                   fontSize: 10,
-                  color: Color(0xFF6F4B99),
+                  color: Color(0xFFFFFFFF),
                   fontFamily: 'monospace',
                   fontWeight: FontWeight.w500,
                 ),

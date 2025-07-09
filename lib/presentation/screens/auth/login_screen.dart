@@ -145,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'assets/images/logo.svg',
                           height: MediaQuery.of(context).size.height * 0.6 * 0.15,
                         ),
-                        const SizedBox(height: 36),
+                        const SizedBox(height: 43),
                         TextFormField(
                           controller: _emailController,
                           decoration: const InputDecoration(

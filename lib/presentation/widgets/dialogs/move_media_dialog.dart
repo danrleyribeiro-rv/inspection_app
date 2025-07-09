@@ -1,6 +1,6 @@
 // lib/presentation/widgets/dialogs/move_media_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
 
 class MoveMediaDialog extends StatefulWidget {
   final String inspectionId;
@@ -21,7 +21,7 @@ class MoveMediaDialog extends StatefulWidget {
 }
 
 class _MoveMediaDialogState extends State<MoveMediaDialog> {
-  final ServiceFactory _serviceFactory = ServiceFactory();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   
   List<Map<String, dynamic>> _topics = [];
   List<Map<String, dynamic>> _items = [];
@@ -43,7 +43,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadHierarchy() async {
     try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
         final topics = <Map<String, dynamic>>[];
         
@@ -80,7 +80,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadItems(String topicId) async {
     try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
         for (int topicIndex = 0; topicIndex < inspection!.topics!.length; topicIndex++) {
           final topicData = inspection.topics![topicIndex];
@@ -130,7 +130,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadDetails(String itemId) async {
     try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
         for (int topicIndex = 0; topicIndex < inspection!.topics!.length; topicIndex++) {
           final topicData = inspection.topics![topicIndex];
@@ -181,7 +181,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadNonConformities(String detailId) async {
     try {
-      final inspection = await _serviceFactory.coordinator.getInspection(widget.inspectionId);
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
         for (int topicIndex = 0; topicIndex < inspection!.topics!.length; topicIndex++) {
           final topicData = inspection.topics![topicIndex];
@@ -285,16 +285,25 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _moveMedia() async {
     try {
-      bool success;
+      // Validate selection
+      if (_selectedDetailId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Por favor, selecione um detalhe de destino'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
       
-      // For offline-first architecture, always use media service
-      success = await _serviceFactory.mediaService.moveMedia(
+      // Move media using the media service
+      final success = await _serviceFactory.mediaService.moveMedia(
         mediaId: widget.mediaId,
+        inspectionId: widget.inspectionId,
         newTopicId: _selectedTopicId,
         newItemId: _selectedItemId,
         newDetailId: _selectedDetailId,
-        isNonConformity: _isNonConformity,
-        nonConformityId: _selectedNonConformityId,
+        newNonConformityId: _isNonConformity ? _selectedNonConformityId : null,
       );
 
       if (mounted) {
@@ -312,12 +321,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.isOfflineMode
-                  ? 'Erro ao mover mídia offline'
-                  : 'Erro ao mover imagem'
-              ),
+            const SnackBar(
+              content: Text('Erro ao mover mídia'),
               backgroundColor: Colors.red,
             ),
           );

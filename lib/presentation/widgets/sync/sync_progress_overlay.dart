@@ -1,21 +1,41 @@
 // lib/presentation/widgets/sync/sync_progress_overlay.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/utils/sync_service.dart';
-import 'package:inspection_app/services/service_factory.dart';
+import 'package:inspection_app/services/manual_sync_service.dart'; // Use ManualSyncService
 import 'package:inspection_app/presentation/widgets/sync/sync_progress_notification.dart';
+import 'package:inspection_app/models/sync_progress.dart'; // Import SyncProgress and SyncPhase
 import 'dart:async';
 
 class SyncProgressOverlay {
   static OverlayEntry? _overlayEntry;
-  static StreamSubscription<SyncProgress>? _subscription;
+  static StreamSubscription<Map<String, bool>>? _subscription; // ManualSyncService returns Map<String, bool>
 
   static void show(BuildContext context) {
     hide(); // Remove any existing overlay
 
-    final syncService = ServiceFactory().syncService;
+    final ManualSyncService syncService = ManualSyncService(); // Get ManualSyncService instance
     final overlay = Overlay.of(context);
     
-    _subscription = syncService.syncProgressStream.listen((progress) {
+    _subscription = syncService.syncAllPendingInspections().asStream().listen((results) { // Listen to the results of syncAllPendingInspections
+      // For simplicity, we'll create a dummy SyncProgress from the results
+      SyncProgress progress;
+      if (results.containsValue(false)) {
+        progress = SyncProgress(
+          inspectionId: 'multi',
+          phase: SyncPhase.error,
+          current: 1,
+          total: 1,
+          message: 'Sincronização concluída com erros.',
+        );
+      } else {
+        progress = SyncProgress(
+          inspectionId: 'multi',
+          phase: SyncPhase.completed,
+          current: 1,
+          total: 1,
+          message: 'Sincronização concluída com sucesso!',
+        );
+      }
+
       if (_overlayEntry != null) {
         _overlayEntry!.remove();
         _overlayEntry = null;
