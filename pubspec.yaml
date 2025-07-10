@@ -1,5 +1,5 @@
-name: 'inspection_app'
-description: "Projeto Flutter para o aplicativo Lince, utilizado para inspeções."
+name: lince_inspecoes
+description: "Aplicativo Lince Inspeções"
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 

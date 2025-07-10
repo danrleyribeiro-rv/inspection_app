@@ -1,8 +1,8 @@
 // lib/presentation/screens/home/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/presentation/screens/home/inspection_tab.dart';
-import 'package:inspection_app/presentation/screens/home/profile_tab.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/presentation/screens/home/inspection_tab.dart';
+import 'package:lince_inspecoes/presentation/screens/home/profile_tab.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,7 +26,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkAuth();
   }
 
-
   void _checkAuth() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -35,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
             elevation: 0,
             selectedItemColor: const Color(0xFFBB8FEB),
             unselectedItemColor: Colors.grey[400],
-            selectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+            selectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
             unselectedLabelStyle:
                 const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
             showUnselectedLabels: true,
@@ -77,7 +75,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(4),
                   decoration: _currentIndex == 0
                       ? BoxDecoration(
-                          color: const Color(0xFFBB8FEB).withAlpha((255 * 0.12).round()),
+                          color: const Color(0xFFBB8FEB)
+                              .withAlpha((255 * 0.12).round()),
                           borderRadius: BorderRadius.circular(12),
                         )
                       : null,
@@ -90,7 +89,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(6),
                   decoration: _currentIndex == 1
                       ? BoxDecoration(
-                          color: const Color(0xFFBB8FEB).withAlpha((255 * 0.12).round()),
+                          color: const Color(0xFFBB8FEB)
+                              .withAlpha((255 * 0.12).round()),
                           borderRadius: BorderRadius.circular(12),
                         )
                       : null,

@@ -1,7 +1,7 @@
 // lib/presentation/screens/auth/forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:inspection_app/services/core/auth_service.dart';
+import 'package:lince_inspecoes/services/core/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -77,8 +77,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.email,
-                        size: 60, color: const Color(0xFF6F4B99)),
+                    Icon(Icons.email, size: 60, color: const Color(0xFF6F4B99)),
                     const SizedBox(height: 20),
                     const Text(
                       'E-mail enviado com sucesso! Verifique sua caixa de entrada.',

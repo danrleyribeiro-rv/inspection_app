@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
 
 class AuthService {
   final FirebaseService _firebase = FirebaseService();

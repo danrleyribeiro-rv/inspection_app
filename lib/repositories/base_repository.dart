@@ -12,6 +12,12 @@ abstract class BaseRepository<T> {
   Future<String> insert(T entity) async {
     final db = await database;
     final map = toMap(entity);
+    
+    // Generate ID if null
+    if (map['id'] == null) {
+      map['id'] = '${DateTime.now().millisecondsSinceEpoch}_$tableName';
+    }
+    
     map['created_at'] = DateTime.now().toIso8601String();
     map['updated_at'] = DateTime.now().toIso8601String();
     map['needs_sync'] = 1;

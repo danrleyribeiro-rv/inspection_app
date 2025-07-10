@@ -5,9 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
 import 'dart:developer';
-import 'package:inspection_app/presentation/screens/inspection/inspection_detail_screen.dart';
-import 'package:inspection_app/presentation/widgets/common/inspection_card.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/inspection_detail_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/common/inspection_card.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 // Função auxiliar para formatação de data em pt-BR
 String formatDateBR(DateTime date) {
@@ -23,7 +23,7 @@ class InspectionsTab extends StatefulWidget {
 
 class _InspectionsTabState extends State<InspectionsTab> {
   final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+  // _firestore removido - não utilizado após remoção do botão completar
   final _serviceFactory = EnhancedOfflineServiceFactory.instance;
   String? _googleMapsApiKey;
 
@@ -37,7 +37,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
   List<Map<String, dynamic>> _filteredInspections = [];
   bool _isSearching = false;
   final _searchController = TextEditingController();
-  
+
   // Track inspections that have newer data in the cloud
   final Set<String> _inspectionsWithCloudUpdates = <String>{};
 
@@ -83,10 +83,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
       // OFFLINE-FIRST: Always load cached inspections only
       await _loadCachedInspections();
-      
+
       // In offline-first mode, we don't automatically sync from cloud
       // Users must explicitly download inspections they want to work on
-      
     } catch (e, s) {
       log('[InspectionsTab _loadInspections] Error loading inspections',
           error: e, stackTrace: s);
@@ -105,9 +104,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<void> _loadCachedInspections() async {
     try {
       log('[InspectionsTab _loadCachedInspections] Loading cached inspections only.');
-      
+
       final cachedInspections = await _getCachedInspections();
-      
+
       if (mounted) {
         setState(() {
           _inspections = cachedInspections;
@@ -115,7 +114,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           _isLoading = false;
         });
       }
-      
+
       log('[InspectionsTab _loadCachedInspections] Loaded ${_inspections.length} cached inspections.');
     } catch (e) {
       log('[InspectionsTab _loadCachedInspections] Error loading cached inspections: $e');
@@ -136,19 +135,20 @@ class _InspectionsTabState extends State<InspectionsTab> {
         log('[InspectionsTab _getCachedInspections] No user logged in');
         return [];
       }
-      
+
       final cachedInspections = <Map<String, dynamic>>[];
-      
+
       // Get only downloaded inspections for current user (offline-first)
-      final offlineInspections = await _serviceFactory.dataService.getInspectionsByInspector(userId);
-      
+      final offlineInspections =
+          await _serviceFactory.dataService.getInspectionsByInspector(userId);
+
       for (final inspection in offlineInspections) {
         try {
           // Convert Inspection to Map format compatible with UI
           final inspectionMap = inspection.toMap();
           inspectionMap['_is_cached'] = true;
           inspectionMap['_local_status'] = inspection.status;
-          
+
           cachedInspections.add(inspectionMap);
         } catch (e) {
           log('[InspectionsTab _getCachedInspections] Error converting inspection ${inspection.id}: $e');
@@ -156,7 +156,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           continue;
         }
       }
-      
+
       log('[InspectionsTab _getCachedInspections] Found ${cachedInspections.length} downloaded inspections for current user.');
       return cachedInspections;
     } catch (e) {
@@ -260,39 +260,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     });
   }
 
-  Future<void> _completeInspection(String inspectionId) async {
-    log('[InspectionsTab _completeInspection] Attempting to complete inspection ID: $inspectionId');
-    try {
-      await _firestore.collection('inspections').doc(inspectionId).update({
-        'status': 'completed',
-        'finished_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-
-      log('[InspectionsTab _completeInspection] Inspection $inspectionId completed successfully.');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vistoria concluída com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadInspections();
-      }
-    } catch (e, s) {
-      log('[InspectionsTab _completeInspection] Error completing inspection $inspectionId',
-          error: e, stackTrace: s);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao concluir a vistoria: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+  // Método _completeInspection removido - apenas sincronização manual disponível
 
   Future<void> _downloadInspectionData(String inspectionId) async {
     log('[InspectionsTab _downloadInspectionData] Starting complete offline download for inspection ID: $inspectionId');
@@ -420,12 +388,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
         (inspection) => inspection['id'] == inspectionId,
         orElse: () => <String, dynamic>{},
       );
-      
+
       final localStatus = inspectionInList['_local_status'] ?? '';
-      final hasUnsyncedData = localStatus == 'modified' || localStatus == 'in_progress';
-      
+      final hasUnsyncedData =
+          localStatus == 'modified' || localStatus == 'in_progress';
+
       log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: local status: $localStatus, has unsynced: $hasUnsyncedData');
-      
+
       return hasUnsyncedData;
     } catch (e) {
       log('[InspectionsTab _hasUnsyncedData] Error checking unsynced data: $e');
@@ -440,12 +409,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
         (inspection) => inspection['id'] == inspectionId,
         orElse: () => <String, dynamic>{},
       );
-      
+
       // If inspection exists in our local list, it means it was downloaded
-      final isDownloaded = inspectionInList.isNotEmpty && inspectionInList['_is_cached'] == true;
-      
+      final isDownloaded =
+          inspectionInList.isNotEmpty && inspectionInList['_is_cached'] == true;
+
       log('[InspectionsTab _isInspectionFullyDownloaded] Inspection $inspectionId: exists in local list: ${inspectionInList.isNotEmpty}, is cached: ${inspectionInList['_is_cached']}, is downloaded: $isDownloaded');
-      
+
       return isDownloaded;
     } catch (e) {
       log('[InspectionsTab _isInspectionFullyDownloaded] Error checking download status: $e');
@@ -454,7 +424,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
   }
 
   // Method removed - not used anywhere
-  
+
   // Method removed - not used anywhere
 
   void _startCloudUpdateChecks() {
@@ -477,19 +447,21 @@ class _InspectionsTabState extends State<InspectionsTab> {
       if (!(await _serviceFactory.syncService.isConnected())) {
         return;
       }
-      
+
       for (final inspection in _inspections) {
         final inspectionId = inspection['id'] as String;
-        
+
         // Skip if inspection doesn't have local cache
-        if (!(await _serviceFactory.dataService.getInspection(inspectionId) != null)) {
+        if (!(await _serviceFactory.dataService.getInspection(inspectionId) !=
+            null)) {
           continue;
         }
-        
+
         // Check if cloud has newer data - simplified check
         try {
           // Verificar se há atualizações na nuvem comparando timestamps
-          final localInspection = await _serviceFactory.dataService.getInspection(inspectionId);
+          final localInspection =
+              await _serviceFactory.dataService.getInspection(inspectionId);
           if (localInspection != null && localInspection.lastSyncAt != null) {
             // Por simplicidade, assume que não há atualizações para evitar código morto
             _inspectionsWithCloudUpdates.remove(inspectionId);
@@ -499,7 +471,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           _inspectionsWithCloudUpdates.remove(inspectionId);
         }
       }
-      
+
       // Update UI if there are changes
       // hasUpdates is always false for now
       // if (hasUpdates && mounted) {
@@ -732,7 +704,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
                       surface: Color(0xFF4A3B6B),
                       onSurface: Colors.white,
                     ),
-                    dialogTheme: const DialogTheme(backgroundColor: Color(0xFF4A3B6B)),
+                    dialogTheme:
+                        const DialogTheme(backgroundColor: Color(0xFF4A3B6B)),
                     textButtonTheme: TextButtonThemeData(
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
@@ -888,23 +861,25 @@ class _InspectionsTabState extends State<InspectionsTab> {
                             return InspectionCard(
                               inspection: inspection,
                               googleMapsApiKey: _googleMapsApiKey ?? '',
-                              isFullyDownloaded: _isInspectionFullyDownloaded(inspection['id']),
+                              isFullyDownloaded: _isInspectionFullyDownloaded(
+                                  inspection['id']),
                               needsSync: _hasUnsyncedData(inspection['id']),
                               onViewDetails: () {
                                 log('[InspectionsTab] Navigating to details for inspection ID: ${inspection['id']}');
                                 _navigateToInspectionDetail(inspection['id']);
                               },
-                              onComplete: inspection['status'] == 'in_progress'
-                                  ? () => _completeInspection(inspection['id'])
-                                  : null,
-                              onSync: _hasUnsyncedData(inspection['id']) 
+                              // onComplete removido - apenas sincronização manual
+                              onSync: _hasUnsyncedData(inspection['id'])
                                   ? () => _syncInspectionData(inspection['id'])
                                   : null,
-                              onDownload: () => _downloadInspectionData(inspection['id']),
+                              onDownload: () =>
+                                  _downloadInspectionData(inspection['id']),
                               onSyncImages: _hasPendingImages(inspection['id'])
-                                  ? () => _syncInspectionImages(inspection['id'])
+                                  ? () =>
+                                      _syncInspectionImages(inspection['id'])
                                   : null,
-                              pendingImagesCount: _getPendingImagesCount(inspection['id']),
+                              pendingImagesCount:
+                                  _getPendingImagesCount(inspection['id']),
                             );
                           },
                         ),
@@ -947,7 +922,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white, backgroundColor: const Color(0xFF6F4B99)),
+                foregroundColor: Colors.white,
+                backgroundColor: const Color(0xFF6F4B99)),
             onPressed: isEmptySearch
                 ? _clearSearch
                 : (_isLoading ? null : _loadInspections),
@@ -979,11 +955,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
       );
 
       // Buscar inspeções disponíveis do Firestore
-      final availableInspections = await _getAvailableInspectionsFromFirestore();
-      
+      final availableInspections =
+          await _getAvailableInspectionsFromFirestore();
+
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
-      
+
       if (availableInspections.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1019,7 +996,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     } catch (e) {
       // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
-      
+
       log('[InspectionsTab _showDownloadDialog] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1032,10 +1009,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _getAvailableInspectionsFromFirestore() async {
+  Future<List<Map<String, dynamic>>>
+      _getAvailableInspectionsFromFirestore() async {
     try {
-      debugPrint('InspectionsTab: Fetching available inspections from Firestore');
-      
+      debugPrint(
+          'InspectionsTab: Fetching available inspections from Firestore');
+
       final user = _serviceFactory.authService.currentUser;
       if (user == null) {
         debugPrint('InspectionsTab: No user logged in');
@@ -1050,19 +1029,21 @@ class _InspectionsTabState extends State<InspectionsTab> {
           .get();
 
       final availableInspections = <Map<String, dynamic>>[];
-      
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         data['id'] = doc.id;
-        
+
         // Verificar se já está baixada localmente
-        final localInspection = await _serviceFactory.dataService.getInspection(doc.id);
+        final localInspection =
+            await _serviceFactory.dataService.getInspection(doc.id);
         data['isDownloaded'] = localInspection != null;
-        
+
         availableInspections.add(data);
       }
 
-      debugPrint('InspectionsTab: Found ${availableInspections.length} available inspections');
+      debugPrint(
+          'InspectionsTab: Found ${availableInspections.length} available inspections');
       return availableInspections;
     } catch (e) {
       debugPrint('InspectionsTab: Error fetching available inspections: $e');
@@ -1075,18 +1056,22 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
     // Update status from "pending" to "in_progress" when starting an inspection
     try {
-      final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
-      
+      final inspection =
+          await _serviceFactory.dataService.getInspection(inspectionId);
+
       if (inspection != null && inspection.status == 'pending') {
-        await _serviceFactory.dataService.updateInspectionStatus(inspectionId, 'in_progress');
+        await _serviceFactory.dataService
+            .updateInspectionStatus(inspectionId, 'in_progress');
         log('[InspectionsTab] Updated inspection $inspectionId status from pending to in_progress');
+      } else {
+        log('[InspectionsTab] Inspection $inspectionId is already ${inspection?.status}, not changing to in_progress');
       }
     } catch (e) {
       log('[InspectionsTab] Error updating inspection status: $e');
     }
 
     if (!mounted) return;
-    
+
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (context) => InspectionDetailScreen(
@@ -1117,32 +1102,39 @@ class _AvailableInspectionsDialog extends StatelessWidget {
           itemBuilder: (context, index) {
             final inspection = inspections[index];
             final title = inspection['title'] ?? 'Vistoria sem título';
-            final status = inspection['status'] ?? 'pending';
             final date = _formatDate(inspection['scheduled_date']);
             final isDownloaded = inspection['isDownloaded'] ?? false;
-            
+
             return ListTile(
-              title: Text(title, style: const TextStyle(fontSize: 14)),
+              title: Text(title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Status: $status', style: const TextStyle(fontSize: 12)),
                   Text('Data: $date', style: const TextStyle(fontSize: 12)),
                   if (isDownloaded)
                     const Text(
                       'Já baixada - Toque para abrir',
-                      style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold),
                     )
                   else
                     const Text(
                       'Toque para baixar',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Color.fromARGB(255, 120, 80, 165)),
                     ),
                 ],
               ),
               trailing: Icon(
                 isDownloaded ? Icons.check_circle : Icons.download,
-                color: isDownloaded ? Colors.green : Colors.blue,
+                color: isDownloaded
+                    ? Colors.green
+                    : Color.fromARGB(255, 120, 80, 165),
               ),
               onTap: () => Navigator.of(context).pop(inspection),
             );
@@ -1157,10 +1149,10 @@ class _AvailableInspectionsDialog extends StatelessWidget {
       ],
     );
   }
-  
+
   String _formatDate(dynamic dateValue) {
     if (dateValue == null) return 'Data não definida';
-    
+
     try {
       DateTime date;
       if (dateValue is String) {
@@ -1170,7 +1162,7 @@ class _AvailableInspectionsDialog extends StatelessWidget {
       } else {
         return 'Data inválida';
       }
-      
+
       return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     } catch (e) {
       return 'Data inválida';

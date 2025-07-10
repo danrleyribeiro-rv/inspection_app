@@ -1,5 +1,5 @@
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/repositories/base_repository.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/repositories/base_repository.dart';
 
 class TopicRepository extends BaseRepository<Topic> {
   @override
@@ -28,12 +28,14 @@ class TopicRepository extends BaseRepository<Topic> {
       whereArgs: [inspectionId],
       orderBy: 'order_index ASC',
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 
-  Future<Topic?> findByInspectionIdAndIndex(String inspectionId, int orderIndex) async {
-    final results = await findWhere('inspection_id = ? AND order_index = ?', [inspectionId, orderIndex]);
+  Future<Topic?> findByInspectionIdAndIndex(
+      String inspectionId, int orderIndex) async {
+    final results = await findWhere(
+        'inspection_id = ? AND order_index = ?', [inspectionId, orderIndex]);
     return results.isNotEmpty ? results.first : null;
   }
 
@@ -46,7 +48,8 @@ class TopicRepository extends BaseRepository<Topic> {
     return (result.first['max_index'] as int?) ?? 0;
   }
 
-  Future<void> updateProgress(String topicId, double progressPercentage, int completedItems, int totalItems) async {
+  Future<void> updateProgress(String topicId, double progressPercentage,
+      int completedItems, int totalItems) async {
     final db = await database;
     await db.update(
       tableName,

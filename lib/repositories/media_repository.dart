@@ -1,5 +1,5 @@
-import 'package:inspection_app/models/offline_media.dart';
-import 'package:inspection_app/repositories/base_repository.dart';
+import 'package:lince_inspecoes/models/offline_media.dart';
+import 'package:lince_inspecoes/repositories/base_repository.dart';
 
 class MediaRepository extends BaseRepository<OfflineMedia> {
   @override
@@ -32,7 +32,8 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
     return await findWhere('detail_id = ?', [detailId]);
   }
 
-  Future<List<OfflineMedia>> findByNonConformityId(String nonConformityId) async {
+  Future<List<OfflineMedia>> findByNonConformityId(
+      String nonConformityId) async {
     return await findWhere('non_conformity_id = ?', [nonConformityId]);
   }
 
@@ -68,8 +69,10 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
     return await findWhere('is_processed = 1 AND is_uploaded = 0', []);
   }
 
-  Future<List<OfflineMedia>> findByInspectionIdAndType(String inspectionId, String type) async {
-    return await findWhere('inspection_id = ? AND type = ?', [inspectionId, type]);
+  Future<List<OfflineMedia>> findByInspectionIdAndType(
+      String inspectionId, String type) async {
+    return await findWhere(
+        'inspection_id = ? AND type = ?', [inspectionId, type]);
   }
 
   Future<void> markAsProcessed(String mediaId, String? processedPath) async {
@@ -237,7 +240,8 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
     return result.first['count'] as int;
   }
 
-  Future<int> countByInspectionIdAndType(String inspectionId, String type) async {
+  Future<int> countByInspectionIdAndType(
+      String inspectionId, String type) async {
     final db = await database;
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND type = ? AND is_deleted = 0',
@@ -255,15 +259,28 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
     return (result.first['total_size'] as num?)?.toDouble() ?? 0.0;
   }
 
-  Future<Map<String, int>> getMediaStatsByInspectionId(String inspectionId) async {
+  Future<Map<String, int>> getMediaStatsByInspectionId(
+      String inspectionId) async {
     final db = await database;
     final results = await Future.wait([
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0', [inspectionId]),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND type = ? AND is_deleted = 0', [inspectionId, 'image']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND type = ? AND is_deleted = 0', [inspectionId, 'video']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_processed = 1 AND is_deleted = 0', [inspectionId]),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_uploaded = 1 AND is_deleted = 0', [inspectionId]),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_processed = 1 AND is_uploaded = 0 AND is_deleted = 0', [inspectionId]),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0',
+          [inspectionId]),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND type = ? AND is_deleted = 0',
+          [inspectionId, 'image']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND type = ? AND is_deleted = 0',
+          [inspectionId, 'video']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_processed = 1 AND is_deleted = 0',
+          [inspectionId]),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_uploaded = 1 AND is_deleted = 0',
+          [inspectionId]),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_processed = 1 AND is_uploaded = 0 AND is_deleted = 0',
+          [inspectionId]),
     ]);
 
     return {
@@ -276,7 +293,8 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
     };
   }
 
-  Future<List<OfflineMedia>> findByInspectionIdPaginated(String inspectionId, int limit, int offset) async {
+  Future<List<OfflineMedia>> findByInspectionIdPaginated(
+      String inspectionId, int limit, int offset) async {
     final db = await database;
     final maps = await db.query(
       tableName,
@@ -286,7 +304,7 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
       limit: limit,
       offset: offset,
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 
@@ -298,7 +316,7 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
       whereArgs: ['%$query%'],
       orderBy: 'created_at DESC',
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 }

@@ -10,7 +10,7 @@ plugins {
 
 android {
 
-    namespace = "com.corp.inspection_app"
+    namespace = "com.corp.lince_inspecoes"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.2.12479018"
 
@@ -25,7 +25,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.corp.inspection_app"
+        applicationId = "com.corp.lince_inspecoes"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdkVersion (24)

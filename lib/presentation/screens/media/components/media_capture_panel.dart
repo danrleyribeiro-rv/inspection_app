@@ -1,11 +1,11 @@
 // lib/presentation/screens/media/components/media_capture_panel.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/models/offline_media.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/models/offline_media.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class MediaCapturePanel extends StatefulWidget {
   final String inspectionId;
@@ -30,7 +30,8 @@ class MediaCapturePanel extends StatefulWidget {
 }
 
 class _MediaCapturePanelState extends State<MediaCapturePanel> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
 
   String? _topicId;
   String? _itemId;
@@ -268,7 +269,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         offlineMedia = await _serviceFactory.mediaService.capturePhoto(
           imageFile: XFile(filePath),
           inspectionId: widget.inspectionId,
-          topicId: _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
+          topicId:
+              _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
           itemId: _detailId != null ? _itemId : null,
           detailId: _detailId,
           nonConformityId: _isNonConformity ? 'temp_nc_id' : null,
@@ -277,7 +279,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         offlineMedia = await _serviceFactory.mediaService.captureVideo(
           videoFile: XFile(filePath),
           inspectionId: widget.inspectionId,
-          topicId: _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
+          topicId:
+              _topicOnly ? _topicId : (_detailId != null ? _topicId : null),
           itemId: _detailId != null ? _itemId : null,
           detailId: _detailId,
           nonConformityId: _isNonConformity ? 'temp_nc_id' : null,
@@ -291,7 +294,8 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
+            content:
+                Text('${type == 'image' ? 'Foto' : 'Vídeo'} salvo com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -309,7 +313,6 @@ class _MediaCapturePanelState extends State<MediaCapturePanel> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {

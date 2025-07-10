@@ -1,20 +1,20 @@
 // lib/presentation/screens/inspection/inspection_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/models/inspection.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/hierarchical_inspection_view.dart';
-import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/empty_topic_state.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/loading_state.dart';
-import 'package:inspection_app/presentation/widgets/dialogs/offline_template_topic_selector_dialog.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/models/inspection.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/hierarchical_inspection_view.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/empty_topic_state.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/loading_state.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/offline_template_topic_selector_dialog.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:inspection_app/presentation/screens/inspection/inspection_info_dialog.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
-import 'package:inspection_app/presentation/widgets/sync/sync_progress_overlay.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/inspection_info_dialog.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/widgets/sync/sync_progress_overlay.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -26,14 +26,17 @@ class InspectionDetailScreen extends StatefulWidget {
 }
 
 class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
 
   bool _isLoading = true;
   final bool _isSyncing = false;
   bool _isOnline = true;
   bool _isApplyingTemplate = false;
-  bool _isAvailableOffline = false; // Track if inspection is fully available offline
-  bool _canEdit = false; // Track if user can edit (based on offline availability)
+  bool _isAvailableOffline =
+      false; // Track if inspection is fully available offline
+  bool _canEdit =
+      false; // Track if user can edit (based on offline availability)
   Inspection? _inspection;
   List<Topic> _topics = [];
   final Map<String, List<Item>> _itemsCache = {};
@@ -45,7 +48,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     _listenToConnectivity();
     _loadInspection();
   }
-  
+
   @override
   void dispose() {
     // Limpar overlay ao sair da tela
@@ -54,12 +57,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     _syncOnExit();
     super.dispose();
   }
-  
-  
+
   Future<void> _syncOnExit() async {
     // OFFLINE-FIRST: Never auto-sync on exit
     // Users must manually sync when they want to upload changes
-    debugPrint('InspectionDetailScreen: Exiting without auto-sync (offline-first mode)');
+    debugPrint(
+        'InspectionDetailScreen: Exiting without auto-sync (offline-first mode)');
   }
 
   void _listenToConnectivity() {
@@ -87,28 +90,31 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     });
   }
 
-
   Future<void> _loadInspection() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       // Check if inspection is fully downloaded
-      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
+      final inspection =
+          await _serviceFactory.dataService.getInspection(widget.inspectionId);
       _isAvailableOffline = inspection != null;
       _canEdit = _isAvailableOffline;
 
       if (_isAvailableOffline) {
         // Load from offline storage (OFFLINE-FIRST)
-        final offlineInspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
+        final offlineInspection = await _serviceFactory.dataService
+            .getInspection(widget.inspectionId);
         if (offlineInspection != null) {
           setState(() {
             _inspection = offlineInspection;
           });
-          
-          // Marcar como "em progresso" ao iniciar a edição
-          await _markAsInProgress();
-          
+
+          // Marcar como "em progresso" apenas se estiver pending
+          if (offlineInspection.status == 'pending') {
+            await _markAsInProgress();
+          }
+
           await _loadAllData();
         } else {
           _showErrorSnackBar('Erro ao carregar inspeção offline.');
@@ -133,21 +139,24 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
     try {
       // Carregar todos os tópicos
-      final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
+      final topics =
+          await _serviceFactory.dataService.getTopics(widget.inspectionId);
 
       // Carregar todos os itens e detalhes em paralelo
       for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
         final topic = topics[topicIndex];
-        
-        // Carregar itens do tópico
-        final items = await _serviceFactory.dataService.getItems(topic.id!);
-        _itemsCache[topic.id ?? 'topic_$topicIndex'] = items;
+
+        // Carregar itens do tópico - use fallback if ID is null
+        final topicId = topic.id ?? 'topic_$topicIndex';
+        final items = await _serviceFactory.dataService.getItems(topicId);
+        _itemsCache[topicId] = items;
 
         // Carregar detalhes de cada item
         for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
           final item = items[itemIndex];
-          final details = await _serviceFactory.dataService.getDetails(item.id!);
-          _detailsCache['${topic.id ?? 'topic_$topicIndex'}_${item.id ?? 'item_$itemIndex'}'] = details;
+          final itemId = item.id ?? 'item_$itemIndex';
+          final details = await _serviceFactory.dataService.getDetails(itemId);
+          _detailsCache['${topicId}_$itemId'] = details;
         }
       }
 
@@ -309,7 +318,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     }
   }
 
-
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -320,7 +328,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   void _showOfflineRequiredDialog() {
     if (!mounted) return;
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         showDialog(
@@ -328,9 +336,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Download Necessário'),
             content: const Text(
-              'Esta inspeção está apenas parcialmente disponível. Para editar, '
-              'você precisa baixar todos os dados e mídias. Deseja baixar agora?'
-            ),
+                'Esta inspeção está apenas parcialmente disponível. Para editar, '
+                'você precisa baixar todos os dados e mídias. Deseja baixar agora?'),
             actions: [
               TextButton(
                 onPressed: () {
@@ -364,7 +371,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _OfflineDownloadDialog(inspectionId: widget.inspectionId),
+      builder: (context) =>
+          _OfflineDownloadDialog(inspectionId: widget.inspectionId),
     );
 
     try {
@@ -377,22 +385,23 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         _isAvailableOffline = true;
         _canEdit = true;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Inspeção baixada com sucesso! Agora você pode editá-la offline.'),
+            content: Text(
+                'Inspeção baixada com sucesso! Agora você pode editá-la offline.'),
             backgroundColor: Colors.green,
           ),
         );
       }
-      
+
       // Reload inspection from offline storage
       await _loadInspection();
     } catch (e) {
       // Close progress dialog
       if (mounted) Navigator.of(context).pop();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -406,57 +415,57 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
 
   // Removed _convertDateTimesToTimestamps - handled by cache service now
 
-Future<void> _addTopic() async {
-  // Check if user can edit
-  if (!_canEdit) {
-    _showOfflineRequiredDialog();
-    return;
-  }
-
-  // Use offline-capable dialog that works with cached templates
-  final result = await showDialog<Topic>(
-    context: context,
-    builder: (context) => OfflineTemplateTopicSelectorDialog(
-      inspectionId: widget.inspectionId,
-      templateId: _inspection?.templateId,
-    ),
-  );
-
-  if (result == null || !mounted) return;
-
-  try {
-    // Adicionar o tópico à estrutura aninhada da inspeção
-    await _addTopicToNestedStructure(result);
-    
-    await _markAsModified();
-    
-    // Reload data to ensure consistency
-    await _loadAllData();
-    
-    if (mounted) {
-      setState(() {}); // Trigger UI update
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tópico adicionado com sucesso'),
-          backgroundColor: Colors.green,
-        ),
-      );
+  Future<void> _addTopic() async {
+    // Check if user can edit
+    if (!_canEdit) {
+      _showOfflineRequiredDialog();
+      return;
     }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao atualizar interface: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+
+    // Use offline-capable dialog that works with cached templates
+    final result = await showDialog<Topic>(
+      context: context,
+      builder: (context) => OfflineTemplateTopicSelectorDialog(
+        inspectionId: widget.inspectionId,
+        templateId: _inspection?.templateId,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    try {
+      // Adicionar o tópico à estrutura aninhada da inspeção
+      await _addTopicToNestedStructure(result);
+
+      await _markAsModified();
+
+      // Reload data to ensure consistency
+      await _loadAllData();
+
+      if (mounted) {
+        setState(() {}); // Trigger UI update
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tópico adicionado com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar interface: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
-}
 
   Future<void> _addTopicToNestedStructure(Topic topic) async {
     if (_inspection == null) return;
-    
+
     try {
       // Criar estrutura do tópico como seria no Firestore
       final topicData = {
@@ -465,47 +474,64 @@ Future<void> _addTopic() async {
         'observation': topic.observation,
         'items': [], // Inicialmente vazio
       };
-      
+
       // Obter os topics atuais da inspeção
-      final currentTopics = List<Map<String, dynamic>>.from(_inspection!.topics ?? []);
-      
+      final currentTopics =
+          List<Map<String, dynamic>>.from(_inspection!.topics ?? []);
+
       // Adicionar o novo tópico
       currentTopics.add(topicData);
-      
+
       // Atualizar a inspeção com a nova estrutura
       final updatedInspection = _inspection!.copyWith(topics: currentTopics);
-      
+
       // Salvar no banco local
       await _serviceFactory.dataService.saveInspection(updatedInspection);
-      
+
       // Processar a estrutura aninhada atualizada
       await _serviceFactory.syncService.syncInspection(widget.inspectionId);
-      
+
       // Atualizar o estado local
       _inspection = updatedInspection;
-      
-      debugPrint('InspectionDetailScreen: Added topic to nested structure successfully');
+
+      debugPrint(
+          'InspectionDetailScreen: Added topic to nested structure successfully');
     } catch (e) {
-      debugPrint('InspectionDetailScreen: Error adding topic to nested structure: $e');
+      debugPrint(
+          'InspectionDetailScreen: Error adding topic to nested structure: $e');
       rethrow;
     }
   }
 
   Future<void> _markAsInProgress() async {
     try {
-      await _serviceFactory.dataService.updateInspectionStatus(widget.inspectionId, 'in_progress');
-      debugPrint('InspectionDetailScreen: Marked inspection ${widget.inspectionId} as in progress');
+      // Verificar se ainda está pending antes de atualizar
+      final currentInspection =
+          await _serviceFactory.dataService.getInspection(widget.inspectionId);
+      if (currentInspection?.status == 'pending') {
+        await _serviceFactory.dataService
+            .updateInspectionStatus(widget.inspectionId, 'in_progress');
+        debugPrint(
+            'InspectionDetailScreen: Marked inspection ${widget.inspectionId} as in progress');
+      } else {
+        debugPrint(
+            'InspectionDetailScreen: Inspection ${widget.inspectionId} is already ${currentInspection?.status}, not changing to in_progress');
+      }
     } catch (e) {
-      debugPrint('InspectionDetailScreen: Error marking inspection as in progress: $e');
+      debugPrint(
+          'InspectionDetailScreen: Error marking inspection as in progress: $e');
     }
   }
 
   Future<void> _markAsModified() async {
     try {
-      await _serviceFactory.dataService.updateInspectionStatus(widget.inspectionId, 'modified');
-      debugPrint('InspectionDetailScreen: Marked inspection ${widget.inspectionId} as modified');
+      await _serviceFactory.dataService
+          .updateInspectionStatus(widget.inspectionId, 'modified');
+      debugPrint(
+          'InspectionDetailScreen: Marked inspection ${widget.inspectionId} as modified');
     } catch (e) {
-      debugPrint('InspectionDetailScreen: Error marking inspection as modified: $e');
+      debugPrint(
+          'InspectionDetailScreen: Error marking inspection as modified: $e');
     }
   }
 
@@ -514,22 +540,22 @@ Future<void> _addTopic() async {
     // Changes are automatically marked for sync in offline-first mode
     // Recarregar dados sem setState global
     await _loadAllData();
-    
+
     // Trigger UI update to show sync indicator
     if (mounted) {
       setState(() {});
     }
   }
 
-
   Future<void> _importInspection() async {
     if (!mounted) return;
-    
+
     await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Importar Inspeção'),
-        content: const Text('Esta funcionalidade não está disponível no modo offline.'),
+        content: const Text(
+            'Esta funcionalidade não está disponível no modo offline.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -538,7 +564,7 @@ Future<void> _addTopic() async {
         ],
       ),
     );
-    
+
     // Import functionality removed for offline-first mode
     // This would need to be reimplemented to work with the new SQLite system
   }
@@ -585,17 +611,20 @@ Future<void> _addTopic() async {
 
           for (final topic in _topics) {
             if (!mounted) return;
-            final items = _itemsCache[topic.id!] ?? [];
+            final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
+            final items = _itemsCache[topicId] ?? [];
             totalItems += items.length;
             for (final item in items) {
               if (!mounted) return;
-              final details = _detailsCache['${topic.id!}_${item.id!}'] ?? [];
+              final itemId = item.id ?? 'item_${items.indexOf(item)}';
+              final details = _detailsCache['${topicId}_$itemId'] ?? [];
               totalDetails += details.length;
             }
           }
 
           if (!mounted) return;
-          final allMedia = await _serviceFactory.mediaService.getMediaByInspection(inspectionId);
+          final allMedia = await _serviceFactory.mediaService
+              .getMediaByInspection(inspectionId);
           totalMedia = allMedia.length;
 
           if (mounted) {
@@ -632,31 +661,13 @@ Future<void> _addTopic() async {
                     _inspection?.cod ?? 'Inspeção',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (!_isLoading) ...[
                     const SizedBox(height: 2),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _isAvailableOffline ? Icons.offline_pin : Icons.cloud_download,
-                          size: 12,
-                          color: _isAvailableOffline ? Colors.green : Colors.orange,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _isAvailableOffline ? 'Offline' : 'Somente Leitura',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: _isAvailableOffline ? Colors.green : Colors.orange,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ],
               ),
@@ -724,7 +735,8 @@ Future<void> _addTopic() async {
           Expanded(
             child: _isLoading
                 ? LoadingState(
-                    isDownloading: false, isApplyingTemplate: _isApplyingTemplate)
+                    isDownloading: false,
+                    isApplyingTemplate: _isApplyingTemplate)
                 : _topics.isEmpty
                     ? EmptyTopicState(onAddTopic: _addTopic)
                     : HierarchicalInspectionView(
@@ -778,7 +790,9 @@ Future<void> _addTopic() async {
                   _buildShortcutButton(
                     icon: Icons.add_circle_outline,
                     label: '+ Tópico',
-                    onTap: _canEdit ? _addTopic : () => _showOfflineRequiredDialog(),
+                    onTap: _canEdit
+                        ? _addTopic
+                        : () => _showOfflineRequiredDialog(),
                     color: _canEdit ? Color(0xFF6F4B99) : Colors.grey,
                   ),
                 ],

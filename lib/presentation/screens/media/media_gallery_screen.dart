@@ -1,11 +1,11 @@
 // lib/presentation/screens/media/media_gallery_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
-import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
-import 'package:inspection_app/presentation/screens/media/components/media_filter_panel.dart';
-import 'package:inspection_app/presentation/screens/media/components/media_grid.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_viewer_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/media/components/media_filter_panel.dart';
+import 'package:lince_inspecoes/presentation/screens/media/components/media_grid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
@@ -37,7 +37,8 @@ class MediaGalleryScreen extends StatefulWidget {
 }
 
 class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
   List<Map<String, dynamic>> _allMedia = [];
   List<Map<String, dynamic>> _filteredMedia = [];
   List<Topic> _topics = [];
@@ -53,6 +54,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   bool _topicOnly = false;
   bool _itemOnly = false;
   int _activeFiltersCount = 0;
+
+  // Multi-select state
+  bool _isMultiSelectMode = false;
+  final Set<String> _selectedMediaIds = {};
 
   @override
   void initState() {
@@ -73,12 +78,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     _itemOnly = widget.initialItemOnly;
   }
 
-
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
       // Check offline availability first
-      _isAvailableOffline = await _serviceFactory.dataService.getInspection(widget.inspectionId) != null;
+      _isAvailableOffline = await _serviceFactory.dataService
+              .getInspection(widget.inspectionId) !=
+          null;
 
       // Load data based on availability
       List<Map<String, dynamic>> allMedia;
@@ -95,7 +101,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       } else {
         // Load from regular cache/cloud
         final results = await Future.wait([
-          _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId),
+          _serviceFactory.mediaService
+              .getMediaByInspection(widget.inspectionId),
           _serviceFactory.dataService.getTopics(widget.inspectionId),
         ]);
         allMedia = results[0] as List<Map<String, dynamic>>;
@@ -124,16 +131,17 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   Future<List<Map<String, dynamic>>> _loadOfflineMedia() async {
     try {
       // Get all offline media for this inspection
-      final offlineMediaList = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
-      
+      final offlineMediaList = await _serviceFactory.mediaService
+          .getMediaByInspection(widget.inspectionId);
+
       // Convert OfflineMedia objects to Map<String, dynamic>
       return offlineMediaList.map((media) => media.toJson()).toList();
     } catch (e) {
-      debugPrint('MediaGalleryScreen._loadOfflineMedia: Error loading offline media: $e');
+      debugPrint(
+          'MediaGalleryScreen._loadOfflineMedia: Error loading offline media: $e');
       return [];
     }
   }
-  
 
   void _onApplyFiltersCallback({
     String? topicId,
@@ -158,24 +166,34 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   void _applyFilters() async {
     List<Map<String, dynamic>> filteredMedia = _allMedia;
-    
+
     // Apply filters directly
     if (_selectedTopicId != null) {
-      filteredMedia = filteredMedia.where((media) => media['topic_id'] == _selectedTopicId).toList();
+      filteredMedia = filteredMedia
+          .where((media) => media['topic_id'] == _selectedTopicId)
+          .toList();
     }
     if (_selectedItemId != null) {
-      filteredMedia = filteredMedia.where((media) => media['item_id'] == _selectedItemId).toList();
+      filteredMedia = filteredMedia
+          .where((media) => media['item_id'] == _selectedItemId)
+          .toList();
     }
     if (_selectedDetailId != null) {
-      filteredMedia = filteredMedia.where((media) => media['detail_id'] == _selectedDetailId).toList();
+      filteredMedia = filteredMedia
+          .where((media) => media['detail_id'] == _selectedDetailId)
+          .toList();
     }
     if (_selectedMediaType != null) {
-      filteredMedia = filteredMedia.where((media) => media['type'] == _selectedMediaType).toList();
+      filteredMedia = filteredMedia
+          .where((media) => media['type'] == _selectedMediaType)
+          .toList();
     }
     if (_selectedIsNonConformityOnly == true) {
-      filteredMedia = filteredMedia.where((media) => media['non_conformity_id'] != null).toList();
+      filteredMedia = filteredMedia
+          .where((media) => media['non_conformity_id'] != null)
+          .toList();
     }
-    
+
     setState(() {
       _filteredMedia = filteredMedia;
       _updateActiveFiltersCount();
@@ -237,7 +255,36 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Galeria de Mídia")),
+      appBar: AppBar(
+        title: Text(_isMultiSelectMode
+            ? '${_selectedMediaIds.length} selecionado(s)'
+            : "Galeria de Mídia"),
+        actions: [
+          if (_isMultiSelectMode) ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _selectAll,
+              tooltip: 'Selecionar Todos',
+            ),
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: _clearSelection,
+              tooltip: 'Limpar Seleção',
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _exitMultiSelectMode,
+              tooltip: 'Sair da Seleção',
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.select_all),
+              onPressed: _enterMultiSelectMode,
+              tooltip: 'Modo de Seleção',
+            ),
+          ],
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -275,21 +322,192 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                     child: MediaGrid(
                       media: _filteredMedia,
                       onTap: (mediaItem) {
-                        final index = _filteredMedia.indexOf(mediaItem);
-                        _showMediaViewer(index);
+                        if (_isMultiSelectMode) {
+                          _toggleSelection(mediaItem['id']);
+                        } else {
+                          final index = _filteredMedia.indexOf(mediaItem);
+                          _showMediaViewer(index);
+                        }
                       },
                       onRefresh: _loadData,
                     ),
                   ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openFilterPanel,
-        icon: const Icon(Icons.filter_list),
-        label: Text('Filtros ($_activeFiltersCount)'),
-        backgroundColor: _activeFiltersCount > 0 ? const Color(0xFF6F4B99) : null,
+      floatingActionButton: _isMultiSelectMode && _selectedMediaIds.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _showMultiSelectActions,
+              icon: const Icon(Icons.more_horiz),
+              label: const Text('Ações'),
+              backgroundColor: Colors.orange,
+            )
+          : FloatingActionButton.extended(
+              onPressed: _openFilterPanel,
+              icon: const Icon(Icons.filter_list),
+              label: Text('Filtros ($_activeFiltersCount)'),
+              backgroundColor:
+                  _activeFiltersCount > 0 ? const Color(0xFF6F4B99) : null,
+            ),
+    );
+  }
+
+  void _enterMultiSelectMode() {
+    setState(() {
+      _isMultiSelectMode = true;
+    });
+  }
+
+  void _exitMultiSelectMode() {
+    setState(() {
+      _isMultiSelectMode = false;
+      _selectedMediaIds.clear();
+    });
+  }
+
+  void _toggleSelection(String mediaId) {
+    setState(() {
+      if (_selectedMediaIds.contains(mediaId)) {
+        _selectedMediaIds.remove(mediaId);
+      } else {
+        _selectedMediaIds.add(mediaId);
+      }
+
+      // Exit multi-select mode if no items are selected
+      if (_selectedMediaIds.isEmpty) {
+        _isMultiSelectMode = false;
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedMediaIds.clear();
+      _selectedMediaIds
+          .addAll(_filteredMedia.map((media) => media['id'].toString()));
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedMediaIds.clear();
+    });
+  }
+
+  void _showMultiSelectActions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${_selectedMediaIds.length} item(ns) selecionado(s)',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move, color: Colors.blue),
+              title: const Text('Mover para Não Conformidade'),
+              onTap: () {
+                Navigator.pop(context);
+                _showMoveToNCDialog();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Excluir'),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation();
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _showMoveToNCDialog() {
+    // This will be implemented to create new non-conformities with selected media
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mover para Não Conformidade'),
+        content: const Text(
+            'Esta funcionalidade permitirá criar uma nova não conformidade com as mídias selecionadas.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _exitMultiSelectMode();
+              // TODO: Implement move to NC functionality
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Funcionalidade em desenvolvimento')),
+              );
+            },
+            child: const Text('Criar NC'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Mídias'),
+        content: Text(
+            'Tem certeza que deseja excluir ${_selectedMediaIds.length} mídia(s) selecionada(s)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteSelectedMedia();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteSelectedMedia() async {
+    try {
+      for (final mediaId in _selectedMediaIds) {
+        await _serviceFactory.mediaService.deleteMedia(mediaId);
+      }
+
+      _exitMultiSelectMode();
+      await _loadData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '${_selectedMediaIds.length} mídia(s) excluída(s) com sucesso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir mídias: $e')),
+        );
+      }
+    }
   }
 }
 
@@ -386,8 +604,7 @@ class _MediaGridTileState extends State<_MediaGridTile> {
       tags.add(const Icon(Icons.list_alt, color: Colors.white70, size: 14));
     } else if (widget.media['item_name'] != null) {
       tags.add(const Icon(Icons.category, color: Colors.white70, size: 14));
-    }
-    else if (widget.media['topic_name'] != null) {
+    } else if (widget.media['topic_name'] != null) {
       tags.add(const Icon(Icons.topic, color: Colors.white70, size: 14));
     }
     String name = widget.media['detail_name'] ??

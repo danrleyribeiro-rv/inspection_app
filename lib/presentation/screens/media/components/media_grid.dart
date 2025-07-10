@@ -1,12 +1,13 @@
 // lib/presentation/screens/media/components/media_grid.dart
+import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
-import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
-import 'package:inspection_app/presentation/widgets/dialogs/move_media_dialog.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_viewer_screen.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/widgets/common/cached_media_image.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/move_media_dialog.dart';
 
 class MediaGrid extends StatefulWidget {
   final List<Map<String, dynamic>> media;
@@ -25,13 +26,15 @@ class MediaGrid extends StatefulWidget {
 }
 
 class _MediaGridState extends State<MediaGrid> {
+  EnhancedOfflineServiceFactory get _serviceFactory =>
+      EnhancedOfflineServiceFactory.instance;
 
-  EnhancedOfflineServiceFactory get _serviceFactory => EnhancedOfflineServiceFactory.instance;
-
-  Future<void> _moveMedia(BuildContext context, Map<String, dynamic> mediaItem) async {
-    final inspectionId = mediaItem['inspection_id'] as String? ?? mediaItem['inspectionId'] as String?;
+  Future<void> _moveMedia(
+      BuildContext context, Map<String, dynamic> mediaItem) async {
+    final inspectionId = mediaItem['inspection_id'] as String? ??
+        mediaItem['inspectionId'] as String?;
     final mediaId = mediaItem['id'] as String?;
-    
+
     if (inspectionId == null || mediaId == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,7 +46,7 @@ class _MediaGridState extends State<MediaGrid> {
 
     // Check if this is offline media
     final isOfflineMedia = mediaItem['source'] == 'offline';
-    
+
     // Criar descrição da localização atual
     String currentLocation = '';
     if (mediaItem['topic_name'] != null) {
@@ -58,13 +61,15 @@ class _MediaGridState extends State<MediaGrid> {
     if (mediaItem['is_non_conformity'] == true) {
       currentLocation += ' (NC)';
     }
-    
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => MoveMediaDialog(
         inspectionId: inspectionId,
         mediaId: mediaId,
-        currentLocation: currentLocation.isEmpty ? 'Localização não especificada' : currentLocation,
+        currentLocation: currentLocation.isEmpty
+            ? 'Localização não especificada'
+            : currentLocation,
         isOfflineMode: isOfflineMedia,
       ),
     );
@@ -74,9 +79,10 @@ class _MediaGridState extends State<MediaGrid> {
     }
   }
 
-  Future<void> _deleteMedia(BuildContext context, Map<String, dynamic> mediaItem) async {
+  Future<void> _deleteMedia(
+      BuildContext context, Map<String, dynamic> mediaItem) async {
     final mediaId = mediaItem['id'] as String?;
-    
+
     if (mediaId == null) {
       if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -88,16 +94,14 @@ class _MediaGridState extends State<MediaGrid> {
 
     // Check if this is offline media
     final isOfflineMedia = mediaItem['source'] == 'offline';
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar Exclusão'),
-        content: Text(
-          isOfflineMedia 
+        content: Text(isOfflineMedia
             ? 'Tem certeza que deseja excluir esta mídia? Esta ação não pode ser desfeita e a mídia será removida permanentemente do armazenamento offline.'
-            : 'Tem certeza que deseja excluir esta imagem? Esta ação não pode ser desfeita.'
-        ),
+            : 'Tem certeza que deseja excluir esta imagem? Esta ação não pode ser desfeita.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -116,15 +120,13 @@ class _MediaGridState extends State<MediaGrid> {
       try {
         // For offline-first architecture, always use media service
         await _serviceFactory.mediaService.deleteMedia(mediaId);
-        
+
         if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                isOfflineMedia 
+              content: Text(isOfflineMedia
                   ? 'Mídia offline excluída com sucesso!'
-                  : 'Imagem excluída com sucesso!'
-              ),
+                  : 'Imagem excluída com sucesso!'),
               backgroundColor: Colors.green,
             ),
           );
@@ -168,8 +170,10 @@ class _MediaGridState extends State<MediaGrid> {
             ),
             ListTile(
               leading: const Icon(Icons.move_up, color: Color(0xFF6F4B99)),
-              title: const Text('Mover Mídia', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Mover para outro tópico, item ou detalhe', style: TextStyle(color: Colors.grey)),
+              title: const Text('Mover Mídia',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Mover para outro tópico, item ou detalhe',
+                  style: TextStyle(color: Colors.grey)),
               onTap: () {
                 Navigator.of(context).pop();
                 _moveMedia(context, mediaItem);
@@ -177,11 +181,12 @@ class _MediaGridState extends State<MediaGrid> {
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Excluir Mídia', style: TextStyle(color: Colors.white)),
+              title: const Text('Excluir Mídia',
+                  style: TextStyle(color: Colors.white)),
               subtitle: Text(
                 mediaItem['source'] == 'offline'
-                  ? 'Remover permanentemente esta mídia offline'
-                  : 'Remover permanentemente esta imagem',
+                    ? 'Remover permanentemente esta mídia offline'
+                    : 'Remover permanentemente esta imagem',
                 style: const TextStyle(color: Colors.grey),
               ),
               onTap: () {
@@ -218,7 +223,8 @@ class _MediaGridState extends State<MediaGrid> {
       BuildContext context, Map<String, dynamic> mediaItem) {
     final bool isImage = mediaItem['type'] == 'image';
     final bool isNonConformity = mediaItem['is_non_conformity'] == true;
-    final String displayPath = mediaItem['local_path'] ?? mediaItem['url'] ?? '';
+    final String displayPath =
+        mediaItem['local_path'] ?? mediaItem['url'] ?? '';
     final String? status = mediaItem['status'] as String?;
 
     // Format date
@@ -344,13 +350,14 @@ class _MediaGridState extends State<MediaGrid> {
                         ),
                       ),
                     if (isNonConformity) const SizedBox(width: 4),
-                    
+
                     // Status indicator
                     if (status != null) ...[
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(status).withAlpha((255 * 0.8).round()),
+                          color: _getStatusColor(status)
+                              .withAlpha((255 * 0.8).round()),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Icon(
@@ -365,7 +372,8 @@ class _MediaGridState extends State<MediaGrid> {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: isImage
-                            ? const Color(0xFF6F4B99).withAlpha((255 * 0.8).round())
+                            ? const Color(0xFF6F4B99)
+                                .withAlpha((255 * 0.8).round())
                             : Colors.purple.withAlpha((255 * 0.8).round()),
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -515,15 +523,31 @@ class _MediaGridState extends State<MediaGrid> {
 
   IconData _getMediaIcon(Map<String, dynamic> mediaItem, bool isImage) {
     final source = mediaItem['source'] as String?;
-    final metadata = mediaItem['metadata'] as Map<String, dynamic>?;
+
+    // Parse metadata if it's a JSON string
+    Map<String, dynamic>? metadata;
+    if (mediaItem['metadata'] != null) {
+      if (mediaItem['metadata'] is String) {
+        try {
+          metadata = Map<String, dynamic>.from(
+              jsonDecode(mediaItem['metadata'] as String));
+        } catch (e) {
+          debugPrint('MediaGrid._getMediaIcon: Error parsing metadata: $e');
+        }
+      } else if (mediaItem['metadata'] is Map) {
+        metadata = mediaItem['metadata'] as Map<String, dynamic>?;
+      }
+    }
+
     final metadataSource = metadata?['source'] as String?;
-    
+
     // Verificar se é da camera (source direto ou no metadata)
     final isFromCamera = source == 'camera' || metadataSource == 'camera';
-    
+
     // Debug log para verificar os valores
-    debugPrint('MediaGrid._getMediaIcon: source=$source, metadataSource=$metadataSource, isFromCamera=$isFromCamera');
-    
+    debugPrint(
+        'MediaGrid._getMediaIcon: source=$source, metadataSource=$metadataSource, isFromCamera=$isFromCamera');
+
     if (isImage) {
       return isFromCamera ? Icons.camera_alt : Icons.folder;
     } else {

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/inspection.dart';
+import 'package:lince_inspecoes/models/inspection.dart';
 
 class InspectionInfoDialog extends StatelessWidget {
   final Inspection inspection;
@@ -20,7 +20,11 @@ class InspectionInfoDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Informações da Vistoria', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+      title: const Text('Informações da Vistoria',
+          style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.bold)),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.7,
         child: Column(

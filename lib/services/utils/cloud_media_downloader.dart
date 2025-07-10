@@ -4,17 +4,18 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
 
 class CloudMediaDownloader {
   static const String _mediaDir = 'downloaded_media';
-  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
-  
+  final SQLiteStorageService _localStorage =
+      SQLiteStorageService.instance; // Use SQLiteStorageService
+
   // Stream controllers for progress tracking
-  final StreamController<DownloadProgress> _progressController = 
+  final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
   Stream<DownloadProgress> get progressStream => _progressController.stream;
-  
+
   // Get media directory
   Future<Directory> _getMediaDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -24,7 +25,7 @@ class CloudMediaDownloader {
     }
     return mediaDir;
   }
-  
+
   // Download inspection with all media
   Future<void> downloadInspectionWithMedia(String inspectionId) async {
     try {
@@ -35,22 +36,23 @@ class CloudMediaDownloader {
         total: 1,
         message: 'Baixando dados da inspeção...',
       ));
-      
+
       // First download/refresh inspection data (handled by InspectionRepository now)
       // We assume InspectionRepository.syncInspections() has been called or will be called separately
       // This downloader focuses on media specifically.
-      
+
       _progressController.add(DownloadProgress(
         inspectionId: inspectionId,
         phase: DownloadPhase.downloadingInspection,
         current: 1,
         total: 1,
-        message: 'Dados da inspeção baixados. Iniciando download das imagens...',
+        message:
+            'Dados da inspeção baixados. Iniciando download das imagens...',
       ));
-      
+
       // Then download all media
       await downloadAllInspectionMedia(inspectionId);
-      
+
       _progressController.add(DownloadProgress(
         inspectionId: inspectionId,
         phase: DownloadPhase.completed,
@@ -58,7 +60,6 @@ class CloudMediaDownloader {
         total: 1,
         message: 'Download completo!',
       ));
-      
     } catch (e) {
       _progressController.add(DownloadProgress(
         inspectionId: inspectionId,
@@ -70,31 +71,31 @@ class CloudMediaDownloader {
       rethrow;
     }
   }
-  
+
   // Download all media for an inspection from Firestore
   Future<void> downloadAllInspectionMedia(String inspectionId) async {
     try {
-      debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Starting download for inspection $inspectionId');
-      
+      debugPrint(
+          'CloudMediaDownloader.downloadAllInspectionMedia: Starting download for inspection $inspectionId');
+
       final firestore = FirebaseFirestore.instance;
-      
+
       // Get the inspection document to extract media from its hierarchical structure
-      final inspectionDoc = await firestore
-          .collection('inspections')
-          .doc(inspectionId)
-          .get();
-      
+      final inspectionDoc =
+          await firestore.collection('inspections').doc(inspectionId).get();
+
       if (!inspectionDoc.exists) {
-        debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Inspection $inspectionId not found');
+        debugPrint(
+            'CloudMediaDownloader.downloadAllInspectionMedia: Inspection $inspectionId not found');
         return;
       }
-      
+
       final inspectionData = inspectionDoc.data() as Map<String, dynamic>;
       final topics = inspectionData['topics'] as List<dynamic>? ?? [];
-      
+
       // First pass: count total media
       int totalMediaCount = _countMediaInTopics(topics);
-      
+
       _progressController.add(DownloadProgress(
         inspectionId: inspectionId,
         phase: DownloadPhase.downloadingMedia,
@@ -102,14 +103,14 @@ class CloudMediaDownloader {
         total: totalMediaCount,
         message: 'Encontradas $totalMediaCount imagens para baixar...',
       ));
-      
+
       int downloadedCount = 0;
-      
+
       // Download media from hierarchical structure
       for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
         final topic = topics[topicIndex] as Map<String, dynamic>;
         final topicId = topic['id'] ?? 'topic_$topicIndex';
-        
+
         // Download topic-level media
         final topicDownloaded = await _downloadMediaFromList(
           topic['media'] as List<dynamic>? ?? [],
@@ -120,12 +121,12 @@ class CloudMediaDownloader {
           false,
         );
         downloadedCount += topicDownloaded;
-        
+
         final items = topic['items'] as List<dynamic>? ?? [];
         for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
           final item = items[itemIndex] as Map<String, dynamic>;
           final itemId = item['id'] ?? 'item_${topicIndex}_$itemIndex';
-          
+
           // Download item-level media
           final itemDownloaded = await _downloadMediaFromList(
             item['media'] as List<dynamic>? ?? [],
@@ -136,12 +137,15 @@ class CloudMediaDownloader {
             false,
           );
           downloadedCount += itemDownloaded;
-          
+
           final details = item['details'] as List<dynamic>? ?? [];
-          for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
+          for (int detailIndex = 0;
+              detailIndex < details.length;
+              detailIndex++) {
             final detail = details[detailIndex] as Map<String, dynamic>;
-            final detailId = detail['id'] ?? 'detail_${topicIndex}_${itemIndex}_$detailIndex';
-            
+            final detailId = detail['id'] ??
+                'detail_${topicIndex}_${itemIndex}_$detailIndex';
+
             // Download detail-level media
             final detailDownloaded = await _downloadMediaFromList(
               detail['media'] as List<dynamic>? ?? [],
@@ -152,9 +156,10 @@ class CloudMediaDownloader {
               false,
             );
             downloadedCount += detailDownloaded;
-            
+
             // Download non-conformity media
-            final nonConformities = detail['non_conformities'] as List<dynamic>? ?? [];
+            final nonConformities =
+                detail['non_conformities'] as List<dynamic>? ?? [];
             for (final nc in nonConformities) {
               final ncData = nc as Map<String, dynamic>;
               final ncDownloaded = await _downloadMediaFromList(
@@ -167,7 +172,7 @@ class CloudMediaDownloader {
               );
               downloadedCount += ncDownloaded;
             }
-            
+
             // Report progress
             _progressController.add(DownloadProgress(
               inspectionId: inspectionId,
@@ -179,16 +184,17 @@ class CloudMediaDownloader {
           }
         }
       }
-      
+
       // Also check for media in separate collection (for backward compatibility)
       try {
         final mediaQuery = await firestore
             .collection('media')
             .where('inspection_id', isEqualTo: inspectionId)
             .get();
-        
-        debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Found ${mediaQuery.docs.length} media items in separate collection');
-        
+
+        debugPrint(
+            'CloudMediaDownloader.downloadAllInspectionMedia: Found ${mediaQuery.docs.length} media items in separate collection');
+
         for (final doc in mediaQuery.docs) {
           try {
             final mediaData = doc.data();
@@ -204,28 +210,33 @@ class CloudMediaDownloader {
             if (result) downloadedCount++;
             totalMediaCount++;
           } catch (e) {
-            debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Error downloading media ${doc.id}: $e');
+            debugPrint(
+                'CloudMediaDownloader.downloadAllInspectionMedia: Error downloading media ${doc.id}: $e');
           }
         }
       } catch (e) {
-        debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Error querying media collection: $e');
+        debugPrint(
+            'CloudMediaDownloader.downloadAllInspectionMedia: Error querying media collection: $e');
       }
-      
+
       _progressController.add(DownloadProgress(
         inspectionId: inspectionId,
         phase: DownloadPhase.completed,
         current: downloadedCount,
         total: totalMediaCount,
-        message: 'Download concluído! $downloadedCount/$totalMediaCount imagens baixadas.',
+        message:
+            'Download concluído! $downloadedCount/$totalMediaCount imagens baixadas.',
       ));
-      
-      debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Completed download for inspection $inspectionId. Downloaded $downloadedCount/$totalMediaCount media items');
+
+      debugPrint(
+          'CloudMediaDownloader.downloadAllInspectionMedia: Completed download for inspection $inspectionId. Downloaded $downloadedCount/$totalMediaCount media items');
     } catch (e) {
-      debugPrint('CloudMediaDownloader.downloadAllInspectionMedia: Error downloading media for inspection $inspectionId: $e');
+      debugPrint(
+          'CloudMediaDownloader.downloadAllInspectionMedia: Error downloading media for inspection $inspectionId: $e');
       rethrow;
     }
   }
-  
+
   // Download media from a list of media items
   Future<int> _downloadMediaFromList(
     List<dynamic> mediaList,
@@ -239,8 +250,9 @@ class CloudMediaDownloader {
     for (int i = 0; i < mediaList.length; i++) {
       try {
         final mediaItem = mediaList[i] as Map<String, dynamic>;
-        final mediaId = mediaItem['id'] ?? '${topicId}_${itemId}_${detailId}_media_$i';
-        
+        final mediaId =
+            mediaItem['id'] ?? '${topicId}_${itemId}_${detailId}_media_$i';
+
         final result = await _downloadSingleMedia(
           mediaId,
           mediaItem,
@@ -252,12 +264,13 @@ class CloudMediaDownloader {
         );
         if (result) downloadedCount++;
       } catch (e) {
-        debugPrint('CloudMediaDownloader._downloadMediaFromList: Error downloading media at index $i: $e');
+        debugPrint(
+            'CloudMediaDownloader._downloadMediaFromList: Error downloading media at index $i: $e');
       }
     }
     return downloadedCount;
   }
-  
+
   // Download a single media item
   Future<bool> _downloadSingleMedia(
     String mediaId,
@@ -270,19 +283,21 @@ class CloudMediaDownloader {
   ) async {
     try {
       final mediaUrl = mediaData['url'] as String?;
-      
+
       if (mediaUrl == null || mediaUrl.isEmpty) {
-        debugPrint('CloudMediaDownloader._downloadSingleMedia: Skipping media $mediaId - no URL');
+        debugPrint(
+            'CloudMediaDownloader._downloadSingleMedia: Skipping media $mediaId - no URL');
         return false;
       }
-      
+
       // Check if already downloaded in SQLiteStorageService
       final existingMediaFile = await _localStorage.getMediaFile(mediaId);
       if (existingMediaFile != null && await existingMediaFile.exists()) {
-        debugPrint('CloudMediaDownloader._downloadSingleMedia: Media $mediaId already downloaded');
+        debugPrint(
+            'CloudMediaDownloader._downloadSingleMedia: Media $mediaId already downloaded');
         return false;
       }
-      
+
       // Download the media
       final localFile = await _downloadMediaFile(mediaUrl, mediaId);
       if (localFile != null) {
@@ -299,42 +314,47 @@ class CloudMediaDownloader {
         // Mark as uploaded since it came from cloud
         await _localStorage.markMediaUploaded(mediaId, mediaUrl);
 
-        debugPrint('CloudMediaDownloader._downloadSingleMedia: Downloaded and cached media $mediaId');
+        debugPrint(
+            'CloudMediaDownloader._downloadSingleMedia: Downloaded and cached media $mediaId');
         return true;
       }
-      
+
       return false;
     } catch (e) {
-      debugPrint('CloudMediaDownloader._downloadSingleMedia: Error downloading media $mediaId: $e');
+      debugPrint(
+          'CloudMediaDownloader._downloadSingleMedia: Error downloading media $mediaId: $e');
       return false;
     }
   }
-  
+
   // Download a single media file
   Future<File?> _downloadMediaFile(String url, String mediaId) async {
     try {
       debugPrint('CloudMediaDownloader._downloadMediaFile: Downloading $url');
-      
+
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final mediaDir = await _getMediaDirectory();
         final extension = _getFileExtension(url);
         final fileName = '$mediaId$extension';
         final file = File('${mediaDir.path}/$fileName');
-        
+
         await file.writeAsBytes(response.bodyBytes);
-        debugPrint('CloudMediaDownloader._downloadMediaFile: Successfully downloaded to ${file.path}');
+        debugPrint(
+            'CloudMediaDownloader._downloadMediaFile: Successfully downloaded to ${file.path}');
         return file;
       } else {
-        debugPrint('CloudMediaDownloader._downloadMediaFile: HTTP error ${response.statusCode} for $url');
+        debugPrint(
+            'CloudMediaDownloader._downloadMediaFile: HTTP error ${response.statusCode} for $url');
         return null;
       }
     } catch (e) {
-      debugPrint('CloudMediaDownloader._downloadMediaFile: Error downloading $url: $e');
+      debugPrint(
+          'CloudMediaDownloader._downloadMediaFile: Error downloading $url: $e');
       return null;
     }
   }
-  
+
   // Helper methods
   String _getMediaType(String url) {
     final extension = _getFileExtension(url).toLowerCase();
@@ -345,7 +365,7 @@ class CloudMediaDownloader {
     }
     return 'unknown';
   }
-  
+
   String _getFileExtension(String url) {
     final uri = Uri.parse(url);
     final path = uri.path;
@@ -355,20 +375,21 @@ class CloudMediaDownloader {
     }
     return '.jpg'; // Default extension
   }
-  
+
   String _getFileName(String url, String mediaId) {
     final extension = _getFileExtension(url);
     return '$mediaId$extension';
   }
-  
+
   // Method removed - not used anywhere
-  
+
   // Clean downloaded media for inspection
   Future<void> cleanInspectionMedia(String inspectionId) async {
     try {
       // Get all media for inspection from SQLiteStorageService
-      final allMedia = await _localStorage.getMediaFilesByInspection(inspectionId);
-      
+      final allMedia =
+          await _localStorage.getMediaFilesByInspection(inspectionId);
+
       for (final media in allMedia) {
         // Assuming media['is_downloaded_from_cloud'] or similar flag exists if needed
         // For now, we just delete the local file if it exists
@@ -376,47 +397,50 @@ class CloudMediaDownloader {
         if (await file.exists()) {
           await file.delete();
         }
-        
+
         // Remove from SQLite (if a specific method for this exists, otherwise it's part of inspection deletion)
         // For now, we'll assume media files are deleted when inspection is deleted or handled by a separate method
         // await _localStorage.deleteMediaFile(media['id'] as String);
       }
-      
-      debugPrint('CloudMediaDownloader.cleanInspectionMedia: Cleaned media for inspection $inspectionId');
+
+      debugPrint(
+          'CloudMediaDownloader.cleanInspectionMedia: Cleaned media for inspection $inspectionId');
     } catch (e) {
-      debugPrint('CloudMediaDownloader.cleanInspectionMedia: Error cleaning media: $e');
+      debugPrint(
+          'CloudMediaDownloader.cleanInspectionMedia: Error cleaning media: $e');
     }
   }
-  
+
   // Count total media in topics structure
   int _countMediaInTopics(List<dynamic> topics) {
     int count = 0;
-    
+
     for (final topic in topics) {
       final topicData = topic as Map<String, dynamic>;
-      
+
       // Count topic-level media
       final topicMedia = topicData['media'] as List<dynamic>? ?? [];
       count += topicMedia.length;
-      
+
       final items = topicData['items'] as List<dynamic>? ?? [];
       for (final item in items) {
         final itemData = item as Map<String, dynamic>;
-        
+
         // Count item-level media
         final itemMedia = itemData['media'] as List<dynamic>? ?? [];
         count += itemMedia.length;
-        
+
         final details = itemData['details'] as List<dynamic>? ?? [];
         for (final detail in details) {
           final detailData = detail as Map<String, dynamic>;
-          
+
           // Count detail-level media
           final detailMedia = detailData['media'] as List<dynamic>? ?? [];
           count += detailMedia.length;
-          
+
           // Count non-conformity media
-          final nonConformities = detailData['non_conformities'] as List<dynamic>? ?? [];
+          final nonConformities =
+              detailData['non_conformities'] as List<dynamic>? ?? [];
           for (final nc in nonConformities) {
             final ncData = nc as Map<String, dynamic>;
             final ncMedia = ncData['media'] as List<dynamic>? ?? [];
@@ -425,10 +449,10 @@ class CloudMediaDownloader {
         }
       }
     }
-    
+
     return count;
   }
-  
+
   void dispose() {
     _progressController.close();
   }
@@ -441,7 +465,7 @@ class DownloadProgress {
   final int current;
   final int total;
   final String message;
-  
+
   DownloadProgress({
     required this.inspectionId,
     required this.phase,
@@ -449,7 +473,7 @@ class DownloadProgress {
     required this.total,
     required this.message,
   });
-  
+
   double get progress => total > 0 ? current / total : 0.0;
 }
 

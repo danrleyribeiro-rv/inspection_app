@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:inspection_app/services/core/auth_service.dart';
+import 'package:lince_inspecoes/services/core/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -143,7 +143,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         SvgPicture.asset(
                           'assets/images/logo.svg',
-                          height: MediaQuery.of(context).size.height * 0.6 * 0.15,
+                          height:
+                              MediaQuery.of(context).size.height * 0.6 * 0.15,
                         ),
                         const SizedBox(height: 43),
                         TextFormField(

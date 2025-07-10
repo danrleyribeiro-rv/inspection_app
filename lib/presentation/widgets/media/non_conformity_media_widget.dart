@@ -1,10 +1,10 @@
 // lib/presentation/widgets/media/non_conformity_media_widget.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
-import 'package:inspection_app/models/non_conformity.dart';
-import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
-import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/models/non_conformity.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 
 class NonConformityMediaWidget extends StatefulWidget {
   final String inspectionId;
@@ -34,42 +34,139 @@ class NonConformityMediaWidget extends StatefulWidget {
 }
 
 class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
   int _processingCount = 0;
 
   void _showCameraCapture() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => NativeCameraWidget(
-          onImagesSelected: _handleImagesSelected,
-          allowMultiple: true,
+    _showMediaSourceDialog();
+  }
+
+  void _showMediaSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Adicionar Mídia NC',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              title:
+                  const Text('Câmera', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Tirar foto com a câmera',
+                  style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _captureFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title:
+                  const Text('Galeria', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Escolher foto da galeria',
+                  style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _selectFromGallery();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _captureFromCamera() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+      );
+
+      if (image != null) {
+        await _handleImagesSelected([image.path]);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _selectFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile> images = await picker.pickMultiImage(
+        imageQuality: 90,
+      );
+
+      if (images.isNotEmpty) {
+        final imagePaths = images.map((image) => image.path).toList();
+        await _handleImagesSelected(imagePaths);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _editNonConformity() async {
     try {
       // Buscar a não conformidade específica
       final hierarchyIds = await _getHierarchyIds();
-      final nonConformityId = '${widget.inspectionId}-${hierarchyIds['topicId']}-${hierarchyIds['itemId']}-${hierarchyIds['detailId']}-nc_${widget.ncIndex}';
-      
+      final nonConformityId =
+          '${widget.inspectionId}-${hierarchyIds['topicId']}-${hierarchyIds['itemId']}-${hierarchyIds['detailId']}-nc_${widget.ncIndex}';
+
       // Buscar todas as não conformidades para encontrar a específica
-      final allNonConformitiesObjects = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
-      final allNonConformities = allNonConformitiesObjects.map((nc) => nc.toJson()).toList();
-      
+      final allNonConformitiesObjects = await _serviceFactory.dataService
+          .getNonConformities(widget.inspectionId);
+      final allNonConformities =
+          allNonConformitiesObjects.map((nc) => nc.toJson()).toList();
+
       Map<String, dynamic>? targetNC;
       for (final nc in allNonConformities) {
         String currentNcId = nc['id'] ?? '';
         if (!currentNcId.contains('-')) {
-          currentNcId = '${widget.inspectionId}-${nc['topic_id']}-${nc['item_id']}-${nc['detail_id']}-$currentNcId';
+          currentNcId =
+              '${widget.inspectionId}-${nc['topic_id']}-${nc['item_id']}-${nc['detail_id']}-$currentNcId';
         }
         if (currentNcId == nonConformityId) {
           targetNC = nc;
           break;
         }
       }
-      
+
       if (targetNC != null && mounted) {
         final result = await showDialog<Map<String, dynamic>>(
           context: context,
@@ -80,7 +177,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             },
           ),
         );
-        
+
         if (result != null) {
           // Atualizar a não conformidade
           final nonConformity = NonConformity(
@@ -99,10 +196,10 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             isDeleted: false,
           );
           await _serviceFactory.dataService.updateNonConformity(nonConformity);
-          
+
           // Notificar o parent para atualizar a UI
           widget.onNonConformityUpdated?.call();
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -155,12 +252,13 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Iniciando processamento de ${imagePaths.length} imagem(ns) de NC...'),
+          content: Text(
+              'Iniciando processamento de ${imagePaths.length} imagem(ns) de NC...'),
           backgroundColor: Colors.blue,
         ),
       );
     }
-    
+
     for (final path in imagePaths) {
       _processAndSaveMedia(path, 'image').whenComplete(() {
         if (mounted) {
@@ -174,9 +272,14 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
   Future<Map<String, String?>> _getHierarchyIds() async {
     try {
-      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
+      final inspection =
+          await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics == null) {
-        return {'topicId': 'topic_${widget.topicIndex}', 'itemId': 'item_${widget.itemIndex}', 'detailId': 'detail_${widget.detailIndex}'};
+        return {
+          'topicId': 'topic_${widget.topicIndex}',
+          'itemId': 'item_${widget.itemIndex}',
+          'detailId': 'detail_${widget.detailIndex}'
+        };
       }
 
       String? topicId;
@@ -192,7 +295,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           final item = items[widget.itemIndex];
           itemId = item['id'] ?? 'item_${widget.itemIndex}';
 
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           if (widget.detailIndex < details.length) {
             final detail = details[widget.detailIndex];
             detailId = detail['id'] ?? 'detail_${widget.detailIndex}';
@@ -207,23 +311,27 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       };
     } catch (e) {
       debugPrint('Error getting hierarchy IDs: $e');
-      return {'topicId': 'topic_${widget.topicIndex}', 'itemId': 'item_${widget.itemIndex}', 'detailId': 'detail_${widget.detailIndex}'};
+      return {
+        'topicId': 'topic_${widget.topicIndex}',
+        'itemId': 'item_${widget.itemIndex}',
+        'detailId': 'detail_${widget.detailIndex}'
+      };
     }
   }
 
   Future<void> _processAndSaveMedia(String localPath, String type) async {
     try {
       final position = await _serviceFactory.mediaService.getCurrentLocation();
-      
+
       // Obter IDs reais da hierarquia
       final hierarchyIds = await _getHierarchyIds();
-      
+
       debugPrint('NonConformityMediaWidget: Processing media');
       debugPrint('  TopicId: ${hierarchyIds['topicId']}');
       debugPrint('  ItemId: ${hierarchyIds['itemId']}');
       debugPrint('  DetailId: ${hierarchyIds['detailId']}');
       debugPrint('  NCIndex: ${widget.ncIndex}');
-      
+
       // Usar o fluxo offline-first do MediaService
       await _serviceFactory.mediaService.captureAndProcessMedia(
         inputPath: localPath,
@@ -236,16 +344,17 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           'source': 'camera',
           'is_non_conformity': true,
           'nc_index': widget.ncIndex,
-          'location': position != null ? {
-            'latitude': position['latitude'],
-            'longitude': position['longitude'],
-          } : null,
+          'location': position != null
+              ? {
+                  'latitude': position['latitude'],
+                  'longitude': position['longitude'],
+                }
+              : null,
         },
       );
-      
+
       // Media already saved by service, just notify callback
       widget.onMediaAdded(localPath);
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -262,7 +371,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.isReadOnly) 
+        if (widget.isReadOnly)
           const SizedBox.shrink()
         else
           Column(
@@ -273,9 +382,13 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
                       const SizedBox(width: 12),
-                      Text("Processando $_processingCount NC(s)...", style: const TextStyle(fontStyle: FontStyle.italic)),
+                      Text("Processando $_processingCount NC(s)...",
+                          style: const TextStyle(fontStyle: FontStyle.italic)),
                     ],
                   ),
                 ),
@@ -284,7 +397,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.camera_alt, size: 18),
-                      label: const Text('Capturar', style: TextStyle(fontSize: 8)),
+                      label:
+                          const Text('Capturar', style: TextStyle(fontSize: 8)),
                       onPressed: _showCameraCapture,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -296,7 +410,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.photo_library, size: 18),
-                      label: const Text('Ver Galeria', style: TextStyle(fontSize: 8)),
+                      label: const Text('Ver Galeria',
+                          style: TextStyle(fontSize: 8)),
                       onPressed: _openNonConformityMediaGallery,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple,
@@ -308,7 +423,8 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Editar NC', style: TextStyle(fontSize: 8)),
+                      label: const Text('Editar NC',
+                          style: TextStyle(fontSize: 8)),
                       onPressed: _editNonConformity,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,

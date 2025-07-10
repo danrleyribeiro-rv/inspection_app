@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:brasil_fields/brasil_fields.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:inspection_app/utils/constants.dart';
-import 'package:inspection_app/services/core/auth_service.dart';
+import 'package:lince_inspecoes/utils/constants.dart';
+import 'package:lince_inspecoes/services/core/auth_service.dart';
 import 'package:cpf_cnpj_validator/cpf_validator.dart' as cpf_validator;
 import 'package:cpf_cnpj_validator/cnpj_validator.dart' as cnpj_validator;
 
@@ -253,7 +253,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [              
+            children: [
               // Personal Information Section
               _buildSectionHeader('Informações Pessoais', Icons.person),
               const SizedBox(height: 16),
@@ -587,7 +587,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
+        border: Border.all(
+            color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
       ),
       child: Row(
         children: [
@@ -680,7 +681,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       items: Constants.professions.map((String value) {
         return DropdownMenuItem<String>(
           value: value,
-          child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          child: Text(value,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
         );
       }).toList(),
       onChanged: (String? newValue) {

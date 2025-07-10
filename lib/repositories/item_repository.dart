@@ -1,5 +1,5 @@
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/repositories/base_repository.dart';
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/repositories/base_repository.dart';
 
 class ItemRepository extends BaseRepository<Item> {
   @override
@@ -28,7 +28,7 @@ class ItemRepository extends BaseRepository<Item> {
       whereArgs: [topicId],
       orderBy: 'order_index ASC',
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 
@@ -44,12 +44,13 @@ class ItemRepository extends BaseRepository<Item> {
       whereArgs: [inspectionId],
       orderBy: 'order_index ASC',
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 
   Future<Item?> findByTopicIdAndIndex(String topicId, int orderIndex) async {
-    final results = await findWhere('topic_id = ? AND order_index = ?', [topicId, orderIndex]);
+    final results = await findWhere(
+        'topic_id = ? AND order_index = ?', [topicId, orderIndex]);
     return results.isNotEmpty ? results.first : null;
   }
 
@@ -62,7 +63,8 @@ class ItemRepository extends BaseRepository<Item> {
     return (result.first['max_index'] as int?) ?? 0;
   }
 
-  Future<void> updateProgress(String itemId, double progressPercentage, int completedDetails, int totalDetails) async {
+  Future<void> updateProgress(String itemId, double progressPercentage,
+      int completedDetails, int totalDetails) async {
     final db = await database;
     await db.update(
       tableName,

@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/presentation/screens/profile/edit_profile_screen.dart';
-import 'package:inspection_app/presentation/widgets/profile/qr_code_credentials_dialog.dart';
+import 'package:lince_inspecoes/presentation/screens/profile/edit_profile_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/profile/qr_code_credentials_dialog.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});

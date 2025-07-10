@@ -1,5 +1,5 @@
-import 'package:inspection_app/models/non_conformity.dart';
-import 'package:inspection_app/repositories/base_repository.dart';
+import 'package:lince_inspecoes/models/non_conformity.dart';
+import 'package:lince_inspecoes/repositories/base_repository.dart';
 
 class NonConformityRepository extends BaseRepository<NonConformity> {
   @override
@@ -40,12 +40,16 @@ class NonConformityRepository extends BaseRepository<NonConformity> {
     return await findWhere('status = ?', [status]);
   }
 
-  Future<List<NonConformity>> findByInspectionIdAndStatus(String inspectionId, String status) async {
-    return await findWhere('inspection_id = ? AND status = ?', [inspectionId, status]);
+  Future<List<NonConformity>> findByInspectionIdAndStatus(
+      String inspectionId, String status) async {
+    return await findWhere(
+        'inspection_id = ? AND status = ?', [inspectionId, status]);
   }
 
-  Future<List<NonConformity>> findByInspectionIdAndSeverity(String inspectionId, String severity) async {
-    return await findWhere('inspection_id = ? AND severity = ?', [inspectionId, severity]);
+  Future<List<NonConformity>> findByInspectionIdAndSeverity(
+      String inspectionId, String severity) async {
+    return await findWhere(
+        'inspection_id = ? AND severity = ?', [inspectionId, severity]);
   }
 
   Future<void> updateStatus(String nonConformityId, String status) async {
@@ -141,7 +145,8 @@ class NonConformityRepository extends BaseRepository<NonConformity> {
     return result.first['count'] as int;
   }
 
-  Future<int> countByInspectionIdAndStatus(String inspectionId, String status) async {
+  Future<int> countByInspectionIdAndStatus(
+      String inspectionId, String status) async {
     final db = await database;
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ? AND is_deleted = 0',
@@ -150,7 +155,8 @@ class NonConformityRepository extends BaseRepository<NonConformity> {
     return result.first['count'] as int;
   }
 
-  Future<int> countByInspectionIdAndSeverity(String inspectionId, String severity) async {
+  Future<int> countByInspectionIdAndSeverity(
+      String inspectionId, String severity) async {
     final db = await database;
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0',
@@ -162,13 +168,27 @@ class NonConformityRepository extends BaseRepository<NonConformity> {
   Future<Map<String, int>> getStatsByInspectionId(String inspectionId) async {
     final db = await database;
     final results = await Future.wait([
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0', [inspectionId]),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ? AND is_deleted = 0', [inspectionId, 'open']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ? AND is_deleted = 0', [inspectionId, 'closed']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0', [inspectionId, 'low']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0', [inspectionId, 'medium']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0', [inspectionId, 'high']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0', [inspectionId, 'critical']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0',
+          [inspectionId]),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ? AND is_deleted = 0',
+          [inspectionId, 'open']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ? AND is_deleted = 0',
+          [inspectionId, 'closed']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0',
+          [inspectionId, 'low']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0',
+          [inspectionId, 'medium']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0',
+          [inspectionId, 'high']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND severity = ? AND is_deleted = 0',
+          [inspectionId, 'critical']),
     ]);
 
     return {
@@ -182,15 +202,17 @@ class NonConformityRepository extends BaseRepository<NonConformity> {
     };
   }
 
-  Future<List<NonConformity>> findByInspectionIdGroupedBySeverity(String inspectionId) async {
+  Future<List<NonConformity>> findByInspectionIdGroupedBySeverity(
+      String inspectionId) async {
     final db = await database;
     final maps = await db.query(
       tableName,
       where: 'inspection_id = ? AND is_deleted = 0',
       whereArgs: [inspectionId],
-      orderBy: 'CASE severity WHEN "critical" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 WHEN "low" THEN 4 END, created_at DESC',
+      orderBy:
+          'CASE severity WHEN "critical" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 WHEN "low" THEN 4 END, created_at DESC',
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 }

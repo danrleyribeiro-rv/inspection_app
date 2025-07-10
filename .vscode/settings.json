@@ -1,5 +1,5 @@
 {
-    "cmake.sourceDirectory": "/home/corp/inspection_app/linux/runner",
+    "cmake.sourceDirectory": "/home/corp/lince_inspecoes/linux/runner",
     "java.project.sourcePaths": [
         "lib/presentation/screens/inspection/components"
     ]

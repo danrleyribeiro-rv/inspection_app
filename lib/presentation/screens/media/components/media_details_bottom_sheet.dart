@@ -2,10 +2,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/presentation/screens/media/media_viewer_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_viewer_screen.dart';
 
 class MediaDetailsBottomSheet extends StatefulWidget {
   final Map<String, dynamic> media;
@@ -164,7 +164,6 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       }
     }
   }
-
 
   Future<void> _updateMedia() async {
     setState(() => _isLoading = true);

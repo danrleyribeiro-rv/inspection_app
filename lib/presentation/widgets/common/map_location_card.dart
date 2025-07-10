@@ -2,7 +2,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:inspection_app/presentation/widgets/common/cached_map_image.dart';
+import 'package:lince_inspecoes/presentation/widgets/common/cached_map_image.dart';
 
 class MapLocationCard extends StatelessWidget {
   final String address;
@@ -166,7 +166,8 @@ class MapLocationCard extends StatelessWidget {
                           ? _openMap
                           : null,
                       icon: const Icon(Icons.directions, size: 16),
-                      label: const Text('Abrir no Google Maps', style: TextStyle(fontSize: 12)),
+                      label: const Text('Abrir no Google Maps',
+                          style: TextStyle(fontSize: 12)),
                       style: TextButton.styleFrom(
                         foregroundColor: Theme.of(context).colorScheme.primary,
                         padding: const EdgeInsets.symmetric(

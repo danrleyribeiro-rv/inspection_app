@@ -8,8 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:brasil_fields/brasil_fields.dart';
-import 'package:inspection_app/utils/constants.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/utils/constants.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> profile;
@@ -208,7 +208,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // Upload profile image if selected
       if (_profileImage != null) {
         try {
-          final mediaService = EnhancedOfflineServiceFactory.instance.mediaService;
+          final mediaService =
+              EnhancedOfflineServiceFactory.instance.mediaService;
           await mediaService.uploadProfileImage(_profileImage!.path, userId);
         } catch (e) {
           debugPrint('Error uploading profile image: $e');
@@ -275,10 +276,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF6F4B99), width: 2),
+                          border: Border.all(
+                              color: const Color(0xFF6F4B99), width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round()),
+                              color: const Color(0xFF6F4B99)
+                                  .withAlpha((255 * 0.3).round()),
                               blurRadius: 8,
                               spreadRadius: 2,
                             ),
@@ -519,8 +522,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           backgroundColor: const Color(0xFF6F4B99),
                           foregroundColor: Colors.white,
                           elevation: 4,
-                          shadowColor:
-                              const Color(0xFF6F4B99).withAlpha((255 * 0.3).round()),
+                          shadowColor: const Color(0xFF6F4B99)
+                              .withAlpha((255 * 0.3).round()),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -565,7 +568,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
+        border: Border.all(
+            color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
       ),
       child: Row(
         children: [

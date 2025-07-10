@@ -3,19 +3,19 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
-import 'package:inspection_app/presentation/screens/splash/splash_screen.dart';
-import 'package:inspection_app/presentation/screens/get_started/get_started_screen.dart';
-import 'package:inspection_app/presentation/screens/auth/login_screen.dart';
-import 'package:inspection_app/presentation/screens/auth/register_screen.dart';
-import 'package:inspection_app/presentation/screens/auth/forgot_password_screen.dart';
-import 'package:inspection_app/presentation/screens/auth/reset_password_screen.dart';
-import 'package:inspection_app/presentation/screens/home/home_screen.dart';
-import 'package:inspection_app/presentation/screens/settings/settings_screen.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/splash/splash_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/get_started/get_started_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/auth/login_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/auth/register_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/auth/forgot_password_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/auth/reset_password_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/home/home_screen.dart';
+import 'package:lince_inspecoes/presentation/screens/settings/settings_screen.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:inspection_app/firebase_options.dart';
+import 'package:lince_inspecoes/firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,10 +28,10 @@ Future<void> main() async {
 
   // 2. Inicializa serviços de base que não dependem de outros (são estáticos)
   await FirebaseService.initialize();
-  
+
   // 3. Inicializa o novo sistema offline SQLite com Enhanced Service Factory
   await EnhancedOfflineServiceFactory.instance.initialize();
-  
+
   debugPrint('Main: All services initialized successfully');
 
   // Configuração da UI
@@ -71,15 +71,42 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Inter', // Fonte padrão para o corpo do texto
         textTheme: const TextTheme(
           // Títulos usarão BricolageGrotesque
-          displayLarge: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
-          displayMedium: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
-          displaySmall: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
-          headlineLarge: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
-          headlineMedium: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
-          headlineSmall: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.bold),
-          titleLarge: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.w600),
-          titleMedium: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.w600),
-          titleSmall: TextStyle(fontFamily: 'BricolageGrotesque', color: Colors.white, fontWeight: FontWeight.w600),
+          displayLarge: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.bold),
+          displayMedium: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.bold),
+          displaySmall: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.bold),
+          headlineLarge: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.bold),
+          headlineMedium: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.bold),
+          headlineSmall: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.bold),
+          titleLarge: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.w600),
+          titleMedium: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.w600),
+          titleSmall: TextStyle(
+              fontFamily: 'BricolageGrotesque',
+              color: Colors.white,
+              fontWeight: FontWeight.w600),
 
           // O corpo do texto e outros usarão Inter por herança
           bodyLarge: TextStyle(color: Colors.white),
@@ -169,8 +196,10 @@ class MyApp extends StatelessWidget {
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
-          dayOverlayColor: WidgetStateProperty.all(const Color(0xFF6F4B99).withValues(alpha: 0.1)),
-          todayBackgroundColor: WidgetStateProperty.all(const Color(0xFF6F4B99).withValues(alpha: 0.3)),
+          dayOverlayColor: WidgetStateProperty.all(
+              const Color(0xFF6F4B99).withValues(alpha: 0.1)),
+          todayBackgroundColor: WidgetStateProperty.all(
+              const Color(0xFF6F4B99).withValues(alpha: 0.3)),
           dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) {
               return const Color(0xFF6F4B99);
@@ -244,4 +273,3 @@ class _RedirectState extends State<_Redirect> {
     );
   }
 }
-

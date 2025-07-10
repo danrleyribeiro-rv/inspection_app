@@ -1,14 +1,14 @@
 // lib/presentation/widgets/details_list_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
-import 'package:inspection_app/presentation/widgets/dialogs/rename_dialog.dart';
-import 'package:inspection_app/presentation/screens/inspection/non_conformity_screen.dart';
-import 'package:inspection_app/presentation/widgets/media/media_handling_widget.dart';
-import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/media/media_handling_widget.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 
 // O widget DetailsListSection e seu State permanecem os mesmos.
 // A mudança principal está dentro do DetailListItem.
@@ -55,65 +55,72 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   }
 
   Future<void> _reorderDetail(int oldIndex, int newIndex) async {
-    // For now, just reorder the local list and update the entire item
-    final reorderedDetails = List<Detail>.from(widget.details);
-    if (oldIndex < newIndex) newIndex -= 1;
-    final detail = reorderedDetails.removeAt(oldIndex);
-    reorderedDetails.insert(newIndex, detail);
-    
-    // Update positions
-    for (int i = 0; i < reorderedDetails.length; i++) {
-      final detail = reorderedDetails[i];
-      reorderedDetails[i] = Detail(
-        id: detail.id,
-        inspectionId: detail.inspectionId,
-        topicId: detail.topicId,
-        itemId: detail.itemId,
-        detailId: detail.detailId,
-        position: i,
-        detailName: detail.detailName,
-        detailValue: detail.detailValue,
-        observation: detail.observation,
-        isDamaged: detail.isDamaged,
-        tags: detail.tags,
-        createdAt: detail.createdAt,
-        updatedAt: DateTime.now(),
-        type: detail.type,
-        options: detail.options,
-      );
-    }
-    
-    final future = Future.wait(reorderedDetails.map((d) => 
-      EnhancedOfflineServiceFactory.instance.dataService.updateDetail(d)
-    ));
-
-    setState(() {
-      if (oldIndex < newIndex) {
-        newIndex -= 1;
-      }
-      final Detail item = _localDetails.removeAt(oldIndex);
-      _localDetails.insert(newIndex, item);
-
-      if (_expandedDetailIndex == oldIndex) {
-        _expandedDetailIndex = newIndex;
-      } else if (_expandedDetailIndex > oldIndex &&
-          _expandedDetailIndex <= newIndex) {
-        _expandedDetailIndex--;
-      } else if (_expandedDetailIndex < oldIndex &&
-          _expandedDetailIndex >= newIndex) {
-        _expandedDetailIndex++;
-      }
-    });
+    debugPrint(
+        'DetailsListSection: Reordering detail from $oldIndex to $newIndex');
 
     try {
-      await future;
+      if (oldIndex < newIndex) newIndex -= 1;
+
+      // Update local state first
+      setState(() {
+        final Detail item = _localDetails.removeAt(oldIndex);
+        _localDetails.insert(newIndex, item);
+
+        // Update expanded index tracking
+        if (_expandedDetailIndex == oldIndex) {
+          _expandedDetailIndex = newIndex;
+        } else if (_expandedDetailIndex > oldIndex &&
+            _expandedDetailIndex <= newIndex) {
+          _expandedDetailIndex--;
+        } else if (_expandedDetailIndex < oldIndex &&
+            _expandedDetailIndex >= newIndex) {
+          _expandedDetailIndex++;
+        }
+      });
+
+      // Update positions in the reordered list
+      for (int i = 0; i < _localDetails.length; i++) {
+        final detail = _localDetails[i];
+        final updatedDetail = Detail(
+          id: detail.id,
+          inspectionId: detail.inspectionId,
+          topicId: detail.topicId,
+          itemId: detail.itemId,
+          detailId: detail.detailId,
+          position: detail.position, // Keep original position
+          orderIndex: i, // Update order index for proper ordering
+          detailName: detail.detailName,
+          detailValue: detail.detailValue,
+          observation: detail.observation,
+          isDamaged: detail.isDamaged,
+          tags: detail.tags,
+          createdAt: detail.createdAt,
+          updatedAt: DateTime.now(),
+          type: detail.type,
+          options: detail.options,
+          status: detail.status,
+          isRequired: detail.isRequired,
+        );
+        _localDetails[i] = updatedDetail;
+      }
+
+      // Save all updated details
+      await Future.wait(_localDetails.map((d) =>
+          EnhancedOfflineServiceFactory.instance.dataService.updateDetail(d)));
+
+      debugPrint(
+          'DetailsListSection: Successfully reordered ${_localDetails.length} details');
+
+      // Notify parent to refresh
       widget.onDetailAction();
     } catch (e) {
+      debugPrint('DetailsListSection: Error reordering details: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao reordenar detalhe: $e')),
         );
       }
+      // Refresh to restore original state
       widget.onDetailAction();
     }
   }
@@ -189,8 +196,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
     try {
       await EnhancedOfflineServiceFactory.instance.dataService.deleteDetail(
-            detail.id ?? '',
-          );
+        detail.id ?? '',
+      );
 
       setState(() {
         _localDetails.removeAt(index);
@@ -241,6 +248,9 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     if (confirmed != true) return;
 
     try {
+      debugPrint(
+          'DetailsListSection: Duplicating detail ${detail.id} with name ${detail.detailName}');
+
       final duplicatedDetail = Detail(
         id: null, // New detail will get a new ID
         inspectionId: detail.inspectionId,
@@ -251,14 +261,19 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         detailName: '${detail.detailName} (cópia)',
         detailValue: detail.detailValue,
         observation: detail.observation,
-        isDamaged: detail.isDamaged,
-        tags: detail.tags,
+        isDamaged: detail.isDamaged ?? false,
+        tags: detail.tags ?? [],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        type: detail.type,
-        options: detail.options,
+        type: detail.type ?? 'text',
+        options: detail.options ?? [],
+        status: detail.status,
+        isRequired: detail.isRequired ?? false,
       );
-      
+
+      debugPrint(
+          'DetailsListSection: Created duplicated detail with type ${duplicatedDetail.type}');
+
       await EnhancedOfflineServiceFactory.instance.dataService.saveDetail(
         duplicatedDetail,
       );
@@ -275,6 +290,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         );
       }
     } catch (e) {
+      debugPrint('DetailsListSection: Error duplicating detail: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao duplicar detalhe: $e')),
@@ -317,7 +333,8 @@ class DetailListItem extends StatefulWidget {
 }
 
 class _DetailListItemState extends State<DetailListItem> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
   final TextEditingController _valueController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
 
@@ -414,12 +431,18 @@ class _DetailListItemState extends State<DetailListItem> {
       updatedAt: DateTime.now(),
       type: widget.detail.type,
       options: widget.detail.options,
+      status: widget.detail.status,
+      isRequired: widget.detail.isRequired,
     );
     widget.onDetailUpdated(updatedDetail);
 
     // Debounce the actual save operation
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _serviceFactory.dataService.updateDetail(updatedDetail);
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      debugPrint(
+          'DetailsListSection: Saving detail ${updatedDetail.id} with observation: ${updatedDetail.observation}');
+      await _serviceFactory.dataService.updateDetail(updatedDetail);
+      debugPrint(
+          'DetailsListSection: Detail ${updatedDetail.id} saved successfully');
     });
   }
 
@@ -859,14 +882,16 @@ class _DetailListItemState extends State<DetailListItem> {
       case 'boolean':
         return _booleanValue ? 'Sim' : 'Não';
       case 'measure':
-        final measurements = [
-          _heightController.text.trim(),
-          _widthController.text.trim(),
-          _depthController.text.trim()
-        ].where((m) => m.isNotEmpty).toList();
-        return measurements.isNotEmpty
-            ? 'A:${measurements.isNotEmpty ? measurements[0] : ''} L:${measurements.length > 1 ? measurements[1] : ''} P:${measurements.length > 2 ? measurements[2] : ''}'
-            : '';
+        final altura = _heightController.text.trim();
+        final largura = _widthController.text.trim();
+        final profundidade = _depthController.text.trim();
+
+        final parts = <String>[];
+        if (altura.isNotEmpty) parts.add('A:$altura');
+        if (largura.isNotEmpty) parts.add('L:$largura');
+        if (profundidade.isNotEmpty) parts.add('P:$profundidade');
+
+        return parts.join(' ');
       default:
         return _valueController.text;
     }
@@ -931,65 +956,51 @@ class _DetailListItemState extends State<DetailListItem> {
         );
 
       case 'measure':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return Row(
           children: [
-            Text(
-              'Medidas:',
-              style: TextStyle(
-                color: Colors.green.shade300,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: TextFormField(
+                controller: _heightController,
+                decoration: const InputDecoration(
+                  hintText: 'Altura',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                onChanged: (_) => _updateDetail(),
               ),
             ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _heightController,
-                    decoration: const InputDecoration(
-                      labelText: 'Alt',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white),
-                    onChanged: (_) => _updateDetail(),
-                  ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: TextFormField(
+                controller: _widthController,
+                decoration: const InputDecoration(
+                  hintText: 'Largura',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: TextFormField(
-                    controller: _widthController,
-                    decoration: const InputDecoration(
-                      labelText: 'Larg',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white),
-                    onChanged: (_) => _updateDetail(),
-                  ),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                onChanged: (_) => _updateDetail(),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: TextFormField(
+                controller: _depthController,
+                decoration: const InputDecoration(
+                  hintText: 'Profundidade',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: TextFormField(
-                    controller: _depthController,
-                    decoration: const InputDecoration(
-                      labelText: 'Prof',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white),
-                    onChanged: (_) => _updateDetail(),
-                  ),
-                ),
-              ],
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                onChanged: (_) => _updateDetail(),
+              ),
             ),
           ],
         );

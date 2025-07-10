@@ -3,12 +3,10 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
 
 class ImportExportService {
   final FirebaseService _firebase = FirebaseService();
-
-
 
   Future<bool> importInspection(
       String inspectionId, Map<String, dynamic> jsonData) async {
@@ -52,7 +50,6 @@ class ImportExportService {
       throw Exception('Failed to read JSON file: $e');
     }
   }
-
 
   Future<bool> showImportConfirmationDialog(BuildContext context) async {
     return await showDialog<bool>(

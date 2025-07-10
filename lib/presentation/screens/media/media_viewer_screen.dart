@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
-import 'package:inspection_app/presentation/widgets/common/cached_media_image.dart';
+import 'package:lince_inspecoes/presentation/widgets/common/cached_media_image.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> mediaItems;
@@ -70,7 +70,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   Widget _buildMediaWidget(Map<String, dynamic> media, int index) {
     final bool isImage = media['type'] == 'image';
     final String displayPath = media['local_path'] ?? media['url'] ?? '';
-    
+
     // Check if media is available
     if (displayPath.isEmpty) {
       return _buildUnavailableWidget();
@@ -92,14 +92,14 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       if (displayPath.isEmpty) {
         return _buildUnavailableWidget();
       }
-      
+
       // Initialize controller based on path type
       if (displayPath.startsWith('http')) {
         controller = VideoPlayerController.networkUrl(Uri.parse(displayPath));
       } else {
         controller = VideoPlayerController.file(File(displayPath));
       }
-      
+
       _videoControllers[index] = controller;
       controller.initialize().then((_) {
         if (mounted) setState(() {});
@@ -108,7 +108,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         if (mounted) setState(() {});
       });
     }
-    
+
     if (!controller.value.isInitialized) {
       return _buildLoadingWidget();
     }
@@ -197,10 +197,10 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         children: [
           Icon(Icons.cloud_off_outlined, color: Colors.white, size: 64),
           SizedBox(height: 16),
-          Text('Mídia não disponível',
-              style: TextStyle(color: Colors.white)),
+          Text('Mídia não disponível', style: TextStyle(color: Colors.white)),
           SizedBox(height: 8),
-          Text('A mídia pode estar sendo processada ou não foi sincronizada ainda',
+          Text(
+              'A mídia pode estar sendo processada ou não foi sincronizada ainda',
               style: TextStyle(color: Colors.white70, fontSize: 12),
               textAlign: TextAlign.center),
         ],

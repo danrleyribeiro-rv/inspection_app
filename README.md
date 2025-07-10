@@ -1,4 +1,4 @@
-# inspection_app
+# lince_inspecoes
 
 Aplicativo para inspeções
 

@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inspection_app/models/inspection.dart';
-import 'package:inspection_app/repositories/base_repository.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/models/inspection.dart';
+import 'package:lince_inspecoes/repositories/base_repository.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
 
 class InspectionRepository extends BaseRepository<Inspection> {
   final FirebaseService _firebaseService;
@@ -41,7 +41,8 @@ class InspectionRepository extends BaseRepository<Inspection> {
     return await findWhere('needs_sync = ?', [1]);
   }
 
-  Future<void> updateProgress(String inspectionId, double progressPercentage, int completedItems, int totalItems) async {
+  Future<void> updateProgress(String inspectionId, double progressPercentage,
+      int completedItems, int totalItems) async {
     final db = await database;
     await db.update(
       tableName,
@@ -71,7 +72,8 @@ class InspectionRepository extends BaseRepository<Inspection> {
     );
   }
 
-  Future<void> updateFirestoreData(String inspectionId, Map<String, dynamic> firestoreData) async {
+  Future<void> updateFirestoreData(
+      String inspectionId, Map<String, dynamic> firestoreData) async {
     final db = await database;
     await db.update(
       tableName,
@@ -114,11 +116,19 @@ class InspectionRepository extends BaseRepository<Inspection> {
   Future<Map<String, int>> getInspectionStats() async {
     final db = await database;
     final results = await Future.wait([
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE is_deleted = 0'),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0', ['pending']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0', ['in_progress']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0', ['completed']),
-      db.rawQuery('SELECT COUNT(*) as count FROM $tableName WHERE needs_sync = 1 AND is_deleted = 0'),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE is_deleted = 0'),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
+          ['pending']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
+          ['in_progress']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
+          ['completed']),
+      db.rawQuery(
+          'SELECT COUNT(*) as count FROM $tableName WHERE needs_sync = 1 AND is_deleted = 0'),
     ]);
 
     return {
@@ -157,15 +167,18 @@ class InspectionRepository extends BaseRepository<Inspection> {
           // New inspection from cloud, save it
           await insertOrUpdate(cloudInspection);
           await markSynced(inspectionId);
-          debugPrint('InspectionRepository: Downloaded new inspection $inspectionId');
+          debugPrint(
+              'InspectionRepository: Downloaded new inspection $inspectionId');
         } else {
           // Existing inspection, check for conflicts or update
           if (cloudInspection.updatedAt.isAfter(existingInspection.updatedAt)) {
             await insertOrUpdate(cloudInspection);
             await markSynced(inspectionId);
-            debugPrint('InspectionRepository: Updated existing inspection $inspectionId from cloud');
+            debugPrint(
+                'InspectionRepository: Updated existing inspection $inspectionId from cloud');
           } else {
-            debugPrint('InspectionRepository: Skipping download for $inspectionId - local is newer');
+            debugPrint(
+                'InspectionRepository: Skipping download for $inspectionId - local is newer');
           }
         }
       }
@@ -193,26 +206,30 @@ class InspectionRepository extends BaseRepository<Inspection> {
 
           // Mark as synced in local storage
           await markSynced(inspection.id);
-          debugPrint('InspectionRepository: Uploaded inspection ${inspection.id} to cloud');
+          debugPrint(
+              'InspectionRepository: Uploaded inspection ${inspection.id} to cloud');
         } catch (e) {
-          debugPrint('InspectionRepository: Error uploading inspection ${inspection.id}: $e');
+          debugPrint(
+              'InspectionRepository: Error uploading inspection ${inspection.id}: $e');
         }
       }
       debugPrint('InspectionRepository: Finished uploading inspections');
     } catch (e) {
-      debugPrint('InspectionRepository: Error getting pending inspections for upload: $e');
+      debugPrint(
+          'InspectionRepository: Error getting pending inspections for upload: $e');
     }
   }
 
   // Helper para converter timestamps do Firestore
   Map<String, dynamic> _convertFirestoreTimestamps(Map<String, dynamic> data) {
     final converted = <String, dynamic>{};
-    
+
     data.forEach((key, value) {
       if (value is Timestamp) {
         converted[key] = value.toDate();
       } else if (value is Map) {
-        converted[key] = _convertFirestoreTimestamps(Map<String, dynamic>.from(value));
+        converted[key] =
+            _convertFirestoreTimestamps(Map<String, dynamic>.from(value));
       } else if (value is List) {
         converted[key] = value.map((item) {
           if (item is Map) {
@@ -224,7 +241,7 @@ class InspectionRepository extends BaseRepository<Inspection> {
         converted[key] = value;
       }
     });
-    
+
     return converted;
   }
 }

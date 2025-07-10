@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:inspection_app/services/core/firebase_service.dart';
-import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
 
 class TemplateService {
   final FirebaseService _firebaseService = FirebaseService();

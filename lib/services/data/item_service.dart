@@ -1,16 +1,18 @@
 // lib/services/data/item_service.dart
 import 'package:flutter/foundation.dart'; // Added for debugPrint
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/services/data/detail_service.dart';
-import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/services/data/detail_service.dart';
+import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
 
 class ItemService {
-  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
+  final SQLiteStorageService _localStorage =
+      SQLiteStorageService.instance; // Use SQLiteStorageService
   DetailService get _detailService => DetailService();
 
   Future<List<Item>> getItems(String inspectionId, String topicId) async {
     try {
-      final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+      final inspection =
+          await _localStorage.getInspection(inspectionId); // Get from SQLite
       final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
       if (inspection?.topics != null &&
           topicIndex != null &&
@@ -57,7 +59,8 @@ class ItemService {
       throw Exception('Invalid topic ID');
     }
 
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection == null) {
       throw Exception('Inspection not found: $inspectionId');
     }
@@ -111,8 +114,8 @@ class ItemService {
     final itemIndex =
         int.tryParse(updatedItem.id?.replaceFirst('item_', '') ?? '');
     if (topicIndex != null && itemIndex != null) {
-      final inspection =
-          await _localStorage.getInspection(updatedItem.inspectionId); // Get from SQLite
+      final inspection = await _localStorage
+          .getInspection(updatedItem.inspectionId); // Get from SQLite
       if (inspection?.topics != null &&
           topicIndex < inspection!.topics!.length) {
         final topic = Map<String, dynamic>.from(inspection.topics![topicIndex]);
@@ -127,14 +130,16 @@ class ItemService {
           items[itemIndex] = currentItemData;
           topic['items'] = items;
 
-          final updatedTopics = List<Map<String, dynamic>>.from(inspection.topics!);
+          final updatedTopics =
+              List<Map<String, dynamic>>.from(inspection.topics!);
           updatedTopics[topicIndex] = topic;
 
           final updatedInspection = inspection.copyWith(
             topics: updatedTopics,
             updatedAt: DateTime.now(),
           );
-          await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+          await _localStorage
+              .saveInspection(updatedInspection); // Save to SQLite
         }
       }
     }
@@ -150,7 +155,8 @@ class ItemService {
       throw Exception('Invalid topic ID');
     }
 
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection == null) {
       throw Exception('Inspection not found');
     }
@@ -226,7 +232,8 @@ class ItemService {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     if (topicIndex == null) return;
 
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -279,7 +286,8 @@ class ItemService {
 
   Future<void> _deleteItemAtIndex(
       String inspectionId, int topicIndex, int itemIndex) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -290,7 +298,8 @@ class ItemService {
           topic['items'] = items;
           topics[topicIndex] = topic;
           final updatedInspection = inspection.copyWith(topics: topics);
-          await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+          await _localStorage
+              .saveInspection(updatedInspection); // Save to SQLite
         }
       }
     }

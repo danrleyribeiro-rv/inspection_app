@@ -1,8 +1,8 @@
 // lib/presentation/widgets/media/media_handling_widget.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
-import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
-import 'package:inspection_app/presentation/screens/media/media_gallery_screen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 
 class MediaHandlingWidget extends StatefulWidget {
   final String inspectionId;
@@ -27,22 +27,111 @@ class MediaHandlingWidget extends StatefulWidget {
 }
 
 class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
   int _processingCount = 0;
 
   void _showCameraCapture() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => NativeCameraWidget(
-          onImagesSelected: _handleImagesSelected,
-          allowMultiple: true,
-          inspectionId: widget.inspectionId,
-          topicId: widget.topicId,
-          itemId: widget.itemId,
-          detailId: widget.detailId,
+    _showMediaSourceDialog();
+  }
+
+  void _showMediaSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Adicionar Mídia',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              title:
+                  const Text('Câmera', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Tirar foto com a câmera',
+                  style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _captureFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title:
+                  const Text('Galeria', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Escolher foto da galeria',
+                  style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _selectFromGallery();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _captureFromCamera() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+      );
+
+      if (image != null) {
+        await _handleImagesSelected([image.path]);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _selectFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile> images = await picker.pickMultiImage(
+        imageQuality: 90,
+      );
+
+      if (images.isNotEmpty) {
+        final imagePaths = images.map((image) => image.path).toList();
+        await _handleImagesSelected(imagePaths);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
+        );
+      }
+    }
   }
 
   void _openDetailMediaGallery() {
@@ -89,7 +178,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
   Future<void> _processAndSaveMedia(String localPath, String type) async {
     try {
       final position = await _serviceFactory.mediaService.getCurrentLocation();
-      
+
       // Usar o fluxo offline-first do MediaService
       await _serviceFactory.mediaService.captureAndProcessMedia(
         inputPath: localPath,
@@ -101,13 +190,15 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
         metadata: {
           'source': 'camera',
           'is_non_conformity': false,
-          'location': position != null ? {
-            'latitude': position['latitude'],
-            'longitude': position['longitude'],
-          } : null,
+          'location': position != null
+              ? {
+                  'latitude': position['latitude'],
+                  'longitude': position['longitude'],
+                }
+              : null,
         },
       );
-      
+
       // Media já foi salva, apenas notificar o callback
       widget.onMediaAdded(localPath);
     } catch (e) {
@@ -139,7 +230,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                 Expanded(
                   child: Text(
                     "Processando $_processingCount mídia(s)...",
-                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11),
+                    style: const TextStyle(
+                        fontStyle: FontStyle.italic, fontSize: 11),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -155,7 +247,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   minimumSize: const Size(0, 0),
                 ),
                 child: const Column(
@@ -166,8 +259,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Câmera', 
-                        style: TextStyle(fontSize: 10), 
+                        'Câmera',
+                        style: TextStyle(fontSize: 10),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -183,7 +276,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   minimumSize: const Size(0, 0),
                 ),
                 child: const Column(
@@ -194,8 +288,8 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Galeria', 
-                        style: TextStyle(fontSize: 10), 
+                        'Galeria',
+                        style: TextStyle(fontSize: 10),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
                       ),

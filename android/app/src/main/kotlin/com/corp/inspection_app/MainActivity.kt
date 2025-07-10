@@ -1,4 +1,4 @@
-package com.corp.inspection_app
+package com.corp.lince_inspecoes
 
 import io.flutter.embedding.android.FlutterActivity
 

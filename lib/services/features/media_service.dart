@@ -6,99 +6,57 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image/image.dart' as img;
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:inspection_app/services/data/offline_data_service.dart';
+import 'package:lince_inspecoes/services/data/offline_data_service.dart';
 
 class MediaService {
   static MediaService? _instance;
   static MediaService get instance => _instance ??= MediaService._();
-  
+
   MediaService._();
-  
+
   final OfflineDataService _dataService = OfflineDataService.instance;
   final Uuid _uuid = Uuid();
-  
+
   Directory? _mediaDir;
-  
+
   // Inicializar o serviço
   Future<void> initialize() async {
     try {
       // Criar diretório para mídias
       final appDir = await getApplicationDocumentsDirectory();
       _mediaDir = Directory(path.join(appDir.path, 'media'));
-      
+
       if (!await _mediaDir!.exists()) {
         await _mediaDir!.create(recursive: true);
       }
-      
-      debugPrint('MediaService: Initialized offline-first with media directory: ${_mediaDir!.path}');
+
+      debugPrint(
+          'MediaService: Initialized offline-first with media directory: ${_mediaDir!.path}');
     } catch (e) {
       debugPrint('MediaService: Error initializing: $e');
       rethrow;
     }
   }
-  
+
   void dispose() {
     // Cleanup resources if needed
   }
 
-  // Processamento rápido de imagem sem FFmpeg (instantâneo)
+  // Simple image copy without processing - use original quality and size
   Future<File?> processImageFast(String inputPath, String outputPath) async {
     try {
       final inputFile = File(inputPath);
       if (!await inputFile.exists()) return null;
 
-      // Ler a imagem
-      final bytes = await inputFile.readAsBytes();
-      final image = img.decodeImage(bytes);
-      if (image == null) return null;
+      // Simply copy the file without any processing to preserve original quality
+      final outputFile = await inputFile.copy(outputPath);
 
-      // Garantir aspect ratio 4:3 em modo paisagem (largura > altura)
-      int newWidth, newHeight;
-      
-      // Forçar orientação paisagem: width deve ser maior que height
-      // Para 4:3 paisagem: width/height = 4/3, então width = height * 4/3
-      
-      // Câmera agora captura em 4:3 paisagem, verificar se já está na proporção correta
-      final aspectRatio = image.width / image.height;
-      final targetRatio = 4.0 / 3.0;
-      final tolerance = 0.05; // Tolerância de 5% para considerar já na proporção correta
-      
-      img.Image processedImage = image;
-      
-      // Se a imagem já está muito próxima do 4:3, usar como está para evitar perda de qualidade
-      if ((aspectRatio - targetRatio).abs() < tolerance) {
-        debugPrint('MediaService: Image already in 4:3 ratio (${aspectRatio.toStringAsFixed(2)}), skipping crop');
-        newWidth = image.width;
-        newHeight = image.height;
-      } else {
-        // Calcular novo tamanho para forçar 4:3
-        if (aspectRatio > targetRatio) {
-          // Muito larga - usar altura como base
-          newHeight = image.height;
-          newWidth = (image.height * targetRatio).round();
-        } else {
-          // Muito alta - usar largura como base
-          newWidth = image.width;
-          newHeight = (image.width / targetRatio).round();
-        }
-        
-        // Crop para novo tamanho (centrado)
-        final cropX = (image.width - newWidth) ~/ 2;
-        final cropY = (image.height - newHeight) ~/ 2;
-        processedImage = img.copyCrop(image, x: cropX, y: cropY, width: newWidth, height: newHeight);
-      }
-
-      // Comprimir e salvar
-      final compressedBytes = img.encodeJpg(processedImage, quality: 85);
-      final outputFile = File(outputPath);
-      await outputFile.writeAsBytes(compressedBytes);
-      
-      debugPrint('MediaService: Processed image - ${newWidth}x$newHeight (${(newWidth/newHeight).toStringAsFixed(2)}:1)');
+      debugPrint(
+          'MediaService: Copied image ${path.basename(inputPath)} without processing');
       return outputFile;
     } catch (e) {
-      debugPrint('MediaService: Error processing image: $e');
+      debugPrint('MediaService: Error copying image: $e');
       return null;
     }
   }
@@ -119,7 +77,7 @@ class MediaService {
       final extension = path.extension(inputPath);
       final fileName = '${mediaId}_$timestamp$extension';
       final localPath = path.join(_mediaDir!.path, fileName);
-      
+
       // Processar e salvar arquivo
       File? processedFile;
       if (type == 'image') {
@@ -129,14 +87,14 @@ class MediaService {
         final inputFile = File(inputPath);
         processedFile = await inputFile.copy(localPath);
       }
-      
+
       if (processedFile == null) {
         throw Exception('Failed to process media file');
       }
-      
+
       // Obter localização atual
       final position = await getCurrentLocation();
-      
+
       // Criar dados da mídia
       final mediaData = {
         'id': mediaId,
@@ -153,14 +111,16 @@ class MediaService {
         'created_at': DateTime.now().toIso8601String(),
         'metadata': {
           ...?metadata,
-          'location': position != null ? {
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'accuracy': position.accuracy,
-          } : null,
+          'location': position != null
+              ? {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                }
+              : null,
         },
       };
-      
+
       // Salvar no banco de dados
       if (detailId != null && topicId != null && itemId != null) {
         // If media is associated with a detail, update the inspection object
@@ -193,7 +153,7 @@ class MediaService {
           fileType: type,
         );
       }
-      
+
       debugPrint('MediaService: Captured and processed media $mediaId');
       return mediaData;
     } catch (e) {
@@ -209,7 +169,7 @@ class MediaService {
       if (!serviceEnabled) {
         return null;
       }
-      
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -217,18 +177,18 @@ class MediaService {
           return null;
         }
       }
-      
+
       if (permission == LocationPermission.deniedForever) {
         return null;
       }
-      
+
       return await Geolocator.getCurrentPosition();
     } catch (e) {
       debugPrint('MediaService: Error getting location: $e');
       return null;
     }
   }
-  
+
   // Obter arquivo de mídia
   Future<File?> getMediaFile(String mediaId) async {
     try {
@@ -238,9 +198,10 @@ class MediaService {
       return null;
     }
   }
-  
+
   // Obter mídias por inspeção
-  Future<List<Map<String, dynamic>>> getMediaFilesByInspection(String inspectionId) async {
+  Future<List<Map<String, dynamic>>> getMediaFilesByInspection(
+      String inspectionId) async {
     try {
       return await _dataService.getMediaFilesByInspection(inspectionId);
     } catch (e) {
@@ -248,7 +209,7 @@ class MediaService {
       return [];
     }
   }
-  
+
   // Deletar arquivo de mídia
   Future<void> deleteMediaFile(String mediaId) async {
     try {
@@ -256,7 +217,7 @@ class MediaService {
       if (mediaFile != null && await mediaFile.exists()) {
         await mediaFile.delete();
       }
-      
+
       await _dataService.deleteMediaFile(mediaId);
       debugPrint('MediaService: Deleted media file $mediaId');
     } catch (e) {
@@ -264,7 +225,7 @@ class MediaService {
       rethrow;
     }
   }
-  
+
   // Limpar cache de mídia
   Future<void> clearMediaCache() async {
     try {
@@ -277,7 +238,7 @@ class MediaService {
       debugPrint('MediaService: Error clearing media cache: $e');
     }
   }
-  
+
   // Obter estatísticas de mídia
   Future<Map<String, int>> getMediaStats() async {
     try {
@@ -347,7 +308,8 @@ class MediaService {
         try {
           final file = File(localPath);
           if (!await file.exists()) {
-            debugPrint('MediaService: Local media file not found for $mediaId at $localPath');
+            debugPrint(
+                'MediaService: Local media file not found for $mediaId at $localPath');
             continue;
           }
 
@@ -363,7 +325,8 @@ class MediaService {
           final downloadUrl = await snapshot.ref.getDownloadURL();
 
           await _dataService.markMediaUploaded(mediaId, downloadUrl);
-          debugPrint('MediaService: Uploaded media file $mediaId to $downloadUrl');
+          debugPrint(
+              'MediaService: Uploaded media file $mediaId to $downloadUrl');
         } catch (e) {
           debugPrint('MediaService: Error uploading media file $mediaId: $e');
           // Continue to next file even if one fails
@@ -371,7 +334,8 @@ class MediaService {
       }
       debugPrint('MediaService: Finished uploading all pending media files');
     } catch (e) {
-      debugPrint('MediaService: Error getting pending media files for upload: $e');
+      debugPrint(
+          'MediaService: Error getting pending media files for upload: $e');
     }
   }
 
@@ -384,13 +348,15 @@ class MediaService {
     bool? isNonConformity,
   }) async {
     try {
-      final allMedia = await _dataService.getMediaFilesByInspection(inspectionId);
-      
+      final allMedia =
+          await _dataService.getMediaFilesByInspection(inspectionId);
+
       return allMedia.where((media) {
         if (topicId != null && media['topic_id'] != topicId) return false;
         if (itemId != null && media['item_id'] != itemId) return false;
         if (detailId != null && media['detail_id'] != detailId) return false;
-        if (mediaType != null && media['file_type'] != mediaType) return false; // Use file_type from SQLite
+        if (mediaType != null && media['file_type'] != mediaType)
+          return false; // Use file_type from SQLite
         // isNonConformity logic needs to be implemented if non-conformity media is distinct
         return true;
       }).toList();
@@ -415,13 +381,15 @@ class MediaService {
     try {
       final inspection = await _dataService.getInspection(inspectionId);
       if (inspection == null) {
-        debugPrint('MediaService.moveMedia: Inspection not found: $inspectionId');
+        debugPrint(
+            'MediaService.moveMedia: Inspection not found: $inspectionId');
         return false;
       }
 
       // Find and remove media from current location
       Map<String, dynamic>? mediaToMove;
-      List<Map<String, dynamic>> updatedTopics = List<Map<String, dynamic>>.from(inspection.topics ?? []);
+      List<Map<String, dynamic>> updatedTopics =
+          List<Map<String, dynamic>>.from(inspection.topics ?? []);
 
       // Helper to find and remove media
       void findAndRemoveMedia(List<Map<String, dynamic>> mediaList) {
@@ -457,7 +425,8 @@ class MediaService {
       }
 
       if (mediaToMove == null) {
-        debugPrint('MediaService.moveMedia: Media $mediaId not found in current location.');
+        debugPrint(
+            'MediaService.moveMedia: Media $mediaId not found in current location.');
         return false;
       }
 
@@ -485,14 +454,16 @@ class MediaService {
                         // Add to non-conformity level
                         for (var nc in detail['non_conformities'] ?? []) {
                           if (nc['id'] == nonConformityId) {
-                            (nc['media'] as List<dynamic>? ?? []).add(mediaToMove);
+                            (nc['media'] as List<dynamic>? ?? [])
+                                .add(mediaToMove);
                             addedToNewLocation = true;
                             break;
                           }
                         }
                       } else {
                         // Add to detail level
-                        (detail['media'] as List<dynamic>? ?? []).add(mediaToMove);
+                        (detail['media'] as List<dynamic>? ?? [])
+                            .add(mediaToMove);
                         addedToNewLocation = true;
                         break;
                       }
@@ -508,12 +479,14 @@ class MediaService {
       }
 
       if (!addedToNewLocation) {
-        debugPrint('MediaService.moveMedia: Failed to add media to new location.');
+        debugPrint(
+            'MediaService.moveMedia: Failed to add media to new location.');
         return false;
       }
 
       // Save updated inspection
-      await _dataService.saveInspection(inspection.copyWith(topics: updatedTopics));
+      await _dataService
+          .saveInspection(inspection.copyWith(topics: updatedTopics));
       debugPrint('MediaService.moveMedia: Successfully moved media $mediaId');
       return true;
     } catch (e) {

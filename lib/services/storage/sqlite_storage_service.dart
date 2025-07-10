@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
-import 'package:inspection_app/models/inspection.dart';
+import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:uuid/uuid.dart';
 
 class SQLiteStorageService {
@@ -33,7 +33,7 @@ class SQLiteStorageService {
 
     // Inicializar banco de dados
     final databasePath = await getDatabasesPath();
-    final path = p.join(databasePath, 'inspection_app.db');
+    final path = p.join(databasePath, 'lince_inspecoes.db');
 
     _database = await openDatabase(
       path,

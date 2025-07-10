@@ -1,6 +1,6 @@
 {
-    "name": "inspection_app",
-    "short_name": "inspection_app",
+    "name": "lince_inspecoes",
+    "short_name": "lince_inspecoes",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

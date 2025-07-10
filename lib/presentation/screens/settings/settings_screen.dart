@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,7 +16,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
 
   bool _notificationsEnabled = true;
   bool _locationPermission = true;
@@ -35,7 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         setState(() {
-          _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+          _notificationsEnabled =
+              prefs.getBool('notifications_enabled') ?? true;
           _locationPermission = prefs.getBool('location_permission') ?? true;
           _cameraPermission = prefs.getBool('camera_permission') ?? true;
         });
@@ -208,7 +210,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SizedBox(height: 16),
             Text(
               'Você precisará baixar novamente as vistorias para trabalhar offline.',
-              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w500),
+              style:
+                  TextStyle(color: Colors.orange, fontWeight: FontWeight.w500),
             ),
             SizedBox(height: 8),
             Text(
@@ -236,19 +239,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirm != true || !mounted) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
       // Limpar dados locais usando o serviço de armazenamento
       await _serviceFactory.storageService.clearAllData();
-      
+
       // Limpar preferências
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
-      
+
       if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Cache limpo com sucesso! Todas as vistorias baixadas e dados temporários foram removidos.'),
+            content: Text(
+                'Cache limpo com sucesso! Todas as vistorias baixadas e dados temporários foram removidos.'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -325,7 +329,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   title: const Text('Limpar Cache',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Remover todas as vistorias baixadas e arquivos temporários',
+                  subtitle: const Text(
+                      'Remover todas as vistorias baixadas e arquivos temporários',
                       style: TextStyle(color: Colors.white70)),
                   leading:
                       const Icon(Icons.cleaning_services, color: Colors.white),

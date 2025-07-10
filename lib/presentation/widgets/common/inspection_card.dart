@@ -1,13 +1,12 @@
 // lib/presentation/widgets/inspection_card.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:inspection_app/presentation/widgets/common/map_location_card.dart';
+import 'package:lince_inspecoes/presentation/widgets/common/map_location_card.dart';
 import 'dart:developer'; // Import log for potential debugging
 
 class InspectionCard extends StatelessWidget {
   final Map<String, dynamic> inspection;
   final Function() onViewDetails;
-  final Function()? onComplete;
   final Function()? onSync;
   final Function()? onDownload;
   final Function()? onSyncImages; // Callback para sincronizar imagens
@@ -15,13 +14,13 @@ class InspectionCard extends StatelessWidget {
   final String googleMapsApiKey; // <<< Add this parameter
   final bool isFullyDownloaded; // Status de download completo
   final double downloadProgress; // Progresso de download (0.0 a 1.0)
-  final bool needsSync; // Se a inspeção tem mudanças que precisam ser sincronizadas
+  final bool
+      needsSync; // Se a inspeção tem mudanças que precisam ser sincronizadas
 
   const InspectionCard({
     super.key,
     required this.inspection,
     required this.onViewDetails,
-    this.onComplete,
     this.onSync,
     this.onDownload,
     this.onSyncImages,
@@ -36,7 +35,6 @@ class InspectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Extract location data
     final title = inspection['title'] ?? 'Untitled Inspection';
-    final status = inspection['status'] ?? 'pending';
     final scheduledDate = _formatDate(inspection['scheduled_date']);
 
     // --- Address Extraction Logic (Keep Existing) ---
@@ -110,9 +108,20 @@ class InspectionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _buildSyncIndicator(),
-                  const SizedBox(width: 4),
-                  _buildStatusChip(status),
+                  if (needsSync)
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withAlpha(51),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange, width: 1),
+                      ),
+                      child: const Icon(
+                        Icons.cloud_sync,
+                        size: 12,
+                        color: Colors.orange,
+                      ),
+                    ),
                 ],
               ),
 
@@ -150,7 +159,8 @@ class InspectionCard extends StatelessWidget {
                         ),
                         Text(
                           '${(downloadProgress * 100).toInt()}%',
-                          style: const TextStyle(fontSize: 10, color: Colors.white),
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.white),
                         ),
                       ],
                     ),
@@ -158,16 +168,16 @@ class InspectionCard extends StatelessWidget {
                     LinearProgressIndicator(
                       value: downloadProgress,
                       backgroundColor: Colors.grey[700],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(Colors.green),
                       minHeight: 3,
                     ),
                   ],
                 ),
               ],
-              
-              
+
               const SizedBox(height: 8),
-              
+
               // Action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -194,73 +204,92 @@ class InspectionCard extends StatelessWidget {
                                 backgroundColor: Colors.orange,
                                 foregroundColor: Colors.white,
                                 minimumSize: const Size(0, 32),
-                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 2, vertical: 4),
                               ),
-                              icon: pendingImagesCount != null && pendingImagesCount! > 0
-                                ? Badge(
-                                    label: Text('${pendingImagesCount!}'),
-                                    child: const Icon(Icons.cloud_upload, size: 12),
-                                  )
-                                : const Icon(Icons.cloud_upload, size: 12),
-                              label: const Text('Sincronizar', style: TextStyle(fontSize: 10)),
+                              icon: pendingImagesCount != null &&
+                                      pendingImagesCount! > 0
+                                  ? Badge(
+                                      label: Text('${pendingImagesCount!}'),
+                                      child: const Icon(Icons.cloud_upload,
+                                          size: 12),
+                                    )
+                                  : const Icon(Icons.cloud_upload, size: 12),
+                              label: const Text('Sincronizar',
+                                  style: TextStyle(fontSize: 10)),
                             ),
                           ),
-                        
-                        if (onSync != null && isFullyDownloaded && needsSync && onDownload != null) const SizedBox(width: 4),
-                        
+
+                        if (onSync != null &&
+                            isFullyDownloaded &&
+                            needsSync &&
+                            onDownload != null)
+                          const SizedBox(width: 4),
+
                         // Download button - only show if inspection is not fully downloaded
                         if (onDownload != null && !isFullyDownloaded)
                           Expanded(
-                            child: downloadProgress > 0 && downloadProgress < 1 
-                              ? Container(
-                                  height: 32,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: Colors.green, width: 1),
+                            child: downloadProgress > 0 && downloadProgress < 1
+                                ? Container(
+                                    height: 32,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.green.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                          color: Colors.green, width: 1),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.cloud_download,
+                                                size: 10, color: Colors.green),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Baixando ${(downloadProgress * 100).toInt()}%',
+                                              style: const TextStyle(
+                                                  fontSize: 9,
+                                                  color: Colors.green),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        LinearProgressIndicator(
+                                          value: downloadProgress,
+                                          backgroundColor: Colors.grey[600],
+                                          valueColor:
+                                              const AlwaysStoppedAnimation<
+                                                  Color>(Colors.green),
+                                          minHeight: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: onDownload,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(0, 32),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 2, vertical: 4),
+                                    ),
+                                    icon: const Icon(Icons.cloud_download,
+                                        size: 12),
+                                    label: const Text('Baixar',
+                                        style: TextStyle(fontSize: 10)),
                                   ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.cloud_download, size: 10, color: Colors.green),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Baixando ${(downloadProgress * 100).toInt()}%',
-                                            style: const TextStyle(fontSize: 9, color: Colors.green),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      LinearProgressIndicator(
-                                        value: downloadProgress,
-                                        backgroundColor: Colors.grey[600],
-                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                                        minHeight: 2,
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : ElevatedButton.icon(
-                                  onPressed: onDownload,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size(0, 32),
-                                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                                  ),
-                                  icon: const Icon(Icons.cloud_download, size: 12),
-                                  label: const Text('Baixar', style: TextStyle(fontSize: 10)),
-                                ),
                           ),
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(width: 8),
-                  
+
                   // Right side buttons
                   Flexible(
                     flex: 2,
@@ -268,36 +297,24 @@ class InspectionCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Continue/View button - only show if downloaded
-                        if (isFullyDownloaded && (status == 'pending' || status == 'in_progress' || status == 'completed'))
+                        // Continue button - always show if downloaded
+                        if (isFullyDownloaded)
                           ElevatedButton(
                             onPressed: onViewDetails,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF6F4B99),
+                              backgroundColor: const Color(0xFF6F4B99),
                               foregroundColor: Colors.white,
                               minimumSize: const Size(0, 32),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 4),
                             ),
-                            child: Text(
-                              status == 'pending' ? 'Iniciar' : status == 'completed' ? 'Visualizar' : 'Continuar',
-                              style: const TextStyle(fontSize: 12),
+                            child: const Text(
+                              'Continuar',
+                              style: TextStyle(fontSize: 12),
                             ),
                           ),
 
-                        // Complete button (only for in_progress and if fully downloaded)
-                        if (status == 'in_progress' && onComplete != null && isFullyDownloaded) ...[
-                          const SizedBox(width: 6),
-                          ElevatedButton(
-                            onPressed: onComplete,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(0, 32),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            ),
-                            child: const Text('Completar', style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
+                        // Botão "Completar" removido - apenas sincronização manual disponível
                       ],
                     ),
                   ),
@@ -422,67 +439,5 @@ class InspectionCard extends StatelessWidget {
     }
   }
 
-  Widget _buildStatusChip(String status) {
-    // ... (implementation unchanged, using Portuguese labels) ...
-    String label;
-    Color color;
-
-    switch (status) {
-      case 'pending':
-        label = 'Pendente';
-        color = Colors.orange;
-        break;
-      case 'in_progress':
-        label = 'Em Progresso';
-        color = Color(0xFF6F4B99);
-        break;
-      case 'completed':
-        label = 'Concluído';
-        color = Colors.green;
-        break;
-      case 'cancelled':
-        label = 'Cancelado';
-        color = Colors.red;
-        break;
-      default:
-        label =
-            status.isNotEmpty ? status : 'Desconhecido'; // Changed 'Unknown'
-        color = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha((255 * 0.2).round()),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color),
-      ),
-      child: Text(
-        label,
-        style:
-            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _buildSyncIndicator() {
-    // Use the needsSync property directly
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: needsSync ? Colors.orange.withAlpha(51) : Colors.green.withAlpha(51),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: needsSync ? Colors.orange : Colors.green,
-          width: 1,
-        ),
-      ),
-      child: Icon(
-        needsSync ? Icons.cloud_sync : Icons.cloud_done,
-        size: 12,
-        color: needsSync ? Colors.orange : Colors.green,
-      ),
-    );
-  }
   // --- End Helper Functions ---
 }

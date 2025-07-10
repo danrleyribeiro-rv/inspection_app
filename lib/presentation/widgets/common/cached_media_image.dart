@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/features/media_service.dart'; // Use MediaService
+import 'package:lince_inspecoes/services/features/media_service.dart'; // Use MediaService
 import 'dart:developer';
 
 class CachedMediaImage extends StatefulWidget {
@@ -29,7 +29,8 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
   bool _hasError = false;
   String? _errorMessage;
 
-  final MediaService _mediaService = MediaService.instance; // Get MediaService instance
+  final MediaService _mediaService =
+      MediaService.instance; // Get MediaService instance
 
   @override
   void initState() {
@@ -39,7 +40,7 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
 
   Future<void> _loadImage() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -47,7 +48,8 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
 
     try {
       if (widget.mediaId != null) {
-        final file = await _mediaService.getMediaFile(widget.mediaId!); // Get file from MediaService
+        final file = await _mediaService
+            .getMediaFile(widget.mediaId!); // Get file from MediaService
         if (file != null && await file.exists()) {
           if (mounted) {
             setState(() {
@@ -59,7 +61,7 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
           return;
         }
       }
-      
+
       // If no local file found or mediaId is null, fallback to network image
       if (mounted) {
         setState(() {
@@ -67,7 +69,6 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
         });
       }
       log('[CachedMediaImage] No local media found, will use network image for: ${widget.mediaUrl}');
-      
     } catch (e) {
       log('[CachedMediaImage] Error loading media: $e');
       if (mounted) {
@@ -83,15 +84,16 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
   @override
   Widget build(BuildContext context) {
     if (_hasError && widget.errorBuilder != null) {
-      return widget.errorBuilder!(context, _errorMessage ?? 'Unknown error', null);
+      return widget.errorBuilder!(
+          context, _errorMessage ?? 'Unknown error', null);
     }
-    
+
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(),
       );
     }
-    
+
     // If we have a local file, use it
     if (_localFile != null) {
       return Image.file(
@@ -100,7 +102,7 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
         errorBuilder: widget.errorBuilder,
       );
     }
-    
+
     // Fallback to network image if no local cache
     return Image.network(
       widget.mediaUrl,

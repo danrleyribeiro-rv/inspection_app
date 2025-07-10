@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const String _databaseName = 'inspection_offline.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 6;
 
   static Database? _database;
 
@@ -62,6 +62,7 @@ class DatabaseHelper {
         id TEXT PRIMARY KEY,
         inspection_id TEXT NOT NULL,
         position INTEGER NOT NULL,
+        order_index INTEGER NOT NULL DEFAULT 0,
         topic_name TEXT NOT NULL,
         topic_label TEXT,
         observation TEXT,
@@ -83,6 +84,7 @@ class DatabaseHelper {
         topic_id TEXT,
         item_id TEXT,
         position INTEGER NOT NULL,
+        order_index INTEGER NOT NULL DEFAULT 0,
         item_name TEXT NOT NULL,
         item_label TEXT,
         evaluation TEXT,
@@ -107,6 +109,7 @@ class DatabaseHelper {
         item_id TEXT,
         detail_id TEXT,
         position INTEGER,
+        order_index INTEGER NOT NULL DEFAULT 0,
         detail_name TEXT NOT NULL,
         detail_value TEXT,
         observation TEXT,
@@ -175,6 +178,8 @@ class DatabaseHelper {
         updated_at TEXT NOT NULL,
         needs_sync INTEGER NOT NULL DEFAULT 0,
         is_deleted INTEGER NOT NULL DEFAULT 0,
+        source TEXT,
+        metadata TEXT,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE,
         FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE,
         FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE,
@@ -242,6 +247,30 @@ class DatabaseHelper {
       
       // Recriar todas as tabelas com estrutura correta
       await _createTables(db, newVersion);
+    }
+    
+    if (oldVersion < 4) {
+      // Migração para versão 4: Adicionar order_index à tabela topics
+      await db.execute('ALTER TABLE topics ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+      
+      // Atualizar order_index com base na position existente
+      await db.execute('UPDATE topics SET order_index = position');
+    }
+    
+    if (oldVersion < 5) {
+      // Migração para versão 5: Adicionar order_index à tabela items
+      await db.execute('ALTER TABLE items ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+      
+      // Atualizar order_index com base na position existente
+      await db.execute('UPDATE items SET order_index = position');
+    }
+    
+    if (oldVersion < 6) {
+      // Migração para versão 6: Adicionar order_index à tabela details
+      await db.execute('ALTER TABLE details ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+      
+      // Atualizar order_index com base na position existente
+      await db.execute('UPDATE details SET order_index = COALESCE(position, 0)');
     }
   }
 

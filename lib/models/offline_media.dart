@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -28,6 +30,8 @@ class OfflineMedia {
   final DateTime updatedAt;
   final bool needsSync;
   final bool isDeleted;
+  final String? source; // camera, gallery, import
+  final Map<String, dynamic>? metadata;
 
   OfflineMedia({
     required this.id,
@@ -53,6 +57,8 @@ class OfflineMedia {
     required this.updatedAt,
     this.needsSync = false,
     this.isDeleted = false,
+    this.source,
+    this.metadata,
   });
 
   factory OfflineMedia.create({
@@ -69,6 +75,8 @@ class OfflineMedia {
     int? width,
     int? height,
     int? duration,
+    String? source,
+    Map<String, dynamic>? metadata,
   }) {
     final now = DateTime.now();
     return OfflineMedia(
@@ -90,6 +98,8 @@ class OfflineMedia {
       updatedAt: now,
       needsSync: true,
       isDeleted: false,
+      source: source,
+      metadata: metadata,
     );
   }
 
@@ -99,6 +109,19 @@ class OfflineMedia {
   Map<String, dynamic> toJson() => _$OfflineMediaToJson(this);
 
   factory OfflineMedia.fromMap(Map<String, dynamic> map) {
+    // Parse metadata JSON string back to Map
+    Map<String, dynamic>? metadata;
+    if (map['metadata'] != null && map['metadata'] is String) {
+      try {
+        metadata = Map<String, dynamic>.from(
+          jsonDecode(map['metadata'] as String)
+        );
+      } catch (e) {
+        debugPrint('Error parsing metadata: $e');
+        metadata = null;
+      }
+    }
+    
     return OfflineMedia(
       id: map['id'] as String,
       inspectionId: map['inspection_id'] as String,
@@ -123,6 +146,8 @@ class OfflineMedia {
       updatedAt: DateTime.parse(map['updated_at'] as String),
       needsSync: (map['needs_sync'] as int? ?? 0) == 1,
       isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
+      source: map['source'] as String?,
+      metadata: metadata,
     );
   }
 
@@ -151,6 +176,8 @@ class OfflineMedia {
       'updated_at': updatedAt.toIso8601String(),
       'needs_sync': needsSync ? 1 : 0,
       'is_deleted': isDeleted ? 1 : 0,
+      'source': source,
+      'metadata': metadata != null ? jsonEncode(metadata) : null,
     };
   }
 
@@ -178,6 +205,8 @@ class OfflineMedia {
     DateTime? updatedAt,
     bool? needsSync,
     bool? isDeleted,
+    String? source,
+    Map<String, dynamic>? metadata,
   }) {
     return OfflineMedia(
       id: id ?? this.id,
@@ -203,6 +232,8 @@ class OfflineMedia {
       updatedAt: updatedAt ?? this.updatedAt,
       needsSync: needsSync ?? this.needsSync,
       isDeleted: isDeleted ?? this.isDeleted,
+      source: source ?? this.source,
+      metadata: metadata ?? this.metadata,
     );
   }
 

@@ -1,7 +1,7 @@
 // lib/presentation/screens/inspection/components/non_conformity_edit_dialog.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:inspection_app/presentation/widgets/media/native_camera_widget.dart';
+import 'package:image_picker/image_picker.dart';
 
 class NonConformityEditDialog extends StatefulWidget {
   final Map<String, dynamic> nonConformity;
@@ -51,36 +51,121 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
   }
 
   Future<void> _addResolutionMedia() async {
-    try {
-      // Abrir câmera diretamente para capturar imagem de resolução
-      final result = await Navigator.of(context).push<List<String>>(
-        MaterialPageRoute(
-          builder: (context) => NativeCameraWidget(
-            onImagesSelected: (List<String> imagePaths) {
-              Navigator.of(context).pop(imagePaths);
-            },
-            allowMultiple: true,
-          ),
+    _showMediaSourceDialog();
+  }
+
+  void _showMediaSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Text(
+              'Adicionar Imagem de Resolução',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              title: const Text('Câmera', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Tirar foto com a câmera', style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _captureFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title: const Text('Galeria', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Escolher foto da galeria', style: TextStyle(color: Colors.grey)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _selectFromGallery();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _captureFromCamera() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
       );
-      
-      if (result != null && result.isNotEmpty && mounted) {
+
+      if (image != null) {
         setState(() {
-          _resolutionImagePaths.addAll(result);
+          _resolutionImagePaths.add(image.path);
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${result.length} imagem(ns) de resolução capturada(s) com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        debugPrint('Imagens de resolução capturadas: $result');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Imagem de resolução capturada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao adicionar mídia: $e')),
+          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _selectFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile> images = await picker.pickMultiImage(
+        imageQuality: 90,
+      );
+
+      if (images.isNotEmpty) {
+        final imagePaths = images.map((image) => image.path).toList();
+        setState(() {
+          _resolutionImagePaths.addAll(imagePaths);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${imagePaths.length} imagem(ns) de resolução selecionada(s)!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
         );
       }
     }

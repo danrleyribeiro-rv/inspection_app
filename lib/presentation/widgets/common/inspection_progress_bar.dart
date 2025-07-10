@@ -1,6 +1,6 @@
 // lib/presentation/widgets/inspection_progress_bar.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/services/utils/progress_calculation_service.dart';
+import 'package:lince_inspecoes/services/utils/progress_calculation_service.dart';
 
 class InspectionProgressBar extends StatelessWidget {
   final double progress;

@@ -1,13 +1,15 @@
-import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
 import 'package:uuid/uuid.dart';
 
 class NonConformityService {
-  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
+  final SQLiteStorageService _localStorage =
+      SQLiteStorageService.instance; // Use SQLiteStorageService
   final Uuid _uuid = Uuid();
 
   Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
       String inspectionId) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics == null) return [];
 
     List<Map<String, dynamic>> nonConformities = [];
@@ -107,7 +109,8 @@ class NonConformityService {
       throw Exception('Invalid non-conformity ID indices');
     }
 
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -135,7 +138,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+            await _localStorage.saveInspection(
+                inspection.copyWith(topics: topics)); // Save to SQLite
           }
         }
       }
@@ -162,7 +166,8 @@ class NonConformityService {
       throw Exception('Invalid non-conformity ID indices');
     }
 
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -202,7 +207,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+            await _localStorage.saveInspection(
+                inspection.copyWith(topics: topics)); // Save to SQLite
           }
         }
       }
@@ -210,21 +216,24 @@ class NonConformityService {
   }
 
   // Adicionar não conformidade a nível de tópico
-  Future<String> addNonConformityToTopic(String inspectionId, String topicId, Map<String, dynamic> ncData) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+  Future<String> addNonConformityToTopic(
+      String inspectionId, String topicId, Map<String, dynamic> ncData) async {
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics == null) throw Exception('Inspection not found');
-    
+
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     if (topicIndex == null || topicIndex >= inspection!.topics!.length) {
       throw Exception('Invalid topic ID');
     }
-    
+
     final topics = List<Map<String, dynamic>>.from(inspection.topics!);
     final topic = Map<String, dynamic>.from(topics[topicIndex]);
-    
+
     // Criar lista de não conformidades do tópico se não existir
-    final topicNCs = List<Map<String, dynamic>>.from(topic['non_conformities'] ?? []);
-    
+    final topicNCs =
+        List<Map<String, dynamic>>.from(topic['non_conformities'] ?? []);
+
     final newNC = {
       'id': _uuid.v4(),
       'description': ncData['description'] ?? '',
@@ -237,36 +246,41 @@ class NonConformityService {
       'level': 'topic', // Identificar nível
       ...ncData,
     };
-    
+
     topicNCs.add(newNC);
     topic['non_conformities'] = topicNCs;
     topics[topicIndex] = topic;
-    
-    await _localStorage.saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
-    
+
+    await _localStorage
+        .saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+
     return '$inspectionId-topic_$topicIndex-nc_${topicNCs.length - 1}';
   }
-  
+
   // Adicionar não conformidade a nível de item
-  Future<String> addNonConformityToItem(String inspectionId, String topicId, String itemId, Map<String, dynamic> ncData) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+  Future<String> addNonConformityToItem(String inspectionId, String topicId,
+      String itemId, Map<String, dynamic> ncData) async {
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics == null) throw Exception('Inspection not found');
-    
+
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
-    
+
     if (topicIndex == null || itemIndex == null) throw Exception('Invalid IDs');
-    if (topicIndex >= inspection!.topics!.length) throw Exception('Invalid topic');
-    
+    if (topicIndex >= inspection!.topics!.length)
+      throw Exception('Invalid topic');
+
     final topics = List<Map<String, dynamic>>.from(inspection.topics!);
     final topic = topics[topicIndex];
     final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
-    
+
     if (itemIndex >= items.length) throw Exception('Invalid item');
-    
+
     final item = Map<String, dynamic>.from(items[itemIndex]);
-    final itemNCs = List<Map<String, dynamic>>.from(item['non_conformities'] ?? []);
-    
+    final itemNCs =
+        List<Map<String, dynamic>>.from(item['non_conformities'] ?? []);
+
     final newNC = {
       'id': _uuid.v4(),
       'description': ncData['description'] ?? '',
@@ -279,15 +293,16 @@ class NonConformityService {
       'level': 'item', // Identificar nível
       ...ncData,
     };
-    
+
     itemNCs.add(newNC);
     item['non_conformities'] = itemNCs;
     items[itemIndex] = item;
     topic['items'] = items;
     topics[topicIndex] = topic;
-    
-    await _localStorage.saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
-    
+
+    await _localStorage
+        .saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+
     return '$inspectionId-topic_$topicIndex-item_$itemIndex-nc_${itemNCs.length - 1}';
   }
 
@@ -310,7 +325,8 @@ class NonConformityService {
       throw Exception('Invalid non-conformity ID indices');
     }
 
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -336,7 +352,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+            await _localStorage.saveInspection(
+                inspection.copyWith(topics: topics)); // Save to SQLite
           }
         }
       }
@@ -349,7 +366,8 @@ class NonConformityService {
       int itemIndex,
       int detailIndex,
       Map<String, dynamic> nonConformity) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -357,10 +375,12 @@ class NonConformityService {
         final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
         if (itemIndex < items.length) {
           final item = Map<String, dynamic>.from(items[itemIndex]);
-          final details = List<Map<String, dynamic>>.from(item['details'] ?? []);
+          final details =
+              List<Map<String, dynamic>>.from(item['details'] ?? []);
           if (detailIndex < details.length) {
             final detail = Map<String, dynamic>.from(details[detailIndex]);
-            final ncList = List<Map<String, dynamic>>.from(detail['non_conformities'] ?? []);
+            final ncList = List<Map<String, dynamic>>.from(
+                detail['non_conformities'] ?? []);
             ncList.add(nonConformity);
             detail['non_conformities'] = ncList;
             detail['is_damaged'] = true;
@@ -370,7 +390,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+            await _localStorage.saveInspection(
+                inspection.copyWith(topics: topics)); // Save to SQLite
           }
         }
       }

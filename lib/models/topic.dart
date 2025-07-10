@@ -3,6 +3,7 @@ class Topic {
   final String? id;
   final String inspectionId;
   final int position;
+  final int orderIndex;
   final String topicName;
   final String? topicLabel;
   final String? observation;
@@ -15,6 +16,7 @@ class Topic {
     this.id,
     required this.inspectionId,
     required this.position,
+    int? orderIndex,
     required this.topicName,
     this.topicLabel,
     this.observation,
@@ -22,7 +24,7 @@ class Topic {
     this.tags,
     this.createdAt,
     this.updatedAt,
-  });
+  }) : orderIndex = orderIndex ?? position;
 
   factory Topic.fromJson(Map<String, dynamic> json) {
     // Converter boolean corretamente
@@ -52,6 +54,7 @@ class Topic {
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
       position: json['position'] is int ? json['position'] : 0,
+      orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
       topicName: json['topic_name'],
       topicLabel: json['topic_label'],
       observation: json['observation'],
@@ -75,6 +78,7 @@ class Topic {
       'id': id,
       'inspection_id': inspectionId,
       'position': position,
+      'order_index': orderIndex,
       'topic_name': topicName,
       'topic_label': topicLabel,
       'observation': observation,
@@ -94,6 +98,7 @@ class Topic {
     String? id,
     String? inspectionId,
     int? position,
+    int? orderIndex,
     String? topicName,
     String? topicLabel,
     String? observation,
@@ -106,13 +111,24 @@ class Topic {
       id: id ?? this.id,
       inspectionId: inspectionId ?? this.inspectionId,
       position: position ?? this.position,
+      orderIndex: orderIndex ?? this.orderIndex,
       topicName: topicName ?? this.topicName,
       topicLabel: topicLabel ?? this.topicLabel,
-      observation: observation,
+      observation: observation ?? this.observation,
       isDamaged: isDamaged ?? this.isDamaged,
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Topic) return false;
+    return id == other.id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }

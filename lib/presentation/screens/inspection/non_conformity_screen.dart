@@ -1,13 +1,13 @@
 // lib/presentation/screens/inspection/non_conformity_screen.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/models/item.dart';
-import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/models/non_conformity.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_form.dart';
-import 'package:inspection_app/presentation/screens/inspection/components/non_conformity_list.dart';
-import 'package:inspection_app/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_form.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_list.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class NonConformityScreen extends StatefulWidget {
   final String inspectionId;
@@ -29,7 +29,8 @@ class NonConformityScreen extends StatefulWidget {
 
 class _NonConformityScreenState extends State<NonConformityScreen>
     with SingleTickerProviderStateMixin {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
   late TabController _tabController;
 
   bool _isLoading = true;
@@ -91,6 +92,30 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       final topics =
           await _serviceFactory.dataService.getTopics(widget.inspectionId);
       setState(() => _topics = topics);
+
+      // Load all items and details for enrichment
+      final allItems = <Item>[];
+      final allDetails = <Detail>[];
+
+      for (final topic in topics) {
+        if (topic.id != null) {
+          final items = await _serviceFactory.dataService.getItems(topic.id!);
+          allItems.addAll(items);
+
+          for (final item in items) {
+            if (item.id != null) {
+              final details =
+                  await _serviceFactory.dataService.getDetails(item.id!);
+              allDetails.addAll(details);
+            }
+          }
+        }
+      }
+
+      setState(() {
+        _items = allItems;
+        _details = allDetails;
+      });
 
       if (widget.preSelectedTopic != null) {
         Topic? selectedTopic;
@@ -161,11 +186,51 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     try {
       final nonConformitiesObjects = await _serviceFactory.dataService
           .getNonConformities(widget.inspectionId);
-      final nonConformities = nonConformitiesObjects.map((nc) => nc.toJson()).toList();
+
+      // Enrich non-conformities with topic, item, and detail names
+      final enrichedNonConformities = <Map<String, dynamic>>[];
+
+      for (final nc in nonConformitiesObjects) {
+        final ncData = nc.toJson();
+
+        // Load topic name if available
+        if (nc.topicId != null) {
+          final topic = _topics.firstWhere((t) => t.id == nc.topicId,
+              orElse: () => Topic(
+                    inspectionId: widget.inspectionId,
+                    position: 0,
+                    topicName: 'Tópico não especificado',
+                  ));
+          ncData['topic_name'] = topic.topicName;
+        }
+
+        // Load item name if available
+        if (nc.itemId != null) {
+          final item = _items.firstWhere((i) => i.id == nc.itemId,
+              orElse: () => Item(
+                    inspectionId: widget.inspectionId,
+                    position: 0,
+                    itemName: 'Item não especificado',
+                  ));
+          ncData['item_name'] = item.itemName;
+        }
+
+        // Load detail name if available
+        if (nc.detailId != null) {
+          final detail = _details.firstWhere((d) => d.id == nc.detailId,
+              orElse: () => Detail(
+                    inspectionId: widget.inspectionId,
+                    detailName: 'Detalhe não especificado',
+                  ));
+          ncData['detail_name'] = detail.detailName;
+        }
+
+        enrichedNonConformities.add(ncData);
+      }
 
       if (mounted) {
         setState(() {
-          _nonConformities = nonConformities;
+          _nonConformities = enrichedNonConformities;
         });
       }
     } catch (e) {
@@ -189,8 +254,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     if (topic.id != null) {
       try {
-        final items = await _serviceFactory.dataService
-            .getItems(topic.id!);
+        final items = await _serviceFactory.dataService.getItems(topic.id!);
         setState(() => _items = items);
       } catch (e) {
         debugPrint('Erro ao carregar itens: $e');
@@ -207,8 +271,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     if (item.id != null && item.topicId != null) {
       try {
-        final details = await _serviceFactory.dataService
-            .getDetails(item.id!);
+        final details = await _serviceFactory.dataService.getDetails(item.id!);
         setState(() => _details = details);
       } catch (e) {
         debugPrint('Erro ao carregar detalhes: $e');
@@ -280,8 +343,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         needsSync: true,
         isDeleted: false,
       );
-      await _serviceFactory.dataService
-          .updateNonConformity(nonConformity);
+      await _serviceFactory.dataService.updateNonConformity(nonConformity);
 
       await _loadNonConformities();
 
@@ -312,8 +374,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     setState(() => _isProcessing = true);
 
     try {
-      await _serviceFactory.dataService
-          .deleteNonConformity(id);
+      await _serviceFactory.dataService.deleteNonConformity(id);
 
       await _loadNonConformities();
 
@@ -343,12 +404,27 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     _tabController.animateTo(1);
   }
 
+  String _determineLevel() {
+    // Determine the appropriate level based on preselected parameters
+    if (widget.preSelectedDetail != null) {
+      return 'detail';
+    } else if (widget.preSelectedItem != null) {
+      return 'item';
+    } else if (widget.preSelectedTopic != null) {
+      return 'topic';
+    }
+    return 'detail'; // Default level
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
-        title: const Text('Não Conformidades', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),),
+        title: const Text(
+          'Não Conformidades',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: const Color(0xFF312456),
         elevation: 0,
         leading: Navigator.of(context).canPop()
@@ -372,6 +448,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                   selectedDetail: _selectedDetail,
                   inspectionId: widget.inspectionId,
                   isOffline: _isOffline,
+                  level: _determineLevel(),
                   onTopicSelected: _topicSelected,
                   onItemSelected: _itemSelected,
                   onDetailSelected: _detailSelected,
@@ -388,35 +465,50 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                         children: [
                           const Text(
                             'Filtros:',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12),
                           ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: () => setState(() => _filterByDetailId = null),
+                                  onPressed: () =>
+                                      setState(() => _filterByDetailId = null),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: _filterByDetailId == null ? const Color(0xFFBB8FEB) : Colors.grey[700],
+                                    backgroundColor: _filterByDetailId == null
+                                        ? const Color(0xFFBB8FEB)
+                                        : Colors.grey[700],
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
                                   ),
-                                  child: const Text('Todas', style: TextStyle(fontSize: 10)),
+                                  child: const Text('Todas',
+                                      style: TextStyle(fontSize: 10)),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: _selectedDetail != null 
-                                      ? () => setState(() => _filterByDetailId = _selectedDetail!.id)
+                                  onPressed: _selectedDetail != null
+                                      ? () => setState(() => _filterByDetailId =
+                                          _selectedDetail!.id)
                                       : null,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: _filterByDetailId == _selectedDetail?.id ? const Color(0xFFBB8FEB) : Colors.grey[700],
+                                    backgroundColor:
+                                        _filterByDetailId == _selectedDetail?.id
+                                            ? const Color(0xFFBB8FEB)
+                                            : Colors.grey[700],
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
                                   ),
                                   child: Text(
-                                    _selectedDetail != null ? 'Detalhe Atual' : 'Selecionar Detalhe',
+                                    _selectedDetail != null
+                                        ? 'Detalhe Atual'
+                                        : 'Selecionar Detalhe',
                                     style: const TextStyle(fontSize: 10),
                                   ),
                                 ),
@@ -467,8 +559,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             elevation: 0,
             selectedItemColor: const Color(0xFFBB8FEB),
             unselectedItemColor: Colors.grey[400],
-            selectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+            selectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
             unselectedLabelStyle:
                 const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
             showUnselectedLabels: true,

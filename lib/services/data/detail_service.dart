@@ -1,8 +1,9 @@
-import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
 
 class DetailService {
-  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
+  final SQLiteStorageService _localStorage =
+      SQLiteStorageService.instance; // Use SQLiteStorageService
 
   Future<List<Detail>> getDetails(
       String inspectionId, String topicId, String itemId) async {
@@ -276,8 +277,8 @@ class DetailService {
     return null;
   }
 
-  Future<void> deleteDetail(
-      String inspectionId, String topicId, String itemId, String detailId) async {
+  Future<void> deleteDetail(String inspectionId, String topicId, String itemId,
+      String detailId) async {
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
     final detailIndex = int.tryParse(detailId.replaceFirst('detail_', ''));
@@ -287,8 +288,8 @@ class DetailService {
     }
   }
 
-  Future<void> _deleteDetailAtIndex(
-      String inspectionId, int topicIndex, int itemIndex, int detailIndex) async {
+  Future<void> _deleteDetailAtIndex(String inspectionId, int topicIndex,
+      int itemIndex, int detailIndex) async {
     final inspection = await _localStorage.getInspection(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);

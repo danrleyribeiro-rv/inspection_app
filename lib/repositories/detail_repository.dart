@@ -1,5 +1,5 @@
-import 'package:inspection_app/models/detail.dart';
-import 'package:inspection_app/repositories/base_repository.dart';
+import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/repositories/base_repository.dart';
 
 class DetailRepository extends BaseRepository<Detail> {
   @override
@@ -28,7 +28,7 @@ class DetailRepository extends BaseRepository<Detail> {
       whereArgs: [itemId],
       orderBy: 'order_index ASC',
     );
-    
+
     return maps.map((map) => fromMap(map)).toList();
   }
 
@@ -41,7 +41,8 @@ class DetailRepository extends BaseRepository<Detail> {
   }
 
   Future<Detail?> findByItemIdAndIndex(String itemId, int orderIndex) async {
-    final results = await findWhere('item_id = ? AND order_index = ?', [itemId, orderIndex]);
+    final results = await findWhere(
+        'item_id = ? AND order_index = ?', [itemId, orderIndex]);
     return results.isNotEmpty ? results.first : null;
   }
 
@@ -54,13 +55,14 @@ class DetailRepository extends BaseRepository<Detail> {
     return (result.first['max_index'] as int?) ?? 0;
   }
 
-  Future<void> updateValue(String detailId, String? value, String? observations) async {
+  Future<void> updateValue(
+      String detailId, String? value, String? observation) async {
     final db = await database;
     await db.update(
       tableName,
       {
-        'value': value,
-        'observations': observations,
+        'detail_value': value,
+        'observation': observation,
         'updated_at': DateTime.now().toIso8601String(),
         'needs_sync': 1,
       },

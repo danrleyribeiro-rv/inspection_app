@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/topic.dart';
-import 'package:inspection_app/services/data/item_service.dart';
-import 'package:inspection_app/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
-import 'package:inspection_app/services/features/template_service.dart'; // Import TemplateService directly
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/services/data/item_service.dart';
+import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/services/features/template_service.dart'; // Import TemplateService directly
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 
 class TopicService {
   ItemService get _itemService => ItemService();
-  final SQLiteStorageService _localStorage = SQLiteStorageService.instance; // Use SQLiteStorageService
-  final TemplateService _templateService = TemplateService(); // Use TemplateService directly
+  final SQLiteStorageService _localStorage =
+      SQLiteStorageService.instance; // Use SQLiteStorageService
+  final TemplateService _templateService =
+      TemplateService(); // Use TemplateService directly
 
   Future<List<Topic>> getTopics(String inspectionId) async {
     try {
-      final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+      final inspection =
+          await _localStorage.getInspection(inspectionId); // Get from SQLite
       if (inspection != null) {
         return _extractTopics(inspectionId, inspection.topics);
       }
@@ -43,7 +45,8 @@ class TopicService {
 
   Future<Topic> addTopic(String inspectionId, String topicName,
       {String? label, int? position, String? observation}) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection == null) {
       throw Exception('Inspection not found: $inspectionId');
     }
@@ -80,111 +83,122 @@ class TopicService {
     );
   }
 
-Future<Topic> addTopicFromTemplate(
-  String inspectionId,
-  Map<String, dynamic> templateData,
-) async {
-  final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
-  if (inspection == null) {
-    throw Exception('Inspection not found: $inspectionId');
-  }
-
-  final existingTopics = inspection.topics ?? [];
-  final newPosition = existingTopics.length;
-  String topicName = templateData['name'] as String;
-  final isCustom = templateData['isCustom'] as bool? ?? false;
-
-  // Verificar se já existe um tópico com o mesmo nome
-  final existingNames = existingTopics.map((t) => t['name'] as String? ?? '').toSet();
-  String finalTopicName = topicName;
-  
-  if (existingNames.contains(topicName)) {
-    finalTopicName = '$topicName (cópia)';
-    int counter = 1;
-    while (existingNames.contains(finalTopicName)) {
-      finalTopicName = '$topicName (cópia $counter)';
-      counter++;
+  Future<Topic> addTopicFromTemplate(
+    String inspectionId,
+    Map<String, dynamic> templateData,
+  ) async {
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
+    if (inspection == null) {
+      throw Exception('Inspection not found: $inspectionId');
     }
-  }
 
-  Map<String, dynamic> newTopicData;
+    final existingTopics = inspection.topics ?? [];
+    final newPosition = existingTopics.length;
+    String topicName = templateData['name'] as String;
+    final isCustom = templateData['isCustom'] as bool? ?? false;
 
-  if (isCustom) {
-    newTopicData = {
-      'name': finalTopicName,
-      'description': templateData['value'],
-      'observation': null,
-      'items': <Map<String, dynamic>>[],
-      'created_at': DateTime.now().toIso8601String(),
-      'updated_at': DateTime.now().toIso8601String(),
-    };
-  } else {
-    // Usar dados completos do template
-    if (templateData.containsKey('templateData')) {
-      final extractedFields = _extractFieldsFromTemplate(templateData['templateData']) ?? <String, dynamic>{};
-      newTopicData = _processTopicTemplate(extractedFields);
-      newTopicData['name'] = finalTopicName;
+    // Verificar se já existe um tópico com o mesmo nome
+    final existingNames =
+        existingTopics.map((t) => t['name'] as String? ?? '').toSet();
+    String finalTopicName = topicName;
+
+    if (existingNames.contains(topicName)) {
+      finalTopicName = '$topicName (cópia)';
+      int counter = 1;
+      while (existingNames.contains(finalTopicName)) {
+        finalTopicName = '$topicName (cópia $counter)';
+        counter++;
+      }
+    }
+
+    Map<String, dynamic> newTopicData;
+
+    if (isCustom) {
+      newTopicData = {
+        'name': finalTopicName,
+        'description': templateData['value'],
+        'observation': null,
+        'items': <Map<String, dynamic>>[],
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
     } else {
-      newTopicData = await _buildTopicFromTemplate(templateData);
-      newTopicData['name'] = finalTopicName;
+      // Usar dados completos do template
+      if (templateData.containsKey('templateData')) {
+        final extractedFields =
+            _extractFieldsFromTemplate(templateData['templateData']) ??
+                <String, dynamic>{};
+        newTopicData = _processTopicTemplate(extractedFields);
+        newTopicData['name'] = finalTopicName;
+      } else {
+        newTopicData = await _buildTopicFromTemplate(templateData);
+        newTopicData['name'] = finalTopicName;
+      }
     }
+
+    final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
+    updatedTopics.add(newTopicData);
+
+    final updatedInspection = inspection.copyWith(
+      topics: updatedTopics,
+      updatedAt: DateTime.now(),
+    );
+    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+
+    return Topic(
+      id: 'topic_$newPosition',
+      inspectionId: inspectionId,
+      topicName: finalTopicName,
+      topicLabel: newTopicData['description'],
+      position: newPosition,
+      observation: newTopicData['observation'],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
   }
-
-  final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
-  updatedTopics.add(newTopicData);
-
-  final updatedInspection = inspection.copyWith(
-    topics: updatedTopics,
-    updatedAt: DateTime.now(),
-  );
-  await _localStorage.saveInspection(updatedInspection); // Save to SQLite
-
-  return Topic(
-    id: 'topic_$newPosition',
-    inspectionId: inspectionId,
-    topicName: finalTopicName,
-    topicLabel: newTopicData['description'],
-    position: newPosition,
-    observation: newTopicData['observation'],
-    createdAt: DateTime.now(),
-    updatedAt: DateTime.now(),
-  );
-}
 
   Future<void> updateTopic(Topic updatedTopic) async {
     try {
-      final inspection = await _localStorage.getInspection(updatedTopic.inspectionId); // Get from SQLite
+      final inspection = await _localStorage
+          .getInspection(updatedTopic.inspectionId); // Get from SQLite
       if (inspection?.topics != null) {
-        final topicIndex = int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
+        final topicIndex =
+            int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
         if (topicIndex != null && topicIndex < inspection!.topics!.length) {
-          final currentTopicData = Map<String, dynamic>.from(inspection.topics![topicIndex]);
+          final currentTopicData =
+              Map<String, dynamic>.from(inspection.topics![topicIndex]);
           currentTopicData['name'] = updatedTopic.topicName;
           currentTopicData['description'] = updatedTopic.topicLabel;
           currentTopicData['observation'] = updatedTopic.observation;
           currentTopicData['updated_at'] = DateTime.now().toIso8601String();
-          
-          final updatedTopics = List<Map<String, dynamic>>.from(inspection.topics!);
+
+          final updatedTopics =
+              List<Map<String, dynamic>>.from(inspection.topics!);
           updatedTopics[topicIndex] = currentTopicData;
-          
+
           final updatedInspection = inspection.copyWith(
             topics: updatedTopics,
             updatedAt: DateTime.now(),
           );
-          
-          await _localStorage.saveInspection(updatedInspection); // Save to SQLite
-          
-          debugPrint('TopicService.updateTopic: Topic ${updatedTopic.id} updated offline');
+
+          await _localStorage
+              .saveInspection(updatedInspection); // Save to SQLite
+
+          debugPrint(
+              'TopicService.updateTopic: Topic ${updatedTopic.id} updated offline');
         }
       }
     } catch (e) {
-      debugPrint('TopicService.updateTopic: Error updating topic ${updatedTopic.id}: $e');
+      debugPrint(
+          'TopicService.updateTopic: Error updating topic ${updatedTopic.id}: $e');
       rethrow;
     }
   }
 
-  Future<Topic> duplicateTopic(
-      String inspectionId, Topic sourceTopic) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+  Future<Topic> duplicateTopic(String inspectionId, Topic sourceTopic) async {
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection == null) {
       throw Exception('Inspection not found');
     }
@@ -208,8 +222,7 @@ Future<Topic> addTopicFromTemplate(
         items[i] = Map<String, dynamic>.from(items[i]);
 
         if (items[i]['details'] is List) {
-          final details =
-              List<Map<String, dynamic>>.from(items[i]['details']);
+          final details = List<Map<String, dynamic>>.from(items[i]['details']);
           for (int j = 0; j < details.length; j++) {
             details[j] = Map<String, dynamic>.from(details[j]);
             details[j]['media'] = <Map<String, dynamic>>[];
@@ -254,9 +267,9 @@ Future<Topic> addTopicFromTemplate(
     }
   }
 
-  Future<void> reorderTopics(
-      String inspectionId, List<String> topicIds) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+  Future<void> reorderTopics(String inspectionId, List<String> topicIds) async {
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
       final reorderedTopics = <Map<String, dynamic>>[];
@@ -313,8 +326,7 @@ Future<Topic> addTopicFromTemplate(
     }
   }
 
-  Map<String, dynamic> _processTopicTemplate(
-      Map<String, dynamic> topicFields) {
+  Map<String, dynamic> _processTopicTemplate(Map<String, dynamic> topicFields) {
     final String topicName = _extractStringValue(topicFields, 'name');
     final String? topicDescription =
         _extractStringValue(topicFields, 'description').isNotEmpty
@@ -420,9 +432,9 @@ Future<Topic> addTopicFromTemplate(
 
   // Method removed - not used anywhere
 
-
   Future<void> _deleteTopicAtIndex(String inspectionId, int topicIndex) async {
-    final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+    final inspection =
+        await _localStorage.getInspection(inspectionId); // Get from SQLite
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -488,40 +500,46 @@ Future<Topic> addTopicFromTemplate(
     try {
       return await _templateService.getAvailableTopicsFromTemplates();
     } catch (e) {
-      debugPrint('TopicService.getAvailableTemplateTopics: Error getting template topics: $e');
+      debugPrint(
+          'TopicService.getAvailableTemplateTopics: Error getting template topics: $e');
       return [];
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTopicsFromSpecificTemplate(String templateId) async {
+  Future<List<Map<String, dynamic>>> getTopicsFromSpecificTemplate(
+      String templateId) async {
     try {
       return await _templateService.getTopicsFromSpecificTemplate(templateId);
     } catch (e) {
-      debugPrint('TopicService.getTopicsFromSpecificTemplate: Error getting topics from template $templateId: $e');
+      debugPrint(
+          'TopicService.getTopicsFromSpecificTemplate: Error getting topics from template $templateId: $e');
       return [];
     }
   }
 
-  Future<Topic> addTopicFromTemplateOffline(String inspectionId, Map<String, dynamic> topicTemplate) async {
+  Future<Topic> addTopicFromTemplateOffline(
+      String inspectionId, Map<String, dynamic> topicTemplate) async {
     try {
-      final inspection = await _localStorage.getInspection(inspectionId); // Get from SQLite
+      final inspection =
+          await _localStorage.getInspection(inspectionId); // Get from SQLite
       if (inspection == null) {
         throw Exception('Inspection not found in cache');
       }
 
       final existingTopics = inspection.topics ?? [];
       final newPosition = existingTopics.length;
-      
+
       final topicData = topicTemplate['topicData'] as Map<String, dynamic>;
       final templateId = topicTemplate['templateId'] as String;
       final templateName = topicTemplate['templateName'] as String;
-      
+
       String topicName = topicData['name'] as String;
-      
+
       // Check for duplicate names and modify if necessary
-      final existingNames = existingTopics.map((t) => t['name'] as String? ?? '').toSet();
+      final existingNames =
+          existingTopics.map((t) => t['name'] as String? ?? '').toSet();
       String finalTopicName = topicName;
-      
+
       if (existingNames.contains(topicName)) {
         finalTopicName = '$topicName (cópia)';
         int counter = 1;
@@ -536,7 +554,8 @@ Future<Topic> addTopicFromTemplate(
         'name': finalTopicName,
         'description': topicData['description'],
         'observation': null,
-        'items': _processTemplateItems(topicData['items'] as List<dynamic>? ?? []),
+        'items':
+            _processTemplateItems(topicData['items'] as List<dynamic>? ?? []),
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
         'template_id': templateId,
@@ -546,15 +565,16 @@ Future<Topic> addTopicFromTemplate(
       // Add topic to inspection
       final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
       updatedTopics.add(newTopicData);
-      
+
       final updatedInspection = inspection.copyWith(
         topics: updatedTopics,
         updatedAt: DateTime.now(),
       );
 
       await _localStorage.saveInspection(updatedInspection); // Save to SQLite
-      
-      debugPrint('TopicService.addTopicFromTemplateOffline: Added topic "$finalTopicName" from template offline');
+
+      debugPrint(
+          'TopicService.addTopicFromTemplateOffline: Added topic "$finalTopicName" from template offline');
 
       return Topic(
         id: 'topic_$newPosition',
@@ -567,7 +587,8 @@ Future<Topic> addTopicFromTemplate(
         updatedAt: DateTime.now(),
       );
     } catch (e) {
-      debugPrint('TopicService.addTopicFromTemplateOffline: Error adding topic from template: $e');
+      debugPrint(
+          'TopicService.addTopicFromTemplateOffline: Error adding topic from template: $e');
       rethrow;
     }
   }
@@ -579,10 +600,12 @@ Future<Topic> addTopicFromTemplate(
       final itemFields = _extractFieldsFromTemplate(itemTemplate);
       if (itemFields == null) continue;
 
-      final String itemName = _extractStringValue(itemFields, 'name', defaultValue: 'Item sem nome');
-      final String? itemDescription = _extractStringValue(itemFields, 'description').isNotEmpty
-          ? _extractStringValue(itemFields, 'description')
-          : null;
+      final String itemName = _extractStringValue(itemFields, 'name',
+          defaultValue: 'Item sem nome');
+      final String? itemDescription =
+          _extractStringValue(itemFields, 'description').isNotEmpty
+              ? _extractStringValue(itemFields, 'description')
+              : null;
 
       final detailsData = _extractArrayFromTemplate(itemFields, 'details');
       final processedDetails = <Map<String, dynamic>>[];
@@ -591,13 +614,17 @@ Future<Topic> addTopicFromTemplate(
         final detailFields = _extractFieldsFromTemplate(detailTemplate);
         if (detailFields == null) continue;
 
-        final String detailName = _extractStringValue(detailFields, 'name', defaultValue: 'Detalhe sem nome');
-        final String detailType = _extractStringValue(detailFields, 'type', defaultValue: 'text');
-        final bool isRequired = _extractBooleanValue(detailFields, 'required', defaultValue: false);
+        final String detailName = _extractStringValue(detailFields, 'name',
+            defaultValue: 'Detalhe sem nome');
+        final String detailType =
+            _extractStringValue(detailFields, 'type', defaultValue: 'text');
+        final bool isRequired =
+            _extractBooleanValue(detailFields, 'required', defaultValue: false);
 
         List<String>? options;
         if (detailType == 'select') {
-          final optionsArray = _extractArrayFromTemplate(detailFields, 'options');
+          final optionsArray =
+              _extractArrayFromTemplate(detailFields, 'options');
           options = <String>[];
           for (var option in optionsArray) {
             if (option is Map && option.containsKey('stringValue')) {
@@ -608,7 +635,8 @@ Future<Topic> addTopicFromTemplate(
           }
 
           if (options.isEmpty && detailFields.containsKey('optionsText')) {
-            final String optionsText = _extractStringValue(detailFields, 'optionsText');
+            final String optionsText =
+                _extractStringValue(detailFields, 'optionsText');
             if (optionsText.isNotEmpty) {
               options = optionsText.split(',').map((e) => e.trim()).toList();
             }

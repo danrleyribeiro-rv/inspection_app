@@ -5,6 +5,7 @@ class Item {
   final String? topicId;
   final String? itemId;
   final int position;
+  final int orderIndex;
   final String itemName;
   final String? itemLabel;
   final String? evaluation;
@@ -20,6 +21,7 @@ class Item {
     this.topicId,
     this.itemId,
     required this.position,
+    int? orderIndex,
     required this.itemName,
     this.itemLabel,
     this.evaluation,
@@ -28,7 +30,7 @@ class Item {
     this.tags,
     this.createdAt,
     this.updatedAt,
-  });
+  }) : orderIndex = orderIndex ?? position;
 
   factory Item.fromJson(Map<String, dynamic> json) {
     // Converter boolean corretamente
@@ -60,6 +62,7 @@ class Item {
       topicId: json['topic_id']?.toString(),
       itemId: json['item_id']?.toString(),
       position: json['position'] is int ? json['position'] : 0,
+      orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
       itemName: json['item_name'],
       itemLabel: json['item_label'],
       evaluation: json['evaluation'],
@@ -88,6 +91,7 @@ class Item {
       'topic_id': topicId,
       'item_id': itemId,
       'position': position,
+      'order_index': orderIndex,
       'item_name': itemName,
       'item_label': itemLabel,
       'evaluation': evaluation,
@@ -109,6 +113,7 @@ class Item {
     String? topicId,
     String? itemId,
     int? position,
+    int? orderIndex,
     String? itemName,
     String? itemLabel,
     String? evaluation,
@@ -124,6 +129,7 @@ class Item {
       topicId: topicId ?? this.topicId,
       itemId: itemId ?? this.itemId,
       position: position ?? this.position,
+      orderIndex: orderIndex ?? this.orderIndex,
       itemName: itemName ?? this.itemName,
       itemLabel: itemLabel ?? this.itemLabel,
       evaluation: evaluation,
@@ -134,4 +140,14 @@ class Item {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Item) return false;
+    return id == other.id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }

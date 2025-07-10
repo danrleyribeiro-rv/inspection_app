@@ -1,6 +1,6 @@
 // lib/presentation/widgets/sync/sync_progress_notification.dart
 import 'package:flutter/material.dart';
-import 'package:inspection_app/models/sync_progress.dart'; // Import SyncProgress and SyncPhase
+import 'package:lince_inspecoes/models/sync_progress.dart'; // Import SyncProgress and SyncPhase
 
 class SyncProgressNotification extends StatelessWidget {
   final SyncProgress progress;
@@ -59,7 +59,8 @@ class SyncProgressNotification extends StatelessWidget {
                   ],
                 ),
               ),
-              if (progress.phase == SyncPhase.completed || progress.phase == SyncPhase.error)
+              if (progress.phase == SyncPhase.completed ||
+                  progress.phase == SyncPhase.error)
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: onDismiss,
@@ -67,7 +68,8 @@ class SyncProgressNotification extends StatelessWidget {
                 ),
             ],
           ),
-          if (progress.phase != SyncPhase.completed && progress.phase != SyncPhase.error) ...[
+          if (progress.phase != SyncPhase.completed &&
+              progress.phase != SyncPhase.error) ...[
             const SizedBox(height: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

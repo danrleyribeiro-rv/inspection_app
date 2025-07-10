@@ -1,8 +1,8 @@
 // lib/services/manual_sync_service.dart
 import 'package:flutter/foundation.dart';
-import 'package:inspection_app/services/features/media_service.dart';
-import 'package:inspection_app/repositories/inspection_repository.dart';
-import 'package:inspection_app/services/core/firebase_service.dart'; // Still needed for canSync and media service
+import 'package:lince_inspecoes/services/features/media_service.dart';
+import 'package:lince_inspecoes/repositories/inspection_repository.dart';
+import 'package:lince_inspecoes/services/core/firebase_service.dart'; // Still needed for canSync and media service
 
 /// Serviço para sincronização manual de inspeções com a nuvem
 /// Usado quando o usuário clica em "Sincronizar" após editar uma inspeção
@@ -20,10 +20,12 @@ class ManualSyncService {
         _firebaseService = firebaseService ?? FirebaseService();
 
   /// Sincroniza todas as inspeções que precisam ser sincronizadas
-  Future<Map<String, bool>> syncAllPendingInspections({Function(String, double)? onProgressPerInspection}) async {
+  Future<Map<String, bool>> syncAllPendingInspections(
+      {Function(String, double)? onProgressPerInspection}) async {
     try {
-      debugPrint('ManualSyncService.syncAllPendingInspections: Starting full sync via InspectionRepository');
-      
+      debugPrint(
+          'ManualSyncService.syncAllPendingInspections: Starting full sync via InspectionRepository');
+
       // The InspectionRepository handles both download and upload now
       await _inspectionRepository.syncInspections();
 
@@ -33,12 +35,13 @@ class ManualSyncService {
       // For simplicity, we'll just try to sync all pending media.
       await _syncAllPendingMedia();
 
-      debugPrint('ManualSyncService.syncAllPendingInspections: Full sync completed');
+      debugPrint(
+          'ManualSyncService.syncAllPendingInspections: Full sync completed');
       // Return a dummy success map for now, as detailed progress is within repository
       return {'full_sync': true};
-
     } catch (e) {
-      debugPrint('ManualSyncService.syncAllPendingInspections: Error during full sync: $e');
+      debugPrint(
+          'ManualSyncService.syncAllPendingInspections: Error during full sync: $e');
       return {'full_sync': false};
     }
   }
@@ -46,26 +49,30 @@ class ManualSyncService {
   /// Sincroniza mídias pendentes de todas as inspeções
   Future<void> _syncAllPendingMedia() async {
     try {
-      debugPrint('ManualSyncService._syncAllPendingMedia: Syncing all pending media');
+      debugPrint(
+          'ManualSyncService._syncAllPendingMedia: Syncing all pending media');
       // This method in MediaService should ideally iterate through all inspections
       // and upload their pending media.
-      await _mediaService.uploadAllPendingMedia(); // Assuming this method exists or will be created
-
+      await _mediaService
+          .uploadAllPendingMedia(); // Assuming this method exists or will be created
     } catch (e) {
-      debugPrint('ManualSyncService._syncAllPendingMedia: Error syncing all pending media: $e');
+      debugPrint(
+          'ManualSyncService._syncAllPendingMedia: Error syncing all pending media: $e');
       // Do not rethrow, as media sync failures should not block inspection sync
     }
   }
 
   /// Verifica quantas inspeções precisam ser sincronizadas (agora via repositório)
   Future<int> getPendingSyncCount() async {
-    final pendingInspections = await _inspectionRepository.getInspectionsNeedingSync();
+    final pendingInspections =
+        await _inspectionRepository.getInspectionsNeedingSync();
     return pendingInspections.length;
   }
 
   /// Obtém a lista de IDs de inspeções que precisam ser sincronizadas (agora via repositório)
   Future<List<String>> getPendingInspectionIds() async {
-    final pendingInspections = await _inspectionRepository.getInspectionsNeedingSync();
+    final pendingInspections =
+        await _inspectionRepository.getInspectionsNeedingSync();
     return pendingInspections.map((i) => i.id).toList();
   }
 
@@ -73,10 +80,7 @@ class ManualSyncService {
   Future<bool> canSync() async {
     try {
       // Verificação simples de conectividade usando uma coleção real
-      await _firebaseService.firestore
-          .collection('inspections')
-          .limit(1)
-          .get();
+      await _firebaseService.firestore.collection('inspections').limit(1).get();
       return true; // Se chegou até aqui, tem conectividade
     } catch (e) {
       debugPrint('ManualSyncService.canSync: No connectivity: $e');

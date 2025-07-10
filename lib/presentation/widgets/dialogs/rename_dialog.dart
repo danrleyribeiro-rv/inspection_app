@@ -52,7 +52,34 @@ class _RenameDialogState extends State<RenameDialog> {
         TextButton(
           onPressed: () {
             final text = _controller.text.trim();
-            Navigator.pop(context, text.isNotEmpty ? text : null);
+            
+            // Validações básicas
+            if (text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Nome não pode estar vazio'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+            
+            if (text.length > 100) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Nome muito longo (máximo 100 caracteres)'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+            
+            if (text == widget.initialValue) {
+              Navigator.pop(context, null);
+              return;
+            }
+            
+            Navigator.pop(context, text);
           },
           child: const Text('Salvar'),
         ),
