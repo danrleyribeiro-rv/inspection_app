@@ -7,8 +7,9 @@ import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
-import 'package:lince_inspecoes/presentation/widgets/media/media_handling_widget.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/services/navigation_state_service.dart';
 
 // O widget DetailsListSection e seu State permanecem os mesmos.
 // A mudança principal está dentro do DetailListItem.
@@ -21,6 +22,10 @@ class DetailsListSection extends StatefulWidget {
   final String inspectionId;
   final Function(Detail) onDetailUpdated;
   final VoidCallback onDetailAction;
+  final String? expandedDetailId; // ID do detalhe que deve estar expandido
+  final Function(String?)? onDetailExpanded; // Callback quando um detalhe é expandido
+  final int topicIndex; // Índice do tópico atual na lista
+  final int itemIndex;  // Índice do item atual na lista
 
   const DetailsListSection({
     super.key,
@@ -30,6 +35,10 @@ class DetailsListSection extends StatefulWidget {
     required this.inspectionId,
     required this.onDetailUpdated,
     required this.onDetailAction,
+    this.expandedDetailId,
+    this.onDetailExpanded,
+    required this.topicIndex,
+    required this.itemIndex,
   });
 
   @override
@@ -44,6 +53,16 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   void initState() {
     super.initState();
     _localDetails = List.from(widget.details);
+    _setInitialExpandedDetail();
+  }
+  
+  void _setInitialExpandedDetail() {
+    if (widget.expandedDetailId != null) {
+      final index = _localDetails.indexWhere((detail) => detail.id == widget.expandedDetailId);
+      if (index >= 0) {
+        _expandedDetailIndex = index;
+      }
+    }
   }
 
   @override
@@ -51,6 +70,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     super.didUpdateWidget(oldWidget);
     if (widget.details != oldWidget.details) {
       _localDetails = List.from(widget.details);
+      _setInitialExpandedDetail(); // Reaplica a expansão se os detalhes mudaram
     }
   }
 
@@ -78,50 +98,37 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         }
       });
 
-      // Update positions in the reordered list
-      for (int i = 0; i < _localDetails.length; i++) {
-        final detail = _localDetails[i];
-        final updatedDetail = Detail(
-          id: detail.id,
-          inspectionId: detail.inspectionId,
-          topicId: detail.topicId,
-          itemId: detail.itemId,
-          detailId: detail.detailId,
-          position: detail.position, // Keep original position
-          orderIndex: i, // Update order index for proper ordering
-          detailName: detail.detailName,
-          detailValue: detail.detailValue,
-          observation: detail.observation,
-          isDamaged: detail.isDamaged,
-          tags: detail.tags,
-          createdAt: detail.createdAt,
-          updatedAt: DateTime.now(),
-          type: detail.type,
-          options: detail.options,
-          status: detail.status,
-          isRequired: detail.isRequired,
-        );
-        _localDetails[i] = updatedDetail;
+      // Use the repository's efficient reorder method
+      final itemId = widget.item.id;
+      if (itemId != null) {
+        final detailIds = _localDetails.map((detail) => detail.id!).toList();
+        
+        debugPrint('DetailsListSection: Reordering details with IDs: $detailIds');
+        await EnhancedOfflineServiceFactory.instance.dataService.reorderDetails(itemId, detailIds);
+        debugPrint('DetailsListSection: Details reordered successfully in database');
       }
-
-      // Save all updated details
-      await Future.wait(_localDetails.map((d) =>
-          EnhancedOfflineServiceFactory.instance.dataService.updateDetail(d)));
 
       debugPrint(
           'DetailsListSection: Successfully reordered ${_localDetails.length} details');
 
-      // Notify parent to refresh
-      widget.onDetailAction();
+      // Notify parent to refresh - delayed to ensure database is updated
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          widget.onDetailAction();
+        }
+      });
     } catch (e) {
       debugPrint('DetailsListSection: Error reordering details: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao reordenar detalhe: $e')),
         );
+        
+        // Restore original order from widget
+        setState(() {
+          _localDetails = List.from(widget.details);
+        });
       }
-      // Refresh to restore original state
-      widget.onDetailAction();
     }
   }
 
@@ -151,10 +158,16 @@ class _DetailsListSectionState extends State<DetailsListSection> {
             topic: widget.topic,
             inspectionId: widget.inspectionId,
             isExpanded: isExpanded,
+            topicIndex: widget.topicIndex,
+            itemIndex: widget.itemIndex,
             onExpansionChanged: () {
               setState(() {
                 _expandedDetailIndex = isExpanded ? -1 : index;
               });
+              
+              // Notifica qual detalhe foi expandido
+              final expandedDetail = _expandedDetailIndex >= 0 ? _localDetails[_expandedDetailIndex] : null;
+              widget.onDetailExpanded?.call(expandedDetail?.id);
             },
             onDetailUpdated: (updatedDetail) {
               setState(() {
@@ -251,32 +264,9 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       debugPrint(
           'DetailsListSection: Duplicating detail ${detail.id} with name ${detail.detailName}');
 
-      final duplicatedDetail = Detail(
-        id: null, // New detail will get a new ID
-        inspectionId: detail.inspectionId,
-        topicId: detail.topicId,
-        itemId: detail.itemId,
-        detailId: detail.detailId,
-        position: _localDetails.length,
-        detailName: '${detail.detailName} (cópia)',
-        detailValue: detail.detailValue,
-        observation: detail.observation,
-        isDamaged: detail.isDamaged ?? false,
-        tags: detail.tags ?? [],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        type: detail.type ?? 'text',
-        options: detail.options ?? [],
-        status: detail.status,
-        isRequired: detail.isRequired ?? false,
-      );
-
-      debugPrint(
-          'DetailsListSection: Created duplicated detail with type ${duplicatedDetail.type}');
-
-      await EnhancedOfflineServiceFactory.instance.dataService.saveDetail(
-        duplicatedDetail,
-      );
+      // Use the new enhanced service method for duplication
+      await EnhancedOfflineServiceFactory.instance.dataService
+          .duplicateDetailWithChildren(detail.id!);
 
       // Reload the details to show the duplicated item
       widget.onDetailAction();
@@ -313,6 +303,8 @@ class DetailListItem extends StatefulWidget {
   final Function(Detail) onDetailUpdated;
   final VoidCallback onDetailDeleted;
   final VoidCallback onDetailDuplicated;
+  final int topicIndex; // Índice do tópico atual
+  final int itemIndex;  // Índice do item atual
 
   const DetailListItem({
     super.key,
@@ -326,6 +318,8 @@ class DetailListItem extends StatefulWidget {
     required this.onDetailUpdated,
     required this.onDetailDeleted,
     required this.onDetailDuplicated,
+    required this.topicIndex,
+    required this.itemIndex,
   });
 
   @override
@@ -344,8 +338,10 @@ class _DetailListItemState extends State<DetailListItem> {
 
   Timer? _debounce;
   bool _isDamaged = false;
-  bool _booleanValue = false;
+  String _booleanValue = 'não_se_aplica'; // 'sim', 'não', 'não_se_aplica'
   String _currentDetailName = '';
+  final Map<String, int> _mediaCountCache = {};
+  int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
 
   @override
   void initState() {
@@ -376,7 +372,14 @@ class _DetailListItemState extends State<DetailListItem> {
       _depthController.text =
           measurements.length > 2 ? measurements[2].trim() : '';
     } else if (widget.detail.type == 'boolean') {
-      _booleanValue = detailValue.toLowerCase() == 'true' || detailValue == '1';
+      // Suporte para três estados: sim, não, não_se_aplica
+      if (detailValue.toLowerCase() == 'true' || detailValue == '1' || detailValue.toLowerCase() == 'sim') {
+        _booleanValue = 'sim';
+      } else if (detailValue.toLowerCase() == 'false' || detailValue == '0' || detailValue.toLowerCase() == 'não') {
+        _booleanValue = 'não';
+      } else {
+        _booleanValue = 'não_se_aplica';
+      }
     } else {
       _valueController.text = detailValue;
     }
@@ -407,7 +410,7 @@ class _DetailListItemState extends State<DetailListItem> {
           '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
-      value = _booleanValue.toString();
+      value = _booleanValue; // Agora é string: 'sim', 'não', 'não_se_aplica'
     } else {
       value = _valueController.text;
     }
@@ -528,6 +531,226 @@ class _DetailListItemState extends State<DetailListItem> {
     }
   }
 
+  Future<void> _addDetailNonConformity() async {
+    try {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => NonConformityScreen(
+            inspectionId: widget.inspectionId,
+            preSelectedTopic: widget.detail.topicId,
+            preSelectedItem: widget.detail.itemId,
+            preSelectedDetail: widget.detail.id,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao navegar para não conformidade: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _captureDetailMedia() async {
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => MediaCaptureDialog(
+          onMediaCaptured: (filePath, type) async {
+            try {
+              // Processar e salvar mídia
+              await _serviceFactory.mediaService.captureAndProcessMediaSimple(
+                inputPath: filePath,
+                inspectionId: widget.inspectionId,
+                type: type,
+                topicId: widget.detail.topicId,
+                itemId: widget.detail.itemId,
+                detailId: widget.detail.id,
+              );
+
+              // Limpar cache para atualizar contador imediatamente
+              final cacheKey = '${widget.detail.id}';
+              _mediaCountCache.remove(cacheKey);
+              
+              // Forçar rebuild do widget para mostrar nova contagem
+              if (mounted) {
+                setState(() {
+                  _mediaCountVersion++; // Força rebuild do FutureBuilder
+                });
+              }
+
+              if (mounted && context.mounted) {
+                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+
+                // NOVA REGRA: Ir direto para galeria após capturar mídia
+                if (widget.detail.id != null) {
+                  debugPrint('DetailListItem: Navigating to gallery for detail ${widget.detail.id}');
+                  debugPrint('DetailListItem: TopicId=${widget.detail.topicId}, ItemId=${widget.detail.itemId}');
+                  
+                  // Salva o estado para que este detalhe específico fique expandido quando voltar
+                  await NavigationStateService.saveExpandedDetailState(
+                    inspectionId: widget.inspectionId,
+                    detailId: widget.detail.id!,
+                    topicIndex: widget.topicIndex,
+                    itemIndex: widget.itemIndex,
+                  );
+                  
+                  if (context.mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => MediaGalleryScreen(
+                          inspectionId: widget.inspectionId,
+                          initialTopicId: widget.detail.topicId,
+                          initialItemId: widget.detail.itemId,
+                          initialDetailId: widget.detail.id,
+                          // Força filtro específico do detalhe
+                          initialIsNonConformityOnly: false,
+                        ),
+                      ),
+                    );
+                  }
+                }
+              }
+            } catch (e) {
+              debugPrint('Error processing media: $e');
+              if (mounted && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao processar mídia: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error showing capture dialog: $e');
+    }
+  }
+
+  Future<int> _getDetailMediaCount() async {
+    final cacheKey = '${widget.detail.id}';
+    if (_mediaCountCache.containsKey(cacheKey)) {
+      return _mediaCountCache[cacheKey]!;
+    }
+
+    try {
+      final medias = await _serviceFactory.mediaService.getMediaByContext(
+        inspectionId: widget.inspectionId,
+        topicId: widget.detail.topicId,
+        itemId: widget.detail.itemId,
+        detailId: widget.detail.id,
+      );
+      final count = medias.length;
+      _mediaCountCache[cacheKey] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting media count for detail ${widget.detail.id}: $e');
+      return 0;
+    }
+  }
+
+  void _openDetailGallery() {
+    try {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => MediaGalleryScreen(
+            inspectionId: widget.inspectionId,
+            initialTopicId: widget.detail.topicId,
+            initialItemId: widget.detail.itemId,
+            initialDetailId: widget.detail.id,
+            initialIsNonConformityOnly: false,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao abrir galeria: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildDetailActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+    int? count,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 48,
+          height: 48,
+          child: Stack(
+            children: [
+              ElevatedButton(
+                onPressed: onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Icon(icon, size: 20),
+              ),
+              if (count != null && count > 0)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6F4B99),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      count.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.white70,
+          ),
+        ),
+      ],
+    );
+  }
+
+
   // Métodos _buildValueInput e _getDisplayValue permanecem os mesmos
   // ...
 
@@ -647,7 +870,7 @@ class _DetailListItemState extends State<DetailListItem> {
                                 color: Colors.green.shade100,
                                 borderRadius: BorderRadius.circular(4)),
                             child: Text(
-                              'Valor: $displayValue',
+                              displayValue,
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.green.shade800,
@@ -670,6 +893,46 @@ class _DetailListItemState extends State<DetailListItem> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildValueInput(),
+                  const SizedBox(height: 2),
+                                    // Botões de ação para detalhes
+                  if (widget.detail.id != null &&
+                      widget.detail.topicId != null &&
+                      widget.detail.itemId != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Botão Câmera
+                        _buildDetailActionButton(
+                          icon: Icons.camera_alt,
+                          label: 'Câmera',
+                          color: Colors.purple,
+                          onPressed: () => _captureDetailMedia(),
+                        ),
+                        // Botão Galeria com contador de mídia
+                        FutureBuilder<int>(
+                          key: ValueKey('detail_media_${widget.detail.id}_$_mediaCountVersion'),
+                          future: _getDetailMediaCount(),
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            return _buildDetailActionButton(
+                              icon: Icons.photo_library,
+                              label: 'Galeria',
+                              color: Colors.purple,
+                              onPressed: () => _openDetailGallery(),
+                              count: count,
+                            );
+                          },
+                        ),
+                        // Botão Não Conformidade
+                        _buildDetailActionButton(
+                          icon: Icons.warning_amber_rounded,
+                          label: 'NC',
+                          color: Colors.orange,
+                          onPressed: () => _addDetailNonConformity(),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   GestureDetector(
                     onTap: _editObservationDialog,
@@ -718,156 +981,6 @@ class _DetailListItemState extends State<DetailListItem> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-
-                  // THE FIX: BOTÕES REDUNDANTES REMOVIDOS
-                  // A única linha de botões agora é o NC e o MediaHandlingWidget
-                  if (widget.detail.id != null &&
-                      widget.detail.topicId != null &&
-                      widget.detail.itemId != null) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Botão NCs (vermelho, mesmo ícone da barra inferior)
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => NonConformityScreen(
-                                      inspectionId: widget.inspectionId,
-                                      preSelectedTopic: widget.detail.topicId,
-                                      preSelectedItem: widget.detail.itemId,
-                                      preSelectedDetail: widget.detail.id,
-                                    ),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 0),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 1,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(Icons.warning_amber_rounded, size: 22),
-                                  SizedBox(height: 2),
-                                  Text('NCs',
-                                      style: TextStyle(fontSize: 13),
-                                      textAlign: TextAlign.center),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Botão Capturar (apenas câmera)
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                // Abrir apenas a câmera do MediaHandlingWidget
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => Dialog(
-                                    backgroundColor: Colors.transparent,
-                                    insetPadding: EdgeInsets.zero,
-                                    child: SizedBox(
-                                      width: 1,
-                                      height: 1,
-                                      child: MediaHandlingWidget(
-                                        inspectionId: widget.inspectionId,
-                                        topicId: widget.detail.topicId!,
-                                        itemId: widget.detail.itemId!,
-                                        detailId: widget.detail.id!,
-                                        onMediaAdded: (_) => setState(() {}),
-                                        onMediaDeleted: (_) => setState(() {}),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 0),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 1,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(Icons.camera_alt, size: 22),
-                                  SizedBox(height: 2),
-                                  Text('Capturar',
-                                      style: TextStyle(fontSize: 13),
-                                      textAlign: TextAlign.center),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Botão Galeria (apenas galeria)
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                // Abrir apenas a galeria
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => MediaGalleryScreen(
-                                      inspectionId: widget.inspectionId,
-                                      initialTopicId: widget.detail.topicId!,
-                                      initialItemId: widget.detail.itemId!,
-                                      initialDetailId: widget.detail.id!,
-                                      initialIsNonConformityOnly: false,
-                                    ),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.purple,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 0),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 1,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(Icons.photo_library, size: 22),
-                                  SizedBox(height: 2),
-                                  Text('Galeria',
-                                      style: TextStyle(fontSize: 13),
-                                      textAlign: TextAlign.center),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -880,7 +993,12 @@ class _DetailListItemState extends State<DetailListItem> {
   String _getDisplayValue() {
     switch (widget.detail.type) {
       case 'boolean':
-        return _booleanValue ? 'Sim' : 'Não';
+        switch (_booleanValue) {
+          case 'sim': return 'Sim';
+          case 'não': return 'Não';
+          case 'não_se_aplica': return 'Não se aplica';
+          default: return 'Não se aplica';
+        }
       case 'measure':
         final altura = _heightController.text.trim();
         final largura = _widthController.text.trim();
@@ -906,7 +1024,7 @@ class _DetailListItemState extends State<DetailListItem> {
             value:
                 _valueController.text.isNotEmpty ? _valueController.text : null,
             decoration: InputDecoration(
-              labelText: 'Valor',
+              labelText: 'R',
               border: const OutlineInputBorder(),
               hintText: 'Selecione um valor',
               labelStyle: TextStyle(color: Colors.green.shade300),
@@ -933,24 +1051,98 @@ class _DetailListItemState extends State<DetailListItem> {
         }
         break;
       case 'boolean':
-        return Row(
-          children: [
-            Text(
-              'Valor:',
-              style: TextStyle(color: Colors.green.shade300, fontSize: 12),
-            ),
-            const Spacer(),
-            Switch(
-              value: _booleanValue,
-              onChanged: (value) {
-                setState(() => _booleanValue = value);
-                _updateDetail();
-              },
-              activeColor: Colors.green,
-            ),
-            Text(
-              _booleanValue ? 'Sim' : 'Não',
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [ 
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _booleanValue = 'sim');
+                      _updateDetail();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'sim' ? Colors.green : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'sim' ? Colors.green : Colors.grey.shade500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Sim',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'sim' ? Colors.white : Colors.grey.shade300,
+                          fontSize: 12,
+                          fontWeight: _booleanValue == 'sim' ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _booleanValue = 'não');
+                      _updateDetail();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'não' ? Colors.red : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'não' ? Colors.red : Colors.grey.shade500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Não',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'não' ? Colors.white : Colors.grey.shade300,
+                          fontSize: 12,
+                          fontWeight: _booleanValue == 'não' ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _booleanValue = 'não_se_aplica');
+                      _updateDetail();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'não_se_aplica' ? Colors.yellowAccent : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'não_se_aplica' ? Colors.yellowAccent : Colors.grey.shade500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'N/A',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'não_se_aplica' ? Colors.grey.shade500 : Colors.grey.shade300,
+                          fontSize: 12,
+                          fontWeight: _booleanValue == 'não_se_aplica' ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -1010,7 +1202,7 @@ class _DetailListItemState extends State<DetailListItem> {
         return TextFormField(
           controller: _valueController,
           decoration: InputDecoration(
-            labelText: 'Valor',
+            labelText: 'R',
             border: const OutlineInputBorder(),
             hintText: 'Digite um valor',
             labelStyle: TextStyle(color: Colors.green.shade300),
@@ -1027,7 +1219,7 @@ class _DetailListItemState extends State<DetailListItem> {
     return TextFormField(
       controller: _valueController,
       decoration: InputDecoration(
-        labelText: 'Valor',
+        labelText: 'R',
         border: const OutlineInputBorder(),
         hintText: 'Digite um valor',
         labelStyle: TextStyle(color: Colors.green.shade300),
@@ -1040,4 +1232,5 @@ class _DetailListItemState extends State<DetailListItem> {
       onChanged: (_) => _updateDetail(),
     );
   }
+
 }

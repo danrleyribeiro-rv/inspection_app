@@ -7,6 +7,7 @@ import 'package:lince_inspecoes/presentation/screens/inspection/components/topic
 import 'package:lince_inspecoes/presentation/screens/inspection/components/item_details_section.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/details_list_section.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/navigation_state_service.dart';
 
 class HierarchicalInspectionView extends StatefulWidget {
   final String inspectionId;
@@ -40,6 +41,8 @@ class _HierarchicalInspectionViewState
   bool _isTopicExpanded = false;
   bool _isItemExpanded = false;
   bool _isDetailsExpanded = false;
+  
+  String? _expandedDetailId; // ID do detalhe específico que deve ficar expandido
 
   PageController? _topicPageController;
   PageController? _itemPageController;
@@ -49,23 +52,78 @@ class _HierarchicalInspectionViewState
     super.initState();
     _topicPageController = PageController();
     _itemPageController = PageController();
+    _loadNavigationState();
+  }
+  
+  /// Carrega o estado de navegação persistido
+  Future<void> _loadNavigationState() async {
+    final savedState = await NavigationStateService.loadNavigationState(widget.inspectionId);
+    if (savedState != null && mounted) {
+      setState(() {
+        // Valida os índices para evitar IndexOutOfBounds
+        _currentTopicIndex = savedState.currentTopicIndex.clamp(0, widget.topics.length - 1);
+        
+        // Valida o item index baseado no tópico atual
+        if (_currentTopicIndex < widget.topics.length) {
+          final topicId = widget.topics[_currentTopicIndex].id;
+          final items = topicId != null ? (widget.itemsCache[topicId] ?? []) : [];
+          _currentItemIndex = savedState.currentItemIndex.clamp(0, (items.length - 1).clamp(0, items.length));
+        } else {
+          _currentItemIndex = 0;
+        }
+        
+        _isTopicExpanded = savedState.isTopicExpanded;
+        _isItemExpanded = savedState.isItemExpanded;
+        _isDetailsExpanded = savedState.isDetailsExpanded;
+        _expandedDetailId = savedState.expandedDetailId;
+      });
+      
+      // Anima para a posição salva
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _topicPageController?.hasClients == true) {
+          _topicPageController?.animateToPage(
+            _currentTopicIndex,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+        
+        // Também anima para o item correto se necessário
+        if (mounted && _itemPageController?.hasClients == true && _currentItemIndex > 0) {
+          _itemPageController?.animateToPage(
+            _currentItemIndex,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+      
+      debugPrint('HierarchicalInspectionView: Restored navigation state: $savedState');
+    }
+  }
+  
+  /// Salva o estado atual de navegação
+  Future<void> _saveNavigationState() async {
+    await NavigationStateService.saveNavigationState(
+      inspectionId: widget.inspectionId,
+      currentTopicIndex: _currentTopicIndex,
+      currentItemIndex: _currentItemIndex,
+      isTopicExpanded: _isTopicExpanded,
+      isItemExpanded: _isItemExpanded,
+      isDetailsExpanded: _isDetailsExpanded,
+      expandedDetailId: _expandedDetailId,
+    );
   }
 
   @override
   void dispose() {
+    // Salva o estado antes de destruir o widget
+    _saveNavigationState();
     _topicPageController?.dispose();
     _itemPageController?.dispose();
     super.dispose();
   }
 
-  List<Item> get _currentItems {
-    if (_currentTopicIndex >= widget.topics.length) return [];
-    final topicId = widget.topics[_currentTopicIndex].id;
-    return topicId != null ? (widget.itemsCache[topicId] ?? []) : [];
-  }
-
-  // REMOVIDO: Este getter não estava sendo utilizado.
-  // List<Detail> get _currentDetails { ... }
 
   void _onTopicChanged(int index) {
     setState(() {
@@ -77,6 +135,9 @@ class _HierarchicalInspectionViewState
       _itemPageController?.animateToPage(0,
           duration: const Duration(milliseconds: 200), curve: Curves.easeInOut);
     }
+    
+    // Salva o estado quando o tópico muda
+    _saveNavigationState();
   }
 
   Future<void> _reloadCurrentData() async {
@@ -122,50 +183,10 @@ class _HierarchicalInspectionViewState
         items.map((i) => i.id ?? 'item_${items.indexOf(i)}').toList();
     await _serviceFactory.dataService.reorderItems(topicId, itemIds);
 
-    // Recarrega para garantir consistência
-    await _handleItemUpdate();
-  }
-
-  Future<void> _handleTopicUpdate() async {
-    // Reload topics without excessive cache updates to avoid double processing
-    final topics =
-        await _serviceFactory.dataService.getTopics(widget.inspectionId);
-    widget.topics.clear();
-    widget.topics.addAll(topics);
-
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _handleItemUpdate() async {
-    if (_currentTopicIndex < widget.topics.length) {
-      final topicId =
-          widget.topics[_currentTopicIndex].id ?? 'topic_$_currentTopicIndex';
-      final items = await _serviceFactory.dataService.getItems(topicId);
-      widget.itemsCache[topicId] = items;
-
-      if (_currentItemIndex >= items.length && items.isNotEmpty) {
-        _currentItemIndex = items.length - 1;
-      }
-    }
-
     // Light refresh without triggering parent cache updates
     if (mounted) setState(() {});
   }
 
-  Future<void> _handleDetailUpdate() async {
-    if (_currentTopicIndex < widget.topics.length &&
-        _currentItems.isNotEmpty &&
-        _currentItemIndex < _currentItems.length) {
-      final topicId =
-          widget.topics[_currentTopicIndex].id ?? 'topic_$_currentTopicIndex';
-      final itemId =
-          _currentItems[_currentItemIndex].id ?? 'item_$_currentItemIndex';
-      final details = await _serviceFactory.dataService.getDetails(itemId);
-      widget.detailsCache['${topicId}_$itemId'] = details;
-    }
-
-    await _reloadCurrentData();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +237,8 @@ class _HierarchicalInspectionViewState
                             _isDetailsExpanded = false;
                           }
                         });
+                        // Salva o estado quando a expansão do tópico muda
+                        _saveNavigationState();
                       },
                       isExpanded:
                           _isTopicExpanded && topicIndex == _currentTopicIndex,
@@ -236,7 +259,10 @@ class _HierarchicalInspectionViewState
                               setState(() {}); // Atualização instantânea local
                             }
                           },
-                          onTopicAction: _handleTopicUpdate,
+                          onTopicAction: () {
+                            // PRESERVE STATE: Light refresh without parent reload
+                            if (mounted) setState(() {});
+                          },
                         ),
                       ),
 
@@ -248,8 +274,11 @@ class _HierarchicalInspectionViewState
                               : null,
                           itemCount: topicItems.length,
                           onPageChanged: topicIndex == _currentTopicIndex
-                              ? (index) =>
-                                  setState(() => _currentItemIndex = index)
+                              ? (index) {
+                                  setState(() => _currentItemIndex = index);
+                                  // Salva o estado quando o item muda
+                                  _saveNavigationState();
+                                }
                               : null,
                           itemBuilder: (context, itemIndex) {
                             final item = topicItems[itemIndex];
@@ -331,6 +360,8 @@ class _HierarchicalInspectionViewState
                                               _isDetailsExpanded = false;
                                             }
                                           });
+                                          // Salva o estado quando a expansão do item muda
+                                          _saveNavigationState();
                                         },
                                         isExpanded: _isItemExpanded &&
                                             topicIndex == _currentTopicIndex &&
@@ -360,7 +391,10 @@ class _HierarchicalInspectionViewState
                                               () {}); // Atualização instantânea local
                                         }
                                       },
-                                      onItemAction: _handleItemUpdate,
+                                      onItemAction: () {
+                                        // PRESERVE STATE: Light refresh without parent reload
+                                        if (mounted) setState(() {});
+                                      },
                                     ),
 
                                   if (itemDetails.isNotEmpty)
@@ -390,6 +424,8 @@ class _HierarchicalInspectionViewState
                                                     _isItemExpanded = false;
                                                   }
                                                 });
+                                                // Salva o estado quando a expansão dos detalhes muda
+                                                _saveNavigationState();
                                               },
                                               borderRadius:
                                                   BorderRadius.circular(12),
@@ -440,6 +476,9 @@ class _HierarchicalInspectionViewState
                                             item: item,
                                             topic: topic,
                                             inspectionId: widget.inspectionId,
+                                            topicIndex: topicIndex,
+                                            itemIndex: itemIndex,
+                                            expandedDetailId: _expandedDetailId, // Passa o ID do detalhe expandido
                                             onDetailUpdated: (updatedDetail) {
                                               final cacheKey =
                                                   '${topicId}_$itemId';
@@ -456,7 +495,15 @@ class _HierarchicalInspectionViewState
                                               }
                                               setState(() {});
                                             },
-                                            onDetailAction: _handleDetailUpdate,
+                                            onDetailAction: () {
+                                              // PRESERVE STATE: Light refresh without parent reload
+                                              if (mounted) setState(() {});
+                                            },
+                                            onDetailExpanded: (detailId) {
+                                              // Salva qual detalhe foi expandido
+                                              _expandedDetailId = detailId;
+                                              _saveNavigationState();
+                                            },
                                           ),
                                       ],
                                     ),
@@ -536,15 +583,15 @@ class _HierarchicalInspectionViewState
               details.where((d) => d.isRequired == true).toList();
           if (requiredDetails.isNotEmpty) {
             // Se tem detalhes obrigatórios, todos devem estar completos
-            final completedRequired =
-                requiredDetails.where((d) => d.status == 'completed').toList();
+            final completedRequired = requiredDetails.where((d) => 
+                d.detailValue != null && d.detailValue!.isNotEmpty).toList();
             if (completedRequired.length == requiredDetails.length) {
               completedItems++;
             }
           } else {
             // Se não tem detalhes obrigatórios, considera completo se tem pelo menos um detalhe preenchido
-            final completedDetails =
-                details.where((d) => d.status == 'completed').toList();
+            final completedDetails = details.where((d) => 
+                d.detailValue != null && d.detailValue!.isNotEmpty).toList();
             if (completedDetails.isNotEmpty) {
               completedItems++;
             }
@@ -563,7 +610,8 @@ class _HierarchicalInspectionViewState
     if (details.isEmpty) return 0.0;
 
     int totalDetails = details.length;
-    int completedDetails = details.where((d) => d.status == 'completed').length;
+    int completedDetails = details.where((d) => 
+        d.detailValue != null && d.detailValue!.isNotEmpty).length;
 
     return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
   }

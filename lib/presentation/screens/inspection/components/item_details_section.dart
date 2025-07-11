@@ -8,6 +8,7 @@ import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_s
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
 
 class ItemDetailsSection extends StatefulWidget {
   final Item item;
@@ -36,6 +37,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   Timer? _debounce;
   String _currentItemName = '';
   int _processingCount = 0;
+  bool _isDuplicating = false; // Flag to prevent double duplication
+  final Map<String, int> _mediaCountCache = {};
+  int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
 
   @override
   void initState() {
@@ -85,6 +89,27 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     });
   }
 
+  Future<int> _getMediaCount() async {
+    final cacheKey = '${widget.item.id}';
+    if (_mediaCountCache.containsKey(cacheKey)) {
+      return _mediaCountCache[cacheKey]!;
+    }
+
+    try {
+      final medias = await _serviceFactory.mediaService.getMediaByContext(
+        inspectionId: widget.inspectionId,
+        topicId: widget.topic.id,
+        itemId: widget.item.id,
+      );
+      final count = medias.length;
+      _mediaCountCache[cacheKey] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting media count for item ${widget.item.id}: $e');
+      return 0;
+    }
+  }
+
   void _openItemGallery() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (context) => MediaGalleryScreen(
@@ -98,85 +123,67 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   }
 
   void _captureItemMedia() {
-    _showMediaSourceDialog();
+    _captureFromCamera();
   }
 
-  void _showMediaSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Text(
-              'Adicionar Mídia',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.blue),
-              title:
-                  const Text('Câmera', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Tirar foto com a câmera',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _captureFromCamera();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.green),
-              title:
-                  const Text('Galeria', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Escolher foto da galeria',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _selectFromGallery();
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _captureFromCamera() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 90,
-      );
+      await showDialog(
+        context: context,
+        builder: (context) => MediaCaptureDialog(
+          onMediaCaptured: (filePath, type) async {
+            try {
+              if (mounted) setState(() => _processingCount++);
+              await _processAndSaveMedia(filePath, type);
+              if (mounted) setState(() => _processingCount--);
+              widget.onItemAction();
 
-      if (image != null) {
-        await _handleImagesSelected([image.path]);
-      }
+              if (mounted) {
+                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+
+                // NOVA REGRA: Ir direto para galeria após capturar mídia
+                if (context.mounted) {
+                  debugPrint('ItemDetailsSection: Navigating to gallery for item ${widget.item.id}');
+                  debugPrint('ItemDetailsSection: TopicId=${widget.topic.id}');
+                  
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => MediaGalleryScreen(
+                        inspectionId: widget.inspectionId,
+                        initialTopicId: widget.topic.id,
+                        initialItemId: widget.item.id,
+                        initialItemOnly: true,
+                      ),
+                    ),
+                  );
+                }
+              }
+            } catch (e) {
+              if (mounted) setState(() => _processingCount--);
+              debugPrint('Error processing media: $e');
+              if (mounted && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao processar mídia: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar imagem: $e')),
-        );
-      }
+      debugPrint('Error showing capture dialog: $e');
     }
   }
 
@@ -210,34 +217,35 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     widget.onItemAction();
   }
 
+
   Future<void> _processAndSaveMedia(String localPath, String type) async {
     try {
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
-
-      // Usar o fluxo offline-first do MediaService
-      await _serviceFactory.mediaService.captureAndProcessMedia(
+      // Usar método simplificado para captura rápida
+      await _serviceFactory.mediaService.captureAndProcessMediaSimple(
         inputPath: localPath,
         inspectionId: widget.inspectionId,
         type: type,
         topicId: widget.topic.id,
         itemId: widget.item.id,
-        metadata: {
-          'source': 'camera',
-          'is_non_conformity': false,
-          'location': position != null
-              ? {
-                  'latitude': position['latitude'],
-                  'longitude': position['longitude'],
-                }
-              : null,
-        },
       );
+
+      // Limpar cache para atualizar contador imediatamente
+      final cacheKey = '${widget.item.id}';
+      _mediaCountCache.remove(cacheKey);
+      
+      // Forçar rebuild do widget para mostrar nova contagem
+      if (mounted) {
+        setState(() {
+          _mediaCountVersion++; // Força rebuild do FutureBuilder
+        });
+      }
 
       // A mídia já foi salva pelo MediaService, não precisa fazer nada mais
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Erro ao salvar mídia: $e')));
+      }
     }
   }
 
@@ -292,6 +300,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   }
 
   Future<void> _duplicateItem() async {
+    // Prevent double execution
+    if (_isDuplicating) return;
+    
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -308,6 +319,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                 ]));
 
     if (confirmed != true) return;
+
+    // Set duplication flag
+    setState(() => _isDuplicating = true);
 
     try {
       debugPrint(
@@ -334,6 +348,11 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Erro ao duplicar item: $e')));
+      }
+    } finally {
+      // Reset duplication flag
+      if (mounted) {
+        setState(() => _isDuplicating = false);
       }
     }
   }
@@ -379,15 +398,17 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     try {
       if (widget.item.id != null) {
         await _serviceFactory.dataService.deleteItem(widget.item.id!);
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Item excluído com sucesso'),
               backgroundColor: Colors.green));
+        }
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Erro ao excluir item: $e')));
+      }
     }
     widget.onItemAction();
   }
@@ -413,11 +434,20 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   label: 'Capturar',
                   onPressed: _captureItemMedia,
                   color: Colors.purple),
-              _buildActionButton(
-                  icon: Icons.photo_library,
-                  label: 'Galeria',
-                  onPressed: _openItemGallery,
-                  color: Colors.purple),
+              FutureBuilder<int>(
+                key: ValueKey('item_media_${widget.item.id}_$_mediaCountVersion'),
+                future: _getMediaCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return _buildActionButton(
+                    icon: Icons.photo_library,
+                    label: 'Galeria',
+                    onPressed: _openItemGallery,
+                    color: Colors.purple,
+                    count: count,
+                  );
+                },
+              ),
               _buildActionButton(
                   icon: Icons.warning,
                   label: 'NC',
@@ -496,26 +526,59 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     );
   }
 
-  Widget _buildActionButton(
-      {required IconData icon,
-      required String label,
-      required VoidCallback onPressed,
-      Color? color}) {
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    Color? color,
+    int? count,
+  }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
           width: 48,
           height: 48,
-          child: ElevatedButton(
-            onPressed: onPressed,
-            style: ElevatedButton.styleFrom(
-                backgroundColor: color ?? Colors.orange,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8))),
-            child: Icon(icon, size: 20),
+          child: Stack(
+            children: [
+              ElevatedButton(
+                onPressed: onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color ?? Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Icon(icon, size: 20),
+              ),
+              if (count != null && count > 0)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6F4B99),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      count.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 2),
@@ -524,4 +587,5 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       ],
     );
   }
+
 }

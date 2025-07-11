@@ -1,6 +1,6 @@
 // lib/presentation/widgets/template_selector_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class TemplateSelectorDialog extends StatefulWidget {
   final String title;
@@ -25,6 +25,7 @@ class TemplateSelectorDialog extends StatefulWidget {
 class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _valueController = TextEditingController();
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
   bool _isCustom = false;
   bool _isLoading = true;
   List<Map<String, dynamic>> _templates = [];
@@ -41,7 +42,6 @@ Future<void> _loadTemplateItems() async {
 
   try {
     List<Map<String, dynamic>> items = [];
-    final firestore = FirebaseFirestore.instance;
 
     // Verificar se templateId foi fornecido
     if (widget.templateId == null || widget.templateId!.isEmpty) {
@@ -52,76 +52,27 @@ Future<void> _loadTemplateItems() async {
       return;
     }
 
-    // Buscar apenas o template específico
-    final templateDoc = await firestore
-        .collection('templates')
-        .doc(widget.templateId!)
-        .get();
-
-    if (!templateDoc.exists) {
-      setState(() {
-        _templates = [];
-        _isLoading = false;
-      });
-      return;
-    }
-
-    final templateData = templateDoc.data()!;
-
     if (widget.type == 'topic') {
-      // Buscar tópicos do template específico
-      if (templateData['topics'] is List) {
-        for (var topic in templateData['topics']) {
-          String topicName = "";
-          if (topic is Map &&
-              topic['name'] is Map &&
-              topic['name']['stringValue'] != null) {
-            topicName = topic['name']['stringValue'];
-          } else if (topic is Map && topic['name'] is String) {
-            topicName = topic['name'];
-          }
-
-          if (topicName.isNotEmpty) {
-            items.add({
-              'name': topicName,
-              'template_id': widget.templateId!,
-              'description': templateData['description'] ?? '',
-              'templateData': topic, // IMPORTANTE: Manter dados completos do template
-            });
-          }
-        }
-      }
+      // Buscar tópicos do template usando o service
+      items = await _serviceFactory.templateService.getTopicsFromSpecificTemplate(widget.templateId!);
+      debugPrint('TemplateSelectorDialog: Loaded ${items.length} topics from template ${widget.templateId}');
     } else if (widget.type == 'item' && widget.parentName.isNotEmpty) {
-      // Buscar itens do template específico
-      if (templateData['topics'] is List) {
-        for (var topic in templateData['topics']) {
-          String topicName = "";
-          if (topic is Map &&
-              topic['name'] is Map &&
-              topic['name']['stringValue'] != null) {
-            topicName = topic['name']['stringValue'];
-          } else if (topic is Map && topic['name'] is String) {
-            topicName = topic['name'];
-          }
-
-          if (topicName == widget.parentName) {
-            var topicItems = _extractArrayFromTemplate(topic, 'items');
-            for (var item in topicItems) {
-              var fields = _extractFieldsFromTemplate(item);
-              if (fields != null) {
-                String itemName = _extractStringValueFromTemplate(
-                    fields, 'name',
-                    defaultValue: 'Item sem nome');
-                String? itemDesc =
-                    _extractStringValueFromTemplate(fields, 'description');
-
-                if (itemName.isNotEmpty) {
-                  items.add({
-                    'name': itemName,
-                    'value': itemDesc,
-                    'template_id': widget.templateId!,
-                  });
-                }
+      // Para itens, vamos manter a lógica original simplificada
+      final template = await _serviceFactory.templateService.getTemplate(widget.templateId!);
+      if (template != null && template['topics'] is List) {
+        final topics = template['topics'] as List<dynamic>;
+        for (final topic in topics) {
+          if (topic is Map<String, dynamic> && 
+              (topic['name'] == widget.parentName || topic['topic_name'] == widget.parentName)) {
+            final itemsList = topic['items'] as List<dynamic>? ?? [];
+            for (final item in itemsList) {
+              if (item is Map<String, dynamic>) {
+                items.add({
+                  'name': item['name'] ?? item['item_name'] ?? 'Item sem nome',
+                  'value': item['description'] ?? item['item_label'] ?? '',
+                  'template_id': widget.templateId!,
+                  'templateData': item,
+                });
               }
             }
             break;
@@ -131,90 +82,31 @@ Future<void> _loadTemplateItems() async {
     } else if (widget.type == 'detail' &&
         widget.parentName.isNotEmpty &&
         widget.itemName != null) {
-      // Buscar detalhes do template específico
-      if (templateData['topics'] is List) {
-        for (var topic in templateData['topics']) {
-          String topicName = "";
-          if (topic is Map &&
-              topic['name'] is Map &&
-              topic['name']['stringValue'] != null) {
-            topicName = topic['name']['stringValue'];
-          } else if (topic is Map && topic['name'] is String) {
-            topicName = topic['name'];
-          }
-
-          if (topicName == widget.parentName) {
-            var topicItems = _extractArrayFromTemplate(topic, 'items');
-            for (var item in topicItems) {
-              var fields = _extractFieldsFromTemplate(item);
-              if (fields != null) {
-                String itemName = _extractStringValueFromTemplate(
-                    fields, 'name',
-                    defaultValue: 'Item sem nome');
-
-                if (itemName == widget.itemName) {
-                  var details = _extractArrayFromTemplate(fields, 'details');
-                  for (var detail in details) {
-                    var detailFields = _extractFieldsFromTemplate(detail);
-                    if (detailFields != null) {
-                      String detailName = _extractStringValueFromTemplate(
-                          detailFields, 'name',
-                          defaultValue: 'Detalhe sem nome');
-                      String detailType = _extractStringValueFromTemplate(
-                          detailFields, 'type',
-                          defaultValue: 'text');
-
-                      List<String> options = [];
-                      if (detailType == 'select') {
-                        var optionsArray = _extractArrayFromTemplate(
-                            detailFields, 'options');
-                        for (var option in optionsArray) {
-                          if (option is Map &&
-                              option.containsKey('stringValue')) {
-                            options.add(option['stringValue']);
-                          } else if (option is String) {
-                            options.add(option);
-                          }
-                        }
-
-                        if (options.isEmpty &&
-                            detailFields.containsKey('optionsText')) {
-                          String optionsText =
-                              _extractStringValueFromTemplate(
-                                  detailFields, 'optionsText',
-                                  defaultValue: '');
-                          if (optionsText.isNotEmpty) {
-                            options = optionsText
-                                .split(',')
-                                .map((e) => e.trim())
-                                .toList();
-                          }
-                        }
-                      }
-
-                      bool required = false;
-                      if (detailFields.containsKey('required')) {
-                        if (detailFields['required'] is bool) {
-                          required = detailFields['required'];
-                        } else if (detailFields['required'] is Map &&
-                            detailFields['required']
-                                .containsKey('booleanValue')) {
-                          required =
-                              detailFields['required']['booleanValue'];
-                        }
-                      }
-
-                      items.add({
-                        'name': detailName,
-                        'type': detailType,
-                        'options': options,
-                        'required': required,
-                        'template_id': widget.templateId!,
-                      });
-                    }
+      // Para detalhes, vamos manter a lógica original simplificada
+      final template = await _serviceFactory.templateService.getTemplate(widget.templateId!);
+      if (template != null && template['topics'] is List) {
+        final topics = template['topics'] as List<dynamic>;
+        for (final topic in topics) {
+          if (topic is Map<String, dynamic> && 
+              (topic['name'] == widget.parentName || topic['topic_name'] == widget.parentName)) {
+            final itemsList = topic['items'] as List<dynamic>? ?? [];
+            for (final item in itemsList) {
+              if (item is Map<String, dynamic> && 
+                  (item['name'] == widget.itemName || item['item_name'] == widget.itemName)) {
+                final detailsList = item['details'] as List<dynamic>? ?? [];
+                for (final detail in detailsList) {
+                  if (detail is Map<String, dynamic>) {
+                    items.add({
+                      'name': detail['name'] ?? detail['detail_name'] ?? 'Detalhe sem nome',
+                      'type': detail['type'] ?? 'text',
+                      'options': detail['options'] ?? [],
+                      'required': detail['required'] ?? false,
+                      'template_id': widget.templateId!,
+                      'templateData': detail,
+                    });
                   }
-                  break;
                 }
+                break;
               }
             }
             break;
@@ -237,66 +129,6 @@ Future<void> _loadTemplateItems() async {
   }
 }
 
-  // Métodos auxiliares para extrair dados do template
-  List<dynamic> _extractArrayFromTemplate(dynamic data, String key) {
-    if (data == null) return [];
-
-    // Caso 1: Já é uma lista
-    if (data[key] is List) {
-      return data[key];
-    }
-
-    // Caso 2: Formato Firestore (arrayValue)
-    if (data[key] is Map &&
-        data[key].containsKey('arrayValue') &&
-        data[key]['arrayValue'] is Map &&
-        data[key]['arrayValue'].containsKey('values')) {
-      return data[key]['arrayValue']['values'] ?? [];
-    }
-
-    return [];
-  }
-
-  Map<String, dynamic>? _extractFieldsFromTemplate(dynamic data) {
-    if (data == null) return null;
-
-    // Caso 1: Já é um mapa de campos
-    if (data is Map && data.containsKey('fields')) {
-      return Map<String, dynamic>.from(data['fields']);
-    }
-
-    // Caso 2: Formato complexo Firestore
-    if (data is Map &&
-        data.containsKey('mapValue') &&
-        data['mapValue'] is Map &&
-        data['mapValue'].containsKey('fields')) {
-      return Map<String, dynamic>.from(data['mapValue']['fields']);
-    }
-
-    // Caso 3: Mapa simples
-    if (data is Map) {
-      return Map<String, dynamic>.from(data);
-    }
-
-    return null;
-  }
-
-  String _extractStringValueFromTemplate(dynamic data, String key,
-      {String defaultValue = ''}) {
-    if (data == null) return defaultValue;
-
-    // Caso 1: Direto como string
-    if (data[key] is String) {
-      return data[key];
-    }
-
-    // Caso 2: Formato Firestore (stringValue)
-    if (data[key] is Map && data[key].containsKey('stringValue')) {
-      return data[key]['stringValue'];
-    }
-
-    return defaultValue;
-  }
 
   @override
   void dispose() {

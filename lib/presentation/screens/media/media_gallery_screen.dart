@@ -6,6 +6,8 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_viewer_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/media/components/media_filter_panel.dart';
 import 'package:lince_inspecoes/presentation/screens/media/components/media_grid.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
@@ -76,6 +78,12 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     // THE FIX: Usa os parâmetros explícitos
     _topicOnly = widget.initialTopicOnly;
     _itemOnly = widget.initialItemOnly;
+    
+    debugPrint('MediaGalleryScreen: Initial filters set');
+    debugPrint('  TopicId: $_selectedTopicId');
+    debugPrint('  ItemId: $_selectedItemId');
+    debugPrint('  DetailId: $_selectedDetailId');
+    debugPrint('  TopicOnly: $_topicOnly, ItemOnly: $_itemOnly');
   }
 
   Future<void> _loadData() async {
@@ -165,6 +173,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   void _applyFilters() async {
+    debugPrint('MediaGalleryScreen: Applying filters on ${_allMedia.length} media items');
     List<Map<String, dynamic>> filteredMedia = _allMedia;
 
     // Apply filters directly
@@ -172,28 +181,34 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       filteredMedia = filteredMedia
           .where((media) => media['topic_id'] == _selectedTopicId)
           .toList();
+      debugPrint('MediaGalleryScreen: After topic filter: ${filteredMedia.length} items');
     }
     if (_selectedItemId != null) {
       filteredMedia = filteredMedia
           .where((media) => media['item_id'] == _selectedItemId)
           .toList();
+      debugPrint('MediaGalleryScreen: After item filter: ${filteredMedia.length} items');
     }
     if (_selectedDetailId != null) {
       filteredMedia = filteredMedia
           .where((media) => media['detail_id'] == _selectedDetailId)
           .toList();
+      debugPrint('MediaGalleryScreen: After detail filter: ${filteredMedia.length} items');
     }
     if (_selectedMediaType != null) {
       filteredMedia = filteredMedia
           .where((media) => media['type'] == _selectedMediaType)
           .toList();
+      debugPrint('MediaGalleryScreen: After type filter: ${filteredMedia.length} items');
     }
     if (_selectedIsNonConformityOnly == true) {
       filteredMedia = filteredMedia
           .where((media) => media['non_conformity_id'] != null)
           .toList();
+      debugPrint('MediaGalleryScreen: After NC filter: ${filteredMedia.length} items');
     }
 
+    debugPrint('MediaGalleryScreen: Final filtered media count: ${filteredMedia.length}');
     setState(() {
       _filteredMedia = filteredMedia;
       _updateActiveFiltersCount();
@@ -252,6 +267,57 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     ));
   }
 
+  Future<void> _showCaptureDialog() async {
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => MediaCaptureDialog(
+          onMediaCaptured: (filePath, type) async {
+            try {
+              // Processar e salvar mídia usando o contexto atual da galeria
+              // Se não há filtros, salva no contexto geral da inspeção
+              await _serviceFactory.mediaService.captureAndProcessMediaSimple(
+                inputPath: filePath,
+                inspectionId: widget.inspectionId,
+                type: type,
+                topicId: _selectedTopicId ?? widget.initialTopicId,
+                itemId: _selectedItemId ?? widget.initialItemId,
+                detailId: _selectedDetailId ?? widget.initialDetailId,
+              );
+
+              if (mounted && context.mounted) {
+                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+
+                // Recarregar a galeria para mostrar a nova mídia
+                _loadData();
+              }
+            } catch (e) {
+              debugPrint('Error processing media in gallery: $e');
+              if (mounted && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao processar mídia: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error showing capture dialog in gallery: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -277,6 +343,11 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               tooltip: 'Sair da Seleção',
             ),
           ] else ...[
+            IconButton(
+              icon: const Icon(Icons.camera_alt),
+              onPressed: _showCaptureDialog,
+              tooltip: 'Capturar Mídia',
+            ),
             IconButton(
               icon: const Icon(Icons.select_all),
               onPressed: _enterMultiSelectMode,
@@ -364,6 +435,33 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     });
   }
 
+  void _createNonConformityWithSelectedMedia() {
+    if (_selectedMediaIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nenhuma mídia selecionada')),
+      );
+      return;
+    }
+
+    _exitMultiSelectMode();
+
+    // Navigate to NonConformityScreen with preselected values
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => NonConformityScreen(
+          inspectionId: widget.inspectionId,
+          preSelectedTopic: widget.initialTopicId,
+          preSelectedItem: widget.initialItemId,
+          preSelectedDetail: widget.initialDetailId,
+          selectedMediaIds: _selectedMediaIds.toList(),
+        ),
+      ),
+    ).then((_) {
+      // Refresh the media gallery when returning from NC screen
+      _loadData();
+    });
+  }
+
   void _toggleSelection(String mediaId) {
     setState(() {
       if (_selectedMediaIds.contains(mediaId)) {
@@ -444,12 +542,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _exitMultiSelectMode();
-              // TODO: Implement move to NC functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Funcionalidade em desenvolvimento')),
-              );
+              _createNonConformityWithSelectedMedia();
             },
             child: const Text('Criar NC'),
           ),

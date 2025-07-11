@@ -451,7 +451,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
           value: 'Baixa',
           child: Row(
             children: [
-              Icon(Icons.circle, color: Colors.blue, size: 12),
+              Icon(Icons.circle, color: Colors.green, size: 12),
               SizedBox(width: 8),
               Text('Baixa'),
             ],
@@ -474,6 +474,16 @@ class _NonConformityFormState extends State<NonConformityForm> {
               Icon(Icons.circle, color: Colors.red, size: 12),
               SizedBox(width: 8),
               Text('Alta'),
+            ],
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'Crítica',
+          child: Row(
+            children: [
+              Icon(Icons.circle, color: Colors.purple, size: 12),
+              SizedBox(width: 8),
+              Text('Crítica'),
             ],
           ),
         ),

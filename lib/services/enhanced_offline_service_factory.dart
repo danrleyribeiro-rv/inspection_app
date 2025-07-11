@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 import 'package:lince_inspecoes/services/features/enhanced_offline_media_service.dart';
+import 'package:lince_inspecoes/services/features/template_service.dart';
 import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
@@ -18,6 +19,7 @@ class EnhancedOfflineServiceFactory {
   // Core services
   EnhancedOfflineDataService? _dataService;
   EnhancedOfflineMediaService? _mediaService;
+  TemplateService? _templateService;
   FirestoreSyncService? _syncService;
   AuthService? _authService;
   FirebaseService? _firebaseService;
@@ -60,6 +62,11 @@ class EnhancedOfflineServiceFactory {
   SQLiteStorageService get storageService {
     _checkInitialization();
     return _storageService!;
+  }
+
+  TemplateService get templateService {
+    _checkInitialization();
+    return _templateService!;
   }
 
   // Verificar se os serviços foram inicializados
@@ -122,6 +129,10 @@ class EnhancedOfflineServiceFactory {
       debugPrint(
           'EnhancedOfflineServiceFactory: SQLite storage service initialized');
 
+      // 9. Inicializar Template Service
+      _templateService = TemplateService();
+      debugPrint('EnhancedOfflineServiceFactory: Template service initialized');
+
       _isInitialized = true;
       debugPrint(
           'EnhancedOfflineServiceFactory: All enhanced offline services initialized successfully');
@@ -137,6 +148,7 @@ class EnhancedOfflineServiceFactory {
     _isInitialized = false;
     _dataService = null;
     _mediaService = null;
+    _templateService = null;
     _syncService = null;
     _authService = null;
     _firebaseService = null;
@@ -156,7 +168,7 @@ class EnhancedOfflineServiceFactory {
       // Limpar dados do banco
       await _dataService!.clearAllData();
 
-      // Limpar arquivos de mídia - método não existe ainda, comentado
+      // Limpar arquivos de mídia - implementar método clearAllMedia no futuro
       // await _mediaService!.clearAllMedia();
 
       // Limpar SQLite storage

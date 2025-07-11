@@ -15,6 +15,7 @@ import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.
 import 'package:lince_inspecoes/presentation/screens/inspection/inspection_info_dialog.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/sync/sync_progress_overlay.dart';
+import 'package:lince_inspecoes/services/navigation_state_service.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -25,7 +26,7 @@ class InspectionDetailScreen extends StatefulWidget {
   State<InspectionDetailScreen> createState() => _InspectionDetailScreenState();
 }
 
-class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
+class _InspectionDetailScreenState extends State<InspectionDetailScreen> with WidgetsBindingObserver {
   final EnhancedOfflineServiceFactory _serviceFactory =
       EnhancedOfflineServiceFactory.instance;
 
@@ -45,12 +46,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _listenToConnectivity();
     _loadInspection();
+    // Limpa estados de navegação antigos em background
+    NavigationStateService.cleanupOldStates();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Reload data when app resumes to ensure consistency
+      _loadInspection();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Limpar overlay ao sair da tela
     SyncProgressOverlay.hide();
     // Sincronizar ao sair da tela
@@ -138,6 +152,10 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     if (_inspection?.id == null) return;
 
     try {
+      // Clear cache before reloading to ensure consistency
+      _itemsCache.clear();
+      _detailsCache.clear();
+
       // Carregar todos os tópicos
       final topics =
           await _serviceFactory.dataService.getTopics(widget.inspectionId);
@@ -157,6 +175,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
           final itemId = item.id ?? 'item_$itemIndex';
           final details = await _serviceFactory.dataService.getDetails(itemId);
           _detailsCache['${topicId}_$itemId'] = details;
+          debugPrint('InspectionDetailScreen: Loaded ${details.length} details for item $itemId');
         }
       }
 
@@ -164,6 +183,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
         setState(() {
           _topics = topics;
         });
+        debugPrint('InspectionDetailScreen: Successfully loaded ${topics.length} topics with cache refreshed');
       }
     } catch (e) {
       if (mounted) {
@@ -467,13 +487,67 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
     if (_inspection == null) return;
 
     try {
+      // Verificar se o tópico tem ID válido
+      if (topic.id == null) {
+        debugPrint('InspectionDetailScreen: Topic ID is null, cannot add to nested structure');
+        return;
+      }
+      
+      // Buscar itens criados para este tópico
+      final items = await _serviceFactory.dataService.getItems(topic.id!);
+      debugPrint('InspectionDetailScreen: Found ${items.length} items for topic ${topic.id}');
+      
+      // Criar estrutura dos itens com seus detalhes
+      final List<Map<String, dynamic>> itemsData = [];
+      for (final item in items) {
+        if (item.id == null) {
+          debugPrint('InspectionDetailScreen: Item ID is null, skipping item');
+          continue;
+        }
+        
+        final details = await _serviceFactory.dataService.getDetails(item.id!);
+        debugPrint('InspectionDetailScreen: Found ${details.length} details for item ${item.id}');
+        
+        final List<Map<String, dynamic>> detailsData = [];
+        for (final detail in details) {
+          try {
+            detailsData.add({
+              'name': detail.detailName,
+              'value': detail.detailValue ?? '',
+              'type': detail.type ?? 'text',
+              'options': detail.options ?? [],
+              'required': detail.isRequired ?? false,
+              'observation': detail.observation ?? '',
+              'media': [],
+              'non_conformities': [],
+            });
+          } catch (e) {
+            debugPrint('InspectionDetailScreen: Error processing detail ${detail.id}: $e');
+            // Continue com outros detalhes se um falhar
+          }
+        }
+        
+        itemsData.add({
+          'name': item.itemName,
+          'description': item.itemLabel ?? '',
+          'observation': item.observation ?? '',
+          'details': detailsData,
+          'media': [],
+          'non_conformities': [],
+        });
+      }
+      
       // Criar estrutura do tópico como seria no Firestore
       final topicData = {
         'name': topic.topicName,
-        'description': topic.topicLabel,
-        'observation': topic.observation,
-        'items': [], // Inicialmente vazio
+        'description': topic.topicLabel ?? '',
+        'observation': topic.observation ?? '',
+        'items': itemsData,
+        'media': [],
+        'non_conformities': [],
       };
+      
+      debugPrint('InspectionDetailScreen: Created topic data with ${itemsData.length} items');
 
       // Obter os topics atuais da inspeção
       final currentTopics =
@@ -485,11 +559,23 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
       // Atualizar a inspeção com a nova estrutura
       final updatedInspection = _inspection!.copyWith(topics: currentTopics);
 
-      // Salvar no banco local
-      await _serviceFactory.dataService.saveInspection(updatedInspection);
+      try {
+        // Atualizar no banco local (não inserir novamente)
+        await _serviceFactory.dataService.updateInspection(updatedInspection);
+        debugPrint('InspectionDetailScreen: Updated inspection in database');
+      } catch (e) {
+        debugPrint('InspectionDetailScreen: Error updating inspection: $e');
+        rethrow;
+      }
 
-      // Processar a estrutura aninhada atualizada
-      await _serviceFactory.syncService.syncInspection(widget.inspectionId);
+      try {
+        // Processar a estrutura aninhada atualizada
+        await _serviceFactory.syncService.syncInspection(widget.inspectionId);
+        debugPrint('InspectionDetailScreen: Synced inspection');
+      } catch (e) {
+        debugPrint('InspectionDetailScreen: Error syncing inspection: $e');
+        // Não deve impedir a atualização da interface
+      }
 
       // Atualizar o estado local
       _inspection = updatedInspection;
@@ -538,12 +624,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> {
   Future<void> _updateCache() async {
     await _markAsModified();
     // Changes are automatically marked for sync in offline-first mode
-    // Recarregar dados sem setState global
-    await _loadAllData();
-
-    // Trigger UI update to show sync indicator
+    
+    // PRESERVE STATE: Don't reload all data, just mark as modified
+    // The hierarchical view will handle its own state preservation
+    
+    // Trigger minimal UI update to show sync indicator only
     if (mounted) {
-      setState(() {});
+      setState(() {
+        // Only update sync status, don't reload data
+      });
     }
   }
 

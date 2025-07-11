@@ -72,7 +72,7 @@ class Detail {
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
       topicId: json['topic_id']?.toString(),
-      itemId: json['topic_item_id']?.toString(),
+      itemId: json['item_id']?.toString(),
       detailId: json['detail_id']?.toString(),
       position: json['position'] is int ? json['position'] : null,
       orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),

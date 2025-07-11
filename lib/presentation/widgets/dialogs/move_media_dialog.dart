@@ -44,6 +44,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadHierarchy() async {
     try {
+      debugPrint('MoveMediaDialog: Loading hierarchy for inspection ${widget.inspectionId}');
+      
       final inspection =
           await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
@@ -51,30 +53,43 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
         for (int i = 0; i < inspection!.topics!.length; i++) {
           final topicData = inspection.topics![i];
+          final topicId = topicData['id'] ?? 'topic_$i';
+          final topicName = topicData['name'] ??
+              topicData['topic_name'] ??
+              topicData['topicName'] ??
+              'Tópico ${i + 1}';
+              
           topics.add({
-            'id': topicData['id'] ?? 'topic_$i',
-            'name': topicData['name'] ??
-                topicData['topic_name'] ??
-                'Tópico ${i + 1}',
+            'id': topicId,
+            'name': topicName,
             'data': topicData,
           });
+          
+          debugPrint('MoveMediaDialog: Added topic $topicId - $topicName');
         }
 
-        setState(() {
-          _topics = topics;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _topics = topics;
+            _isLoading = false;
+          });
+        }
+        debugPrint('MoveMediaDialog: Loaded ${topics.length} topics');
       } else {
-        setState(() {
-          _topics = [];
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _topics = [];
+            _isLoading = false;
+          });
+        }
+        debugPrint('MoveMediaDialog: No topics found in inspection');
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      debugPrint('MoveMediaDialog: Error loading hierarchy: $e');
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar hierarquia: $e')),
         );
@@ -84,6 +99,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadItems(String topicId) async {
     try {
+      debugPrint('MoveMediaDialog: Loading items for topic $topicId');
+      
       final inspection =
           await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
@@ -99,37 +116,60 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
             for (int i = 0; i < itemsList.length; i++) {
               final itemData = itemsList[i];
+              final itemId = itemData['id'] ?? 'item_${topicIndex}_$i';
+              final itemName = itemData['name'] ?? 
+                  itemData['item_name'] ?? 
+                  itemData['itemName'] ?? 
+                  'Item ${i + 1}';
+                  
               items.add({
-                'id': itemData['id'] ?? 'item_${topicIndex}_$i',
-                'name': itemData['name'] ??
-                    itemData['item_name'] ??
-                    'Item ${i + 1}',
+                'id': itemId,
+                'name': itemName,
                 'data': itemData,
               });
+              
+              debugPrint('MoveMediaDialog: Added item $itemId - $itemName');
             }
 
-            setState(() {
-              _items = items;
-              _selectedItemId = null;
-              _details = [];
-              _selectedDetailId = null;
-              _nonConformities = [];
-              _selectedNonConformityId = null;
-            });
+            if (mounted) {
+              setState(() {
+                _items = items;
+                _selectedItemId = null;
+                _details = [];
+                _selectedDetailId = null;
+                _nonConformities = [];
+                _selectedNonConformityId = null;
+              });
+            }
+            debugPrint('MoveMediaDialog: Loaded ${items.length} items for topic $topicId');
             return;
           }
         }
       }
-      setState(() {
-        _items = [];
-        _selectedItemId = null;
-        _details = [];
-        _selectedDetailId = null;
-        _nonConformities = [];
-        _selectedNonConformityId = null;
-      });
-    } catch (e) {
+      
+      // No items found
       if (mounted) {
+        setState(() {
+          _items = [];
+          _selectedItemId = null;
+          _details = [];
+          _selectedDetailId = null;
+          _nonConformities = [];
+          _selectedNonConformityId = null;
+        });
+      }
+      debugPrint('MoveMediaDialog: No items found for topic $topicId');
+    } catch (e) {
+      debugPrint('MoveMediaDialog: Error loading items: $e');
+      if (mounted) {
+        setState(() {
+          _items = [];
+          _selectedItemId = null;
+          _details = [];
+          _selectedDetailId = null;
+          _nonConformities = [];
+          _selectedNonConformityId = null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar itens: $e')),
         );
@@ -139,6 +179,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadDetails(String itemId) async {
     try {
+      debugPrint('MoveMediaDialog: Loading details for item $itemId');
+      
       final inspection =
           await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection?.topics != null) {
@@ -150,8 +192,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
           for (int itemIndex = 0; itemIndex < itemsList.length; itemIndex++) {
             final itemData = itemsList[itemIndex];
-            final currentItemId =
-                itemData['id'] ?? 'item_${topicIndex}_$itemIndex';
+            final currentItemId = itemData['id'] ?? 'item_${topicIndex}_$itemIndex';
 
             if (currentItemId == itemId) {
               final details = <Map<String, dynamic>>[];
@@ -159,35 +200,55 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
               for (int i = 0; i < detailsList.length; i++) {
                 final detailData = detailsList[i];
+                final detailId = detailData['id'] ?? 'detail_${topicIndex}_${itemIndex}_$i';
+                final detailName = detailData['name'] ??
+                    detailData['detail_name'] ??
+                    detailData['detailName'] ??
+                    'Detalhe ${i + 1}';
+                    
                 details.add({
-                  'id': detailData['id'] ??
-                      'detail_${topicIndex}_${itemIndex}_$i',
-                  'name': detailData['name'] ??
-                      detailData['detail_name'] ??
-                      'Detalhe ${i + 1}',
+                  'id': detailId,
+                  'name': detailName,
                   'data': detailData,
                 });
+                
+                debugPrint('MoveMediaDialog: Added detail $detailId - $detailName');
               }
 
-              setState(() {
-                _details = details;
-                _selectedDetailId = null;
-                _nonConformities = [];
-                _selectedNonConformityId = null;
-              });
+              if (mounted) {
+                setState(() {
+                  _details = details;
+                  _selectedDetailId = null;
+                  _nonConformities = [];
+                  _selectedNonConformityId = null;
+                });
+              }
+              debugPrint('MoveMediaDialog: Loaded ${details.length} details for item $itemId');
               return;
             }
           }
         }
       }
-      setState(() {
-        _details = [];
-        _selectedDetailId = null;
-        _nonConformities = [];
-        _selectedNonConformityId = null;
-      });
-    } catch (e) {
+      
+      // No details found
       if (mounted) {
+        setState(() {
+          _details = [];
+          _selectedDetailId = null;
+          _nonConformities = [];
+          _selectedNonConformityId = null;
+        });
+      }
+      debugPrint('MoveMediaDialog: No details found for item $itemId');
+    } catch (e) {
+      debugPrint('MoveMediaDialog: Error loading details: $e');
+      if (mounted) {
+        setState(() {
+          _details = [];
+          _selectedDetailId = null;
+          _nonConformities = [];
+          _selectedNonConformityId = null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar detalhes: $e')),
         );
@@ -453,7 +514,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                                     style: const TextStyle(fontSize: 11)),
                               );
                             }).toList(),
-                            onChanged: (topicId) {
+                            onChanged: (topicId) async {
                               setState(() {
                                 _selectedTopicId = topicId;
                                 _items = [];
@@ -465,7 +526,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                                 _isNonConformity = false;
                               });
                               if (topicId != null) {
-                                _loadItems(topicId);
+                                await _loadItems(topicId);
                               }
                             },
                             decoration: const InputDecoration(
@@ -495,7 +556,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                             }).toList(),
                             onChanged: _selectedTopicId == null
                                 ? null
-                                : (itemId) {
+                                : (itemId) async {
                                     setState(() {
                                       _selectedItemId = itemId;
                                       _details = [];
@@ -505,7 +566,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                                       _isNonConformity = false;
                                     });
                                     if (itemId != null) {
-                                      _loadDetails(itemId);
+                                      await _loadDetails(itemId);
                                     }
                                   },
                             decoration: const InputDecoration(
@@ -535,7 +596,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                             }).toList(),
                             onChanged: _selectedItemId == null
                                 ? null
-                                : (detailId) {
+                                : (detailId) async {
                                     setState(() {
                                       _selectedDetailId = detailId;
                                       _nonConformities = [];
@@ -543,7 +604,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                                       _isNonConformity = false;
                                     });
                                     if (detailId != null) {
-                                      _loadNonConformities(detailId);
+                                      await _loadNonConformities(detailId);
                                     }
                                   },
                             decoration: const InputDecoration(

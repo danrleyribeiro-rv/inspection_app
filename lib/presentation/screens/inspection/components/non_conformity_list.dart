@@ -8,7 +8,7 @@ import 'package:lince_inspecoes/presentation/screens/inspection/components/non_c
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
-class NonConformityList extends StatelessWidget {
+class NonConformityList extends StatefulWidget {
   final List<Map<String, dynamic>> nonConformities;
   final String inspectionId;
   final Function(String, String) onStatusUpdate;
@@ -28,22 +28,53 @@ class NonConformityList extends StatelessWidget {
     this.onNonConformityUpdated,
   });
 
+  @override
+  State<NonConformityList> createState() => _NonConformityListState();
+}
+
+class _NonConformityListState extends State<NonConformityList> {
+  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final Map<String, int> _mediaCountCache = {};
+  int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
+
   Color _getSeverityColor(String? severity) {
-    switch (severity) {
-      case 'Alta':
+    switch (severity?.toLowerCase()) {
+      case 'alta':
         return Colors.red;
-      case 'Média':
+      case 'média':
+      case 'media':
         return Colors.orange;
-      case 'Baixa':
-        return Colors.blue;
+      case 'baixa':
+        return Colors.green;
+      case 'crítica':
+      case 'critica':
+        return Colors.purple;
       default:
         return Colors.grey;
     }
   }
 
+  Future<int> _getMediaCount(String nonConformityId) async {
+    if (_mediaCountCache.containsKey(nonConformityId)) {
+      return _mediaCountCache[nonConformityId]!;
+    }
+
+    try {
+      final medias = await _serviceFactory.mediaService.getMediaByContext(
+        nonConformityId: nonConformityId,
+      );
+      final count = medias.length;
+      _mediaCountCache[nonConformityId] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting media count for NC $nonConformityId: $e');
+      return 0;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (nonConformities.isEmpty) {
+    if (widget.nonConformities.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -59,11 +90,11 @@ class NonConformityList extends StatelessWidget {
       );
     }
 
-    final filteredNCs = filterByDetailId != null
-        ? nonConformities
-            .where((nc) => nc['detail_id'] == filterByDetailId)
+    final filteredNCs = widget.filterByDetailId != null
+        ? widget.nonConformities
+            .where((nc) => nc['detail_id'] == widget.filterByDetailId)
             .toList()
-        : nonConformities;
+        : widget.nonConformities;
 
     return ListView.builder(
       padding: const EdgeInsets.all(8),
@@ -84,14 +115,15 @@ class NonConformityList extends StatelessWidget {
 
     final isResolved = item['is_resolved'] == true;
 
-    // Se resolvido, usar cor verde. Senão, usar cor baseada na severidade
+    // Se resolvido, usar cor verde escura. Senão, usar cor baseada na severidade
     Color cardColor = isResolved
         ? const Color(0xFF1B5E20) // Verde escuro para resolvidos
-        : switch (severity) {
-            'Alta' => const Color(0xFF4A1E1E),
-            'Média' => const Color(0xFF4A3B1E),
-            'Baixa' => const Color(0xFF1E2A4A),
-            _ => const Color(0xFF3A3A3A),
+        : switch (severity?.toLowerCase()) {
+            'alta' => const Color(0xFF4A1E1E), // Vermelho escuro
+            'média' || 'media' => const Color(0xFF4A3B1E), // Laranja escuro
+            'baixa' => const Color(0xFF1E4A1E), // Verde escuro
+            'crítica' || 'critica' => const Color(0xFF3A1E4A), // Roxo escuro
+            _ => const Color(0xFF3A3A3A), // Cinza escuro
           };
 
     final (statusColor, statusText) =
@@ -111,7 +143,7 @@ class NonConformityList extends StatelessWidget {
     String nonConformityId = item['id'] ?? '';
     if (!nonConformityId.contains('-')) {
       nonConformityId =
-          '$inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
+          '$widget.inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
     }
 
     final parts = nonConformityId.split('-');
@@ -139,8 +171,6 @@ class NonConformityList extends StatelessWidget {
                 if (!isResolved)
                   _buildActionButton(Icons.check_circle, Colors.green,
                       () => _resolveNonConformity(context, item)),
-                _buildActionButton(Icons.edit, Colors.blue,
-                    () => _showEditDialog(context, item)),
                 _buildActionButton(Icons.delete, Colors.red,
                     () => _confirmDelete(context, item)),
               ],
@@ -188,15 +218,36 @@ class NonConformityList extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            // Botões de mídia
+            // Botões de ação: Câmera, Galeria, Editar
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildMediaButton(Icons.camera_alt, 'Capturar', Colors.blue,
-                    () => _captureMedia(context, item)),
-                const SizedBox(width: 8),
-                _buildMediaButton(Icons.photo_library, 'Galeria', Colors.purple,
-                    () => _showMediaGallery(context, item)),
-                const Spacer(),
+                _buildActionButtonV2(
+                  icon: Icons.camera_alt,
+                  label: 'Câmera',
+                  color: Colors.purple,
+                  onPressed: () => _captureMedia(context, item),
+                ),
+                FutureBuilder<int>(
+                  key: ValueKey('nc_media_${item['id']}_$_mediaCountVersion'),
+                  future: _getMediaCount(item['id'] ?? ''),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    return _buildActionButtonV2(
+                      icon: Icons.photo_library,
+                      label: 'Galeria',
+                      color: Colors.purple,
+                      onPressed: () => _showMediaGallery(context, item),
+                      count: count,
+                    );
+                  },
+                ),
+                _buildActionButtonV2(
+                  icon: Icons.edit,
+                  label: 'Editar',
+                  color: Colors.blue,
+                  onPressed: () => _showEditDialog(context, item),
+                ),
               ],
             ),
 
@@ -269,14 +320,14 @@ class NonConformityList extends StatelessWidget {
                 detailIndex != null &&
                 ncIndex != null)
               NonConformityMediaWidget(
-                inspectionId: inspectionId,
+                inspectionId: widget.inspectionId,
                 topicIndex: topicIndex,
                 itemIndex: itemIndex,
                 detailIndex: detailIndex,
                 ncIndex: ncIndex,
                 isReadOnly: status == 'resolvido',
                 onMediaAdded: (_) {},
-                onNonConformityUpdated: onNonConformityUpdated,
+                onNonConformityUpdated: widget.onNonConformityUpdated,
               ),
 
             // Data de criação e botões de ação
@@ -334,13 +385,82 @@ class NonConformityList extends StatelessWidget {
     );
   }
 
+  Widget _buildActionButtonV2({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+    int? count,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 48,
+          height: 48,
+          child: Stack(
+            children: [
+              ElevatedButton(
+                onPressed: onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Icon(icon, size: 20),
+              ),
+              if (count != null && count > 0)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6F4B99),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      count.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
   void _showEditDialog(BuildContext context, Map<String, dynamic> item) {
     showDialog(
       context: context,
       builder: (dialogContext) => NonConformityEditDialog(
         nonConformity: item,
         onSave: (updatedData) {
-          onEditNonConformity(updatedData);
+          widget.onEditNonConformity(updatedData);
           Navigator.of(dialogContext).pop();
         },
       ),
@@ -351,7 +471,7 @@ class NonConformityList extends StatelessWidget {
     String nonConformityId = item['id'] ?? '';
     if (!nonConformityId.contains('-')) {
       nonConformityId =
-          '$inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
+          '$widget.inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
     }
 
     showDialog(
@@ -367,7 +487,7 @@ class NonConformityList extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              onDeleteNonConformity(nonConformityId);
+              widget.onDeleteNonConformity(nonConformityId);
               Navigator.of(dialogContext).pop();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -449,7 +569,7 @@ class NonConformityList extends StatelessWidget {
     updatedItem['resolved_at'] = DateTime.now().toIso8601String();
     updatedItem['resolution_images'] = resolutionImages;
 
-    onEditNonConformity(updatedItem);
+    widget.onEditNonConformity(updatedItem);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -579,20 +699,31 @@ class NonConformityList extends StatelessWidget {
       String nonConformityId = item['id'] ?? '';
       if (!nonConformityId.contains('-')) {
         nonConformityId =
-            '$inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
+            '$widget.inspectionId-${item['topic_id']}-${item['item_id']}-${item['detail_id']}-$nonConformityId';
       }
 
       // Process and save each image
       for (final imagePath in imagePaths) {
         await serviceFactory.mediaService.captureAndProcessMedia(
           inputPath: imagePath,
-          inspectionId: inspectionId,
+          inspectionId: widget.inspectionId,
           type: 'image',
           topicId: item['topic_id'],
           itemId: item['item_id'],
           detailId: item['detail_id'],
           nonConformityId: nonConformityId,
         );
+      }
+
+      // Limpar cache para atualizar contador imediatamente
+      final nonConformityIdForCache = item['id'] ?? '';
+      _mediaCountCache.remove(nonConformityIdForCache);
+      
+      // Forçar rebuild do widget para mostrar nova contagem
+      if (mounted) {
+        setState(() {
+          _mediaCountVersion++; // Força rebuild do FutureBuilder
+        });
       }
 
       if (context.mounted) {
@@ -605,8 +736,8 @@ class NonConformityList extends StatelessWidget {
         );
 
         // Refresh the non-conformity list
-        if (onNonConformityUpdated != null) {
-          onNonConformityUpdated!();
+        if (widget.onNonConformityUpdated != null) {
+          widget.onNonConformityUpdated!();
         }
       }
     } catch (e) {
@@ -623,7 +754,7 @@ class NonConformityList extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => MediaGalleryScreen(
-            inspectionId: inspectionId,
+            inspectionId: widget.inspectionId,
             initialTopicId: item['topic_id'],
             initialItemId: item['item_id'],
             initialDetailId: item['detail_id'],
@@ -638,33 +769,4 @@ class NonConformityList extends StatelessWidget {
     }
   }
 
-  Widget _buildMediaButton(
-      IconData icon, String label, Color color, VoidCallback onPressed) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

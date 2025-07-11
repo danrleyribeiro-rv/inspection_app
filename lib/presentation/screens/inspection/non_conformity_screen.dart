@@ -14,6 +14,7 @@ class NonConformityScreen extends StatefulWidget {
   final dynamic preSelectedTopic;
   final dynamic preSelectedItem;
   final dynamic preSelectedDetail;
+  final List<String>? selectedMediaIds;
 
   const NonConformityScreen({
     super.key,
@@ -21,6 +22,7 @@ class NonConformityScreen extends StatefulWidget {
     this.preSelectedTopic,
     this.preSelectedItem,
     this.preSelectedDetail,
+    this.selectedMediaIds,
   });
 
   @override

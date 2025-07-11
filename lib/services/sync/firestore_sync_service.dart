@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
@@ -116,6 +117,9 @@ class FirestoreSyncService {
 
             // Baixar dados relacionados
             await _downloadInspectionRelatedData(doc.id);
+            
+            // Baixar template da inspeção se necessário
+            await _downloadInspectionTemplate(cloudInspection);
 
             debugPrint('FirestoreSyncService: Downloaded inspection ${doc.id}');
           }
@@ -499,6 +503,34 @@ class FirestoreSyncService {
     }
   }
 
+  Future<void> _downloadInspectionTemplate(Inspection inspection) async {
+    try {
+      if (inspection.templateId == null || inspection.templateId!.isEmpty) {
+        debugPrint('FirestoreSyncService: No template associated with inspection ${inspection.id}');
+        return;
+      }
+
+      debugPrint('FirestoreSyncService: Downloading template ${inspection.templateId} for inspection ${inspection.id}');
+      
+      // Tentar baixar o template usando o template service via service factory
+      try {
+        final serviceFactory = EnhancedOfflineServiceFactory.instance;
+        final templateService = serviceFactory.templateService;
+        final success = await templateService.downloadTemplateForOffline(inspection.templateId!);
+        
+        if (success) {
+          debugPrint('FirestoreSyncService: Successfully downloaded template ${inspection.templateId}');
+        } else {
+          debugPrint('FirestoreSyncService: Failed to download template ${inspection.templateId}');
+        }
+      } catch (e) {
+        debugPrint('FirestoreSyncService: Error downloading template ${inspection.templateId}: $e');
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error in _downloadInspectionTemplate: $e');
+    }
+  }
+
   // ===============================
   // UTILITÁRIOS
   // ===============================
@@ -559,6 +591,9 @@ class FirestoreSyncService {
 
         // Baixar dados relacionados
         await _downloadInspectionRelatedData(inspectionId);
+        
+        // Baixar template da inspeção se necessário
+        await _downloadInspectionTemplate(cloudInspection);
       }
 
       // Upload de alterações locais

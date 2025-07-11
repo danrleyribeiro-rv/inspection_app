@@ -232,6 +232,64 @@ class EnhancedOfflineMediaService {
     }
   }
 
+  // Método simplificado para captura rápida sem processamento pesado
+  Future<OfflineMedia> captureAndProcessMediaSimple({
+    required String inputPath,
+    required String inspectionId,
+    required String type,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    String? nonConformityId,
+  }) async {
+    try {
+      await initialize();
+      
+      final inputFile = File(inputPath);
+      if (!await inputFile.exists()) {
+        throw Exception('Arquivo de entrada não encontrado: $inputPath');
+      }
+
+      final mediaDir = await _mediaDirectory;
+      final mediaId = const Uuid().v4();
+      final extension = path.extension(inputPath);
+      final filename = '$mediaId$extension';
+      final localPath = path.join(mediaDir.path, filename);
+
+      // Cópia simples do arquivo sem processamento
+      await inputFile.copy(localPath);
+
+      // Criar registro de mídia
+      final media = OfflineMedia(
+        id: mediaId,
+        inspectionId: inspectionId,
+        topicId: topicId,
+        itemId: itemId,
+        detailId: detailId,
+        nonConformityId: nonConformityId,
+        type: type,
+        localPath: localPath,
+        filename: filename,
+        fileSize: await inputFile.length(),
+        mimeType: type == 'image' ? 'image/jpeg' : 'video/mp4',
+        isProcessed: true, // Marcar como processado imediatamente
+        isUploaded: false,
+        needsSync: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Salvar no repositório
+      await _mediaRepository.insert(media);
+
+      debugPrint('EnhancedOfflineMediaService: Imagem salva rapidamente: $mediaId');
+      return media;
+    } catch (e) {
+      debugPrint('EnhancedOfflineMediaService: Erro na captura rápida: $e');
+      rethrow;
+    }
+  }
+
   Future<String> uploadProfileImage(String imagePath, String userId) async {
     try {
       final file = File(imagePath);

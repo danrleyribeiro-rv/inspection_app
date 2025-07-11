@@ -24,7 +24,11 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('Warning: .env file not found, using default values');
+  }
 
   // 2. Inicializa serviços de base que não dependem de outros (são estáticos)
   await FirebaseService.initialize();

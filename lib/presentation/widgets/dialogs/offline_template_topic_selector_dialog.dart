@@ -27,6 +27,8 @@ class _OfflineTemplateTopicSelectorDialogState
       EnhancedOfflineServiceFactory.instance;
 
   bool _isLoading = true;
+  bool _isDownloadingTemplate = false;
+  String _downloadStatus = '';
   List<Map<String, dynamic>> _templateTopics = [];
 
   @override
@@ -47,12 +49,73 @@ class _OfflineTemplateTopicSelectorDialogState
         return _extractTopicsFromTemplate(template);
       }
 
-      // Template not found in SQLite storage, check if we need to download it
+      // Try to get template from the inspection's nested structure
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
+      if (inspection != null && inspection.topics != null) {
+        debugPrint(
+            'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Checking if inspection has template topics');
+        
+        // Check if inspection has template structure that can be used
+        final availableTopics = <Map<String, dynamic>>[];
+        for (final topic in inspection.topics!) {
+          if (topic['items'] != null) {
+            availableTopics.add({
+              'topicData': topic,
+              'templateId': templateId,
+              'templateName': 'Template da Inspeção',
+            });
+          }
+        }
+        
+        if (availableTopics.isNotEmpty) {
+          debugPrint(
+              'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Found ${availableTopics.length} topics in inspection template');
+          return availableTopics;
+        }
+      }
+
+      // Template not found locally, try to download it if we're online
       debugPrint(
-          'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Template not found in local storage, would need to download from cloud');
+          'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Template not found locally, attempting to download');
+      
+      // Show download status
+      if (mounted) {
+        setState(() {
+          _isDownloadingTemplate = true;
+          _downloadStatus = 'Baixando template...';
+        });
+      }
+      
+      final downloadSuccess = await _serviceFactory.templateService.downloadTemplateForOffline(templateId);
+      if (downloadSuccess) {
+        // Try to get template again after download
+        final downloadedTemplate = await _serviceFactory.storageService.getTemplate(templateId);
+        if (downloadedTemplate != null) {
+          debugPrint(
+              'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Successfully downloaded and loaded template');
+          
+          // Update download status
+          if (mounted) {
+            setState(() {
+              _isDownloadingTemplate = false;
+              _downloadStatus = 'Template baixado com sucesso!';
+            });
+          }
+          
+          return _extractTopicsFromTemplate(downloadedTemplate);
+        }
+      }
+
+      // Failed to download
+      if (mounted) {
+        setState(() {
+          _isDownloadingTemplate = false;
+          _downloadStatus = 'Não foi possível baixar o template';
+        });
+      }
 
       debugPrint(
-          'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Template not found in local storage');
+          'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Template not available offline and could not be downloaded');
       return [];
     } catch (e) {
       debugPrint(
@@ -178,17 +241,47 @@ class _OfflineTemplateTopicSelectorDialogState
     }
   }
 
+  Future<String> _generateTopicName(String templateName) async {
+    try {
+      final topics =
+          await _serviceFactory.dataService.getTopics(widget.inspectionId);
+      final existingNames = topics.map((t) => t.topicName).toSet();
+      
+      // Se o nome original não existe, use ele
+      if (!existingNames.contains(templateName)) {
+        return templateName;
+      }
+      
+      // Senão, encontre o próximo número disponível baseado no nome original
+      int counter = 2;
+      String newName;
+      do {
+        newName = '$templateName $counter';
+        counter++;
+      } while (existingNames.contains(newName));
+      
+      return newName;
+    } catch (e) {
+      debugPrint('Error generating topic name: $e');
+      return templateName;
+    }
+  }
+
   Future<void> _addTopicFromTemplate(Map<String, dynamic> topicTemplate) async {
     try {
       final topicData = topicTemplate['topicData'] as Map<String, dynamic>;
       final selectedTemplateTopic =
           topicData; // Variável para o contexto do template
 
+      // Generate unique topic name
+      final originalName = topicData['name'] ?? topicData['title'] ?? 'Tópico do Template';
+      final uniqueTopicName = await _generateTopicName(originalName);
+      debugPrint('OfflineTemplateTopicSelectorDialog: Original name: $originalName, Unique name: $uniqueTopicName');
+      
       // Create topic using the data service
       final newTopic = Topic(
         inspectionId: widget.inspectionId,
-        topicName:
-            topicData['name'] ?? topicData['title'] ?? 'Tópico do Template',
+        topicName: uniqueTopicName,
         topicLabel: topicData['description'] ?? '',
         position: await _getNextTopicOrder(),
         createdAt: DateTime.now(),
@@ -213,14 +306,14 @@ class _OfflineTemplateTopicSelectorDialogState
               topicId: topicId,
               itemId: itemId,
               position: templateItem['position'] ?? 0,
-              itemName: templateItem['itemName'] ?? 'Item',
-              itemLabel: templateItem['itemLabel'] ?? 'Item',
+              itemName: templateItem['name'] ?? templateItem['itemName'] ?? 'Item',
+              itemLabel: templateItem['description'] ?? templateItem['itemLabel'] ?? '',
               evaluation: '',
               observation: '',
             );
 
             await _serviceFactory.dataService.saveItem(newItem);
-            debugPrint('Created item $itemId from template');
+            debugPrint('Created item $itemId from template with name: ${newItem.itemName}');
 
             // Criar details do item se disponíveis
             if (templateItem['details'] != null) {
@@ -228,6 +321,17 @@ class _OfflineTemplateTopicSelectorDialogState
 
               for (final templateDetail in templateDetails) {
                 final detailId = const Uuid().v4();
+                // Convert options from List<dynamic> to List<String>?
+                List<String>? detailOptions;
+                if (templateDetail['options'] != null) {
+                  final optionsData = templateDetail['options'];
+                  if (optionsData is List) {
+                    detailOptions = optionsData.map((e) => e.toString()).toList();
+                  } else if (optionsData is String) {
+                    detailOptions = optionsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                  }
+                }
+
                 final newDetail = Detail(
                   id: detailId,
                   inspectionId: widget.inspectionId,
@@ -235,22 +339,23 @@ class _OfflineTemplateTopicSelectorDialogState
                   itemId: itemId,
                   detailId: detailId,
                   position: templateDetail['position'] ?? 0,
-                  detailName: templateDetail['detailName'] ?? 'Detalhe',
-                  detailValue: '',
+                  detailName: templateDetail['name'] ?? templateDetail['detailName'] ?? 'Detalhe',
+                  detailValue: templateDetail['type'] == 'boolean' ? 'não_se_aplica' : '',
                   observation: '',
                   type: templateDetail['type'] ?? 'text',
-                  options: templateDetail['options'],
+                  options: detailOptions,
                   isRequired: templateDetail['isRequired'] ?? false,
                 );
 
                 await _serviceFactory.dataService.saveDetail(newDetail);
-                debugPrint('Created detail $detailId from template');
+                debugPrint('Created detail $detailId from template with name: ${newDetail.detailName}, type: ${newDetail.type}');
               }
             }
           }
         }
       } catch (e) {
         debugPrint('Erro ao criar items e details do template: $e');
+        // Não deve bloquear a criação do tópico se apenas os items/details falharem
       }
 
       if (mounted) {
@@ -258,7 +363,7 @@ class _OfflineTemplateTopicSelectorDialogState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Tópico "${topicData['name'] ?? 'Tópico'}" adicionado com sucesso!'),
+                'Tópico "$uniqueTopicName" adicionado com sucesso!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -285,10 +390,23 @@ class _OfflineTemplateTopicSelectorDialogState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_isLoading) ...[
-              // Loading state
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
+            if (_isLoading || _isDownloadingTemplate) ...[
+              // Loading/Download state
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        _isDownloadingTemplate ? _downloadStatus : 'Carregando templates...',
+                        style: const TextStyle(color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ] else if (_templateTopics.isEmpty) ...[
               // No templates available
@@ -322,6 +440,29 @@ class _OfflineTemplateTopicSelectorDialogState
               ),
             ] else ...[
               // Template topics list
+              if (_downloadStatus.isNotEmpty && _downloadStatus.contains('sucesso')) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    border: Border.all(color: Colors.green),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _downloadStatus,
+                          style: const TextStyle(color: Colors.green, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               Text(
                 'Escolha um tópico do template:',
                 style: Theme.of(context).textTheme.titleSmall,

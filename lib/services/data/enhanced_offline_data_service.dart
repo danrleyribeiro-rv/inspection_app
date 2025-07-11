@@ -786,14 +786,14 @@ class EnhancedOfflineDataService {
   /// Método auxiliar para duplicar um item e seus detalhes
   Future<Item> _duplicateItemWithDetails(
       Item originalItem, String newTopicId) async {
-    // 1. Criar item duplicado
+    // 1. Criar item duplicado (sem adicionar "(Cópia)" ao nome do item)
     final duplicatedItem = Item(
       id: null, // Será gerado automaticamente
       inspectionId: originalItem.inspectionId,
       topicId: newTopicId,
       itemId: originalItem.itemId,
       position: originalItem.position,
-      itemName: '${originalItem.itemName} (Cópia)',
+      itemName: originalItem.itemName, // Manter nome original do item
       itemLabel: originalItem.itemLabel,
       observation: null, // Reset observation
       isDamaged: false, // Reset damage status
@@ -840,5 +840,91 @@ class EnhancedOfflineDataService {
     // 5. Buscar e retornar o item completo salvo
     final savedItem = await getItem(newItemId);
     return savedItem!;
+  }
+
+  /// Duplica um detalhe simples
+  Future<Detail> duplicateDetailWithChildren(String detailId) async {
+    await initialize();
+    
+    // 1. Buscar o detalhe original
+    final originalDetail = await _detailRepository.findById(detailId);
+    if (originalDetail == null) {
+      throw Exception('Detalhe não encontrado: $detailId');
+    }
+    
+    // 2. Criar detalhe duplicado
+    final duplicatedDetail = Detail(
+      id: null, // Será gerado automaticamente
+      inspectionId: originalDetail.inspectionId,
+      topicId: originalDetail.topicId,
+      itemId: originalDetail.itemId,
+      detailId: originalDetail.detailId,
+      position: originalDetail.position,
+      orderIndex: originalDetail.orderIndex,
+      detailName: '${originalDetail.detailName} (Cópia)',
+      detailValue: originalDetail.detailValue,
+      observation: originalDetail.observation,
+      isDamaged: originalDetail.isDamaged ?? false,
+      tags: originalDetail.tags ?? [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      type: originalDetail.type,
+      options: originalDetail.options,
+      status: originalDetail.status,
+      isRequired: originalDetail.isRequired,
+    );
+    
+    // 3. Salvar detalhe duplicado
+    final newDetailId = await saveDetail(duplicatedDetail);
+    
+    debugPrint('EnhancedOfflineDataService: Successfully duplicated detail $detailId -> $newDetailId');
+    
+    // 4. Buscar e retornar o detalhe completo salvo
+    final savedDetail = await getDetail(newDetailId);
+    return savedDetail!;
+  }
+
+  /// Reordena detalhes mantendo a consistência com índices
+  Future<void> reorderDetailsByIndex(String itemId, int oldIndex, int newIndex) async {
+    await initialize();
+    
+    // 1. Buscar todos os detalhes do item
+    final details = await _detailRepository.findByItemId(itemId);
+    if (details.isEmpty || oldIndex >= details.length || newIndex >= details.length) {
+      throw Exception('Índices inválidos para reordenação');
+    }
+    
+    // 2. Reordenar a lista
+    final reorderedDetails = List<Detail>.from(details);
+    final detailToMove = reorderedDetails.removeAt(oldIndex);
+    reorderedDetails.insert(newIndex, detailToMove);
+    
+    // 3. Atualizar orderIndex de todos os detalhes
+    for (int i = 0; i < reorderedDetails.length; i++) {
+      final detail = reorderedDetails[i];
+      final updatedDetail = Detail(
+        id: detail.id,
+        inspectionId: detail.inspectionId,
+        topicId: detail.topicId,
+        itemId: detail.itemId,
+        detailId: detail.detailId,
+        position: detail.position,
+        orderIndex: i, // Novo índice de ordem
+        detailName: detail.detailName,
+        detailValue: detail.detailValue,
+        observation: detail.observation,
+        isDamaged: detail.isDamaged,
+        tags: detail.tags,
+        createdAt: detail.createdAt,
+        updatedAt: DateTime.now(),
+        type: detail.type,
+        options: detail.options,
+        status: detail.status,
+        isRequired: detail.isRequired,
+      );
+      await _detailRepository.update(updatedDetail);
+    }
+    
+    debugPrint('EnhancedOfflineDataService: Successfully reordered ${reorderedDetails.length} details');
   }
 }

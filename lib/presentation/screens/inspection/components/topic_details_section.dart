@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:image_picker/image_picker.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
 
 class TopicDetailsSection extends StatefulWidget {
   final Topic topic;
@@ -32,6 +32,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   Timer? _debounce;
   String _currentTopicName = '';
   bool _isDuplicating = false; // Flag to prevent double duplication
+  final Map<String, int> _mediaCountCache = {};
+  int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
 
   @override
   void initState() {
@@ -56,6 +58,26 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     _observationController.dispose();
     _debounce?.cancel();
     super.dispose();
+  }
+
+  Future<int> _getTopicMediaCount() async {
+    final cacheKey = '${widget.topic.id}';
+    if (_mediaCountCache.containsKey(cacheKey)) {
+      return _mediaCountCache[cacheKey]!;
+    }
+
+    try {
+      final medias = await _serviceFactory.mediaService.getMediaByContext(
+        inspectionId: widget.inspectionId,
+        topicId: widget.topic.id,
+      );
+      final count = medias.length;
+      _mediaCountCache[cacheKey] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting media count for topic ${widget.topic.id}: $e');
+      return 0;
+    }
   }
 
   void _updateTopic() {
@@ -313,140 +335,80 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     }
   }
 
-  void _captureMedia() {
-    _showMediaSourceDialog();
-  }
+  Future<void> _captureMedia() async {
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => MediaCaptureDialog(
+          onMediaCaptured: (filePath, type) async {
+            try {
+              // Processar e salvar mídia
+              await _serviceFactory.mediaService.captureAndProcessMediaSimple(
+                inputPath: filePath,
+                inspectionId: widget.inspectionId,
+                type: type,
+                topicId: widget.topic.id,
+              );
+              
+              // Limpar cache para atualizar contador imediatamente
+              final cacheKey = '${widget.topic.id}';
+              _mediaCountCache.remove(cacheKey);
+              
+              // Forçar rebuild do widget para mostrar nova contagem
+              if (mounted) {
+                setState(() {
+                  _mediaCountVersion++; // Força rebuild do FutureBuilder
+                });
+              }
+              
+              widget.onTopicAction();
 
-  void _showMediaSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Text(
-              'Adicionar Mídia',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.blue),
-              title:
-                  const Text('Câmera', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Tirar foto com a câmera',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _captureFromCamera();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.green),
-              title:
-                  const Text('Galeria', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Escolher foto da galeria',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _selectFromGallery();
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+              if (mounted) {
+                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+
+                // NOVA REGRA: Ir direto para galeria após capturar mídia
+                if (context.mounted) {
+                  debugPrint('TopicDetailsSection: Navigating to gallery for topic ${widget.topic.id}');
+                  
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => MediaGalleryScreen(
+                        inspectionId: widget.inspectionId,
+                        initialTopicId: widget.topic.id,
+                        initialTopicOnly: true,
+                      ),
+                    ),
+                  );
+                }
+              }
+            } catch (e) {
+              debugPrint('Error processing media: $e');
+              if (mounted && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao processar mídia: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
         ),
-      ),
-    );
-  }
-
-  Future<void> _captureFromCamera() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 90,
       );
-
-      if (image != null) {
-        await _handleImagesSelected([image.path]);
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar imagem: $e')),
-        );
-      }
+      debugPrint('Error showing capture dialog: $e');
     }
   }
 
-  Future<void> _selectFromGallery() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final List<XFile> images = await picker.pickMultiImage(
-        imageQuality: 90,
-      );
 
-      if (images.isNotEmpty) {
-        final imagePaths = images.map((image) => image.path).toList();
-        await _handleImagesSelected(imagePaths);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleImagesSelected(List<String> imagePaths) async {
-    try {
-      // Process each image
-      for (final imagePath in imagePaths) {
-        await _serviceFactory.mediaService.captureAndProcessMedia(
-          inputPath: imagePath,
-          inspectionId: widget.inspectionId,
-          type: 'image',
-          topicId: widget.topic.id,
-          itemId: null, // Topic level, no item
-          detailId: null, // Topic level, no detail
-        );
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '${imagePaths.length} imagem(ns) capturada(s) e processada(s) com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao processar mídia: $e')),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -467,17 +429,25 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildActionButton(
-                  icon: Icons.photo_library,
-                  label: 'Galeria',
-                  onPressed: _showMediaGallery,
-                  color: Colors.purple,
-                ),
-                _buildActionButton(
+                 _buildActionButton(
                   icon: Icons.camera_alt,
                   label: 'Capturar',
                   onPressed: _captureMedia,
                   color: Colors.purple,
+                ),
+                FutureBuilder<int>(
+                  key: ValueKey('topic_media_${widget.topic.id}_$_mediaCountVersion'),
+                  future: _getTopicMediaCount(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    return _buildActionButton(
+                      icon: Icons.photo_library,
+                      label: 'Galeria',
+                      onPressed: _showMediaGallery,
+                      color: Colors.purple,
+                      count: count,
+                    );
+                  },
                 ),
                 _buildActionButton(
                   icon: Icons.warning_amber,
@@ -541,9 +511,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                           ? 'Toque para adicionar observações...'
                           : _observationController.text,
                       style: TextStyle(
-                        color: _observationController.text.isEmpty
-                            ? const Color(0xFF6F4B99)
-                            : Colors.white,
+                        color: const Color(0xFF6F4B99), // Sempre usa a cor do tópico
                         fontStyle: _observationController.text.isEmpty
                             ? FontStyle.italic
                             : FontStyle.normal,
@@ -564,6 +532,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     required String label,
     required VoidCallback onPressed,
     Color? color,
+    int? count,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -571,17 +540,46 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         SizedBox(
           width: 48,
           height: 48,
-          child: ElevatedButton(
-            onPressed: onPressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color ?? const Color(0xFF6F4B99),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            children: [
+              ElevatedButton(
+                onPressed: onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color ?? const Color(0xFF6F4B99),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Icon(icon, size: 20),
               ),
-            ),
-            child: Icon(icon, size: 20),
+              if (count != null && count > 0)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6F4B99),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      count.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 4),
@@ -595,4 +593,5 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       ],
     );
   }
+
 }

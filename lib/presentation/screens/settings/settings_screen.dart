@@ -241,8 +241,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Limpar dados locais usando o serviço de armazenamento
-      await _serviceFactory.storageService.clearAllData();
+      // Limpar todos os dados usando o service factory
+      await _serviceFactory.clearAllData();
 
       // Limpar preferências
       final prefs = await SharedPreferences.getInstance();

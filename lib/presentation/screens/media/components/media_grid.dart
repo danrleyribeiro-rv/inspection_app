@@ -408,30 +408,46 @@ class _MediaGridState extends State<MediaGrid> {
                 ),
               ),
 
-              // Informações de tópico/item/detalhe
-              if (mediaItem['topic_name'] != null)
-                Positioned(
-                  top: 4,
-                  left: 4,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withAlpha((255 * 0.7).round()),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      mediaItem['topic_name'] ?? '',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+              // Identificador de origem melhorado
+              Positioned(
+                top: 4,
+                left: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha((255 * 0.8).round()),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Origem da mídia (tópico/item/detalhe)
+                      Text(
+                        _buildOriginText(mediaItem),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      // Tipo específico se disponível
+                      if (_getSpecificOrigin(mediaItem).isNotEmpty)
+                        Text(
+                          _getSpecificOrigin(mediaItem),
+                          style: TextStyle(
+                            color: Colors.white.withAlpha((255 * 0.8).round()),
+                            fontSize: 8,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
+              ),
 
               // Date
               Positioned(
@@ -581,5 +597,59 @@ class _MediaGridState extends State<MediaGrid> {
     );
   }
 
-  // Method removed - not used anywhere
+  String _buildOriginText(Map<String, dynamic> mediaItem) {
+    List<String> parts = [];
+    
+    if (mediaItem['topic_name'] != null) {
+      parts.add('T: ${mediaItem['topic_name']}');
+    }
+    if (mediaItem['item_name'] != null) {
+      parts.add('I: ${mediaItem['item_name']}');
+    }
+    if (mediaItem['detail_name'] != null) {
+      parts.add('D: ${mediaItem['detail_name']}');
+    }
+    
+    if (parts.isEmpty) {
+      return 'Mídia da Inspeção';
+    }
+    
+    return parts.join(' → ');
+  }
+  
+  String _getSpecificOrigin(Map<String, dynamic> mediaItem) {
+    // Parse metadata if it's a JSON string
+    Map<String, dynamic>? metadata;
+    if (mediaItem['metadata'] != null) {
+      if (mediaItem['metadata'] is String) {
+        try {
+          metadata = Map<String, dynamic>.from(
+              jsonDecode(mediaItem['metadata'] as String));
+        } catch (e) {
+          debugPrint('MediaGrid._getSpecificOrigin: Error parsing metadata: $e');
+        }
+      } else if (mediaItem['metadata'] is Map) {
+        metadata = mediaItem['metadata'] as Map<String, dynamic>?;
+      }
+    }
+
+    final source = mediaItem['source'] as String?;
+    final metadataSource = metadata?['source'] as String?;
+    final isFromCamera = source == 'camera' || metadataSource == 'camera';
+    final isNonConformity = mediaItem['is_non_conformity'] == true;
+    
+    List<String> details = [];
+    
+    if (isFromCamera) {
+      details.add('📷 Câmera');
+    } else {
+      details.add('📁 Galeria');
+    }
+    
+    if (isNonConformity) {
+      details.add('⚠️ NC');
+    }
+    
+    return details.join(' • ');
+  }
 }

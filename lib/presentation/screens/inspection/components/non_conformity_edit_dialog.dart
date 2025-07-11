@@ -33,7 +33,10 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
         TextEditingController(text: widget.nonConformity['description'] ?? '');
     _correctiveActionController = TextEditingController(
         text: widget.nonConformity['corrective_action'] ?? '');
-    _severity = widget.nonConformity['severity'] ?? 'Média';
+    
+    // Normalize severity value to match dropdown options
+    final severityValue = widget.nonConformity['severity'] ?? 'Média';
+    _severity = _normalizeSeverity(severityValue);
     _isResolved = widget.nonConformity['is_resolved'] ?? false;
     
     // Load existing resolution images if any
@@ -49,6 +52,30 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
     _correctiveActionController.dispose();
     super.dispose();
   }
+
+  /// Normalize severity values to match dropdown options
+  String _normalizeSeverity(String value) {
+    final normalized = value.toLowerCase().trim();
+    switch (normalized) {
+      case 'baixa':
+      case 'low':
+        return 'Baixa';
+      case 'média':
+      case 'media':
+      case 'medium':
+        return 'Média';
+      case 'alta':
+      case 'high':
+        return 'Alta';
+      case 'crítica':
+      case 'critica':
+      case 'critical':
+        return 'Crítica';
+      default:
+        return 'Média'; // Default fallback
+    }
+  }
+
 
   Future<void> _addResolutionMedia() async {
     _showMediaSourceDialog();
@@ -192,10 +219,75 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'Baixa', child: Text('Baixa')),
-                  DropdownMenuItem(value: 'Média', child: Text('Média')),
-                  DropdownMenuItem(value: 'Alta', child: Text('Alta')),
+                items: [
+                  DropdownMenuItem(
+                    value: 'Baixa',
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Baixa'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Média',
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Média'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Alta',
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Alta'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Crítica',
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Colors.purple,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('Crítica'),
+                      ],
+                    ),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
