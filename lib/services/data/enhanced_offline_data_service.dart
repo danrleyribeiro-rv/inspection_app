@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:lince_inspecoes/models/topic.dart';
@@ -85,6 +86,12 @@ class EnhancedOfflineDataService {
     debugPrint('DataService: Inspection ${inspection.id} updated successfully');
   }
 
+  Future<void> insertOrUpdateInspection(Inspection inspection) async {
+    debugPrint('DataService: Insert or update inspection ${inspection.id}');
+    await _inspectionRepository.insertOrUpdate(inspection);
+    debugPrint('DataService: Inspection ${inspection.id} insert/update completed');
+  }
+
   Future<void> deleteInspection(String id) async {
     await _inspectionRepository.delete(id);
   }
@@ -133,6 +140,12 @@ class EnhancedOfflineDataService {
     return result;
   }
 
+  Future<void> insertOrUpdateTopic(Topic topic) async {
+    debugPrint('DataService: Insert or update topic ${topic.topicName} for inspection ${topic.inspectionId}');
+    await _topicRepository.insertOrUpdate(topic);
+    debugPrint('DataService: Topic ${topic.id} insert/update completed');
+  }
+
   Future<void> updateTopic(Topic topic) async {
     debugPrint('DataService: Updating topic ${topic.id} - ${topic.topicName}');
     await _topicRepository.update(topic);
@@ -179,6 +192,12 @@ class EnhancedOfflineDataService {
     final result = await _itemRepository.insert(item);
     debugPrint('DataService: Item saved with ID: $result');
     return result;
+  }
+
+  Future<void> insertOrUpdateItem(Item item) async {
+    debugPrint('DataService: Insert or update item ${item.itemName} for topic ${item.topicId}');
+    await _itemRepository.insertOrUpdate(item);
+    debugPrint('DataService: Item ${item.id} insert/update completed');
   }
 
   Future<void> updateItem(Item item) async {
@@ -239,6 +258,12 @@ class EnhancedOfflineDataService {
     final result = await _detailRepository.insert(detail);
     debugPrint('DataService: Detail saved with ID: $result');
     return result;
+  }
+
+  Future<void> insertOrUpdateDetail(Detail detail) async {
+    debugPrint('DataService: Insert or update detail ${detail.detailName} for item ${detail.itemId}');
+    await _detailRepository.insertOrUpdate(detail);
+    debugPrint('DataService: Detail ${detail.id} insert/update completed');
   }
 
   Future<void> updateDetail(Detail detail) async {
@@ -325,6 +350,10 @@ class EnhancedOfflineDataService {
     await _nonConformityRepository.update(nonConformity);
   }
 
+  Future<void> insertOrUpdateNonConformity(NonConformity nonConformity) async {
+    await _nonConformityRepository.insertOrUpdate(nonConformity);
+  }
+
   Future<void> deleteNonConformity(String nonConformityId) async {
     await _nonConformityRepository.delete(nonConformityId);
   }
@@ -388,6 +417,59 @@ class EnhancedOfflineDataService {
 
   Future<void> deleteMedia(String mediaId) async {
     await _mediaRepository.delete(mediaId);
+  }
+
+  Future<void> updateMediaCloudUrl(String mediaId, String cloudUrl) async {
+    debugPrint('DataService: Updating media $mediaId cloud URL');
+    await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
+  }
+
+  Future<void> markMediaSynced(String mediaId) async {
+    await _mediaRepository.markSynced(mediaId);
+  }
+
+  Future<List<OfflineMedia>> getMediaByFilename(String filename) async {
+    return await _mediaRepository.findByFilename(filename);
+  }
+
+  Future<File> createMediaFile(String filename) async {
+    return await _mediaRepository.createLocalFile(filename);
+  }
+
+  Future<String> saveOfflineMedia({
+    required String inspectionId,
+    required String filename,
+    required String localPath,
+    required String cloudUrl,
+    required String type,
+    required int fileSize,
+    required String mimeType,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    String? nonConformityId,
+    bool isUploaded = false,
+  }) async {
+    final media = OfflineMedia(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: itemId,
+      detailId: detailId,
+      nonConformityId: nonConformityId,
+      filename: filename,
+      localPath: localPath,
+      cloudUrl: cloudUrl,
+      type: type,
+      fileSize: fileSize,
+      mimeType: mimeType,
+      isProcessed: true,
+      isUploaded: isUploaded,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    
+    return await _mediaRepository.insert(media);
   }
 
   Future<List<OfflineMedia>> getImagesOnly() async {
@@ -537,10 +619,6 @@ class EnhancedOfflineDataService {
 
   Future<void> markNonConformitySynced(String nonConformityId) async {
     await _nonConformityRepository.markSynced(nonConformityId);
-  }
-
-  Future<void> markMediaSynced(String mediaId) async {
-    await _mediaRepository.markSynced(mediaId);
   }
 
   Future<void> markAllInspectionsSynced() async {

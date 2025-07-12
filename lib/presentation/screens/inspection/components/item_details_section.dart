@@ -1,7 +1,6 @@
 // lib/presentation/screens/inspection/components/item_details_section.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:image_picker/image_picker.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
@@ -9,13 +8,14 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class ItemDetailsSection extends StatefulWidget {
   final Item item;
   final Topic topic;
   final String inspectionId;
   final Function(Item) onItemUpdated;
-  final VoidCallback onItemAction;
+  final Future<void> Function() onItemAction;
 
   const ItemDetailsSection({
     super.key,
@@ -47,6 +47,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     _observationController.text = widget.item.observation ?? '';
     _currentItemName = widget.item.itemName;
     _observationController.addListener(_updateItemObservation);
+    
+    // Escutar mudanças nos contadores
+    MediaCounterNotifier.instance.addListener(_onCounterChanged);
   }
 
   @override
@@ -64,7 +67,20 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   void dispose() {
     _observationController.dispose();
     _debounce?.cancel();
+    MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
+  }
+  
+  void _onCounterChanged() {
+    // Invalidar cache quando contadores mudam
+    final cacheKey = '${widget.item.id}_item_only';
+    _mediaCountCache.remove(cacheKey);
+    
+    if (mounted) {
+      setState(() {
+        _mediaCountVersion++; // Força rebuild do FutureBuilder
+      });
+    }
   }
 
   void _updateItemObservation() {
@@ -90,19 +106,27 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   }
 
   Future<int> _getMediaCount() async {
-    final cacheKey = '${widget.item.id}';
+    final cacheKey = '${widget.item.id}_item_only';
     if (_mediaCountCache.containsKey(cacheKey)) {
       return _mediaCountCache[cacheKey]!;
     }
 
     try {
-      final medias = await _serviceFactory.mediaService.getMediaByContext(
+      // Get all media for this item
+      final allItemMedias = await _serviceFactory.mediaService.getMediaByContext(
         inspectionId: widget.inspectionId,
         topicId: widget.topic.id,
         itemId: widget.item.id,
       );
-      final count = medias.length;
+      
+      // Filter to show only item-level media (no detail specified)
+      final itemOnlyMedias = allItemMedias.where((media) {
+        return media.detailId == null;
+      }).toList();
+      
+      final count = itemOnlyMedias.length;
       _mediaCountCache[cacheKey] = count;
+      debugPrint('ItemDetailsSection: Item ${widget.item.id} has $count item-only media (filtered from ${allItemMedias.length} total)');
       return count;
     } catch (e) {
       debugPrint('Error getting media count for item ${widget.item.id}: $e');
@@ -132,39 +156,44 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       await showDialog(
         context: context,
         builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type) async {
+          onMediaCaptured: (filePath, type, source) async {
             try {
               if (mounted) setState(() => _processingCount++);
-              await _processAndSaveMedia(filePath, type);
+              await _processAndSaveMedia(filePath, type, source);
               if (mounted) setState(() => _processingCount--);
-              widget.onItemAction();
+              
+              // Chamar atualização imediatamente
+              await widget.onItemAction();
 
-              if (mounted) {
-                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 1),
+              if (mounted && context.mounted) {
+                // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia
+                debugPrint('ItemDetailsSection: IMMEDIATELY navigating to gallery for item ${widget.item.id}');
+                debugPrint('ItemDetailsSection: TopicId=${widget.topic.id}');
+                
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MediaGalleryScreen(
+                      inspectionId: widget.inspectionId,
+                      initialTopicId: widget.topic.id,
+                      initialItemId: widget.item.id,
+                      initialItemOnly: true,
+                    ),
                   ),
                 );
 
-                // NOVA REGRA: Ir direto para galeria após capturar mídia
-                if (context.mounted) {
-                  debugPrint('ItemDetailsSection: Navigating to gallery for item ${widget.item.id}');
-                  debugPrint('ItemDetailsSection: TopicId=${widget.topic.id}');
-                  
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => MediaGalleryScreen(
-                        inspectionId: widget.inspectionId,
-                        initialTopicId: widget.topic.id,
-                        initialItemId: widget.item.id,
-                        initialItemOnly: true,
+                // Mostrar mensagem após um pequeno delay para não interferir na navegação
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (context.mounted) {
+                    final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 1),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
+                });
               }
             } catch (e) {
               if (mounted) setState(() => _processingCount--);
@@ -187,38 +216,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     }
   }
 
-  Future<void> _selectFromGallery() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final List<XFile> images = await picker.pickMultiImage(
-        imageQuality: 90,
-      );
-
-      if (images.isNotEmpty) {
-        final imagePaths = images.map((image) => image.path).toList();
-        await _handleImagesSelected(imagePaths);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleImagesSelected(List<String> imagePaths) async {
-    if (mounted) setState(() => _processingCount += imagePaths.length);
-    for (final path in imagePaths) {
-      _processAndSaveMedia(path, 'image').whenComplete(() {
-        if (mounted) setState(() => _processingCount--);
-      });
-    }
-    widget.onItemAction();
-  }
 
 
-  Future<void> _processAndSaveMedia(String localPath, String type) async {
+
+  Future<void> _processAndSaveMedia(String localPath, String type, String source) async {
     try {
       // Usar método simplificado para captura rápida
       await _serviceFactory.mediaService.captureAndProcessMediaSimple(
@@ -227,18 +228,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         type: type,
         topicId: widget.topic.id,
         itemId: widget.item.id,
+        source: source,
       );
 
-      // Limpar cache para atualizar contador imediatamente
-      final cacheKey = '${widget.item.id}';
-      _mediaCountCache.remove(cacheKey);
-      
-      // Forçar rebuild do widget para mostrar nova contagem
-      if (mounted) {
-        setState(() {
-          _mediaCountVersion++; // Força rebuild do FutureBuilder
-        });
-      }
+      // Cache será invalidado automaticamente pelo MediaCounterNotifier
 
       // A mídia já foi salva pelo MediaService, não precisa fazer nada mais
     } catch (e) {
@@ -335,8 +328,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       await _serviceFactory.dataService
           .duplicateItemWithChildren(widget.item.id!);
 
-      // Only call onItemAction once to avoid double refresh
-      widget.onItemAction();
+      // Chamar atualização imediatamente para mostrar nova estrutura
+      await widget.onItemAction();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -410,7 +403,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             .showSnackBar(SnackBar(content: Text('Erro ao excluir item: $e')));
       }
     }
-    widget.onItemAction();
+    await widget.onItemAction();
   }
 
   @override

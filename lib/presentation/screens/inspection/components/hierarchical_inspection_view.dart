@@ -14,7 +14,7 @@ class HierarchicalInspectionView extends StatefulWidget {
   final List<Topic> topics;
   final Map<String, List<Item>> itemsCache;
   final Map<String, List<Detail>> detailsCache;
-  final VoidCallback onUpdateCache;
+  final Future<void> Function() onUpdateCache;
 
   const HierarchicalInspectionView({
     super.key,
@@ -141,7 +141,7 @@ class _HierarchicalInspectionViewState
   }
 
   Future<void> _reloadCurrentData() async {
-    widget.onUpdateCache();
+    await widget.onUpdateCache();
     if (mounted) setState(() {});
   }
 
@@ -259,9 +259,9 @@ class _HierarchicalInspectionViewState
                               setState(() {}); // Atualização instantânea local
                             }
                           },
-                          onTopicAction: () {
-                            // PRESERVE STATE: Light refresh without parent reload
-                            if (mounted) setState(() {});
+                          onTopicAction: () async {
+                            // Atualizar cache e recarregar dados
+                            await widget.onUpdateCache();
                           },
                         ),
                       ),
@@ -391,9 +391,9 @@ class _HierarchicalInspectionViewState
                                               () {}); // Atualização instantânea local
                                         }
                                       },
-                                      onItemAction: () {
-                                        // PRESERVE STATE: Light refresh without parent reload
-                                        if (mounted) setState(() {});
+                                      onItemAction: () async {
+                                        // Atualizar cache e recarregar dados
+                                        await widget.onUpdateCache();
                                       },
                                     ),
 
@@ -495,9 +495,9 @@ class _HierarchicalInspectionViewState
                                               }
                                               setState(() {});
                                             },
-                                            onDetailAction: () {
-                                              // PRESERVE STATE: Light refresh without parent reload
-                                              if (mounted) setState(() {});
+                                            onDetailAction: () async {
+                                              // Atualizar cache e recarregar dados
+                                              await widget.onUpdateCache();
                                             },
                                             onDetailExpanded: (detailId) {
                                               // Salva qual detalhe foi expandido

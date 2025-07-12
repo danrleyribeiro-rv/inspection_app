@@ -623,17 +623,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
   Future<void> _updateCache() async {
     await _markAsModified();
-    // Changes are automatically marked for sync in offline-first mode
     
-    // PRESERVE STATE: Don't reload all data, just mark as modified
-    // The hierarchical view will handle its own state preservation
+    // Recarregar todos os dados para garantir atualização visual instantânea
+    await _loadAllData();
     
-    // Trigger minimal UI update to show sync indicator only
-    if (mounted) {
-      setState(() {
-        // Only update sync status, don't reload data
-      });
-    }
+    debugPrint('InspectionDetailScreen: Cache updated with fresh data');
   }
 
   Future<void> _importInspection() async {

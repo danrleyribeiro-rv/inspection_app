@@ -10,6 +10,7 @@ import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_s
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
 import 'package:lince_inspecoes/services/navigation_state_service.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 // O widget DetailsListSection e seu State permanecem os mesmos.
 // A mudança principal está dentro do DetailListItem.
@@ -21,7 +22,7 @@ class DetailsListSection extends StatefulWidget {
   final Topic topic;
   final String inspectionId;
   final Function(Detail) onDetailUpdated;
-  final VoidCallback onDetailAction;
+  final Future<void> Function() onDetailAction;
   final String? expandedDetailId; // ID do detalhe que deve estar expandido
   final Function(String?)? onDetailExpanded; // Callback quando um detalhe é expandido
   final int topicIndex; // Índice do tópico atual na lista
@@ -112,9 +113,9 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           'DetailsListSection: Successfully reordered ${_localDetails.length} details');
 
       // Notify parent to refresh - delayed to ensure database is updated
-      Future.delayed(const Duration(milliseconds: 100), () {
+      Future.delayed(const Duration(milliseconds: 100), () async {
         if (mounted) {
-          widget.onDetailAction();
+          await widget.onDetailAction();
         }
       });
     } catch (e) {
@@ -236,7 +237,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         );
       }
     }
-    widget.onDetailAction();
+    await widget.onDetailAction();
   }
 
   Future<void> _duplicateDetail(Detail detail) async {
@@ -269,7 +270,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           .duplicateDetailWithChildren(detail.id!);
 
       // Reload the details to show the duplicated item
-      widget.onDetailAction();
+      await widget.onDetailAction();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -287,7 +288,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         );
       }
     }
-    widget.onDetailAction();
+    await widget.onDetailAction();
   }
 }
 
@@ -342,12 +343,27 @@ class _DetailListItemState extends State<DetailListItem> {
   String _currentDetailName = '';
   final Map<String, int> _mediaCountCache = {};
   int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
-
+  
   @override
   void initState() {
     super.initState();
     _initializeControllers();
     _observationController.addListener(_updateDetail);
+    
+    // Escutar mudanças nos contadores de mídia
+    MediaCounterNotifier.instance.addListener(_onCounterChanged);
+  }
+  
+  void _onCounterChanged() {
+    // Invalidar cache quando contadores mudam
+    final cacheKey = '${widget.detail.id}';
+    _mediaCountCache.remove(cacheKey);
+    
+    if (mounted) {
+      setState(() {
+        _mediaCountVersion++; // Força rebuild do FutureBuilder
+      });
+    }
   }
 
   @override
@@ -397,6 +413,7 @@ class _DetailListItemState extends State<DetailListItem> {
     _widthController.dispose();
     _depthController.dispose();
     _debounce?.cancel();
+    MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
   }
 
@@ -557,7 +574,7 @@ class _DetailListItemState extends State<DetailListItem> {
       await showDialog(
         context: context,
         builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type) async {
+          onMediaCaptured: (filePath, type, source) async {
             try {
               // Processar e salvar mídia
               await _serviceFactory.mediaService.captureAndProcessMediaSimple(
@@ -567,32 +584,15 @@ class _DetailListItemState extends State<DetailListItem> {
                 topicId: widget.detail.topicId,
                 itemId: widget.detail.itemId,
                 detailId: widget.detail.id,
+                source: source,
               );
 
-              // Limpar cache para atualizar contador imediatamente
-              final cacheKey = '${widget.detail.id}';
-              _mediaCountCache.remove(cacheKey);
-              
-              // Forçar rebuild do widget para mostrar nova contagem
-              if (mounted) {
-                setState(() {
-                  _mediaCountVersion++; // Força rebuild do FutureBuilder
-                });
-              }
+              // O contador será atualizado automaticamente via MediaCounterNotifier
 
               if (mounted && context.mounted) {
-                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-
-                // NOVA REGRA: Ir direto para galeria após capturar mídia
+                // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia
                 if (widget.detail.id != null) {
-                  debugPrint('DetailListItem: Navigating to gallery for detail ${widget.detail.id}');
+                  debugPrint('DetailListItem: IMMEDIATELY navigating to gallery for detail ${widget.detail.id}');
                   debugPrint('DetailListItem: TopicId=${widget.detail.topicId}, ItemId=${widget.detail.itemId}');
                   
                   // Salva o estado para que este detalhe específico fique expandido quando voltar
@@ -617,6 +617,20 @@ class _DetailListItemState extends State<DetailListItem> {
                       ),
                     );
                   }
+
+                  // Mostrar mensagem após um pequeno delay para não interferir na navegação
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (context.mounted) {
+                      final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(message),
+                          backgroundColor: Colors.green,
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    }
+                  });
                 }
               }
             } catch (e) {

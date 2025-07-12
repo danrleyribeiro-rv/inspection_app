@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 class MediaCaptureDialog extends StatelessWidget {
-  final Function(String filePath, String type) onMediaCaptured;
+  final Function(String filePath, String type, String source) onMediaCaptured;
 
   const MediaCaptureDialog({
     super.key,
@@ -104,7 +104,11 @@ class MediaCaptureDialog extends StatelessWidget {
       );
 
       if (photo != null) {
-        onMediaCaptured(photo.path, 'image');
+        debugPrint('MediaCaptureDialog: Photo captured successfully, calling callback with path: ${photo.path}');
+        onMediaCaptured(photo.path, 'image', 'camera');
+        debugPrint('MediaCaptureDialog: Callback called successfully');
+      } else {
+        debugPrint('MediaCaptureDialog: Photo capture was cancelled by user');
       }
     } catch (e) {
       debugPrint('Error capturing photo: $e');
@@ -122,7 +126,11 @@ class MediaCaptureDialog extends StatelessWidget {
       );
 
       if (video != null) {
-        onMediaCaptured(video.path, 'video');
+        debugPrint('MediaCaptureDialog: Video captured successfully, calling callback with path: ${video.path}');
+        onMediaCaptured(video.path, 'video', 'camera');
+        debugPrint('MediaCaptureDialog: Callback called successfully');
+      } else {
+        debugPrint('MediaCaptureDialog: Video capture was cancelled by user');
       }
     } catch (e) {
       debugPrint('Error capturing video: $e');

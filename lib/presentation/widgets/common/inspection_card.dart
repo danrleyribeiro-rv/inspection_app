@@ -16,6 +16,7 @@ class InspectionCard extends StatelessWidget {
   final double downloadProgress; // Progresso de download (0.0 a 1.0)
   final bool
       needsSync; // Se a inspeção tem mudanças que precisam ser sincronizadas
+  final bool hasConflicts; // Se a inspeção tem conflitos com a versão na nuvem
 
   const InspectionCard({
     super.key,
@@ -29,6 +30,7 @@ class InspectionCard extends StatelessWidget {
     this.isFullyDownloaded = false,
     this.downloadProgress = 0.0,
     this.needsSync = false,
+    this.hasConflicts = false,
   });
 
   @override
@@ -108,7 +110,21 @@ class InspectionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (needsSync)
+                  if (hasConflicts)
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.deepOrange.withAlpha(51),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.deepOrange, width: 1),
+                      ),
+                      child: const Icon(
+                        Icons.warning_rounded,
+                        size: 12,
+                        color: Colors.deepOrange,
+                      ),
+                    ),
+                  if (needsSync && !hasConflicts)
                     Container(
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(

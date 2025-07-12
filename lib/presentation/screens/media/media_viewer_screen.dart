@@ -69,11 +69,35 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Widget _buildMediaWidget(Map<String, dynamic> media, int index) {
     final bool isImage = media['type'] == 'image';
-    final String displayPath = media['local_path'] ?? media['url'] ?? '';
+    
+    // Try multiple path formats for compatibility
+    String displayPath = '';
+    if (media['localPath'] != null && media['localPath'].toString().isNotEmpty) {
+      displayPath = media['localPath'].toString();
+    } else if (media['local_path'] != null && media['local_path'].toString().isNotEmpty) {
+      displayPath = media['local_path'].toString();
+    } else if (media['cloudUrl'] != null && media['cloudUrl'].toString().isNotEmpty) {
+      displayPath = media['cloudUrl'].toString();
+    } else if (media['url'] != null && media['url'].toString().isNotEmpty) {
+      displayPath = media['url'].toString();
+    }
+
+    debugPrint('MediaViewerScreen: Media ID ${media['id']} - displayPath: $displayPath');
+    debugPrint('MediaViewerScreen: Available keys: ${media.keys.toList()}');
 
     // Check if media is available
     if (displayPath.isEmpty) {
+      debugPrint('MediaViewerScreen: No valid path found for media ${media['id']}');
       return _buildUnavailableWidget();
+    }
+
+    // Verify local file exists
+    if (!displayPath.startsWith('http')) {
+      final file = File(displayPath);
+      if (!file.existsSync()) {
+        debugPrint('MediaViewerScreen: Local file does not exist: $displayPath');
+        return _buildUnavailableWidget();
+      }
     }
 
     if (isImage) {
@@ -87,8 +111,18 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   Widget _buildVideoPlayer(Map<String, dynamic> media, int index) {
     VideoPlayerController? controller = _videoControllers[index];
     if (controller == null) {
-      // Get best available path using MediaService
-      final String displayPath = media['local_path'] ?? media['url'] ?? '';
+      // Get best available path using multiple formats
+      String displayPath = '';
+      if (media['localPath'] != null && media['localPath'].toString().isNotEmpty) {
+        displayPath = media['localPath'].toString();
+      } else if (media['local_path'] != null && media['local_path'].toString().isNotEmpty) {
+        displayPath = media['local_path'].toString();
+      } else if (media['cloudUrl'] != null && media['cloudUrl'].toString().isNotEmpty) {
+        displayPath = media['cloudUrl'].toString();
+      } else if (media['url'] != null && media['url'].toString().isNotEmpty) {
+        displayPath = media['url'].toString();
+      }
+      
       if (displayPath.isEmpty) {
         return _buildUnavailableWidget();
       }

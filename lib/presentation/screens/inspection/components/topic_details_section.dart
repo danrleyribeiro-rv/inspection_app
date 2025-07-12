@@ -6,12 +6,13 @@ import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart'
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class TopicDetailsSection extends StatefulWidget {
   final Topic topic;
   final String inspectionId;
   final Function(Topic) onTopicUpdated;
-  final VoidCallback onTopicAction;
+  final Future<void> Function() onTopicAction;
 
   const TopicDetailsSection({
     super.key,
@@ -40,6 +41,12 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     super.initState();
     _observationController.text = widget.topic.observation ?? '';
     _currentTopicName = widget.topic.topicName;
+    
+    // Adicionar listener para observações
+    _observationController.addListener(_updateTopic);
+    
+    // Escutar mudanças nos contadores
+    MediaCounterNotifier.instance.addListener(_onCounterChanged);
   }
 
   @override
@@ -57,22 +64,43 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   void dispose() {
     _observationController.dispose();
     _debounce?.cancel();
+    MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
+  }
+  
+  void _onCounterChanged() {
+    // Invalidar cache quando contadores mudam
+    final cacheKey = '${widget.topic.id}_topic_only';
+    _mediaCountCache.remove(cacheKey);
+    
+    if (mounted) {
+      setState(() {
+        _mediaCountVersion++; // Força rebuild do FutureBuilder
+      });
+    }
   }
 
   Future<int> _getTopicMediaCount() async {
-    final cacheKey = '${widget.topic.id}';
+    final cacheKey = '${widget.topic.id}_topic_only';
     if (_mediaCountCache.containsKey(cacheKey)) {
       return _mediaCountCache[cacheKey]!;
     }
 
     try {
-      final medias = await _serviceFactory.mediaService.getMediaByContext(
+      // Get only media at topic level (no item or detail specified)
+      final allTopicMedias = await _serviceFactory.mediaService.getMediaByContext(
         inspectionId: widget.inspectionId,
         topicId: widget.topic.id,
       );
-      final count = medias.length;
+      
+      // Filter to show only topic-level media (no item or detail)
+      final topicOnlyMedias = allTopicMedias.where((media) {
+        return media.itemId == null && media.detailId == null;
+      }).toList();
+      
+      final count = topicOnlyMedias.length;
       _mediaCountCache[cacheKey] = count;
+      debugPrint('TopicDetailsSection: Topic ${widget.topic.id} has $count topic-only media (filtered from ${allTopicMedias.length} total)');
       return count;
     } catch (e) {
       debugPrint('Error getting media count for topic ${widget.topic.id}: $e');
@@ -138,6 +166,15 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       setState(() {
         _observationController.text = result;
       });
+      
+      // Atualizar UI imediatamente
+      final updatedTopic = widget.topic.copyWith(
+        observation: result.isEmpty ? null : result,
+        updatedAt: DateTime.now(),
+      );
+      widget.onTopicUpdated(updatedTopic);
+      
+      // Então salvar no banco
       _updateTopic();
     }
   }
@@ -224,8 +261,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       await _serviceFactory.dataService
           .duplicateTopicWithChildren(widget.topic.id!);
 
-      // Only call onTopicAction once to avoid double refresh
-      widget.onTopicAction();
+      // Chamar atualização imediatamente para mostrar nova estrutura
+      await widget.onTopicAction();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -276,7 +313,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
     try {
       await _serviceFactory.dataService.deleteTopic(widget.topic.id ?? '');
-      widget.onTopicAction();
+      await widget.onTopicAction();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -340,7 +377,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       await showDialog(
         context: context,
         builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type) async {
+          onMediaCaptured: (filePath, type, source) async {
             try {
               // Processar e salvar mídia
               await _serviceFactory.mediaService.captureAndProcessMediaSimple(
@@ -348,45 +385,41 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                 inspectionId: widget.inspectionId,
                 type: type,
                 topicId: widget.topic.id,
+                source: source,
               );
               
-              // Limpar cache para atualizar contador imediatamente
-              final cacheKey = '${widget.topic.id}';
-              _mediaCountCache.remove(cacheKey);
+              // Cache será invalidado automaticamente pelo MediaCounterNotifier
               
-              // Forçar rebuild do widget para mostrar nova contagem
-              if (mounted) {
-                setState(() {
-                  _mediaCountVersion++; // Força rebuild do FutureBuilder
-                });
-              }
-              
-              widget.onTopicAction();
+              // Chamar atualização imediatamente
+              await widget.onTopicAction();
 
-              if (mounted) {
-                final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 1),
+              if (mounted && context.mounted) {
+                // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia
+                debugPrint('TopicDetailsSection: IMMEDIATELY navigating to gallery for topic ${widget.topic.id}');
+                
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MediaGalleryScreen(
+                      inspectionId: widget.inspectionId,
+                      initialTopicId: widget.topic.id,
+                      initialTopicOnly: true,
+                    ),
                   ),
                 );
 
-                // NOVA REGRA: Ir direto para galeria após capturar mídia
-                if (context.mounted) {
-                  debugPrint('TopicDetailsSection: Navigating to gallery for topic ${widget.topic.id}');
-                  
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => MediaGalleryScreen(
-                        inspectionId: widget.inspectionId,
-                        initialTopicId: widget.topic.id,
-                        initialTopicOnly: true,
+                // Mostrar mensagem após um pequeno delay para não interferir na navegação
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (context.mounted) {
+                    final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 1),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
+                });
               }
             } catch (e) {
               debugPrint('Error processing media: $e');

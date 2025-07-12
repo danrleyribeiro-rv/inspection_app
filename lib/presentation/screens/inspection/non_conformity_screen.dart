@@ -406,6 +406,21 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     _tabController.animateTo(1);
   }
 
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _FilterDialog(
+        topics: _topics,
+        items: _items,
+        details: _details,
+        onFilterSelected: (detailId) {
+          setState(() => _filterByDetailId = detailId);
+        },
+        currentFilterId: _filterByDetailId,
+      ),
+    );
+  }
+
   String _determineLevel() {
     // Determine the appropriate level based on preselected parameters
     if (widget.preSelectedDetail != null) {
@@ -494,24 +509,18 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                               const SizedBox(width: 8),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: _selectedDetail != null
-                                      ? () => setState(() => _filterByDetailId =
-                                          _selectedDetail!.id)
-                                      : null,
+                                  onPressed: _showFilterDialog,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        _filterByDetailId == _selectedDetail?.id
-                                            ? const Color(0xFFBB8FEB)
-                                            : Colors.grey[700],
+                                    backgroundColor: _filterByDetailId != null
+                                        ? const Color(0xFFBB8FEB)
+                                        : Colors.grey[700],
                                     foregroundColor: Colors.white,
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 8),
                                   ),
-                                  child: Text(
-                                    _selectedDetail != null
-                                        ? 'Detalhe Atual'
-                                        : 'Selecionar Detalhe',
-                                    style: const TextStyle(fontSize: 10),
+                                  child: const Text(
+                                    'Filtrar por Local',
+                                    style: TextStyle(fontSize: 10),
                                   ),
                                 ),
                               ),
@@ -579,6 +588,192 @@ class _NonConformityScreenState extends State<NonConformityScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+class _FilterDialog extends StatefulWidget {
+  final List<Topic> topics;
+  final List<Item> items;
+  final List<Detail> details;
+  final Function(String?) onFilterSelected;
+  final String? currentFilterId;
+
+  const _FilterDialog({
+    required this.topics,
+    required this.items,
+    required this.details,
+    required this.onFilterSelected,
+    this.currentFilterId,
+  });
+
+  @override
+  State<_FilterDialog> createState() => _FilterDialogState();
+}
+
+class _FilterDialogState extends State<_FilterDialog> {
+  Topic? _selectedTopic;
+  Item? _selectedItem;
+  Detail? _selectedDetail;
+  List<Item> _filteredItems = [];
+  List<Detail> _filteredDetails = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeFromCurrentFilter();
+  }
+
+  void _initializeFromCurrentFilter() {
+    if (widget.currentFilterId != null) {
+      final detail = widget.details.firstWhere(
+        (d) => d.id == widget.currentFilterId,
+        orElse: () => Detail(inspectionId: '', detailName: ''),
+      );
+      
+      if (detail.id != null) {
+        _selectedDetail = detail;
+        
+        final item = widget.items.firstWhere(
+          (i) => i.id == detail.itemId,
+          orElse: () => Item(inspectionId: '', position: 0, itemName: ''),
+        );
+        
+        if (item.id != null) {
+          _selectedItem = item;
+          
+          final topic = widget.topics.firstWhere(
+            (t) => t.id == item.topicId,
+            orElse: () => Topic(inspectionId: '', position: 0, topicName: ''),
+          );
+          
+          if (topic.id != null) {
+            _selectedTopic = topic;
+            _filterItemsByTopic();
+            _filterDetailsByItem();
+          }
+        }
+      }
+    }
+  }
+
+  void _filterItemsByTopic() {
+    if (_selectedTopic?.id != null) {
+      _filteredItems = widget.items.where((item) => item.topicId == _selectedTopic!.id).toList();
+    } else {
+      _filteredItems = [];
+    }
+  }
+
+  void _filterDetailsByItem() {
+    if (_selectedItem?.id != null) {
+      _filteredDetails = widget.details.where((detail) => detail.itemId == _selectedItem!.id).toList();
+    } else {
+      _filteredDetails = [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Filtrar por Local'),
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.8,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Seleção de Tópico
+            const Text('Tópico:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<Topic>(
+              value: _selectedTopic,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Selecione um tópico',
+              ),
+              items: widget.topics.map((topic) {
+                return DropdownMenuItem(
+                  value: topic,
+                  child: Text(topic.topicName, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (topic) {
+                setState(() {
+                  _selectedTopic = topic;
+                  _selectedItem = null;
+                  _selectedDetail = null;
+                  _filterItemsByTopic();
+                  _filteredDetails = [];
+                });
+              },
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Seleção de Item
+            const Text('Item:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<Item>(
+              value: _selectedItem,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Selecione um item',
+              ),
+              items: _filteredItems.map((item) {
+                return DropdownMenuItem(
+                  value: item,
+                  child: Text(item.itemName, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: _filteredItems.isNotEmpty ? (item) {
+                setState(() {
+                  _selectedItem = item;
+                  _selectedDetail = null;
+                  _filterDetailsByItem();
+                });
+              } : null,
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Seleção de Detalhe
+            const Text('Detalhe:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<Detail>(
+              value: _selectedDetail,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Selecione um detalhe',
+              ),
+              items: _filteredDetails.map((detail) {
+                return DropdownMenuItem(
+                  value: detail,
+                  child: Text(detail.detailName, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: _filteredDetails.isNotEmpty ? (detail) {
+                setState(() {
+                  _selectedDetail = detail;
+                });
+              } : null,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () {
+            widget.onFilterSelected(_selectedDetail?.id);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Aplicar Filtro'),
+        ),
+      ],
     );
   }
 }

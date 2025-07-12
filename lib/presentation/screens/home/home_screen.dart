@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/presentation/screens/home/inspection_tab.dart';
 import 'package:lince_inspecoes/presentation/screens/home/profile_tab.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/services/native_sync_service.dart';
+import 'package:lince_inspecoes/services/simple_notification_service.dart';
+import 'package:lince_inspecoes/presentation/widgets/permissions/notification_permission_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkAuth();
+    _initializeNotifications();
   }
 
   void _checkAuth() {
@@ -33,6 +37,36 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.of(context).pushReplacementNamed('/login');
       });
     }
+  }
+
+  void _initializeNotifications() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        // Initialize native sync service
+        await NativeSyncService.instance.initialize();
+        
+        // Check if notifications are already enabled
+        final alreadyEnabled = await SimpleNotificationService.instance.areNotificationsEnabled();
+        
+        if (!alreadyEnabled) {
+          // Request notification permission after a short delay
+          await Future.delayed(const Duration(seconds: 1));
+          
+          if (mounted) {
+            final granted = await NotificationPermissionDialog.show(context);
+            if (granted) {
+              debugPrint('HomeScreen: Notification permission granted');
+            } else {
+              debugPrint('HomeScreen: Notification permission denied');
+            }
+          }
+        } else {
+          debugPrint('HomeScreen: Notifications already enabled');
+        }
+      } catch (e) {
+        debugPrint('HomeScreen: Error initializing notifications: $e');
+      }
+    });
   }
 
   @override

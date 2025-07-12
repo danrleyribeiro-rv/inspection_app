@@ -1,5 +1,6 @@
 // lib/presentation/screens/media/media_gallery_screen.dart
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
@@ -8,6 +9,7 @@ import 'package:lince_inspecoes/presentation/screens/media/components/media_filt
 import 'package:lince_inspecoes/presentation/screens/media/components/media_grid.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
@@ -46,6 +48,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   List<Topic> _topics = [];
   bool _isLoading = true;
   bool _isAvailableOffline = false;
+  int _refreshVersion = 0; // Force rebuild counter
+  
+  // Para forçar refreshes mais agressivos
+  Timer? _refreshTimer;
 
   // Estado dos filtros
   String? _selectedTopicId;
@@ -66,6 +72,40 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     super.initState();
     _setInitialFilters();
     _loadData();
+    
+    // Escutar mudanças nos contadores para reload automático
+    MediaCounterNotifier.instance.addListener(_onMediaCounterChanged);
+  }
+  
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    MediaCounterNotifier.instance.removeListener(_onMediaCounterChanged);
+    super.dispose();
+  }
+  
+  void _onMediaCounterChanged() {
+    debugPrint('MediaGalleryScreen: MediaCounterNotifier triggered - single targeted reload');
+    
+    // Cancelar timer anterior se existe
+    _refreshTimer?.cancel();
+    
+    // Single targeted refresh - apenas um reload controlado
+    _refreshTimer = Timer(const Duration(milliseconds: 100), () async {
+      if (mounted) {
+        debugPrint('MediaGalleryScreen: Executing single targeted reload');
+        
+        setState(() {
+          _refreshVersion++;
+          _allMedia.clear();
+          _filteredMedia.clear();
+        });
+        
+        await _loadData();
+        
+        debugPrint('MediaGalleryScreen: Single reload completed - media count: ${_filteredMedia.length}');
+      }
+    });
   }
 
   void _setInitialFilters() {
@@ -87,7 +127,15 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    debugPrint('MediaGalleryScreen._loadData: Starting data reload (version: $_refreshVersion)');
+    setState(() {
+      _isLoading = true;
+      _refreshVersion++; // Increment version to force rebuild
+    });
+    
+    // Force longer delay to ensure database operations and file system operations have completed
+    await Future.delayed(const Duration(milliseconds: 200));
+    
     try {
       // Check offline availability first
       _isAvailableOffline = await _serviceFactory.dataService
@@ -107,18 +155,33 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         allMedia = results[0] as List<Map<String, dynamic>>;
         topics = results[1] as List<Topic>;
       } else {
-        // Load from regular cache/cloud
+        // Load from offline storage (always use offline storage)
         final results = await Future.wait([
-          _serviceFactory.mediaService
-              .getMediaByInspection(widget.inspectionId),
+          _loadOfflineMedia(),
           _serviceFactory.dataService.getTopics(widget.inspectionId),
         ]);
         allMedia = results[0] as List<Map<String, dynamic>>;
         topics = results[1] as List<Topic>;
       }
 
+      final previousCount = _allMedia.length;
+      final previousIds = _allMedia.map((m) => m['id']).toSet();
       _allMedia = allMedia;
       _topics = topics;
+      final newIds = _allMedia.map((m) => m['id']).toSet();
+      
+      debugPrint('MediaGalleryScreen._loadData: Previous count: $previousCount, New count: ${_allMedia.length}');
+      debugPrint('MediaGalleryScreen._loadData: Previous IDs: $previousIds');
+      debugPrint('MediaGalleryScreen._loadData: New IDs: $newIds');
+      
+      // Check if data actually changed (count or content)
+      bool dataChanged = previousCount != _allMedia.length || !previousIds.containsAll(newIds) || !newIds.containsAll(previousIds);
+      
+      if (dataChanged) {
+        debugPrint('MediaGalleryScreen._loadData: Data changed detected, single version increment');
+        _refreshVersion++; // Single version increment only when data actually changed
+      }
+      
       _applyFilters();
     } catch (e) {
       debugPrint("Error loading media data: $e");
@@ -138,12 +201,70 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   /// Load media from offline storage with full functionality
   Future<List<Map<String, dynamic>>> _loadOfflineMedia() async {
     try {
-      // Get all offline media for this inspection
+      debugPrint('MediaGalleryScreen._loadOfflineMedia: Starting media load (version: $_refreshVersion)');
+      
+      // Reinitialize service to ensure fresh connection
+      await _serviceFactory.mediaService.initialize();
+      
+      // Small delay to ensure any pending DB operations are complete
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      // Get all offline media for this inspection (SUPER fresh from DB)
       final offlineMediaList = await _serviceFactory.mediaService
           .getMediaByInspection(widget.inspectionId);
 
-      // Convert OfflineMedia objects to Map<String, dynamic>
-      return offlineMediaList.map((media) => media.toJson()).toList();
+      debugPrint('MediaGalleryScreen._loadOfflineMedia: Found ${offlineMediaList.length} media files (fresh from DB)');
+      
+      // Debug: log IDs of media found
+      final mediaIds = offlineMediaList.map((m) => m.id).toList();
+      debugPrint('MediaGalleryScreen._loadOfflineMedia: Media IDs: $mediaIds');
+
+      // Convert OfflineMedia objects to Map<String, dynamic> with additional fields
+      final List<Map<String, dynamic>> enrichedMedia = [];
+      
+      for (final media in offlineMediaList) {
+        final mediaData = media.toJson();
+        
+        // Add missing fields that the gallery expects
+        mediaData['url'] = media.cloudUrl; // For backward compatibility
+        mediaData['is_non_conformity'] = media.nonConformityId != null;
+        
+        // Get names from related entities
+        if (media.topicId != null) {
+          try {
+            final topic = await _serviceFactory.dataService.getTopic(media.topicId!);
+            mediaData['topic_name'] = topic?.topicName ?? 'Tópico';
+          } catch (e) {
+            debugPrint('MediaGalleryScreen: Error getting topic ${media.topicId}: $e');
+            mediaData['topic_name'] = 'Tópico';
+          }
+        }
+        
+        if (media.itemId != null) {
+          try {
+            final item = await _serviceFactory.dataService.getItem(media.itemId!);
+            mediaData['item_name'] = item?.itemName ?? 'Item';
+          } catch (e) {
+            debugPrint('MediaGalleryScreen: Error getting item ${media.itemId}: $e');
+            mediaData['item_name'] = 'Item';
+          }
+        }
+        
+        if (media.detailId != null) {
+          try {
+            final detail = await _serviceFactory.dataService.getDetail(media.detailId!);
+            mediaData['detail_name'] = detail?.detailName ?? 'Detalhe';
+          } catch (e) {
+            debugPrint('MediaGalleryScreen: Error getting detail ${media.detailId}: $e');
+            mediaData['detail_name'] = 'Detalhe';
+          }
+        }
+        
+        enrichedMedia.add(mediaData);
+      }
+
+      debugPrint('MediaGalleryScreen._loadOfflineMedia: Enriched ${enrichedMedia.length} media files with names');
+      return enrichedMedia;
     } catch (e) {
       debugPrint(
           'MediaGalleryScreen._loadOfflineMedia: Error loading offline media: $e');
@@ -174,45 +295,106 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   void _applyFilters() async {
     debugPrint('MediaGalleryScreen: Applying filters on ${_allMedia.length} media items');
+    debugPrint('MediaGalleryScreen: Current filters - Topic: $_selectedTopicId, Item: $_selectedItemId, Detail: $_selectedDetailId');
+    debugPrint('MediaGalleryScreen: Filter options - TopicOnly: $_topicOnly, ItemOnly: $_itemOnly');
+    
+    // Log sample of media data for debugging
+    if (_allMedia.isNotEmpty) {
+      final sample = _allMedia.first;
+      debugPrint('MediaGalleryScreen: Sample media data: ${sample.toString()}');
+      debugPrint('MediaGalleryScreen: Sample media localPath: ${sample['localPath'] ?? sample['local_path']}');
+      debugPrint('MediaGalleryScreen: Sample media thumbnailPath: ${sample['thumbnailPath'] ?? sample['thumbnail_path']}');
+    }
+    
     List<Map<String, dynamic>> filteredMedia = _allMedia;
 
-    // Apply filters directly
+    // Apply hierarchical filters with level-specific logic
     if (_selectedTopicId != null) {
-      filteredMedia = filteredMedia
-          .where((media) => media['topic_id'] == _selectedTopicId)
-          .toList();
+      // Filter by topic ID - supports both key formats
+      filteredMedia = filteredMedia.where((media) {
+        final topicId = media['topicId'] ?? media['topic_id'];
+        return topicId == _selectedTopicId;
+      }).toList();
       debugPrint('MediaGalleryScreen: After topic filter: ${filteredMedia.length} items');
+      
+      // If topicOnly is true, show only media at topic level (no item or detail)
+      if (_topicOnly) {
+        filteredMedia = filteredMedia.where((media) {
+          final itemId = media['itemId'] ?? media['item_id'];
+          final detailId = media['detailId'] ?? media['detail_id'];
+          return itemId == null && detailId == null;
+        }).toList();
+        debugPrint('MediaGalleryScreen: After topic-only filter: ${filteredMedia.length} items');
+      }
     }
+    
     if (_selectedItemId != null) {
-      filteredMedia = filteredMedia
-          .where((media) => media['item_id'] == _selectedItemId)
-          .toList();
+      // Filter by item ID - supports both key formats
+      filteredMedia = filteredMedia.where((media) {
+        final itemId = media['itemId'] ?? media['item_id'];
+        return itemId == _selectedItemId;
+      }).toList();
       debugPrint('MediaGalleryScreen: After item filter: ${filteredMedia.length} items');
+      
+      // If itemOnly is true, show only media at item level (no detail)
+      if (_itemOnly) {
+        filteredMedia = filteredMedia.where((media) {
+          final detailId = media['detailId'] ?? media['detail_id'];
+          return detailId == null;
+        }).toList();
+        debugPrint('MediaGalleryScreen: After item-only filter: ${filteredMedia.length} items');
+      }
     }
+    
     if (_selectedDetailId != null) {
-      filteredMedia = filteredMedia
-          .where((media) => media['detail_id'] == _selectedDetailId)
-          .toList();
+      // Filter by detail ID - supports both key formats
+      filteredMedia = filteredMedia.where((media) {
+        final detailId = media['detailId'] ?? media['detail_id'];
+        return detailId == _selectedDetailId;
+      }).toList();
       debugPrint('MediaGalleryScreen: After detail filter: ${filteredMedia.length} items');
     }
+    
     if (_selectedMediaType != null) {
       filteredMedia = filteredMedia
           .where((media) => media['type'] == _selectedMediaType)
           .toList();
       debugPrint('MediaGalleryScreen: After type filter: ${filteredMedia.length} items');
     }
+    
     if (_selectedIsNonConformityOnly == true) {
-      filteredMedia = filteredMedia
-          .where((media) => media['non_conformity_id'] != null)
-          .toList();
+      filteredMedia = filteredMedia.where((media) {
+        final ncId = media['nonConformityId'] ?? media['non_conformity_id'];
+        return ncId != null;
+      }).toList();
       debugPrint('MediaGalleryScreen: After NC filter: ${filteredMedia.length} items');
     }
 
     debugPrint('MediaGalleryScreen: Final filtered media count: ${filteredMedia.length}');
+    
+    final previousFilteredCount = _filteredMedia.length;
+    final previousFilteredIds = _filteredMedia.map((m) => m['id']).toSet();
+    final newFilteredIds = filteredMedia.map((m) => m['id']).toSet();
+    
+    debugPrint('MediaGalleryScreen: Previous filtered count: $previousFilteredCount, New count: ${filteredMedia.length}');
+    debugPrint('MediaGalleryScreen: Previous filtered IDs: $previousFilteredIds');
+    debugPrint('MediaGalleryScreen: New filtered IDs: $newFilteredIds');
+    
+    // Check if filtered data actually changed (count or content)
+    bool filteredDataChanged = previousFilteredCount != filteredMedia.length || 
+                              !previousFilteredIds.containsAll(newFilteredIds) || 
+                              !newFilteredIds.containsAll(previousFilteredIds);
+    
     setState(() {
       _filteredMedia = filteredMedia;
       _updateActiveFiltersCount();
+      // Single version increment only if data actually changed
+      if (filteredDataChanged) {
+        _refreshVersion++;
+        debugPrint('MediaGalleryScreen: Filtered data changed, single UI update with version $_refreshVersion');
+      }
     });
+    debugPrint('MediaGalleryScreen: State updated with ${_filteredMedia.length} filtered media items');
   }
 
   void _clearFilters() {
@@ -237,6 +419,36 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     if (_selectedIsNonConformityOnly == true) count++;
     if (_selectedMediaType != null) count++;
     _activeFiltersCount = count;
+  }
+
+  String _getActiveFilterDescription() {
+    List<String> descriptions = [];
+    
+    if (_selectedDetailId != null) {
+      descriptions.add('Detalhe');
+    } else if (_selectedItemId != null) {
+      if (_itemOnly) {
+        descriptions.add('Item específico');
+      } else {
+        descriptions.add('Item');
+      }
+    } else if (_selectedTopicId != null) {
+      if (_topicOnly) {
+        descriptions.add('Tópico específico');
+      } else {
+        descriptions.add('Tópico');
+      }
+    }
+    
+    if (_selectedIsNonConformityOnly == true) {
+      descriptions.add('Não Conformidade');
+    }
+    
+    if (_selectedMediaType != null) {
+      descriptions.add(_selectedMediaType == 'image' ? 'Imagens' : 'Vídeos');
+    }
+    
+    return descriptions.isNotEmpty ? descriptions.join(', ') : 'Geral';
   }
 
   void _openFilterPanel() {
@@ -272,17 +484,23 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       await showDialog(
         context: context,
         builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type) async {
+          onMediaCaptured: (filePath, type, source) async {
             try {
               // Processar e salvar mídia usando o contexto atual da galeria
-              // Se não há filtros, salva no contexto geral da inspeção
-              await _serviceFactory.mediaService.captureAndProcessMediaSimple(
+              // Usar filtros ativos para determinar onde salvar a mídia
+              debugPrint('MediaGalleryScreen: Capturing media with active filters:');
+              debugPrint('  TopicId: ${_selectedTopicId ?? widget.initialTopicId}');
+              debugPrint('  ItemId: ${_selectedItemId ?? widget.initialItemId}');  
+              debugPrint('  DetailId: ${_selectedDetailId ?? widget.initialDetailId}');
+              
+              final newMedia = await _serviceFactory.mediaService.captureAndProcessMediaSimple(
                 inputPath: filePath,
                 inspectionId: widget.inspectionId,
                 type: type,
                 topicId: _selectedTopicId ?? widget.initialTopicId,
                 itemId: _selectedItemId ?? widget.initialItemId,
                 detailId: _selectedDetailId ?? widget.initialDetailId,
+                source: source,
               );
 
               if (mounted && context.mounted) {
@@ -295,8 +513,43 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                   ),
                 );
 
-                // Recarregar a galeria para mostrar a nova mídia
-                _loadData();
+                // SUPER AGGRESSIVE RELOAD para garantir aparecimento instantâneo
+                debugPrint('MediaGalleryScreen: SUPER AGGRESSIVE RELOAD to show new media ${newMedia.id}');
+                
+                // Força rebuild múltiplo IMEDIATO
+                setState(() {
+                  _refreshVersion += 5; // Super aggressive version increment
+                  _allMedia = []; // Força reload completo
+                  _filteredMedia = [];
+                });
+                
+                // Delay mínimo para garantir que a operação de DB terminou
+                await Future.delayed(const Duration(milliseconds: 300));
+                
+                // Reload completo dos dados
+                await _loadData();
+                
+                // Verificação múltipla com retry se necessário
+                for (int attempt = 0; attempt < 3; attempt++) {
+                  final foundNewMedia = _filteredMedia.any((m) => m['id'] == newMedia.id);
+                  debugPrint('MediaGalleryScreen: Attempt ${attempt + 1}: New media found: $foundNewMedia');
+                  
+                  if (foundNewMedia) {
+                    debugPrint('MediaGalleryScreen: SUCCESS! New media found in filtered list on attempt ${attempt + 1}');
+                    break;
+                  } else if (attempt < 2) {
+                    debugPrint('MediaGalleryScreen: Retry ${attempt + 1}: Media not found, reloading...');
+                    await Future.delayed(const Duration(milliseconds: 200));
+                    setState(() {
+                      _refreshVersion++;
+                      _allMedia = [];
+                      _filteredMedia = [];
+                    });
+                    await _loadData();
+                  }
+                }
+                
+                debugPrint('MediaGalleryScreen: Final gallery state: ${_filteredMedia.length} items');
               }
             } catch (e) {
               debugPrint('Error processing media in gallery: $e');
@@ -343,11 +596,13 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               tooltip: 'Sair da Seleção',
             ),
           ] else ...[
-            IconButton(
-              icon: const Icon(Icons.camera_alt),
-              onPressed: _showCaptureDialog,
-              tooltip: 'Capturar Mídia',
-            ),
+            // Show camera button ONLY when there are active filters (to avoid orphaned media)
+            if (_activeFiltersCount > 0)
+              IconButton(
+                icon: const Icon(Icons.camera_alt),
+                onPressed: _showCaptureDialog,
+                tooltip: 'Capturar Mídia (${_getActiveFilterDescription()})',
+              ),
             IconButton(
               icon: const Icon(Icons.select_all),
               onPressed: _enterMultiSelectMode,
@@ -391,6 +646,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                 else
                   Expanded(
                     child: MediaGrid(
+                      key: ValueKey('media_grid_$_refreshVersion'), // Force rebuild with version
                       media: _filteredMedia,
                       onTap: (mediaItem) {
                         if (_isMultiSelectMode) {
@@ -578,23 +834,27 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
   Future<void> _deleteSelectedMedia() async {
     try {
+      final deletedCount = _selectedMediaIds.length;
+      debugPrint('MediaGalleryScreen: Starting deletion of $deletedCount media items');
+      
       for (final mediaId in _selectedMediaIds) {
         await _serviceFactory.mediaService.deleteMedia(mediaId);
       }
 
+      debugPrint('MediaGalleryScreen: All media deleted, refreshing data');
       _exitMultiSelectMode();
       await _loadData();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                '${_selectedMediaIds.length} mídia(s) excluída(s) com sucesso'),
+            content: Text('$deletedCount mídia(s) excluída(s) com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
+      debugPrint('MediaGalleryScreen: Error during bulk deletion: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao excluir mídias: $e')),

@@ -30,6 +30,7 @@ dependencies:
   flutter_bloc: ^9.0.0
   flutter_dotenv: ^5.2.1
   flutter_lints: ^5.0.0
+  flutter_local_notifications: ^18.0.1
   flutter_localizations:
     sdk: flutter
   flutter_secure_storage: ^9.2.4

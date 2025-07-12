@@ -118,8 +118,12 @@ class _MediaGridState extends State<MediaGrid> {
 
     if (confirmed == true) {
       try {
+        debugPrint('MediaGrid: Deleting media with ID: $mediaId');
+        
         // For offline-first architecture, always use media service
         await _serviceFactory.mediaService.deleteMedia(mediaId);
+
+        debugPrint('MediaGrid: Media deleted successfully, calling refresh');
 
         if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +135,13 @@ class _MediaGridState extends State<MediaGrid> {
             ),
           );
           if (widget.onRefresh != null) {
-            widget.onRefresh!();
+            debugPrint('MediaGrid: Calling onRefresh callback');
+            // Add a small delay to ensure database transaction is completed
+            await Future.delayed(const Duration(milliseconds: 50));
+            await widget.onRefresh!();
+            debugPrint('MediaGrid: onRefresh callback completed');
+          } else {
+            debugPrint('MediaGrid: No onRefresh callback available');
           }
         }
       } catch (e) {
@@ -203,7 +213,9 @@ class _MediaGridState extends State<MediaGrid> {
 
   @override
   Widget build(BuildContext context) {
+    // Simple key based on media count only to avoid excessive rebuilds
     return GridView.builder(
+      key: ValueKey('media-grid-${widget.media.length}'),
       padding: const EdgeInsets.all(8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -223,8 +235,22 @@ class _MediaGridState extends State<MediaGrid> {
       BuildContext context, Map<String, dynamic> mediaItem) {
     final bool isImage = mediaItem['type'] == 'image';
     final bool isNonConformity = mediaItem['is_non_conformity'] == true;
-    final String displayPath =
-        mediaItem['local_path'] ?? mediaItem['url'] ?? '';
+    
+    // Simple unique key based on media ID only
+    final uniqueKey = ValueKey('media-item-${mediaItem['id']}');
+    
+    // Try multiple path formats for compatibility
+    String displayPath = '';
+    if (mediaItem['localPath'] != null && mediaItem['localPath'].toString().isNotEmpty) {
+      displayPath = mediaItem['localPath'].toString();
+    } else if (mediaItem['local_path'] != null && mediaItem['local_path'].toString().isNotEmpty) {
+      displayPath = mediaItem['local_path'].toString();
+    } else if (mediaItem['cloudUrl'] != null && mediaItem['cloudUrl'].toString().isNotEmpty) {
+      displayPath = mediaItem['cloudUrl'].toString();
+    } else if (mediaItem['url'] != null && mediaItem['url'].toString().isNotEmpty) {
+      displayPath = mediaItem['url'].toString();
+    }
+    
     final String? status = mediaItem['status'] as String?;
 
     // Format date
@@ -256,10 +282,34 @@ class _MediaGridState extends State<MediaGrid> {
     // Choose display widget
     Widget displayWidget;
     if (isImage) {
-      // displayPath is never null here based on earlier logic
-      // Determinar se é arquivo local ou URL
-      if (displayPath.startsWith('http') || displayPath.startsWith('https')) {
-        // É uma URL - usar widget de cache
+      // Priorizar thumbnail se disponível, depois arquivo local, depois URL
+      String? imagePath;
+      
+      // 1. Verificar se há thumbnail disponível
+      final thumbnailPath = mediaItem['thumbnail_path'] ?? mediaItem['thumbnailPath'];
+      if (thumbnailPath != null && thumbnailPath.toString().isNotEmpty) {
+        final thumbnailFile = File(thumbnailPath.toString());
+        if (thumbnailFile.existsSync()) {
+          imagePath = thumbnailPath.toString();
+          debugPrint('MediaGrid: Using thumbnail: $imagePath');
+        } else {
+          debugPrint('MediaGrid: Thumbnail path exists but file not found: $thumbnailPath');
+        }
+      } else {
+        debugPrint('MediaGrid: No thumbnail path available for media ${mediaItem['id']}');
+      }
+      
+      // 2. Se não há thumbnail, usar arquivo local principal
+      if (imagePath == null && displayPath.isNotEmpty && !displayPath.startsWith('http')) {
+        final file = File(displayPath);
+        if (file.existsSync()) {
+          imagePath = displayPath;
+          debugPrint('MediaGrid: Using local file: $imagePath');
+        }
+      }
+      
+      // 3. Se é uma URL, usar widget de cache
+      if (imagePath == null && (displayPath.startsWith('http') || displayPath.startsWith('https'))) {
         displayWidget = CachedMediaImage(
           mediaUrl: displayPath,
           mediaId: mediaItem['id'] as String?,
@@ -270,33 +320,64 @@ class _MediaGridState extends State<MediaGrid> {
           },
           errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
         );
-      } else {
-        // É um arquivo local
+      } else if (imagePath != null) {
+        // Usar arquivo local (thumbnail ou original)
         displayWidget = Image.file(
-          File(displayPath),
+          File(imagePath),
           fit: BoxFit.cover,
-          errorBuilder: (ctx, error, _) => _buildErrorPlaceholder(),
+          errorBuilder: (ctx, error, _) {
+            debugPrint('MediaGrid: Error loading image: $error');
+            return _buildErrorPlaceholder();
+          },
         );
+      } else {
+        // Nenhuma imagem disponível
+        debugPrint('MediaGrid: No image available for media ${mediaItem['id']}');
+        displayWidget = _buildErrorPlaceholder();
       }
     } else {
-      // Video
-      displayWidget = Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: Colors.black),
-          Center(
-            child: Icon(
-              Icons.videocam,
-              color: Colors.white.withAlpha((255 * 0.7).round()),
-              size: 40,
-            ),
-          ),
-          // Add thumbnail if available in the future
-        ],
-      );
+      // Video - verificar se há thumbnail de vídeo
+      final thumbnailPath = mediaItem['thumbnail_path'] ?? mediaItem['thumbnailPath'];
+      
+      if (thumbnailPath != null && thumbnailPath.toString().isNotEmpty) {
+        final thumbnailFile = File(thumbnailPath.toString());
+        if (thumbnailFile.existsSync()) {
+          // Usar thumbnail do vídeo
+          displayWidget = Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                thumbnailFile,
+                fit: BoxFit.cover,
+              ),
+              Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha((255 * 0.6).round()),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(
+                    Icons.play_arrow,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ],
+          );
+        } else {
+          // Placeholder para vídeo sem thumbnail
+          displayWidget = _buildVideoPlaceholder();
+        }
+      } else {
+        // Placeholder para vídeo sem thumbnail
+        displayWidget = _buildVideoPlaceholder();
+      }
     }
 
     return GestureDetector(
+      key: uniqueKey,
       onTap: () {
         final currentIndex = widget.media.indexOf(mediaItem);
         Navigator.of(context).push(
@@ -594,6 +675,22 @@ class _MediaGridState extends State<MediaGrid> {
           size: 32,
         ),
       ),
+    );
+  }
+
+  Widget _buildVideoPlaceholder() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(color: Colors.grey.shade800),
+        Center(
+          child: Icon(
+            Icons.videocam,
+            color: Colors.white.withAlpha((255 * 0.7).round()),
+            size: 40,
+          ),
+        ),
+      ],
     );
   }
 

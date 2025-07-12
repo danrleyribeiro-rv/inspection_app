@@ -8,6 +8,9 @@ import 'dart:developer';
 import 'package:lince_inspecoes/presentation/screens/inspection/inspection_detail_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/common/inspection_card.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/native_sync_service.dart';
+import 'package:lince_inspecoes/services/simple_notification_service.dart';
+import 'package:lince_inspecoes/services/debug_media_download_service.dart';
 
 // Função auxiliar para formatação de data em pt-BR
 String formatDateBR(DateTime date) {
@@ -40,6 +43,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   // Track inspections that have newer data in the cloud
   final Set<String> _inspectionsWithCloudUpdates = <String>{};
+  
+  // Track inspections with detected conflicts
+  final Set<String> _inspectionsWithConflicts = <String>{};
 
   @override
   void initState() {
@@ -148,6 +154,10 @@ class _InspectionsTabState extends State<InspectionsTab> {
           final inspectionMap = inspection.toMap();
           inspectionMap['_is_cached'] = true;
           inspectionMap['_local_status'] = inspection.status;
+          
+          // Check if there are actual local changes that need sync
+          final hasRealChanges = await _checkForRealLocalChanges(inspection.id);
+          inspectionMap['has_local_changes'] = hasRealChanges;
 
           cachedInspections.add(inspectionMap);
         } catch (e) {
@@ -265,54 +275,25 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<void> _downloadInspectionData(String inspectionId) async {
     log('[InspectionsTab _downloadInspectionData] Starting complete offline download for inspection ID: $inspectionId');
     try {
-      // Show loading dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            content: Row(
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text('Baixando inspeção completa...'),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+      // Test notification first
+      await _testNotification();
+      
+      // Run detailed debug of media download
+      await _debugMediaDownload(inspectionId);
+      
+      // Use native sync service for background download
+      await NativeSyncService.instance.startInspectionDownload(inspectionId);
 
-      // Download complete inspection for offline use
-      await _serviceFactory.syncService.syncInspection(inspectionId);
-
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
-
-      // Download completed successfully
-      log('[InspectionsTab _downloadInspectionData] Complete offline download completed successfully for inspection $inspectionId');
+      log('[InspectionsTab _downloadInspectionData] Complete offline download started for inspection $inspectionId');
 
       // Clear the cloud updates flag since we just downloaded the latest data
       _inspectionsWithCloudUpdates.remove(inspectionId);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Inspeção baixada! Agora você pode editar.'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        // Force UI update to hide download button immediately
-        setState(() {});
-        // Refresh the list to show updated data
-        _loadInspections();
-      }
+      // Force UI update to hide download button immediately
+      setState(() {});
+      // Refresh the list to show updated data
+      _loadInspections();
     } catch (e) {
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
-
       log('[InspectionsTab _downloadInspectionData] Error downloading data for inspection $inspectionId: $e');
 
       if (mounted) {
@@ -326,48 +307,45 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
+  Future<void> _debugMediaDownload(String inspectionId) async {
+    try {
+      // Add debug service import if not already imported
+      final debugService = DebugMediaDownloadService.instance;
+      await debugService.testInspectionMediaDownload(inspectionId);
+    } catch (e) {
+      log('[InspectionsTab _debugMediaDownload] Error running debug: $e');
+    }
+  }
+
+  Future<void> _testNotification() async {
+    try {
+      log('[InspectionsTab _testNotification] Testing notification...');
+      
+      // Show test notification
+      await SimpleNotificationService.instance.showTestNotification();
+      
+      log('[InspectionsTab _testNotification] Test notification sent');
+      
+      // Hide after 3 seconds
+      Timer(const Duration(seconds: 3), () {
+        SimpleNotificationService.instance.hideAllNotifications();
+      });
+    } catch (e) {
+      log('[InspectionsTab _testNotification] Error testing notification: $e');
+    }
+  }
+
   Future<void> _syncInspectionData(String inspectionId) async {
     log('[InspectionsTab _syncInspectionData] Starting sync for inspection ID: $inspectionId');
     try {
-      // Show loading dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            content: Row(
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(width: 16),
-                const Text('Sincronizando dados...'),
-              ],
-            ),
-          ),
-        );
-      }
+      // Use native sync service for background sync
+      await NativeSyncService.instance.startInspectionSync(inspectionId);
 
-      // Use the manual sync service to sync the inspection
-      await _serviceFactory.syncService.syncInspection(inspectionId);
+      log('[InspectionsTab _syncInspectionData] Sync started for inspection $inspectionId');
 
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
-
-      log('[InspectionsTab _syncInspectionData] Sync completed successfully for inspection $inspectionId');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mudanças offline sincronizadas com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Refresh the list to show updated sync status
-        _loadInspections();
-      }
+      // Refresh the list to show updated sync status
+      _loadInspections();
     } catch (e) {
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
-
       log('[InspectionsTab _syncInspectionData] Error syncing data for inspection $inspectionId: $e');
 
       if (mounted) {
@@ -381,6 +359,41 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
+  Future<bool> _checkForRealLocalChanges(String inspectionId) async {
+    try {
+      // Check if there are entities that need sync using the sync service
+      final syncStatus = await _serviceFactory.syncService.getSyncStatus();
+      
+      // Check if inspection itself needs sync
+      final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
+      if (inspection != null && inspection.hasLocalChanges) {
+        return true;
+      }
+      
+      // Check if there are entities that need sync
+      final totalNeedingSync = (syncStatus['inspections'] ?? 0) + 
+                              (syncStatus['topics'] ?? 0) + 
+                              (syncStatus['items'] ?? 0) + 
+                              (syncStatus['details'] ?? 0) + 
+                              (syncStatus['non_conformities'] ?? 0);
+      
+      if (totalNeedingSync > 0) {
+        return true;
+      }
+      
+      // Check for media files that need sync
+      final mediaFiles = await _serviceFactory.dataService.getMediaByInspection(inspectionId);
+      for (final media in mediaFiles) {
+        if (media.needsSync) return true;
+      }
+      
+      return false;
+    } catch (e) {
+      log('[InspectionsTab _checkForRealLocalChanges] Error checking for real local changes: $e');
+      return false;
+    }
+  }
+
   bool _hasUnsyncedData(String inspectionId) {
     try {
       // For offline-first mode, we'll check if the inspection has the _local_status indicating modifications
@@ -390,10 +403,10 @@ class _InspectionsTabState extends State<InspectionsTab> {
       );
 
       final localStatus = inspectionInList['_local_status'] ?? '';
-      final hasUnsyncedData =
-          localStatus == 'modified' || localStatus == 'in_progress';
+      final hasLocalChanges = inspectionInList['has_local_changes'] == true || inspectionInList['has_local_changes'] == 1;
+      final hasUnsyncedData = hasLocalChanges || localStatus == 'modified';
 
-      log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: local status: $localStatus, has unsynced: $hasUnsyncedData');
+      log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: local status: $localStatus, has_local_changes: $hasLocalChanges, has unsynced: $hasUnsyncedData');
 
       return hasUnsyncedData;
     } catch (e) {
@@ -443,44 +456,69 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   Future<void> _checkForCloudUpdates() async {
     try {
-      // Only check if we're online
-      if (!(await _serviceFactory.syncService.isConnected())) {
+      // Check if we have internet connectivity
+      if (!await _serviceFactory.syncService.isConnected()) {
         return;
       }
 
+      // Check each downloaded inspection for cloud conflicts
       for (final inspection in _inspections) {
         final inspectionId = inspection['id'] as String;
-
-        // Skip if inspection doesn't have local cache
-        if (!(await _serviceFactory.dataService.getInspection(inspectionId) !=
-            null)) {
-          continue;
-        }
-
-        // Check if cloud has newer data - simplified check
-        try {
-          // Verificar se há atualizações na nuvem comparando timestamps
-          final localInspection =
-              await _serviceFactory.dataService.getInspection(inspectionId);
-          if (localInspection != null && localInspection.lastSyncAt != null) {
-            // Por simplicidade, assume que não há atualizações para evitar código morto
-            _inspectionsWithCloudUpdates.remove(inspectionId);
-          }
-        } catch (e) {
-          debugPrint('Erro ao verificar atualizações na nuvem: $e');
-          _inspectionsWithCloudUpdates.remove(inspectionId);
+        
+        // Only check fully downloaded inspections
+        if (_isInspectionFullyDownloaded(inspectionId)) {
+          await _checkSingleInspectionForConflicts(inspectionId);
         }
       }
-
-      // Update UI if there are changes
-      // hasUpdates is always false for now
-      // if (hasUpdates && mounted) {
-      //   setState(() {});
-      // }
     } catch (e) {
       log('[InspectionsTab _checkForCloudUpdates] Error checking cloud updates: $e');
     }
   }
+
+  Future<void> _checkSingleInspectionForConflicts(String inspectionId) async {
+    try {
+      // Get local inspection
+      final localInspection = await _serviceFactory.dataService.getInspection(inspectionId);
+      if (localInspection == null) return;
+
+      // Check if local inspection has changes
+      if (!localInspection.hasLocalChanges) {
+        // No local changes, no conflicts possible
+        setState(() {
+          _inspectionsWithConflicts.remove(inspectionId);
+        });
+        return;
+      }
+
+      // Try to detect conflicts by attempting a sync and checking the result
+      // This is a simplified approach since we can't access private members directly
+      try {
+        final syncResult = await _serviceFactory.syncService.syncInspection(inspectionId);
+        
+        if (syncResult['hasConflicts'] == true) {
+          // Conflict detected
+          setState(() {
+            _inspectionsWithConflicts.add(inspectionId);
+          });
+          log('[InspectionsTab _checkSingleInspectionForConflicts] Conflict detected for inspection $inspectionId');
+        } else {
+          // No conflict
+          setState(() {
+            _inspectionsWithConflicts.remove(inspectionId);
+          });
+        }
+      } catch (e) {
+        // If sync fails, remove from conflicts list
+        setState(() {
+          _inspectionsWithConflicts.remove(inspectionId);
+        });
+        log('[InspectionsTab _checkSingleInspectionForConflicts] Sync failed for $inspectionId: $e');
+      }
+    } catch (e) {
+      log('[InspectionsTab _checkSingleInspectionForConflicts] Error checking conflicts for $inspectionId: $e');
+    }
+  }
+
 
   // Method removed - not used anywhere
 
@@ -826,6 +864,14 @@ class _InspectionsTabState extends State<InspectionsTab> {
                 });
               },
             ),
+          // Test notification button
+          IconButton(
+            icon: const Icon(Icons.notifications, color: Colors.white),
+            tooltip: 'Testar Notificação',
+            onPressed: () async {
+              await SimpleNotificationService.instance.showTestNotification();
+            },
+          ),
           // Download Button
           IconButton(
             icon: const Icon(Icons.cloud_download, color: Colors.white),
@@ -864,6 +910,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               isFullyDownloaded: _isInspectionFullyDownloaded(
                                   inspection['id']),
                               needsSync: _hasUnsyncedData(inspection['id']),
+                              hasConflicts: _inspectionsWithConflicts.contains(inspection['id']),
                               onViewDetails: () {
                                 log('[InspectionsTab] Navigating to details for inspection ID: ${inspection['id']}');
                                 _navigateToInspectionDetail(inspection['id']);
@@ -1083,6 +1130,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     log('[InspectionsTab] Returned from Detail Screen for $inspectionId. Result: $result');
     _loadInspections();
   }
+
 }
 
 class _AvailableInspectionsDialog extends StatelessWidget {

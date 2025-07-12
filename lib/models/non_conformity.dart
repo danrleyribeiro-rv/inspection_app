@@ -14,6 +14,8 @@ class NonConformity {
   final String description;
   final String severity; // low, medium, high, critical
   final String status; // open, closed, in_progress
+  final String? correctiveAction;
+  final DateTime? deadline;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool needsSync;
@@ -29,6 +31,8 @@ class NonConformity {
     required this.description,
     required this.severity,
     required this.status,
+    this.correctiveAction,
+    this.deadline,
     required this.createdAt,
     required this.updatedAt,
     this.needsSync = false,
@@ -44,6 +48,8 @@ class NonConformity {
     required String description,
     required String severity,
     String status = 'open',
+    String? correctiveAction,
+    DateTime? deadline,
   }) {
     final now = DateTime.now();
     return NonConformity(
@@ -56,6 +62,8 @@ class NonConformity {
       description: description,
       severity: severity,
       status: status,
+      correctiveAction: correctiveAction,
+      deadline: deadline,
       createdAt: now,
       updatedAt: now,
       needsSync: true,
@@ -79,6 +87,8 @@ class NonConformity {
       description: map['description'] as String,
       severity: map['severity'] as String,
       status: map['status'] as String,
+      correctiveAction: map['corrective_action'] as String?,
+      deadline: map['deadline'] != null ? DateTime.parse(map['deadline'] as String) : null,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       needsSync: (map['needs_sync'] as int? ?? 0) == 1,
@@ -97,6 +107,8 @@ class NonConformity {
       'description': description,
       'severity': severity,
       'status': status,
+      'corrective_action': correctiveAction,
+      'deadline': deadline?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'needs_sync': needsSync ? 1 : 0,
@@ -114,6 +126,8 @@ class NonConformity {
     String? description,
     String? severity,
     String? status,
+    String? correctiveAction,
+    DateTime? deadline,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? needsSync,
@@ -129,6 +143,8 @@ class NonConformity {
       description: description ?? this.description,
       severity: severity ?? this.severity,
       status: status ?? this.status,
+      correctiveAction: correctiveAction ?? this.correctiveAction,
+      deadline: deadline ?? this.deadline,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       needsSync: needsSync ?? this.needsSync,

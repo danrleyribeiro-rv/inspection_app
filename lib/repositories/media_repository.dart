@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
 import 'package:lince_inspecoes/repositories/base_repository.dart';
 
@@ -318,5 +321,21 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
     );
 
     return maps.map((map) => fromMap(map)).toList();
+  }
+
+  Future<List<OfflineMedia>> findByFilename(String filename) async {
+    return await findWhere('filename = ? AND is_deleted = 0', [filename]);
+  }
+
+  Future<File> createLocalFile(String filename) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final mediaDir = Directory(path.join(appDir.path, 'media'));
+    
+    if (!await mediaDir.exists()) {
+      await mediaDir.create(recursive: true);
+    }
+    
+    final filePath = path.join(mediaDir.path, filename);
+    return File(filePath);
   }
 }

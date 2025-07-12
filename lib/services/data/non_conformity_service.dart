@@ -268,8 +268,9 @@ class NonConformityService {
     final itemIndex = int.tryParse(itemId.replaceFirst('item_', ''));
 
     if (topicIndex == null || itemIndex == null) throw Exception('Invalid IDs');
-    if (topicIndex >= inspection!.topics!.length)
+    if (topicIndex >= inspection!.topics!.length) {
       throw Exception('Invalid topic');
+    }
 
     final topics = List<Map<String, dynamic>>.from(inspection.topics!);
     final topic = topics[topicIndex];

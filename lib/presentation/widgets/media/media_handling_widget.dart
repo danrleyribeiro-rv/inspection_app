@@ -103,7 +103,7 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       );
 
       if (image != null) {
-        await _handleImagesSelected([image.path]);
+        await _handleCameraCapture(image);
       }
     } catch (e) {
       if (mounted) {
@@ -122,8 +122,9 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
       );
 
       if (images.isNotEmpty) {
-        final imagePaths = images.map((image) => image.path).toList();
-        await _handleImagesSelected(imagePaths);
+        for (final image in images) {
+          await _handleGallerySelection(image);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -150,67 +151,125 @@ class _MediaHandlingWidgetState extends State<MediaHandlingWidget> {
     );
   }
 
-  Future<void> _handleImagesSelected(List<String> imagePaths) async {
+  Future<void> _handleCameraCapture(XFile imageFile) async {
     if (mounted) {
       setState(() {
-        _processingCount += imagePaths.length;
+        _processingCount++;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Iniciando processamento de ${imagePaths.length} imagem(ns)...'),
+        const SnackBar(
+          content: Text('Processando imagem da câmera...'),
           backgroundColor: Colors.blue,
         ),
       );
     }
 
-    for (final path in imagePaths) {
-      _processAndSaveMedia(path, 'image').whenComplete(() {
-        if (mounted) {
-          setState(() {
-            _processingCount--;
-          });
-        }
-      });
-    }
-  }
-
-  Future<void> _processAndSaveMedia(String localPath, String type) async {
     try {
       final position = await _serviceFactory.mediaService.getCurrentLocation();
-
-      // Usar o fluxo offline-first do MediaService
-      await _serviceFactory.mediaService.captureAndProcessMedia(
-        inputPath: localPath,
+      
+      final media = await _serviceFactory.mediaService.capturePhoto(
         inspectionId: widget.inspectionId,
-        type: type,
         topicId: widget.topicId,
         itemId: widget.itemId,
         detailId: widget.detailId,
+        imageFile: imageFile,
         metadata: {
           'source': 'camera',
           'is_non_conformity': false,
-          'location': position != null
-              ? {
-                  'latitude': position['latitude'],
-                  'longitude': position['longitude'],
-                }
-              : null,
+          'location': position,
         },
       );
-
-      // Media já foi salva, apenas notificar o callback
-      widget.onMediaAdded(localPath);
-    } catch (e) {
+      
+      widget.onMediaAdded(media.id);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar mídia: $e')),
+          const SnackBar(
+            content: Text('Imagem capturada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
         );
+      }
+    } catch (e) {
+      debugPrint('Error capturing photo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao capturar imagem: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingCount--;
+        });
       }
     }
   }
 
-  // Method removed as media is now handled directly by the service
+  Future<void> _handleGallerySelection(XFile imageFile) async {
+    if (mounted) {
+      setState(() {
+        _processingCount++;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Processando imagem da galeria...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
+      
+      final media = await _serviceFactory.mediaService.importMedia(
+        inspectionId: widget.inspectionId,
+        topicId: widget.topicId,
+        itemId: widget.itemId,
+        detailId: widget.detailId,
+        filePath: imageFile.path,
+        type: 'image',
+        source: 'gallery',
+        metadata: {
+          'source': 'gallery',
+          'is_non_conformity': false,
+          'location': position,
+        },
+      );
+      
+      widget.onMediaAdded(media.id);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagem importada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error importing image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao importar imagem: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingCount--;
+        });
+      }
+    }
+  }
+
+  // Método removido e substituído pelos métodos específicos acima
 
   @override
   Widget build(BuildContext context) {

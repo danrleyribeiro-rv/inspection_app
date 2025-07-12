@@ -110,7 +110,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       );
 
       if (image != null) {
-        await _handleImagesSelected([image.path]);
+        await _handleCameraCapture(image);
       }
     } catch (e) {
       if (mounted) {
@@ -129,8 +129,9 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
       );
 
       if (images.isNotEmpty) {
-        final imagePaths = images.map((image) => image.path).toList();
-        await _handleImagesSelected(imagePaths);
+        for (final image in images) {
+          await _handleGallerySelection(image);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -245,28 +246,154 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     );
   }
 
-  Future<void> _handleImagesSelected(List<String> imagePaths) async {
+  Future<void> _handleCameraCapture(XFile imageFile) async {
     if (mounted) {
       setState(() {
-        _processingCount += imagePaths.length;
+        _processingCount++;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Iniciando processamento de ${imagePaths.length} imagem(ns) de NC...'),
+        const SnackBar(
+          content: Text('Processando imagem da câmera para NC...'),
           backgroundColor: Colors.blue,
         ),
       );
     }
 
-    for (final path in imagePaths) {
-      _processAndSaveMedia(path, 'image').whenComplete(() {
-        if (mounted) {
-          setState(() {
-            _processingCount--;
-          });
-        }
+    try {
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
+      final hierarchyIds = await _getHierarchyIds();
+      
+      // Gerar ID específico para a não conformidade
+      final nonConformityId = 'nc_${DateTime.now().millisecondsSinceEpoch}';
+      
+      final media = await _serviceFactory.mediaService.capturePhoto(
+        inspectionId: widget.inspectionId,
+        topicId: hierarchyIds['topicId'],
+        itemId: hierarchyIds['itemId'],
+        detailId: hierarchyIds['detailId'],
+        nonConformityId: nonConformityId,
+        imageFile: imageFile,
+        metadata: {
+          'source': 'camera',
+          'is_non_conformity': true,
+          'nc_index': widget.ncIndex,
+          'location': position,
+        },
+      );
+      
+      widget.onMediaAdded(media.id);
+      
+      if (mounted) {
+        // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia em NC
+        debugPrint('NonConformityMediaWidget: IMMEDIATELY navigating to gallery for NC');
+        
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MediaGalleryScreen(
+              inspectionId: widget.inspectionId,
+              initialTopicId: hierarchyIds['topicId'],
+              initialItemId: hierarchyIds['itemId'],
+              initialDetailId: hierarchyIds['detailId'],
+              initialIsNonConformityOnly: true, // Filtro explícito para NC
+            ),
+          ),
+        );
+
+        // Mostrar mensagem após um pequeno delay para não interferir na navegação
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Imagem de NC capturada com sucesso!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 1),
+              ),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error capturing NC photo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao capturar imagem de NC: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingCount--;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleGallerySelection(XFile imageFile) async {
+    if (mounted) {
+      setState(() {
+        _processingCount++;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Processando imagem da galeria para NC...'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      final position = await _serviceFactory.mediaService.getCurrentLocation();
+      final hierarchyIds = await _getHierarchyIds();
+      
+      // Gerar ID específico para a não conformidade
+      final nonConformityId = 'nc_${DateTime.now().millisecondsSinceEpoch}';
+      
+      final media = await _serviceFactory.mediaService.importMedia(
+        inspectionId: widget.inspectionId,
+        topicId: hierarchyIds['topicId'],
+        itemId: hierarchyIds['itemId'],
+        detailId: hierarchyIds['detailId'],
+        nonConformityId: nonConformityId,
+        filePath: imageFile.path,
+        type: 'image',
+        source: 'gallery',
+        metadata: {
+          'source': 'gallery',
+          'is_non_conformity': true,
+          'nc_index': widget.ncIndex,
+          'location': position,
+        },
+      );
+      
+      widget.onMediaAdded(media.id);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagem de NC importada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error importing NC image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao importar imagem de NC: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingCount--;
+        });
+      }
     }
   }
 
@@ -316,51 +443,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
         'itemId': 'item_${widget.itemIndex}',
         'detailId': 'detail_${widget.detailIndex}'
       };
-    }
-  }
-
-  Future<void> _processAndSaveMedia(String localPath, String type) async {
-    try {
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
-
-      // Obter IDs reais da hierarquia
-      final hierarchyIds = await _getHierarchyIds();
-
-      debugPrint('NonConformityMediaWidget: Processing media');
-      debugPrint('  TopicId: ${hierarchyIds['topicId']}');
-      debugPrint('  ItemId: ${hierarchyIds['itemId']}');
-      debugPrint('  DetailId: ${hierarchyIds['detailId']}');
-      debugPrint('  NCIndex: ${widget.ncIndex}');
-
-      // Usar o fluxo offline-first do MediaService
-      await _serviceFactory.mediaService.captureAndProcessMedia(
-        inputPath: localPath,
-        inspectionId: widget.inspectionId,
-        type: type,
-        topicId: hierarchyIds['topicId'],
-        itemId: hierarchyIds['itemId'],
-        detailId: hierarchyIds['detailId'],
-        metadata: {
-          'source': 'camera',
-          'is_non_conformity': true,
-          'nc_index': widget.ncIndex,
-          'location': position != null
-              ? {
-                  'latitude': position['latitude'],
-                  'longitude': position['longitude'],
-                }
-              : null,
-        },
-      );
-
-      // Media already saved by service, just notify callback
-      widget.onMediaAdded(localPath);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao processar mídia de NC: $e')),
-        );
-      }
     }
   }
 

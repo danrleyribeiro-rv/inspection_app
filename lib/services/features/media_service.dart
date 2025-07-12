@@ -355,8 +355,9 @@ class MediaService {
         if (topicId != null && media['topic_id'] != topicId) return false;
         if (itemId != null && media['item_id'] != itemId) return false;
         if (detailId != null && media['detail_id'] != detailId) return false;
-        if (mediaType != null && media['file_type'] != mediaType)
+        if (mediaType != null && media['file_type'] != mediaType) {
           return false; // Use file_type from SQLite
+        }
         // isNonConformity logic needs to be implemented if non-conformity media is distinct
         return true;
       }).toList();
