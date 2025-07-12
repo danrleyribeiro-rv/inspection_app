@@ -13,12 +13,18 @@ class MediaGrid extends StatefulWidget {
   final List<Map<String, dynamic>> media;
   final Function(Map<String, dynamic>) onTap;
   final Function()? onRefresh;
+  final Function(Map<String, dynamic>)? onLongPress;
+  final bool isMultiSelectMode;
+  final Set<String> selectedMediaIds;
 
   const MediaGrid({
     super.key,
     required this.media,
     required this.onTap,
     this.onRefresh,
+    this.onLongPress,
+    this.isMultiSelectMode = false,
+    this.selectedMediaIds = const {},
   });
 
   @override
@@ -164,48 +170,57 @@ class _MediaGridState extends State<MediaGrid> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
+      useSafeArea: true, // This ensures it respects system bars
+      isScrollControlled: true, // Allows better control over size
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(context).viewInsets.bottom, // Respect keyboard
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.move_up, color: Color(0xFF6F4B99)),
-              title: const Text('Mover Mídia',
-                  style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Mover para outro tópico, item ou detalhe',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _moveMedia(context, mediaItem);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Excluir Mídia',
-                  style: TextStyle(color: Colors.white)),
-              subtitle: Text(
-                mediaItem['source'] == 'offline'
-                    ? 'Remover permanentemente esta mídia offline'
-                    : 'Remover permanentemente esta imagem',
-                style: const TextStyle(color: Colors.grey),
+              ListTile(
+                leading: const Icon(Icons.move_up, color: Color(0xFF6F4B99)),
+                title: const Text('Mover Mídia',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Mover para outro tópico, item ou detalhe',
+                    style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _moveMedia(context, mediaItem);
+                },
               ),
-              onTap: () {
-                Navigator.of(context).pop();
-                _deleteMedia(context, mediaItem);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Excluir Mídia',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: Text(
+                  mediaItem['source'] == 'offline'
+                      ? 'Remover permanentemente esta mídia offline'
+                      : 'Remover permanentemente esta imagem',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _deleteMedia(context, mediaItem);
+                },
+              ),
+              const SizedBox(height: 8), // Reduced spacing
+            ],
+          ),
         ),
       ),
     );
@@ -272,10 +287,16 @@ class _MediaGridState extends State<MediaGrid> {
     }
 
     // Create a decoration for the card with consistent dark theme colors
+    // Check if this is resolution media
+    final source = mediaItem['source'] as String?;
+    final isResolutionMedia = source == 'resolution_camera' || source == 'resolution_gallery';
+    
     BoxDecoration decoration = BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       border: isNonConformity
-          ? Border.all(color: Colors.red, width: 2)
+          ? (isResolutionMedia 
+              ? Border.all(color: Colors.green, width: 2)  // Green for resolution media
+              : Border.all(color: Colors.red, width: 2))   // Red for regular NC media
           : Border.all(color: Colors.grey.shade700),
     );
 
@@ -376,26 +397,40 @@ class _MediaGridState extends State<MediaGrid> {
       }
     }
 
+    // Check if this media is selected
+    final isSelected = widget.selectedMediaIds.contains(mediaItem['id']);
+
     return GestureDetector(
       key: uniqueKey,
       onTap: () {
-        final currentIndex = widget.media.indexOf(mediaItem);
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MediaViewerScreen(
-              mediaItems: widget.media,
-              initialIndex: currentIndex,
+        if (widget.isMultiSelectMode) {
+          widget.onTap(mediaItem);
+        } else {
+          final currentIndex = widget.media.indexOf(mediaItem);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MediaViewerScreen(
+                mediaItems: widget.media,
+                initialIndex: currentIndex,
+              ),
             ),
-          ),
-        );
+          );
+        }
       },
       onLongPress: () {
-        _showMediaActions(context, mediaItem);
+        if (widget.onLongPress != null) {
+          widget.onLongPress!(mediaItem);
+        } else {
+          _showMediaActions(context, mediaItem);
+        }
       },
       child: Card(
-        elevation: 2,
+        elevation: isSelected ? 4 : 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
+          side: isSelected 
+              ? const BorderSide(color: Color(0xFF6F4B99), width: 3)
+              : BorderSide.none,
         ),
         color: Colors.grey[850], // Consistent dark theme
         child: Container(
@@ -580,6 +615,29 @@ class _MediaGridState extends State<MediaGrid> {
                     ),
                   ),
                 ),
+
+              // Selection indicator for multi-select mode
+              if (widget.isMultiSelectMode)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF6F4B99) : Colors.black.withAlpha((255 * 0.6).round()),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: isSelected
+                        ? const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 14,
+                          )
+                        : null,
+                  ),
+                ),
             ],
           ),
         ),
@@ -618,32 +676,35 @@ class _MediaGridState extends State<MediaGrid> {
     }
   }
 
-  IconData _getMediaIcon(Map<String, dynamic> mediaItem, bool isImage) {
-    final source = mediaItem['source'] as String?;
-
-    // Parse metadata if it's a JSON string
-    Map<String, dynamic>? metadata;
+  // Helper method to parse metadata consistently
+  Map<String, dynamic>? _parseMetadata(Map<String, dynamic> mediaItem) {
     if (mediaItem['metadata'] != null) {
       if (mediaItem['metadata'] is String) {
         try {
-          metadata = Map<String, dynamic>.from(
+          return Map<String, dynamic>.from(
               jsonDecode(mediaItem['metadata'] as String));
         } catch (e) {
-          debugPrint('MediaGrid._getMediaIcon: Error parsing metadata: $e');
+          debugPrint('MediaGrid._parseMetadata: Error parsing metadata: $e');
         }
       } else if (mediaItem['metadata'] is Map) {
-        metadata = mediaItem['metadata'] as Map<String, dynamic>?;
+        return mediaItem['metadata'] as Map<String, dynamic>?;
       }
     }
+    return null;
+  }
 
+  IconData _getMediaIcon(Map<String, dynamic> mediaItem, bool isImage) {
+    final source = mediaItem['source'] as String?;
+    final metadata = _parseMetadata(mediaItem);
     final metadataSource = metadata?['source'] as String?;
 
-    // Verificar se é da camera (source direto ou no metadata)
-    final isFromCamera = source == 'camera' || metadataSource == 'camera';
+    // Verificar se é da camera (source direto ou no metadata) - includes both regular and resolution camera
+    final isFromCamera = source == 'camera' || source == 'resolution_camera' || 
+                        metadataSource == 'camera' || metadataSource == 'resolution_camera';
 
     // Debug log para verificar os valores
     debugPrint(
-        'MediaGrid._getMediaIcon: source=$source, metadataSource=$metadataSource, isFromCamera=$isFromCamera');
+        'MediaGrid._getMediaIcon: Media ${mediaItem['id']} - source=$source, metadataSource=$metadataSource, isFromCamera=$isFromCamera');
 
     if (isImage) {
       return isFromCamera ? Icons.camera_alt : Icons.folder;
@@ -715,24 +776,13 @@ class _MediaGridState extends State<MediaGrid> {
   }
   
   String _getSpecificOrigin(Map<String, dynamic> mediaItem) {
-    // Parse metadata if it's a JSON string
-    Map<String, dynamic>? metadata;
-    if (mediaItem['metadata'] != null) {
-      if (mediaItem['metadata'] is String) {
-        try {
-          metadata = Map<String, dynamic>.from(
-              jsonDecode(mediaItem['metadata'] as String));
-        } catch (e) {
-          debugPrint('MediaGrid._getSpecificOrigin: Error parsing metadata: $e');
-        }
-      } else if (mediaItem['metadata'] is Map) {
-        metadata = mediaItem['metadata'] as Map<String, dynamic>?;
-      }
-    }
+    // Parse metadata if it's a JSON string (reusing the same logic as _getMediaIcon)
+    Map<String, dynamic>? metadata = _parseMetadata(mediaItem);
 
     final source = mediaItem['source'] as String?;
     final metadataSource = metadata?['source'] as String?;
-    final isFromCamera = source == 'camera' || metadataSource == 'camera';
+    final isFromCamera = source == 'camera' || source == 'resolution_camera' || 
+                        metadataSource == 'camera' || metadataSource == 'resolution_camera';
     final isNonConformity = mediaItem['is_non_conformity'] == true;
     
     List<String> details = [];

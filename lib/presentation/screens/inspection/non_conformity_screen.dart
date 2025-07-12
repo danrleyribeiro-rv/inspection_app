@@ -48,6 +48,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   bool _isProcessing = false;
   String? _filterByDetailId;
+  
+  // New filter properties for search and level filter
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _levelFilter;
 
   @override
   void initState() {
@@ -84,6 +89,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -406,20 +412,6 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     _tabController.animateTo(1);
   }
 
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => _FilterDialog(
-        topics: _topics,
-        items: _items,
-        details: _details,
-        onFilterSelected: (detailId) {
-          setState(() => _filterByDetailId = detailId);
-        },
-        currentFilterId: _filterByDetailId,
-      ),
-    );
-  }
 
   String _determineLevel() {
     // Determine the appropriate level based on preselected parameters
@@ -473,55 +465,93 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                 ),
                 Column(
                   children: [
-                    // Filtros
+                    // Search and Filter Section
                     Container(
                       padding: const EdgeInsets.all(12),
                       color: const Color(0xFF312456),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Filtros:',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12),
+                          // Search Bar
+                          TextField(
+                            controller: _searchController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: 'Pesquisar não conformidades...',
+                              hintStyle: const TextStyle(color: Colors.white54),
+                              prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, color: Colors.white54),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _searchQuery = '');
+                                      },
+                                    )
+                                  : null,
+                              filled: true,
+                              fillColor: Colors.white.withValues(alpha: 0.1),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                            onChanged: (value) {
+                              setState(() => _searchQuery = value);
+                            },
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
+                          
+                          // Level Filter
                           Row(
                             children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () =>
-                                      setState(() => _filterByDetailId = null),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _filterByDetailId == null
-                                        ? const Color(0xFFBB8FEB)
-                                        : Colors.grey[700],
-                                    foregroundColor: Colors.white,
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                  ),
-                                  child: const Text('Todas',
-                                      style: TextStyle(fontSize: 10)),
+                              const Text(
+                                'Nível:',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _showFilterDialog,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _filterByDetailId != null
-                                        ? const Color(0xFFBB8FEB)
-                                        : Colors.grey[700],
-                                    foregroundColor: Colors.white,
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 8),
+                                child: DropdownButtonFormField<String>(
+                                  value: _levelFilter,
+                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.white.withValues(alpha: 0.1),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    isDense: true,
                                   ),
-                                  child: const Text(
-                                    'Filtrar por Local',
-                                    style: TextStyle(fontSize: 10),
-                                  ),
+                                  dropdownColor: const Color(0xFF312456),
+                                  items: const [
+                                    DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Text('Todos os níveis', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem<String>(
+                                      value: 'topic',
+                                      child: Text('Apenas Tópicos', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem<String>(
+                                      value: 'item',
+                                      child: Text('Apenas Itens', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem<String>(
+                                      value: 'detail',
+                                      child: Text('Apenas Detalhes', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() => _levelFilter = value);
+                                  },
+                                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white54),
                                 ),
                               ),
                             ],
@@ -539,6 +569,8 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                         onEditNonConformity: _updateNonConformity,
                         filterByDetailId: _filterByDetailId,
                         onNonConformityUpdated: _loadNonConformities,
+                        searchQuery: _searchQuery,
+                        levelFilter: _levelFilter,
                       ),
                     ),
                   ],
@@ -592,188 +624,3 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   }
 }
 
-class _FilterDialog extends StatefulWidget {
-  final List<Topic> topics;
-  final List<Item> items;
-  final List<Detail> details;
-  final Function(String?) onFilterSelected;
-  final String? currentFilterId;
-
-  const _FilterDialog({
-    required this.topics,
-    required this.items,
-    required this.details,
-    required this.onFilterSelected,
-    this.currentFilterId,
-  });
-
-  @override
-  State<_FilterDialog> createState() => _FilterDialogState();
-}
-
-class _FilterDialogState extends State<_FilterDialog> {
-  Topic? _selectedTopic;
-  Item? _selectedItem;
-  Detail? _selectedDetail;
-  List<Item> _filteredItems = [];
-  List<Detail> _filteredDetails = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeFromCurrentFilter();
-  }
-
-  void _initializeFromCurrentFilter() {
-    if (widget.currentFilterId != null) {
-      final detail = widget.details.firstWhere(
-        (d) => d.id == widget.currentFilterId,
-        orElse: () => Detail(inspectionId: '', detailName: ''),
-      );
-      
-      if (detail.id != null) {
-        _selectedDetail = detail;
-        
-        final item = widget.items.firstWhere(
-          (i) => i.id == detail.itemId,
-          orElse: () => Item(inspectionId: '', position: 0, itemName: ''),
-        );
-        
-        if (item.id != null) {
-          _selectedItem = item;
-          
-          final topic = widget.topics.firstWhere(
-            (t) => t.id == item.topicId,
-            orElse: () => Topic(inspectionId: '', position: 0, topicName: ''),
-          );
-          
-          if (topic.id != null) {
-            _selectedTopic = topic;
-            _filterItemsByTopic();
-            _filterDetailsByItem();
-          }
-        }
-      }
-    }
-  }
-
-  void _filterItemsByTopic() {
-    if (_selectedTopic?.id != null) {
-      _filteredItems = widget.items.where((item) => item.topicId == _selectedTopic!.id).toList();
-    } else {
-      _filteredItems = [];
-    }
-  }
-
-  void _filterDetailsByItem() {
-    if (_selectedItem?.id != null) {
-      _filteredDetails = widget.details.where((detail) => detail.itemId == _selectedItem!.id).toList();
-    } else {
-      _filteredDetails = [];
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Filtrar por Local'),
-      content: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.8,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Seleção de Tópico
-            const Text('Tópico:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<Topic>(
-              value: _selectedTopic,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Selecione um tópico',
-              ),
-              items: widget.topics.map((topic) {
-                return DropdownMenuItem(
-                  value: topic,
-                  child: Text(topic.topicName, overflow: TextOverflow.ellipsis),
-                );
-              }).toList(),
-              onChanged: (topic) {
-                setState(() {
-                  _selectedTopic = topic;
-                  _selectedItem = null;
-                  _selectedDetail = null;
-                  _filterItemsByTopic();
-                  _filteredDetails = [];
-                });
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Seleção de Item
-            const Text('Item:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<Item>(
-              value: _selectedItem,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Selecione um item',
-              ),
-              items: _filteredItems.map((item) {
-                return DropdownMenuItem(
-                  value: item,
-                  child: Text(item.itemName, overflow: TextOverflow.ellipsis),
-                );
-              }).toList(),
-              onChanged: _filteredItems.isNotEmpty ? (item) {
-                setState(() {
-                  _selectedItem = item;
-                  _selectedDetail = null;
-                  _filterDetailsByItem();
-                });
-              } : null,
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Seleção de Detalhe
-            const Text('Detalhe:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<Detail>(
-              value: _selectedDetail,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Selecione um detalhe',
-              ),
-              items: _filteredDetails.map((detail) {
-                return DropdownMenuItem(
-                  value: detail,
-                  child: Text(detail.detailName, overflow: TextOverflow.ellipsis),
-                );
-              }).toList(),
-              onChanged: _filteredDetails.isNotEmpty ? (detail) {
-                setState(() {
-                  _selectedDetail = detail;
-                });
-              } : null,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
-        ),
-        TextButton(
-          onPressed: () {
-            widget.onFilterSelected(_selectedDetail?.id);
-            Navigator.of(context).pop();
-          },
-          child: const Text('Aplicar Filtro'),
-        ),
-      ],
-    );
-  }
-}

@@ -8,6 +8,7 @@ import 'package:lince_inspecoes/presentation/screens/media/media_viewer_screen.d
 import 'package:lince_inspecoes/presentation/screens/media/components/media_filter_panel.dart';
 import 'package:lince_inspecoes/presentation/screens/media/components/media_grid.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/bulk_move_media_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,6 +21,8 @@ class MediaGalleryScreen extends StatefulWidget {
   final String? initialDetailId;
   final bool? initialIsNonConformityOnly;
   final String? initialMediaType;
+  final String? initialMediaSource; // NEW: Filter by media source
+  final bool excludeResolutionMedia; // NEW: Exclude resolution media
   // THE FIX: Novos parâmetros para filtro explícito
   final bool initialTopicOnly;
   final bool initialItemOnly;
@@ -32,6 +35,8 @@ class MediaGalleryScreen extends StatefulWidget {
     this.initialDetailId,
     this.initialIsNonConformityOnly,
     this.initialMediaType,
+    this.initialMediaSource,
+    this.excludeResolutionMedia = false,
     this.initialTopicOnly = false, // Padrão é false
     this.initialItemOnly = false, // Padrão é false
   });
@@ -59,6 +64,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   String? _selectedDetailId;
   bool? _selectedIsNonConformityOnly;
   String? _selectedMediaType;
+  String? _selectedMediaSource; // NEW: Filter by media source
+  bool _excludeResolutionMedia = false; // NEW: Exclude resolution media
   bool _topicOnly = false;
   bool _itemOnly = false;
   int _activeFiltersCount = 0;
@@ -113,6 +120,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     _selectedItemId = widget.initialItemId;
     _selectedDetailId = widget.initialDetailId;
     _selectedMediaType = widget.initialMediaType;
+    _selectedMediaSource = widget.initialMediaSource;
+    _excludeResolutionMedia = widget.excludeResolutionMedia;
     _selectedIsNonConformityOnly = widget.initialIsNonConformityOnly;
 
     // THE FIX: Usa os parâmetros explícitos
@@ -224,6 +233,9 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       
       for (final media in offlineMediaList) {
         final mediaData = media.toJson();
+        
+        // Debug: Log source values for camera issue debugging
+        debugPrint('MediaGalleryScreen: Media ${media.id} - source: ${media.source}, metadata: ${media.metadata}');
         
         // Add missing fields that the gallery expects
         mediaData['url'] = media.cloudUrl; // For backward compatibility
@@ -368,6 +380,22 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         return ncId != null;
       }).toList();
       debugPrint('MediaGalleryScreen: After NC filter: ${filteredMedia.length} items');
+    }
+    
+    if (_selectedMediaSource != null) {
+      filteredMedia = filteredMedia.where((media) {
+        final source = media['source'];
+        return source == _selectedMediaSource;
+      }).toList();
+      debugPrint('MediaGalleryScreen: After source filter: ${filteredMedia.length} items');
+    }
+    
+    if (_excludeResolutionMedia) {
+      filteredMedia = filteredMedia.where((media) {
+        final source = media['source'];
+        return source != 'resolution_camera' && source != 'resolution_gallery';
+      }).toList();
+      debugPrint('MediaGalleryScreen: After excluding resolution media: ${filteredMedia.length} items');
     }
 
     debugPrint('MediaGalleryScreen: Final filtered media count: ${filteredMedia.length}');
@@ -586,14 +614,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               tooltip: 'Selecionar Todos',
             ),
             IconButton(
-              icon: const Icon(Icons.clear),
+              icon: const Icon(Icons.deselect),
               onPressed: _clearSelection,
               tooltip: 'Limpar Seleção',
             ),
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: _exitMultiSelectMode,
-              tooltip: 'Sair da Seleção',
+              tooltip: 'Sair do Modo Seleção',
             ),
           ] else ...[
             // Show camera button ONLY when there are active filters (to avoid orphaned media)
@@ -656,6 +684,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                           _showMediaViewer(index);
                         }
                       },
+                      onLongPress: (mediaItem) {
+                        if (!_isMultiSelectMode) {
+                          _enterMultiSelectMode();
+                        }
+                        _toggleSelection(mediaItem['id']);
+                      },
+                      isMultiSelectMode: _isMultiSelectMode,
+                      selectedMediaIds: _selectedMediaIds,
                       onRefresh: _loadData,
                     ),
                   ),
@@ -750,61 +786,131 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   void _showMultiSelectActions() {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${_selectedMediaIds.length} item(ns) selecionado(s)',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.drive_file_move, color: Colors.blue),
-              title: const Text('Mover para Não Conformidade'),
-              onTap: () {
-                Navigator.pop(context);
-                _showMoveToNCDialog();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Excluir'),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteConfirmation();
-              },
-            ),
-          ],
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                '${_selectedMediaIds.length} item(ns) selecionado(s)',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.folder_open, color: Color(0xFF6F4B99)),
+                title: const Text('Mover para Tópico', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Mover para um tópico específico', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showBulkMoveDialog('topic');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.list_alt, color: Color(0xFF6F4B99)),
+                title: const Text('Mover para Item', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Mover para um item específico', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showBulkMoveDialog('item');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Color(0xFF6F4B99)),
+                title: const Text('Mover para Detalhe', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Mover para um detalhe específico', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showBulkMoveDialog('detail');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.explore, color: Color(0xFF6F4B99)),
+                title: const Text('Mover para Qualquer Local', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Escolher qualquer local da inspeção', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showBulkMoveDialog('any');
+                },
+              ),
+              const Divider(color: Colors.grey),
+              ListTile(
+                leading: const Icon(Icons.warning_amber, color: Colors.orange),
+                title: const Text('Criar Não Conformidade', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Criar NC e associar mídias', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _createNonConformityWithSelectedMedia();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Excluir Selecionadas', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Remover permanentemente', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmation();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  void _showMoveToNCDialog() {
-    // This will be implemented to create new non-conformities with selected media
+
+  void _showBulkMoveDialog(String destinationType) {
+    if (_selectedMediaIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nenhuma mídia selecionada')),
+      );
+      return;
+    }
+
+    // Create a special dialog for bulk operations
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Mover para Não Conformidade'),
-        content: const Text(
-            'Esta funcionalidade permitirá criar uma nova não conformidade com as mídias selecionadas.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _createNonConformityWithSelectedMedia();
-            },
-            child: const Text('Criar NC'),
-          ),
-        ],
+      builder: (context) => BulkMoveMediaDialog(
+        inspectionId: widget.inspectionId,
+        selectedMediaIds: _selectedMediaIds.toList(),
+        initialDestinationType: destinationType,
       ),
-    );
+    ).then((result) {
+      if (result == true && mounted) {
+        // Reload data and exit multi-select mode
+        final selectedCount = _selectedMediaIds.length;
+        _exitMultiSelectMode();
+        _loadData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$selectedCount mídia(s) movida(s) com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    });
   }
 
   void _showDeleteConfirmation() {

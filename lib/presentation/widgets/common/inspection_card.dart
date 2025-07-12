@@ -37,6 +37,7 @@ class InspectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Extract location data
     final title = inspection['title'] ?? 'Untitled Inspection';
+    final cod = inspection['cod'] ?? '';
     final scheduledDate = _formatDate(inspection['scheduled_date']);
 
     // --- Address Extraction Logic (Keep Existing) ---
@@ -98,15 +99,30 @@ class InspectionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      maxLines: 1, // Adjust if needed
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (cod.isNotEmpty)
+                          Text(
+                            cod,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white70,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),

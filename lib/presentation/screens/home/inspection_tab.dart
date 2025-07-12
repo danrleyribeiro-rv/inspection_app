@@ -9,7 +9,6 @@ import 'package:lince_inspecoes/presentation/screens/inspection/inspection_detai
 import 'package:lince_inspecoes/presentation/widgets/common/inspection_card.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/native_sync_service.dart';
-import 'package:lince_inspecoes/services/simple_notification_service.dart';
 import 'package:lince_inspecoes/services/debug_media_download_service.dart';
 
 // Função auxiliar para formatação de data em pt-BR
@@ -31,9 +30,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
   String? _googleMapsApiKey;
 
   // Filtros adicionais
-  String? _selectedStatusFilter;
-  DateTime? _selectedDateFilter;
-  bool _showFilters = false;
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _inspections = [];
@@ -216,36 +212,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
             }
           }
         }
-        // Filtro de status
-        bool matchesStatus = true;
-        if (_selectedStatusFilter != null &&
-            _selectedStatusFilter!.isNotEmpty) {
-          final status = inspection['status']?.toString() ?? '';
-          matchesStatus = status == _selectedStatusFilter;
-        }
-        // Filtro de data
-        bool matchesDate = true;
-        if (_selectedDateFilter != null) {
-          try {
-            DateTime? scheduledDate;
-            if (inspection['scheduled_date'] is String) {
-              scheduledDate = DateTime.parse(inspection['scheduled_date']);
-            } else if (inspection['scheduled_date'] is Timestamp) {
-              scheduledDate = inspection['scheduled_date'].toDate();
-            }
-            if (scheduledDate != null) {
-              matchesDate = scheduledDate.year == _selectedDateFilter!.year &&
-                  scheduledDate.month == _selectedDateFilter!.month &&
-                  scheduledDate.day == _selectedDateFilter!.day;
-            } else {
-              matchesDate = false;
-            }
-          } catch (e) {
-            log('Error comparing date for filter: $e');
-            matchesDate = false;
-          }
-        }
-        return matchesSearchText && matchesStatus && matchesDate;
+        return matchesSearchText;
       }).toList();
     });
   }
@@ -254,19 +221,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
     _applyFilters();
   }
 
-  void _clearFilters() {
-    setState(() {
-      _selectedStatusFilter = null;
-      _selectedDateFilter = null;
-      _applyFilters();
-    });
-  }
 
   void _clearSearch() {
     _searchController.clear();
     setState(() {
       _isSearching = false;
-      _clearFilters();
+      _applyFilters();
     });
   }
 
@@ -275,8 +235,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<void> _downloadInspectionData(String inspectionId) async {
     log('[InspectionsTab _downloadInspectionData] Starting complete offline download for inspection ID: $inspectionId');
     try {
-      // Test notification first
-      await _testNotification();
       
       // Run detailed debug of media download
       await _debugMediaDownload(inspectionId);
@@ -317,23 +275,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  Future<void> _testNotification() async {
-    try {
-      log('[InspectionsTab _testNotification] Testing notification...');
-      
-      // Show test notification
-      await SimpleNotificationService.instance.showTestNotification();
-      
-      log('[InspectionsTab _testNotification] Test notification sent');
-      
-      // Hide after 3 seconds
-      Timer(const Duration(seconds: 3), () {
-        SimpleNotificationService.instance.hideAllNotifications();
-      });
-    } catch (e) {
-      log('[InspectionsTab _testNotification] Error testing notification: $e');
-    }
-  }
 
   Future<void> _syncInspectionData(String inspectionId) async {
     log('[InspectionsTab _syncInspectionData] Starting sync for inspection ID: $inspectionId');
@@ -604,209 +545,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  //region Filter Widgets
-  Widget _buildFilterSection() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: const BoxDecoration(
-        color: Color(0xFF4A3B6B),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Filtrar por',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _buildStatusFilter()),
-              const SizedBox(width: 12),
-              _buildDateFilter(),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_selectedDateFilter != null) _buildSelectedDateChip(),
-          const SizedBox(height: 16),
-          if (_selectedStatusFilter != null || _selectedDateFilter != null)
-            _buildClearFiltersButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusFilter() {
-    return DropdownButtonFormField<String>(
-      value: _selectedStatusFilter,
-      onChanged: (value) {
-        setState(() {
-          _selectedStatusFilter = value == '' ? null : value;
-          _applyFilters();
-        });
-      },
-      decoration: InputDecoration(
-        labelText: 'Status',
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: const Color(0xFF312456).withValues(alpha: 0.5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      ),
-      dropdownColor: const Color(0xFF4A3B6B),
-      style: const TextStyle(color: Colors.white),
-      icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
-      items: const [
-        DropdownMenuItem(value: '', child: Text('Todos os status')),
-        DropdownMenuItem(value: 'pending', child: Text('Pendente')),
-        DropdownMenuItem(value: 'in_progress', child: Text('Em Progresso')),
-        DropdownMenuItem(value: 'completed', child: Text('Concluída')),
-      ],
-    );
-  }
-
-  Widget _buildDateFilter() {
-    return Tooltip(
-      message: 'Selecionar data',
-      child: InkWell(
-        onTap: _selectDate,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-          ),
-          child: const Icon(Icons.calendar_today, color: Colors.white70),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectedDateChip() {
-    return Chip(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      label: Text(
-        'Data: ${formatDateBR(_selectedDateFilter!)}',
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
-      backgroundColor: const Color(0xFF6F4B99),
-      deleteIcon: const Icon(Icons.close, size: 16, color: Colors.white70),
-      onDeleted: () {
-        setState(() {
-          _selectedDateFilter = null;
-          _applyFilters();
-        });
-      },
-    );
-  }
-
-  Future<void> _selectDate() async {
-    final DateTime? selectedDate = await showDialog<DateTime>(
-      context: context,
-      builder: (BuildContext context) {
-        DateTime currentDate = _selectedDateFilter ?? DateTime.now();
-        return Dialog(
-          backgroundColor: const Color(0xFF312456),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Selecionar Data',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: const ColorScheme.dark(
-                      primary: Color(0xFF6F4B99),
-                      onPrimary: Colors.white,
-                      surface: Color(0xFF4A3B6B),
-                      onSurface: Colors.white,
-                    ),
-                    dialogTheme:
-                        const DialogTheme(backgroundColor: Color(0xFF4A3B6B)),
-                    textButtonTheme: TextButtonThemeData(
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                  child: CalendarDatePicker(
-                    initialDate: currentDate,
-                    firstDate: DateTime(2025),
-                    lastDate: DateTime(2035),
-                    onDateChanged: (date) {
-                      currentDate = date;
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('CANCELAR'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, currentDate),
-                      child: const Text(
-                        'OK',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (selectedDate != null) {
-      setState(() {
-        _selectedDateFilter = selectedDate;
-        _applyFilters();
-      });
-    }
-  }
-
-  Widget _buildClearFiltersButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton.icon(
-        onPressed: _clearFilters,
-        icon: const Icon(Icons.close, size: 18),
-        label: const Text('Limpar Filtros'),
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white.withValues(alpha: 0.8),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
-    );
-  }
-  //endregion
 
   @override
   Widget build(BuildContext context) {
@@ -851,27 +589,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
                 });
               },
             ),
-          if (!_isSearching)
-            IconButton(
-              icon: Icon(
-                _showFilters ? Icons.filter_list_off : Icons.filter_list,
-                color: Colors.white,
-              ),
-              tooltip: 'Filtrar Vistorias',
-              onPressed: () {
-                setState(() {
-                  _showFilters = !_showFilters;
-                });
-              },
-            ),
-          // Test notification button
-          IconButton(
-            icon: const Icon(Icons.notifications, color: Colors.white),
-            tooltip: 'Testar Notificação',
-            onPressed: () async {
-              await SimpleNotificationService.instance.showTestNotification();
-            },
-          ),
           // Download Button
           IconButton(
             icon: const Icon(Icons.cloud_download, color: Colors.white),
@@ -888,7 +605,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
       ),
       body: Column(
         children: [
-          if (_showFilters) _buildFilterSection(),
           Expanded(
             child: _isLoading
                 ? const Center(

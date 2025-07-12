@@ -330,17 +330,4 @@ class SimpleNotificationService {
     }
   }
   
-  /// Show a simple test notification
-  Future<void> showTestNotification() async {
-    try {
-      await showCompletionNotification(
-        title: 'Teste de Notificação',
-        message: 'Sistema de notificações funcionando!',
-        isSuccess: true,
-      );
-      debugPrint('SimpleNotificationService: Test notification sent');
-    } catch (e) {
-      debugPrint('SimpleNotificationService: Error showing test notification: $e');
-    }
-  }
 }

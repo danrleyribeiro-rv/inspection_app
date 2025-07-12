@@ -1,11 +1,11 @@
 // lib/presentation/screens/inspection/components/non_conformity_list.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:lince_inspecoes/presentation/widgets/media/non_conformity_media_widget.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class NonConformityList extends StatefulWidget {
@@ -16,6 +16,8 @@ class NonConformityList extends StatefulWidget {
   final Function(Map<String, dynamic>) onEditNonConformity;
   final String? filterByDetailId;
   final Function()? onNonConformityUpdated;
+  final String searchQuery;
+  final String? levelFilter;
 
   const NonConformityList({
     super.key,
@@ -26,6 +28,8 @@ class NonConformityList extends StatefulWidget {
     required this.onEditNonConformity,
     this.filterByDetailId,
     this.onNonConformityUpdated,
+    this.searchQuery = '',
+    this.levelFilter,
   });
 
   @override
@@ -45,7 +49,7 @@ class _NonConformityListState extends State<NonConformityList> {
       case 'media':
         return Colors.orange;
       case 'baixa':
-        return Colors.green;
+        return Colors.yellow; // Changed from green to yellow
       case 'crítica':
       case 'critica':
         return Colors.purple;
@@ -63,11 +67,45 @@ class _NonConformityListState extends State<NonConformityList> {
       final medias = await _serviceFactory.mediaService.getMediaByContext(
         nonConformityId: nonConformityId,
       );
-      final count = medias.length;
+      
+      // Filter out resolution medias to show only regular NC medias
+      final regularMedias = medias.where((media) {
+        final source = media.source ?? '';
+        return source != 'resolution_camera' && source != 'resolution_gallery';
+      }).toList();
+      
+      final count = regularMedias.length;
       _mediaCountCache[nonConformityId] = count;
       return count;
     } catch (e) {
       debugPrint('Error getting media count for NC $nonConformityId: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getResolutionMediaCount(String nonConformityId) async {
+    final cacheKey = 'resolution_$nonConformityId';
+    if (_mediaCountCache.containsKey(cacheKey)) {
+      return _mediaCountCache[cacheKey]!;
+    }
+
+    try {
+      // Get all medias for this non-conformity and filter for resolution images
+      final medias = await _serviceFactory.mediaService.getMediaByContext(
+        nonConformityId: nonConformityId,
+      );
+      
+      // Filter medias that are resolution images based on source
+      final resolutionMedias = medias.where((media) {
+        final source = media.source ?? '';
+        return source == 'resolution_camera' || source == 'resolution_gallery';
+      }).toList();
+      
+      final count = resolutionMedias.length;
+      _mediaCountCache[cacheKey] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting resolution media count for NC $nonConformityId: $e');
       return 0;
     }
   }
@@ -90,11 +128,48 @@ class _NonConformityListState extends State<NonConformityList> {
       );
     }
 
-    final filteredNCs = widget.filterByDetailId != null
-        ? widget.nonConformities
-            .where((nc) => nc['detail_id'] == widget.filterByDetailId)
-            .toList()
-        : widget.nonConformities;
+    List<Map<String, dynamic>> filteredNCs = widget.nonConformities;
+    
+    // Apply detail filter if provided
+    if (widget.filterByDetailId != null) {
+      filteredNCs = filteredNCs
+          .where((nc) => nc['detail_id'] == widget.filterByDetailId)
+          .toList();
+    }
+    
+    // Apply search filter
+    if (widget.searchQuery.isNotEmpty) {
+      final query = widget.searchQuery.toLowerCase();
+      filteredNCs = filteredNCs.where((nc) {
+        final description = (nc['description'] ?? '').toString().toLowerCase();
+        final topicName = (nc['topic_name'] ?? '').toString().toLowerCase();
+        final itemName = (nc['item_name'] ?? '').toString().toLowerCase();
+        final detailName = (nc['detail_name'] ?? '').toString().toLowerCase();
+        final severity = (nc['severity'] ?? '').toString().toLowerCase();
+        
+        return description.contains(query) ||
+               topicName.contains(query) ||
+               itemName.contains(query) ||
+               detailName.contains(query) ||
+               severity.contains(query);
+      }).toList();
+    }
+    
+    // Apply level filter
+    if (widget.levelFilter != null) {
+      filteredNCs = filteredNCs.where((nc) {
+        switch (widget.levelFilter) {
+          case 'topic':
+            return nc['item_id'] == null && nc['detail_id'] == null;
+          case 'item':
+            return nc['item_id'] != null && nc['detail_id'] == null;
+          case 'detail':
+            return nc['detail_id'] != null;
+          default:
+            return true;
+        }
+      }).toList();
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(8),
@@ -121,7 +196,7 @@ class _NonConformityListState extends State<NonConformityList> {
         : switch (severity?.toLowerCase()) {
             'alta' => const Color(0xFF4A1E1E), // Vermelho escuro
             'média' || 'media' => const Color(0xFF4A3B1E), // Laranja escuro
-            'baixa' => const Color(0xFF1E4A1E), // Verde escuro
+            'baixa' => const Color(0xFF4A3B1E), // Amarelo escuro (changed from green)
             'crítica' || 'critica' => const Color(0xFF3A1E4A), // Roxo escuro
             _ => const Color(0xFF3A3A3A), // Cinza escuro
           };
@@ -218,15 +293,16 @@ class _NonConformityListState extends State<NonConformityList> {
 
             const SizedBox(height: 6),
 
-            // Botões de ação: Câmera, Galeria, Editar
+            // Botões de ação: Câmera, Galeria, Editar + Botões de Resolução
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                // Botões regulares (sempre visíveis)
                 _buildActionButtonV2(
                   icon: Icons.camera_alt,
                   label: 'Câmera',
                   color: Colors.purple,
-                  onPressed: () => _captureMedia(context, item),
+                  onPressed: () => _showCaptureDialog(context, item),
                 ),
                 FutureBuilder<int>(
                   key: ValueKey('nc_media_${item['id']}_$_mediaCountVersion'),
@@ -248,6 +324,36 @@ class _NonConformityListState extends State<NonConformityList> {
                   color: Colors.blue,
                   onPressed: () => _showEditDialog(context, item),
                 ),
+                
+                // Botões de resolução (só para NCs resolvidas)
+                if (isResolved) ...[
+                  FutureBuilder<int>(
+                    key: ValueKey('nc_resolution_${item['id']}_$_mediaCountVersion'),
+                    future: _getResolutionMediaCount(item['id'] ?? ''),
+                    builder: (context, snapshot) {
+                      final resolutionCount = snapshot.data ?? 0;
+                      
+                      if (resolutionCount > 0) {
+                        // Se tem mídias de resolução, mostrar botão de galeria
+                        return _buildActionButtonV2(
+                          icon: Icons.photo_library,
+                          label: 'Resolvido',
+                          color: Colors.green,
+                          onPressed: () => _showResolutionGallery(context, item),
+                          count: resolutionCount,
+                        );
+                      } else {
+                        // Se não tem mídias de resolução, mostrar botão de adicionar
+                        return _buildActionButtonV2(
+                          icon: Icons.camera_alt,
+                          label: 'Adicionar',
+                          color: Colors.green,
+                          onPressed: () => _addResolutionMedia(context, item),
+                        );
+                      }
+                    },
+                  ),
+                ],
               ],
             ),
 
@@ -503,62 +609,93 @@ class _NonConformityListState extends State<NonConformityList> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Resolver Não Conformidade'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-                'Deseja adicionar imagens de resolução antes de marcar como resolvida?'),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    _captureResolutionMedia(context, item);
-                  },
-                  icon: const Icon(Icons.camera_alt, size: 16),
-                  label: const Text('Adicionar Fotos'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    _markAsResolved(context, item, []);
-                  },
-                  icon: const Icon(Icons.check, size: 16),
-                  label: const Text('Resolver Sem Fotos'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        content: const Text('Deseja adicionar imagens de resolução antes de marcar como resolvida?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _markAsResolved(context, item, []);
+            },
+            child: const Text('Resolver Sem Fotos'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _showResolutionCaptureDialog(context, item);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Adicionar Fotos'),
           ),
         ],
       ),
     );
   }
 
-  void _captureResolutionMedia(
+  void _showResolutionCaptureDialog(
       BuildContext context, Map<String, dynamic> item) {
-    _showMediaSourceDialog(
-        context, (imagePaths) => _markAsResolved(context, item, imagePaths));
+    showDialog(
+      context: context,
+      builder: (context) => MediaCaptureDialog(
+        onMediaCaptured: (filePath, type, source) async {
+          try {
+            await _handleResolutionMediaCapture(context, item, [filePath]);
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro ao capturar mídia: $e')),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleResolutionMediaCapture(
+      BuildContext context, 
+      Map<String, dynamic> item, 
+      List<String> imagePaths) async {
+    try {
+      final serviceFactory = EnhancedOfflineServiceFactory.instance;
+      final nonConformityId = item['id'] ?? '';
+      
+      // Process and save each resolution image
+      for (final imagePath in imagePaths) {
+        await serviceFactory.mediaService.captureAndProcessMediaSimple(
+          inputPath: imagePath,
+          inspectionId: widget.inspectionId,
+          type: 'image',
+          topicId: item['topic_id'],
+          itemId: item['item_id'],
+          detailId: item['detail_id'],
+          nonConformityId: nonConformityId,
+          source: 'resolution_camera', // Mark as resolution media
+        );
+      }
+      
+      // Mark as resolved with resolution images
+      if (context.mounted) {
+        _markAsResolved(context, item, imagePaths);
+        
+        // Refresh the non-conformity list to update button state
+        if (widget.onNonConformityUpdated != null) {
+          widget.onNonConformityUpdated!();
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao processar mídia de resolução: $e')),
+        );
+      }
+    }
   }
 
   void _markAsResolved(BuildContext context, Map<String, dynamic> item,
@@ -583,112 +720,25 @@ class _NonConformityListState extends State<NonConformityList> {
     }
   }
 
-  void _captureMedia(BuildContext context, Map<String, dynamic> item) {
-    _showMediaSourceDialog(context,
-        (imagePaths) => _handleMediaCapture(context, item, imagePaths));
-  }
-
-  void _showMediaSourceDialog(
-      BuildContext context, Function(List<String>) onImagesSelected) {
-    showModalBottomSheet(
+  void _showCaptureDialog(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
       context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Text(
-              'Adicionar Mídia',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.blue),
-              title:
-                  const Text('Câmera', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Tirar foto com a câmera',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _captureFromCamera(context, onImagesSelected);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.green),
-              title:
-                  const Text('Galeria', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Escolher foto da galeria',
-                  style: TextStyle(color: Colors.grey)),
-              onTap: () {
-                Navigator.of(context).pop();
-                _selectFromGallery(context, onImagesSelected);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
+      builder: (context) => MediaCaptureDialog(
+        onMediaCaptured: (filePath, type, source) async {
+          try {
+            await _handleMediaCapture(context, item, [filePath]);
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro ao capturar mídia: $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
 
-  Future<void> _captureFromCamera(
-      BuildContext context, Function(List<String>) onImagesSelected) async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 90,
-      );
-
-      if (image != null) {
-        onImagesSelected([image.path]);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar imagem: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _selectFromGallery(
-      BuildContext context, Function(List<String>) onImagesSelected) async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final List<XFile> images = await picker.pickMultiImage(
-        imageQuality: 90,
-      );
-
-      if (images.isNotEmpty) {
-        final imagePaths = images.map((image) => image.path).toList();
-        onImagesSelected(imagePaths);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao selecionar imagens: $e')),
-        );
-      }
-    }
-  }
 
   Future<void> _handleMediaCapture(BuildContext context,
       Map<String, dynamic> item, List<String> imagePaths) async {
@@ -704,7 +754,7 @@ class _NonConformityListState extends State<NonConformityList> {
 
       // Process and save each image
       for (final imagePath in imagePaths) {
-        await serviceFactory.mediaService.captureAndProcessMedia(
+        await serviceFactory.mediaService.captureAndProcessMediaSimple(
           inputPath: imagePath,
           inspectionId: widget.inspectionId,
           type: 'image',
@@ -712,6 +762,7 @@ class _NonConformityListState extends State<NonConformityList> {
           itemId: item['item_id'],
           detailId: item['detail_id'],
           nonConformityId: nonConformityId,
+          source: 'camera',
         );
       }
 
@@ -759,6 +810,7 @@ class _NonConformityListState extends State<NonConformityList> {
             initialItemId: item['item_id'],
             initialDetailId: item['detail_id'],
             initialIsNonConformityOnly: true,
+            excludeResolutionMedia: true, // Exclude resolution medias from regular gallery
           ),
         ),
       );
@@ -767,6 +819,85 @@ class _NonConformityListState extends State<NonConformityList> {
         SnackBar(content: Text('Erro ao abrir galeria: $e')),
       );
     }
+  }
+
+  void _showResolutionGallery(BuildContext context, Map<String, dynamic> item) {
+    try {
+      // Show only resolution images for this resolved non-conformity
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => MediaGalleryScreen(
+            inspectionId: widget.inspectionId,
+            initialTopicId: item['topic_id'],
+            initialItemId: item['item_id'],
+            initialDetailId: item['detail_id'],
+            initialIsNonConformityOnly: true,
+            initialMediaSource: 'resolution_camera', // Filter by resolution media only
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao abrir galeria de resolução: $e')),
+      );
+    }
+  }
+
+  void _addResolutionMedia(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => MediaCaptureDialog(
+        onMediaCaptured: (filePath, type, source) async {
+          try {
+            // Process resolution media with correct type and source
+            final serviceFactory = EnhancedOfflineServiceFactory.instance;
+            final nonConformityId = item['id'] ?? '';
+            
+            await serviceFactory.mediaService.captureAndProcessMediaSimple(
+              inputPath: filePath,
+              inspectionId: widget.inspectionId,
+              type: type, // 'image' or 'video' from MediaCaptureDialog
+              topicId: item['topic_id'],
+              itemId: item['item_id'],
+              detailId: item['detail_id'],
+              nonConformityId: nonConformityId,
+              source: 'resolution_camera', // Mark as resolution media
+            );
+            
+            // Limpar cache para atualizar contadores
+            _mediaCountCache.remove('resolution_$nonConformityId');
+            
+            // Forçar rebuild do widget para mostrar nova contagem
+            if (mounted) {
+              setState(() {
+                _mediaCountVersion++; // Força rebuild do FutureBuilder
+              });
+            }
+            
+            // Refresh the non-conformity list to update button state
+            if (widget.onNonConformityUpdated != null) {
+              widget.onNonConformityUpdated!();
+            }
+            
+            if (context.mounted) {
+              final mediaType = type == 'image' ? 'Foto' : 'Vídeo';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$mediaType de resolução adicionada com sucesso!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro ao capturar mídia: $e')),
+              );
+            }
+          }
+        },
+      ),
+    );
   }
 
 }
