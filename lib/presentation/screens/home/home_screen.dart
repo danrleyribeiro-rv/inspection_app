@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/presentation/screens/home/inspection_tab.dart';
 import 'package:lince_inspecoes/presentation/screens/home/profile_tab.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/presentation/widgets/permissions/notification_permission_dialog.dart';
+import 'package:lince_inspecoes/services/simple_notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkAuth();
+    _checkNotificationPermissions();
   }
 
   void _checkAuth() {
@@ -32,6 +35,30 @@ class _HomeScreenState extends State<HomeScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushReplacementNamed('/login');
       });
+    }
+  }
+
+  void _checkNotificationPermissions() async {
+    // Aguarda um pouco para garantir que a tela esteja totalmente carregada
+    await Future.delayed(const Duration(milliseconds: 1500));
+    
+    if (!mounted) return;
+    
+    // Verifica se as notificações já estão habilitadas
+    final areEnabled = await SimpleNotificationService.instance.areNotificationsEnabled();
+    
+    if (!areEnabled) {
+      // Mostra o diálogo de permissão
+      final granted = await NotificationPermissionDialog.show(context);
+      
+      if (granted && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notificações habilitadas! Você receberá atualizações sobre sincronizações.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
   }
 

@@ -451,7 +451,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
           value: 'Baixa',
           child: Row(
             children: [
-              Icon(Icons.circle, color: Colors.green, size: 12),
+              Icon(Icons.circle, color: Colors.yellow, size: 12),
               SizedBox(width: 8),
               Text('Baixa'),
             ],

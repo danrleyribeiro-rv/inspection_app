@@ -16,6 +16,8 @@ class NonConformity {
   final String status; // open, closed, in_progress
   final String? correctiveAction;
   final DateTime? deadline;
+  final bool isResolved; // NEW: flag for resolution status
+  final DateTime? resolvedAt; // NEW: resolution timestamp
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool needsSync;
@@ -33,6 +35,8 @@ class NonConformity {
     required this.status,
     this.correctiveAction,
     this.deadline,
+    this.isResolved = false,
+    this.resolvedAt,
     required this.createdAt,
     required this.updatedAt,
     this.needsSync = false,
@@ -50,6 +54,8 @@ class NonConformity {
     String status = 'open',
     String? correctiveAction,
     DateTime? deadline,
+    bool isResolved = false,
+    DateTime? resolvedAt,
   }) {
     final now = DateTime.now();
     return NonConformity(
@@ -64,6 +70,8 @@ class NonConformity {
       status: status,
       correctiveAction: correctiveAction,
       deadline: deadline,
+      isResolved: isResolved,
+      resolvedAt: resolvedAt,
       createdAt: now,
       updatedAt: now,
       needsSync: true,
@@ -89,6 +97,8 @@ class NonConformity {
       status: map['status'] as String,
       correctiveAction: map['corrective_action'] as String?,
       deadline: map['deadline'] != null ? DateTime.parse(map['deadline'] as String) : null,
+      isResolved: (map['is_resolved'] as int? ?? 0) == 1,
+      resolvedAt: map['resolved_at'] != null ? DateTime.parse(map['resolved_at'] as String) : null,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       needsSync: (map['needs_sync'] as int? ?? 0) == 1,
@@ -109,6 +119,8 @@ class NonConformity {
       'status': status,
       'corrective_action': correctiveAction,
       'deadline': deadline?.toIso8601String(),
+      'is_resolved': isResolved ? 1 : 0,
+      'resolved_at': resolvedAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'needs_sync': needsSync ? 1 : 0,
@@ -128,6 +140,8 @@ class NonConformity {
     String? status,
     String? correctiveAction,
     DateTime? deadline,
+    bool? isResolved,
+    DateTime? resolvedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? needsSync,
@@ -145,6 +159,8 @@ class NonConformity {
       status: status ?? this.status,
       correctiveAction: correctiveAction ?? this.correctiveAction,
       deadline: deadline ?? this.deadline,
+      isResolved: isResolved ?? this.isResolved,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       needsSync: needsSync ?? this.needsSync,

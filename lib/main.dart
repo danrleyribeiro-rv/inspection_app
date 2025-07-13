@@ -14,6 +14,8 @@ import 'package:lince_inspecoes/presentation/screens/home/home_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/settings/settings_screen.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/native_sync_service.dart';
+import 'package:lince_inspecoes/services/simple_notification_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lince_inspecoes/firebase_options.dart';
 
@@ -35,6 +37,10 @@ Future<void> main() async {
 
   // 3. Inicializa o novo sistema offline SQLite com Enhanced Service Factory
   await EnhancedOfflineServiceFactory.instance.initialize();
+
+  // 4. Inicializa serviços de notificação
+  await SimpleNotificationService.instance.initialize();
+  await NativeSyncService.instance.initialize();
 
   debugPrint('Main: All services initialized successfully');
 

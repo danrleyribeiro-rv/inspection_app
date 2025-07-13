@@ -674,6 +674,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           MaterialPageRoute(
             builder: (context) => NonConformityScreen(
               inspectionId: widget.inspectionId,
+              initialTabIndex: 1, // Ir direto para a aba de listagem
             ),
           ),
         );
@@ -864,6 +865,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                         MaterialPageRoute(
                           builder: (context) => NonConformityScreen(
                             inspectionId: widget.inspectionId,
+                            initialTabIndex: 1, // Ir direto para a aba de listagem
                           ),
                         ),
                       );

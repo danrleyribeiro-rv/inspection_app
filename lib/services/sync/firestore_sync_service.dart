@@ -390,6 +390,8 @@ class FirestoreSyncService {
           status: ncMap['status'] ?? 'open',
           correctiveAction: ncMap['corrective_action'],
           deadline: ncMap['deadline'] != null ? DateTime.tryParse(ncMap['deadline'].toString()) : null,
+          isResolved: ncMap['is_resolved'] == true || ncMap['is_resolved'] == 1,
+          resolvedAt: ncMap['resolved_at'] != null ? DateTime.tryParse(ncMap['resolved_at'].toString()) : null,
           createdAt: DateTime.tryParse(ncMap['created_at']?.toString() ?? '') ?? DateTime.now(),
           updatedAt: DateTime.tryParse(ncMap['updated_at']?.toString() ?? '') ?? DateTime.now(),
         );
@@ -424,6 +426,8 @@ class FirestoreSyncService {
           status: ncMap['status'] ?? 'open',
           correctiveAction: ncMap['corrective_action'],
           deadline: ncMap['deadline'] != null ? DateTime.tryParse(ncMap['deadline'].toString()) : null,
+          isResolved: ncMap['is_resolved'] == true || ncMap['is_resolved'] == 1,
+          resolvedAt: ncMap['resolved_at'] != null ? DateTime.tryParse(ncMap['resolved_at'].toString()) : null,
           createdAt: DateTime.tryParse(ncMap['created_at']?.toString() ?? '') ?? DateTime.now(),
           updatedAt: DateTime.tryParse(ncMap['updated_at']?.toString() ?? '') ?? DateTime.now(),
         );
@@ -458,6 +462,8 @@ class FirestoreSyncService {
           status: ncMap['status'] ?? 'open',
           correctiveAction: ncMap['corrective_action'],
           deadline: ncMap['deadline'] != null ? DateTime.tryParse(ncMap['deadline'].toString()) : null,
+          isResolved: ncMap['is_resolved'] == true || ncMap['is_resolved'] == 1,
+          resolvedAt: ncMap['resolved_at'] != null ? DateTime.tryParse(ncMap['resolved_at'].toString()) : null,
           createdAt: DateTime.tryParse(ncMap['created_at']?.toString() ?? '') ?? DateTime.now(),
           updatedAt: DateTime.tryParse(ncMap['updated_at']?.toString() ?? '') ?? DateTime.now(),
         );
@@ -971,6 +977,10 @@ class FirestoreSyncService {
         'description': nc.description,
         'severity': nc.severity,
         'status': nc.status,
+        'corrective_action': nc.correctiveAction,
+        'deadline': nc.deadline?.toIso8601String(),
+        'is_resolved': nc.isResolved,
+        'resolved_at': nc.resolvedAt?.toIso8601String(),
         'createdAt': nc.createdAt.toIso8601String(),
         'updatedAt': nc.updatedAt.toIso8601String(),
       }).toList();
@@ -1011,6 +1021,10 @@ class FirestoreSyncService {
           'description': nc.description,
           'severity': nc.severity,
           'status': nc.status,
+          'corrective_action': nc.correctiveAction,
+          'deadline': nc.deadline?.toIso8601String(),
+          'is_resolved': nc.isResolved,
+          'resolved_at': nc.resolvedAt?.toIso8601String(),
           'createdAt': nc.createdAt.toIso8601String(),
           'updatedAt': nc.updatedAt.toIso8601String(),
         }).toList();
@@ -1053,6 +1067,10 @@ class FirestoreSyncService {
             'description': nc.description,
             'severity': nc.severity,
             'status': nc.status,
+            'corrective_action': nc.correctiveAction,
+            'deadline': nc.deadline?.toIso8601String(),
+            'is_resolved': nc.isResolved,
+            'resolved_at': nc.resolvedAt?.toIso8601String(),
             'createdAt': nc.createdAt.toIso8601String(),
             'updatedAt': nc.updatedAt.toIso8601String(),
           }).toList();

@@ -21,6 +21,10 @@ NonConformity _$NonConformityFromJson(Map<String, dynamic> json) =>
       deadline: json['deadline'] == null
           ? null
           : DateTime.parse(json['deadline'] as String),
+      isResolved: json['isResolved'] as bool? ?? false,
+      resolvedAt: json['resolvedAt'] == null
+          ? null
+          : DateTime.parse(json['resolvedAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       needsSync: json['needsSync'] as bool? ?? false,
@@ -40,6 +44,8 @@ Map<String, dynamic> _$NonConformityToJson(NonConformity instance) =>
       'status': instance.status,
       'correctiveAction': instance.correctiveAction,
       'deadline': instance.deadline?.toIso8601String(),
+      'isResolved': instance.isResolved,
+      'resolvedAt': instance.resolvedAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'needsSync': instance.needsSync,

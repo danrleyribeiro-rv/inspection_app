@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const String _databaseName = 'inspection_offline.db';
-  static const int _databaseVersion = 7;
+  static const int _databaseVersion = 8;
 
   static Database? _database;
 
@@ -143,6 +143,8 @@ class DatabaseHelper {
         status TEXT NOT NULL,
         corrective_action TEXT,
         deadline TEXT,
+        is_resolved INTEGER NOT NULL DEFAULT 0,
+        resolved_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         needs_sync INTEGER NOT NULL DEFAULT 0,
@@ -279,6 +281,12 @@ class DatabaseHelper {
       // Migração para versão 7: Adicionar corrective_action e deadline à tabela non_conformities
       await db.execute('ALTER TABLE non_conformities ADD COLUMN corrective_action TEXT');
       await db.execute('ALTER TABLE non_conformities ADD COLUMN deadline TEXT');
+    }
+    
+    if (oldVersion < 8) {
+      // Migração para versão 8: Adicionar is_resolved e resolved_at à tabela non_conformities
+      await db.execute('ALTER TABLE non_conformities ADD COLUMN is_resolved INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE non_conformities ADD COLUMN resolved_at TEXT');
     }
   }
 

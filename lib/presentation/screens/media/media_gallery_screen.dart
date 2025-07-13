@@ -19,6 +19,7 @@ class MediaGalleryScreen extends StatefulWidget {
   final String? initialTopicId;
   final String? initialItemId;
   final String? initialDetailId;
+  final String? initialNonConformityId; // NEW: Filter by specific NC
   final bool? initialIsNonConformityOnly;
   final String? initialMediaType;
   final String? initialMediaSource; // NEW: Filter by media source
@@ -33,6 +34,7 @@ class MediaGalleryScreen extends StatefulWidget {
     this.initialTopicId,
     this.initialItemId,
     this.initialDetailId,
+    this.initialNonConformityId,
     this.initialIsNonConformityOnly,
     this.initialMediaType,
     this.initialMediaSource,
@@ -62,6 +64,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   String? _selectedTopicId;
   String? _selectedItemId;
   String? _selectedDetailId;
+  String? _selectedNonConformityId; // NEW: Filter by specific NC
   bool? _selectedIsNonConformityOnly;
   String? _selectedMediaType;
   String? _selectedMediaSource; // NEW: Filter by media source
@@ -119,6 +122,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     _selectedTopicId = widget.initialTopicId;
     _selectedItemId = widget.initialItemId;
     _selectedDetailId = widget.initialDetailId;
+    _selectedNonConformityId = widget.initialNonConformityId;
     _selectedMediaType = widget.initialMediaType;
     _selectedMediaSource = widget.initialMediaSource;
     _excludeResolutionMedia = widget.excludeResolutionMedia;
@@ -380,6 +384,14 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         return ncId != null;
       }).toList();
       debugPrint('MediaGalleryScreen: After NC filter: ${filteredMedia.length} items');
+    }
+    
+    if (_selectedNonConformityId != null) {
+      filteredMedia = filteredMedia.where((media) {
+        final ncId = media['nonConformityId'] ?? media['non_conformity_id'];
+        return ncId == _selectedNonConformityId;
+      }).toList();
+      debugPrint('MediaGalleryScreen: After specific NC filter: ${filteredMedia.length} items');
     }
     
     if (_selectedMediaSource != null) {

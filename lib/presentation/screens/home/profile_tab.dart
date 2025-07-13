@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lince_inspecoes/presentation/screens/profile/edit_profile_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/profile/qr_code_credentials_dialog.dart';
+import 'package:lince_inspecoes/services/simple_notification_service.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -116,6 +117,47 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  void _testNotification() async {
+    try {
+      // Test download progress notification
+      await SimpleNotificationService.instance.showDownloadProgress(
+        title: 'Teste de Download',
+        message: 'Baixando inspeção de teste...',
+        progress: 50,
+        maxProgress: 100,
+      );
+
+      // Wait 3 seconds, then show completion
+      await Future.delayed(const Duration(seconds: 3));
+
+      await SimpleNotificationService.instance.showCompletionNotification(
+        title: 'Download Concluído',
+        message: 'Inspeção baixada com sucesso!',
+        isSuccess: true,
+      );
+
+      // Show success message in app
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notificação de teste enviada!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      // Show error message in app
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao enviar notificação: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,6 +193,24 @@ class _ProfileTabState extends State<ProfileTab> {
                     label: const Text('Credenciais'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6F4B99),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Test Notification Button
+                  ElevatedButton.icon(
+                    onPressed: _testNotification,
+                    icon: const Icon(Icons.notifications, size: 20),
+                    label: const Text('Testar Notificação'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 12),

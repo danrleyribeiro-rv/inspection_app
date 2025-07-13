@@ -15,6 +15,7 @@ class NonConformityScreen extends StatefulWidget {
   final dynamic preSelectedItem;
   final dynamic preSelectedDetail;
   final List<String>? selectedMediaIds;
+  final int initialTabIndex;
 
   const NonConformityScreen({
     super.key,
@@ -23,6 +24,7 @@ class NonConformityScreen extends StatefulWidget {
     this.preSelectedItem,
     this.preSelectedDetail,
     this.selectedMediaIds,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -57,7 +59,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTabIndex);
     _tabController.addListener(() {
       if (mounted) {
         setState(() {});
@@ -199,7 +201,28 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       final enrichedNonConformities = <Map<String, dynamic>>[];
 
       for (final nc in nonConformitiesObjects) {
-        final ncData = nc.toJson();
+        // Use toMap() instead of toJson() for better UI compatibility
+        final ncData = nc.toMap();
+        
+        // Ensure UI-compatible field names and values
+        ncData['id'] = nc.id;
+        ncData['inspection_id'] = nc.inspectionId;
+        ncData['topic_id'] = nc.topicId;
+        ncData['item_id'] = nc.itemId;
+        ncData['detail_id'] = nc.detailId;
+        ncData['title'] = nc.title;
+        ncData['description'] = nc.description;
+        ncData['severity'] = nc.severity;
+        ncData['status'] = nc.status;
+        ncData['corrective_action'] = nc.correctiveAction;
+        ncData['deadline'] = nc.deadline?.toIso8601String();
+        ncData['is_resolved'] = nc.isResolved;
+        ncData['resolved_at'] = nc.resolvedAt?.toIso8601String();
+        ncData['created_at'] = nc.createdAt.toIso8601String();
+        ncData['updated_at'] = nc.updatedAt.toIso8601String();
+        
+        debugPrint('NonConformityScreen: Loading NC ${nc.id} - isResolved: ${nc.isResolved}, status: ${nc.status}, resolvedAt: ${nc.resolvedAt}');
+        debugPrint('NonConformityScreen: UI Data - isResolved: ${ncData['is_resolved']}, status: ${ncData['status']}');
 
         // Load topic name if available
         if (nc.topicId != null) {
@@ -324,7 +347,12 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   }
 
   Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
-    if (_isProcessing) return;
+    debugPrint('NonConformityScreen: _updateNonConformity called with data: $updatedData');
+    
+    if (_isProcessing) {
+      debugPrint('NonConformityScreen: Already processing, skipping update');
+      return;
+    }
 
     setState(() => _isProcessing = true);
 
@@ -336,6 +364,38 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       }
 
       // Convert updatedData to NonConformity object
+      debugPrint('NonConformityScreen: Updating NC with data: $updatedData');
+      debugPrint('NonConformityScreen: NonConformity ID: $nonConformityId');
+      
+      DateTime? parsedResolvedAt;
+      try {
+        if (updatedData['resolved_at'] != null) {
+          final resolvedAtValue = updatedData['resolved_at'];
+          if (resolvedAtValue is String) {
+            parsedResolvedAt = DateTime.parse(resolvedAtValue);
+          }
+        }
+      } catch (e) {
+        debugPrint('NonConformityScreen: Error parsing resolved_at: $e');
+      }
+      
+      DateTime? parsedDeadline;
+      try {
+        if (updatedData['deadline'] != null) {
+          final deadlineValue = updatedData['deadline'];
+          if (deadlineValue is String) {
+            parsedDeadline = DateTime.parse(deadlineValue);
+          }
+        }
+      } catch (e) {
+        debugPrint('NonConformityScreen: Error parsing deadline: $e');
+      }
+      
+      final isResolvedValue = updatedData['is_resolved'] == true || updatedData['is_resolved'] == 1;
+      final statusValue = updatedData['status'] ?? 'open';
+      
+      debugPrint('NonConformityScreen: isResolved = $isResolvedValue, status = $statusValue, resolvedAt = $parsedResolvedAt');
+      
       final nonConformity = NonConformity(
         id: nonConformityId,
         inspectionId: updatedData['inspection_id'] ?? widget.inspectionId,
@@ -345,15 +405,23 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         title: updatedData['title'] ?? '',
         description: updatedData['description'] ?? '',
         severity: updatedData['severity'] ?? 'medium',
-        status: updatedData['status'] ?? 'open',
+        status: statusValue,
+        correctiveAction: updatedData['corrective_action'],
+        deadline: parsedDeadline,
+        isResolved: isResolvedValue,
+        resolvedAt: parsedResolvedAt,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         needsSync: true,
         isDeleted: false,
       );
+      debugPrint('NonConformityScreen: About to call updateNonConformity on data service');
       await _serviceFactory.dataService.updateNonConformity(nonConformity);
+      debugPrint('NonConformityScreen: updateNonConformity completed successfully');
 
+      debugPrint('NonConformityScreen: About to reload non-conformities');
       await _loadNonConformities();
+      debugPrint('NonConformityScreen: Non-conformities reloaded');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
