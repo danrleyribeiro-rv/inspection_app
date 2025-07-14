@@ -781,8 +781,21 @@ class _MediaGridState extends State<MediaGrid> {
 
     final source = mediaItem['source'] as String?;
     final metadataSource = metadata?['source'] as String?;
+    
+    // Debug logging para rastrear valores de source
+    debugPrint('MediaGrid: ========== SOURCE ANALYSIS FOR DISPLAY ==========');
+    debugPrint('MediaGrid: Media ID: ${mediaItem['id']}');
+    debugPrint('MediaGrid: Filename: ${mediaItem['filename']}');
+    debugPrint('MediaGrid: Direct source field: $source');
+    debugPrint('MediaGrid: Metadata source field: $metadataSource');
+    
     final isFromCamera = source == 'camera' || source == 'resolution_camera' || 
                         metadataSource == 'camera' || metadataSource == 'resolution_camera';
+    
+    debugPrint('MediaGrid: isFromCamera result: $isFromCamera');
+    debugPrint('MediaGrid: Will display: ${isFromCamera ? "📷 Câmera" : "📁 Galeria"}');
+    debugPrint('MediaGrid: ========== SOURCE ANALYSIS COMPLETE ==========');
+    
     final isNonConformity = mediaItem['is_non_conformity'] == true;
     
     List<String> details = [];

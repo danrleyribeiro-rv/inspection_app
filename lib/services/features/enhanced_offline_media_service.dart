@@ -115,6 +115,10 @@ class EnhancedOfflineMediaService {
       // Salvar mídia primeiro, criar thumbnail depois
       debugPrint('EnhancedOfflineMediaService: Skipping thumbnail creation for immediate save');
 
+      // Determinar source e isResolutionMedia
+      final sourceValue = metadata?['source'] as String? ?? 'camera';
+      final isResolutionMedia = sourceValue.contains('resolution');
+      
       // Criar o objeto OfflineMedia com todos os dados
       final media = OfflineMedia(
         id: const Uuid().v4(),
@@ -136,7 +140,8 @@ class EnhancedOfflineMediaService {
         needsSync: true,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        source: metadata?['source'] as String? ?? 'camera',
+        source: sourceValue,
+        isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
         metadata: processedMetadata,
       );
 
@@ -152,31 +157,65 @@ class EnhancedOfflineMediaService {
           final asyncThumbnailPath = await _createImageThumbnail(localPath);
           
           // GPS assíncrono
-          debugPrint('EnhancedOfflineMediaService: Starting async GPS location');
+          debugPrint('EnhancedOfflineMediaService: ========== STARTING ASYNC GPS CAPTURE ==========');
+          debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
+          debugPrint('EnhancedOfflineMediaService: Media filename: ${media.filename}');
+          
           final asyncPosition = await getCurrentLocation();
           
           // Preparar metadata atualizada
           Map<String, dynamic> updatedMetadata = Map.from(processedMetadata);
           if (asyncPosition != null) {
+            final latitude = asyncPosition['latitude'];
+            final longitude = asyncPosition['longitude'];
+            final accuracy = asyncPosition['accuracy'] ?? 0.0;
+            final capturedAt = DateTime.now().toIso8601String();
+            
             updatedMetadata['location'] = {
-              'latitude': asyncPosition['latitude'],
-              'longitude': asyncPosition['longitude'],
-              'accuracy': asyncPosition['accuracy'] ?? 0.0,
-              'captured_at': DateTime.now().toIso8601String(),
+              'latitude': latitude,
+              'longitude': longitude,
+              'accuracy': accuracy,
+              'captured_at': capturedAt,
             };
-            debugPrint('EnhancedOfflineMediaService: Async GPS captured: ${asyncPosition['latitude']}, ${asyncPosition['longitude']}');
+            updatedMetadata['location_status'] = 'captured';
+            
+            debugPrint('EnhancedOfflineMediaService: ========== GPS LOCATION SUCCESSFULLY CAPTURED ==========');
+            debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
+            debugPrint('EnhancedOfflineMediaService: Latitude: $latitude');
+            debugPrint('EnhancedOfflineMediaService: Longitude: $longitude');
+            debugPrint('EnhancedOfflineMediaService: Accuracy: ${accuracy}m');
+            debugPrint('EnhancedOfflineMediaService: Captured at: $capturedAt');
+            debugPrint('EnhancedOfflineMediaService: Location will be included in cloud upload metadata');
+            debugPrint('EnhancedOfflineMediaService: ========== GPS CAPTURE COMPLETE ==========');
           } else {
             updatedMetadata['location_status'] = 'unavailable';
+            debugPrint('EnhancedOfflineMediaService: ========== GPS LOCATION NOT AVAILABLE ==========');
+            debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
+            debugPrint('EnhancedOfflineMediaService: Reason: getCurrentLocation() returned null');
+            debugPrint('EnhancedOfflineMediaService: Check permissions and device location settings');
+            debugPrint('EnhancedOfflineMediaService: ========== GPS CAPTURE FAILED ==========');
           }
           
           // Atualizar mídia com thumbnail e GPS
           if (asyncThumbnailPath != null || asyncPosition != null) {
+            debugPrint('EnhancedOfflineMediaService: ========== UPDATING MEDIA WITH GPS DATA ==========');
+            debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
+            debugPrint('EnhancedOfflineMediaService: Thumbnail path: ${asyncThumbnailPath ?? "none"}');
+            debugPrint('EnhancedOfflineMediaService: GPS data available: ${asyncPosition != null ? "YES" : "NO"}');
+            
             final updatedMedia = media.copyWith(
               thumbnailPath: asyncThumbnailPath,
               metadata: updatedMetadata,
             );
+            
             await _mediaRepository.update(updatedMedia);
-            debugPrint('EnhancedOfflineMediaService: Media updated with thumbnail and GPS');
+            
+            debugPrint('EnhancedOfflineMediaService: ✅ Media successfully updated in database');
+            debugPrint('EnhancedOfflineMediaService: GPS coordinates are now stored in metadata');
+            debugPrint('EnhancedOfflineMediaService: Ready for sync to cloud with GPS data');
+            debugPrint('EnhancedOfflineMediaService: ========== MEDIA UPDATE COMPLETE ==========');
+          } else {
+            debugPrint('EnhancedOfflineMediaService: ⚠️  No thumbnail or GPS data to update');
           }
         } catch (e) {
           debugPrint('EnhancedOfflineMediaService: Error in async processing: $e');
@@ -265,29 +304,45 @@ class EnhancedOfflineMediaService {
 
   Future<Map<String, double>?> getCurrentLocation() async {
     try {
+      debugPrint('EnhancedOfflineMediaService: ========== GPS LOCATION CAPTURE STARTED ==========');
+      
       // Verificar se o serviço de localização está habilitado
+      debugPrint('EnhancedOfflineMediaService: Checking if location service is enabled...');
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        debugPrint('EnhancedOfflineMediaService: Location service is disabled');
+        debugPrint('EnhancedOfflineMediaService: ❌ Location service is disabled');
+        debugPrint('EnhancedOfflineMediaService: Please enable location services in device settings');
         return null;
       }
+      debugPrint('EnhancedOfflineMediaService: ✅ Location service is enabled');
 
       // Verificar permissões
+      debugPrint('EnhancedOfflineMediaService: Checking location permissions...');
       LocationPermission permission = await Geolocator.checkPermission();
+      debugPrint('EnhancedOfflineMediaService: Current permission status: $permission');
+      
       if (permission == LocationPermission.denied) {
+        debugPrint('EnhancedOfflineMediaService: Location permission denied, requesting permission...');
         permission = await Geolocator.requestPermission();
+        debugPrint('EnhancedOfflineMediaService: Permission request result: $permission');
         if (permission == LocationPermission.denied) {
-          debugPrint('EnhancedOfflineMediaService: Location permission denied');
+          debugPrint('EnhancedOfflineMediaService: ❌ Location permission denied by user');
           return null;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        debugPrint('EnhancedOfflineMediaService: Location permission permanently denied');
+        debugPrint('EnhancedOfflineMediaService: ❌ Location permission permanently denied');
+        debugPrint('EnhancedOfflineMediaService: Please enable location permission in app settings');
         return null;
       }
 
+      debugPrint('EnhancedOfflineMediaService: ✅ Location permission granted: $permission');
+      
       // Obter localização
+      debugPrint('EnhancedOfflineMediaService: Getting current GPS position...');
+      debugPrint('EnhancedOfflineMediaService: Using LocationAccuracy.best with 10 second timeout');
+      
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
@@ -295,14 +350,33 @@ class EnhancedOfflineMediaService {
         ),
       );
       
-      debugPrint('EnhancedOfflineMediaService: Location obtained successfully');
+      final latitude = position.latitude;
+      final longitude = position.longitude;
+      final accuracy = position.accuracy;
+      final timestamp = position.timestamp;
+      
+      debugPrint('EnhancedOfflineMediaService: ========== GPS POSITION OBTAINED SUCCESSFULLY ==========');
+      debugPrint('EnhancedOfflineMediaService: ✅ Latitude: $latitude');
+      debugPrint('EnhancedOfflineMediaService: ✅ Longitude: $longitude');
+      debugPrint('EnhancedOfflineMediaService: ✅ Accuracy: ${accuracy}m');
+      debugPrint('EnhancedOfflineMediaService: ✅ Timestamp: $timestamp');
+      debugPrint('EnhancedOfflineMediaService: GPS coordinates ready for metadata storage');
+      debugPrint('EnhancedOfflineMediaService: ========== GPS CAPTURE SUCCESS ==========');
+      
       return {
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-        'accuracy': position.accuracy,
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
       };
     } catch (e) {
-      debugPrint('EnhancedOfflineMediaService: Error getting location: $e');
+      debugPrint('EnhancedOfflineMediaService: ========== GPS CAPTURE ERROR ==========');
+      debugPrint('EnhancedOfflineMediaService: ❌ Error getting location: $e');
+      debugPrint('EnhancedOfflineMediaService: Error type: ${e.runtimeType}');
+      debugPrint('EnhancedOfflineMediaService: This could be due to:');
+      debugPrint('EnhancedOfflineMediaService: - Timeout (10 seconds)');
+      debugPrint('EnhancedOfflineMediaService: - GPS signal not available');
+      debugPrint('EnhancedOfflineMediaService: - Device location turned off');
+      debugPrint('EnhancedOfflineMediaService: ========== GPS CAPTURE FAILED ==========');
       return null;
     }
   }
@@ -491,14 +565,14 @@ class EnhancedOfflineMediaService {
     try {
       await initialize();
       
-      debugPrint('EnhancedOfflineMediaService: Starting media capture');
-      debugPrint('  Input path: $inputPath');
-      debugPrint('  Type: $type');
-      debugPrint('  Source: $source');
-      debugPrint('  TopicId: $topicId');
-      debugPrint('  ItemId: $itemId');
-      debugPrint('  DetailId: $detailId');
-      debugPrint('  NonConformityId: $nonConformityId');
+      debugPrint('EnhancedOfflineMediaService: ========== STARTING MEDIA CAPTURE ==========');
+      debugPrint('EnhancedOfflineMediaService: Input path: $inputPath');
+      debugPrint('EnhancedOfflineMediaService: Type: $type');
+      debugPrint('EnhancedOfflineMediaService: Source RECEIVED: $source');
+      debugPrint('EnhancedOfflineMediaService: TopicId: $topicId');
+      debugPrint('EnhancedOfflineMediaService: ItemId: $itemId');
+      debugPrint('EnhancedOfflineMediaService: DetailId: $detailId');
+      debugPrint('EnhancedOfflineMediaService: NonConformityId: $nonConformityId');
       
       final inputFile = File(inputPath);
       if (!await inputFile.exists()) {
@@ -564,6 +638,15 @@ class EnhancedOfflineMediaService {
       // GPS será capturado de forma assíncrona
       debugPrint('EnhancedOfflineMediaService: GPS location will be captured asynchronously for captureAndProcessMediaSimple');
 
+      // Determinar automaticamente se é mídia de resolução baseado no source
+      final isResolutionMedia = source.contains('resolution');
+      
+      debugPrint('EnhancedOfflineMediaService: ========== SOURCE ANALYSIS ==========');
+      debugPrint('EnhancedOfflineMediaService: Original source: $source');
+      debugPrint('EnhancedOfflineMediaService: Contains "resolution": ${source.contains('resolution')}');
+      debugPrint('EnhancedOfflineMediaService: isResolutionMedia will be: $isResolutionMedia');
+      debugPrint('EnhancedOfflineMediaService: Source being saved to metadata: ${processedMetadata['source']}');
+      
       // Criar registro de mídia com dados completos
       final media = OfflineMedia(
         id: mediaId,
@@ -586,12 +669,19 @@ class EnhancedOfflineMediaService {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         source: source,
+        isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
         metadata: processedMetadata,
       );
 
       // Salvar no repositório IMEDIATAMENTE
       await _mediaRepository.insert(media);
-      debugPrint('EnhancedOfflineMediaService: Media saved to database IMMEDIATELY');
+      debugPrint('EnhancedOfflineMediaService: ========== MEDIA SAVED TO DATABASE ==========');
+      debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
+      debugPrint('EnhancedOfflineMediaService: Source saved: ${media.source}');
+      debugPrint('EnhancedOfflineMediaService: isResolutionMedia saved: ${media.isResolutionMedia}');
+      debugPrint('EnhancedOfflineMediaService: Type: ${media.type}');
+      debugPrint('EnhancedOfflineMediaService: Filename: ${media.filename}');
+      debugPrint('EnhancedOfflineMediaService: ========== SAVE COMPLETE ==========');
       
       // Criar thumbnail de forma assíncrona (não bloqueia o retorno)
       Future.microtask(() async {

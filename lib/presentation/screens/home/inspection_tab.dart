@@ -10,6 +10,7 @@ import 'package:lince_inspecoes/presentation/widgets/common/inspection_card.dart
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/native_sync_service.dart';
 import 'package:lince_inspecoes/services/debug_media_download_service.dart';
+import 'package:lince_inspecoes/models/sync_progress.dart';
 
 // Função auxiliar para formatação de data em pt-BR
 String formatDateBR(DateTime date) {
@@ -42,6 +43,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
   
   // Track inspections with detected conflicts
   final Set<String> _inspectionsWithConflicts = <String>{};
+  
+  // Track inspections currently downloading
+  final Set<String> _downloadingInspections = <String>{};
+  
+  // Track inspections sync status based on history
+  final Map<String, bool> _inspectionSyncStatus = <String, bool>{};
+  
 
   @override
   void initState() {
@@ -50,6 +58,31 @@ class _InspectionsTabState extends State<InspectionsTab> {
     _loadInspections();
     _searchController.addListener(_filterInspections);
     _startCloudUpdateChecks();
+    _setupSyncProgressListener();
+  }
+  
+  void _setupSyncProgressListener() {
+    NativeSyncService.instance.syncProgressStream.listen((progress) {
+      if (mounted) {
+        setState(() {
+          if (progress.phase == SyncPhase.completed) {
+            // Download/Upload completed, remove from downloading set
+            _downloadingInspections.remove(progress.inspectionId);
+            
+            // Update sync status - mark as synced when completed
+            // This will hide the sync button after successful upload
+            _inspectionSyncStatus[progress.inspectionId] = true;
+            // Remove from conflicts if it was resolved
+            _inspectionsWithConflicts.remove(progress.inspectionId);
+            
+            _loadInspections();
+          } else if (progress.phase == SyncPhase.error) {
+            // Download/Upload failed, remove from downloading set
+            _downloadingInspections.remove(progress.inspectionId);
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -85,6 +118,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
       // OFFLINE-FIRST: Always load cached inspections only
       await _loadCachedInspections();
+      
+      // Atualizar status de sincronização baseado no histórico
+      await _updateSyncStatusForAllInspections();
 
       // In offline-first mode, we don't automatically sync from cloud
       // Users must explicitly download inspections they want to work on
@@ -100,6 +136,34 @@ class _InspectionsTabState extends State<InspectionsTab> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _updateSyncStatusForAllInspections() async {
+    try {
+      log('[InspectionsTab _updateSyncStatusForAllInspections] Updating sync status for all inspections');
+      
+      final inspectionIds = _inspections.map((inspection) => inspection['id'] as String).toList();
+      
+      for (final inspectionId in inspectionIds) {
+        final isSynced = await _isInspectionSyncedWithHistory(inspectionId);
+        final hasConflicts = await _hasConflictsWithHistory(inspectionId);
+        
+        if (mounted) {
+          setState(() {
+            _inspectionSyncStatus[inspectionId] = isSynced;
+            if (hasConflicts) {
+              _inspectionsWithConflicts.add(inspectionId);
+            } else {
+              _inspectionsWithConflicts.remove(inspectionId);
+            }
+          });
+        }
+      }
+      
+      log('[InspectionsTab _updateSyncStatusForAllInspections] Updated sync status for ${inspectionIds.length} inspections');
+    } catch (e) {
+      log('[InspectionsTab _updateSyncStatusForAllInspections] Error updating sync status: $e');
     }
   }
 
@@ -235,6 +299,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<void> _downloadInspectionData(String inspectionId) async {
     log('[InspectionsTab _downloadInspectionData] Starting complete offline download for inspection ID: $inspectionId');
     try {
+      // Add to downloading set and update UI immediately
+      setState(() {
+        _downloadingInspections.add(inspectionId);
+      });
+      
+      // Show notification immediately BEFORE starting download
+      await NativeSyncService.instance.initialize();
       
       // Run detailed debug of media download
       await _debugMediaDownload(inspectionId);
@@ -247,12 +318,14 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Clear the cloud updates flag since we just downloaded the latest data
       _inspectionsWithCloudUpdates.remove(inspectionId);
 
-      // Force UI update to hide download button immediately
-      setState(() {});
-      // Refresh the list to show updated data
-      _loadInspections();
+      // Note: UI refresh will happen via sync progress listener
     } catch (e) {
       log('[InspectionsTab _downloadInspectionData] Error downloading data for inspection $inspectionId: $e');
+      
+      // Remove from downloading set on error
+      setState(() {
+        _downloadingInspections.remove(inspectionId);
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -279,10 +352,47 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<void> _syncInspectionData(String inspectionId) async {
     log('[InspectionsTab _syncInspectionData] Starting sync for inspection ID: $inspectionId');
     try {
+      // Check for conflicts before syncing
+      final hasConflicts = await _hasConflictsWithHistory(inspectionId);
+      
+      if (hasConflicts) {
+        // Show conflict alert dialog
+        if (!mounted) return;
+        final shouldProceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Conflito Detectado'),
+            content: const Text(
+              'A inspeção foi modificada na nuvem desde o último download. '
+              'Suas alterações podem sobrescrever as alterações feitas por outros usuários.\n\n'
+              'Deseja continuar com a sincronização?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Continuar'),
+              ),
+            ],
+          ),
+        );
+        
+        if (shouldProceed != true) {
+          return; // User cancelled, don't sync
+        }
+      }
+
       // Use native sync service for background sync
       await NativeSyncService.instance.startInspectionSync(inspectionId);
 
       log('[InspectionsTab _syncInspectionData] Sync started for inspection $inspectionId');
+
+      // DON'T update sync status immediately - wait for actual sync completion
+      // The sync status will be updated when we receive the sync result
 
       // Refresh the list to show updated sync status
       _loadInspections();
@@ -356,8 +466,39 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
+  // Novo método que usa o sistema de histórico para verificar sincronização
+  Future<bool> _isInspectionSyncedWithHistory(String inspectionId) async {
+    try {
+      final isSynced = await _serviceFactory.dataService.isInspectionSynced(inspectionId);
+      log('[InspectionsTab _isInspectionSyncedWithHistory] Inspection $inspectionId is synced: $isSynced');
+      return isSynced;
+    } catch (e) {
+      log('[InspectionsTab _isInspectionSyncedWithHistory] Error checking sync status: $e');
+      return false;
+    }
+  }
+
+  // Detecta conflitos baseado no histórico
+  Future<bool> _hasConflictsWithHistory(String inspectionId) async {
+    try {
+      final hasConflicts = await _serviceFactory.dataService.hasUnresolvedConflicts(inspectionId);
+      log('[InspectionsTab _hasConflictsWithHistory] Inspection $inspectionId has conflicts: $hasConflicts');
+      return hasConflicts;
+    } catch (e) {
+      log('[InspectionsTab _hasConflictsWithHistory] Error checking conflicts: $e');
+      return false;
+    }
+  }
+
+
   bool _isInspectionFullyDownloaded(String inspectionId) {
     try {
+      // If inspection is currently downloading, don't show it as downloaded
+      if (_downloadingInspections.contains(inspectionId)) {
+        log('[InspectionsTab _isInspectionFullyDownloaded] Inspection $inspectionId is currently downloading');
+        return false;
+      }
+      
       // Check if inspection exists in the local list (meaning it was downloaded)
       final inspectionInList = _inspections.firstWhere(
         (inspection) => inspection['id'] == inspectionId,
@@ -620,20 +761,26 @@ class _InspectionsTabState extends State<InspectionsTab> {
                           itemCount: _filteredInspections.length,
                           itemBuilder: (context, index) {
                             final inspection = _filteredInspections[index];
+                            final inspectionId = inspection['id'] as String;
+                            final hasLocalChanges = _hasUnsyncedData(inspectionId);
+                            final isSyncedByHistory = _inspectionSyncStatus[inspectionId] ?? false;
+                            // Only show needsSync if there are actual local changes
+                            // If successfully synced via the sync status tracker, don't show sync button
+                            final needsSync = hasLocalChanges && !isSyncedByHistory;
+                            
                             return InspectionCard(
                               inspection: inspection,
                               googleMapsApiKey: _googleMapsApiKey ?? '',
-                              isFullyDownloaded: _isInspectionFullyDownloaded(
-                                  inspection['id']),
-                              needsSync: _hasUnsyncedData(inspection['id']),
-                              hasConflicts: _inspectionsWithConflicts.contains(inspection['id']),
+                              isFullyDownloaded: _isInspectionFullyDownloaded(inspectionId),
+                              needsSync: needsSync,
+                              hasConflicts: _inspectionsWithConflicts.contains(inspectionId),
                               onViewDetails: () {
-                                log('[InspectionsTab] Navigating to details for inspection ID: ${inspection['id']}');
-                                _navigateToInspectionDetail(inspection['id']);
+                                log('[InspectionsTab] Navigating to details for inspection ID: $inspectionId');
+                                _navigateToInspectionDetail(inspectionId);
                               },
                               // onComplete removido - apenas sincronização manual
-                              onSync: _hasUnsyncedData(inspection['id'])
-                                  ? () => _syncInspectionData(inspection['id'])
+                              onSync: needsSync
+                                  ? () => _syncInspectionData(inspectionId)
                                   : null,
                               onDownload: () =>
                                   _downloadInspectionData(inspection['id']),
@@ -787,6 +934,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       final querySnapshot = await _serviceFactory.firebaseService.firestore
           .collection('inspections')
           .where('inspector_id', isEqualTo: user.uid)
+          .where('deleted_at', isNull: true)
           .where('status', whereIn: ['pending', 'in_progress', 'completed'])
           .orderBy('scheduled_date', descending: true)
           .get();
@@ -849,68 +997,406 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
 }
 
-class _AvailableInspectionsDialog extends StatelessWidget {
+class _AvailableInspectionsDialog extends StatefulWidget {
   final List<Map<String, dynamic>> inspections;
 
   const _AvailableInspectionsDialog({required this.inspections});
 
   @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Vistorias Disponíveis'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: inspections.length,
-          itemBuilder: (context, index) {
-            final inspection = inspections[index];
-            final title = inspection['title'] ?? 'Vistoria sem título';
-            final date = _formatDate(inspection['scheduled_date']);
-            final isDownloaded = inspection['isDownloaded'] ?? false;
+  State<_AvailableInspectionsDialog> createState() => _AvailableInspectionsDialogState();
+}
 
-            return ListTile(
-              title: Text(title,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog> {
+  bool _hideDownloaded = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  List<Map<String, dynamic>> get _filteredInspections {
+    var filtered = widget.inspections;
+
+    // Filtro de busca
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((inspection) {
+        final title = (inspection['title'] ?? '').toString().toLowerCase();
+        final address = (inspection['address_string'] ?? '').toString().toLowerCase();
+        final cod = (inspection['cod'] ?? '').toString().toLowerCase();
+        return title.contains(_searchQuery.toLowerCase()) ||
+               address.contains(_searchQuery.toLowerCase()) ||
+               cod.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // Filtro de vistorias baixadas
+    if (_hideDownloaded) {
+      filtered = filtered.where((inspection) => !(inspection['isDownloaded'] ?? false)).toList();
+    }
+
+    return filtered;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildInspectionCard(Map<String, dynamic> inspection) {
+    final title = inspection['title'] ?? 'Vistoria sem título';
+    final cod = inspection['cod'] ?? '';
+    final date = _formatDate(inspection['scheduled_date']);
+    final status = inspection['status'] ?? 'pending';
+    final address = inspection['address_string'] ?? 'Endereço não informado';
+    final isDownloaded = inspection['isDownloaded'] ?? false;
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    switch (status) {
+      case 'pending':
+        statusColor = Colors.orange;
+        statusIcon = Icons.schedule;
+        statusText = 'Pendente';
+        break;
+      case 'in_progress':
+        statusColor = Colors.blue;
+        statusIcon = Icons.work;
+        statusText = 'Em Andamento';
+        break;
+      case 'completed':
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
+        statusText = 'Concluída';
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusIcon = Icons.help;
+        statusText = 'Desconhecido';
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).pop(inspection),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header com título e status
+              Row(
                 children: [
-                  Text('Data: $date', style: const TextStyle(fontSize: 12)),
-                  if (isDownloaded)
-                    const Text(
-                      'Já baixada - Toque para abrir',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold),
-                    )
-                  else
-                    const Text(
-                      'Toque para baixar',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Color.fromARGB(255, 120, 80, 165)),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'BricolageGrotesque',
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                  if (status != 'pending') ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, size: 12, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            statusText,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              trailing: Icon(
-                isDownloaded ? Icons.check_circle : Icons.download,
-                color: isDownloaded
-                    ? Colors.green
-                    : Color.fromARGB(255, 120, 80, 165),
+              
+              const SizedBox(height: 8),
+              
+              // Código da vistoria
+              if (cod.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.qr_code, size: 11, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        cod,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              // Data programada
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today, size: 11, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Data: $date',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
               ),
-              onTap: () => Navigator.of(context).pop(inspection),
-            );
-          },
+              
+              const SizedBox(height: 4),
+              
+              // Endereço
+              Row(
+                children: [
+                  const Icon(Icons.location_on, size: 11, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      address,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Status de download
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDownloaded ? Colors.green.withOpacity(0.1) : const Color(0xFF312456).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDownloaded ? Colors.green.withOpacity(0.3) : const Color(0xFF312456).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isDownloaded ? Icons.check_circle : Icons.cloud_download,
+                            size: 16,
+                            color: isDownloaded ? Colors.green : Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isDownloaded ? 'Já baixada - Toque para abrir' : 'Toque para baixar',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredInspections = _filteredInspections;
+    
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.95,
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                const Icon(Icons.cloud_download, color: Color(0xFFFFFFFF), size: 20),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Vistorias Disponíveis',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'BricolageGrotesque',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Barra de busca
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar por título, endereço ou código...',
+                hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF312456)),
+                ),
+                filled: true,
+                fillColor: Colors.grey.withOpacity(0.05),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // Filtros
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                InkWell(
+                  onTap: () => setState(() => _hideDownloaded = !_hideDownloaded),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: Checkbox(
+                            value: _hideDownloaded,
+                            onChanged: (value) => setState(() => _hideDownloaded = value ?? false),
+                            activeColor: Colors.blue,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Ocultar já baixadas',
+                          style: TextStyle(fontSize: 11, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Counter on the right
+                Text(
+                  '${filteredInspections.length} de ${widget.inspections.length} vistorias',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // Lista de vistorias
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: filteredInspections.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _hideDownloaded ? Icons.visibility_off : Icons.search_off,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _hideDownloaded 
+                                  ? 'Todas as vistorias\njá foram baixadas'
+                                  : _searchQuery.isNotEmpty
+                                      ? 'Nenhuma vistoria encontrada\npara "$_searchQuery"'
+                                      : 'Nenhuma vistoria disponível',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (_searchQuery.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                                child: const Text(
+                                  'Limpar busca',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(top: 8, bottom: 12),
+                        itemCount: filteredInspections.length,
+                        itemBuilder: (context, index) => _buildInspectionCard(filteredInspections[index]),
+                      ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

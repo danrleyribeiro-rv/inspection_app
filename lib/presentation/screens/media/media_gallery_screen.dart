@@ -532,6 +532,17 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               debugPrint('  TopicId: ${_selectedTopicId ?? widget.initialTopicId}');
               debugPrint('  ItemId: ${_selectedItemId ?? widget.initialItemId}');  
               debugPrint('  DetailId: ${_selectedDetailId ?? widget.initialDetailId}');
+              debugPrint('  NonConformityId: ${_selectedNonConformityId ?? widget.initialNonConformityId}');
+              
+              // Determine correct source for resolution media
+              String effectiveSource = source;
+              if (_selectedNonConformityId != null || widget.initialNonConformityId != null) {
+                // If we're in a non-conformity context and the current filter is for resolution media
+                if (_selectedMediaSource == 'resolution_camera' || widget.initialMediaSource == 'resolution_camera') {
+                  effectiveSource = source == 'camera' ? 'resolution_camera' : 'resolution_gallery';
+                  debugPrint('  Adjusted source to resolution: $effectiveSource');
+                }
+              }
               
               final newMedia = await _serviceFactory.mediaService.captureAndProcessMediaSimple(
                 inputPath: filePath,
@@ -540,7 +551,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                 topicId: _selectedTopicId ?? widget.initialTopicId,
                 itemId: _selectedItemId ?? widget.initialItemId,
                 detailId: _selectedDetailId ?? widget.initialDetailId,
-                source: source,
+                nonConformityId: _selectedNonConformityId ?? widget.initialNonConformityId,
+                source: effectiveSource,
               );
 
               if (mounted && context.mounted) {

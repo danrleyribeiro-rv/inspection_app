@@ -31,6 +31,7 @@ class OfflineMedia {
   final bool needsSync;
   final bool isDeleted;
   final String? source; // camera, gallery, import
+  final bool isResolutionMedia; // NEW: indicates if this media is for NC resolution (solved_media)
   final Map<String, dynamic>? metadata;
 
   OfflineMedia({
@@ -58,6 +59,7 @@ class OfflineMedia {
     this.needsSync = false,
     this.isDeleted = false,
     this.source,
+    this.isResolutionMedia = false,
     this.metadata,
   });
 
@@ -76,6 +78,7 @@ class OfflineMedia {
     int? height,
     int? duration,
     String? source,
+    bool isResolutionMedia = false,
     Map<String, dynamic>? metadata,
   }) {
     final now = DateTime.now();
@@ -99,6 +102,7 @@ class OfflineMedia {
       needsSync: true,
       isDeleted: false,
       source: source,
+      isResolutionMedia: isResolutionMedia,
       metadata: metadata,
     );
   }
@@ -147,6 +151,7 @@ class OfflineMedia {
       needsSync: (map['needs_sync'] as int? ?? 0) == 1,
       isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
       source: map['source'] as String?,
+      isResolutionMedia: (map['is_resolution_media'] as int? ?? 0) == 1,
       metadata: metadata,
     );
   }
@@ -177,6 +182,7 @@ class OfflineMedia {
       'needs_sync': needsSync ? 1 : 0,
       'is_deleted': isDeleted ? 1 : 0,
       'source': source,
+      'is_resolution_media': isResolutionMedia ? 1 : 0,
       'metadata': metadata != null ? jsonEncode(metadata) : null,
     };
   }
@@ -206,6 +212,7 @@ class OfflineMedia {
     bool? needsSync,
     bool? isDeleted,
     String? source,
+    bool? isResolutionMedia,
     Map<String, dynamic>? metadata,
   }) {
     return OfflineMedia(
@@ -233,6 +240,7 @@ class OfflineMedia {
       needsSync: needsSync ?? this.needsSync,
       isDeleted: isDeleted ?? this.isDeleted,
       source: source ?? this.source,
+      isResolutionMedia: isResolutionMedia ?? this.isResolutionMedia,
       metadata: metadata ?? this.metadata,
     );
   }

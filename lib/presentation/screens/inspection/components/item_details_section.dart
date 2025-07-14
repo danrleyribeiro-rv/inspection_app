@@ -250,14 +250,14 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             TextEditingController(text: _observationController.text);
         return AlertDialog(
           title: const Text('Observações do Item',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: TextFormField(
               controller: controller,
               maxLines: 6,
               autofocus: true,
               decoration: const InputDecoration(
                   hintText: 'Digite suas observações...',
-                  hintStyle: TextStyle(fontSize: 12, color: Colors.grey),
+                  hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
                   border: OutlineInputBorder())),
           actions: [
             TextButton(

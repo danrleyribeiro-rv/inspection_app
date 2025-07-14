@@ -380,13 +380,51 @@ class _DetailListItemState extends State<DetailListItem> {
     final detailValue = widget.detail.detailValue ?? '';
 
     if (widget.detail.type == 'measure') {
-      final measurements = detailValue.split(',');
-      _heightController.text =
-          measurements.isNotEmpty ? measurements[0].trim() : '';
-      _widthController.text =
-          measurements.length > 1 ? measurements[1].trim() : '';
-      _depthController.text =
-          measurements.length > 2 ? measurements[2].trim() : '';
+      // Parse measurements - support both JSON format and CSV format
+      String altura = '';
+      String largura = '';
+      String profundidade = '';
+      
+      if (detailValue.startsWith('{') && detailValue.endsWith('}')) {
+        // New JSON format: {largura: 2, altura: 1, profundidade: 5}
+        try {
+          // Remove braces and split by comma
+          final content = detailValue.substring(1, detailValue.length - 1);
+          final pairs = content.split(',');
+          
+          for (final pair in pairs) {
+            final keyValue = pair.split(':');
+            if (keyValue.length == 2) {
+              final key = keyValue[0].trim();
+              final value = keyValue[1].trim();
+              
+              switch (key) {
+                case 'altura':
+                  altura = value;
+                  break;
+                case 'largura':
+                  largura = value;
+                  break;
+                case 'profundidade':
+                  profundidade = value;
+                  break;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error parsing JSON measurement format: $e');
+        }
+      } else {
+        // Old CSV format: "2,1,5"
+        final measurements = detailValue.split(',');
+        altura = measurements.isNotEmpty ? measurements[0].trim() : '';
+        largura = measurements.length > 1 ? measurements[1].trim() : '';
+        profundidade = measurements.length > 2 ? measurements[2].trim() : '';
+      }
+      
+      _heightController.text = altura;
+      _widthController.text = largura;
+      _depthController.text = profundidade;
     } else if (widget.detail.type == 'boolean') {
       // Suporte para três estados: sim, não, não_se_aplica
       if (detailValue.toLowerCase() == 'true' || detailValue == '1' || detailValue.toLowerCase() == 'sim') {
@@ -474,7 +512,7 @@ class _DetailListItemState extends State<DetailListItem> {
             TextEditingController(text: _observationController.text);
         return AlertDialog(
           title: const Text('Observações do Detalhe',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
@@ -483,7 +521,7 @@ class _DetailListItemState extends State<DetailListItem> {
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(fontSize: 12, color: Colors.grey),
+                hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -576,6 +614,16 @@ class _DetailListItemState extends State<DetailListItem> {
         builder: (context) => MediaCaptureDialog(
           onMediaCaptured: (filePath, type, source) async {
             try {
+              debugPrint('DetailsListSection: ========== MEDIA CAPTURED CALLBACK ==========');
+              debugPrint('DetailsListSection: FilePath: $filePath');
+              debugPrint('DetailsListSection: Type: $type');
+              debugPrint('DetailsListSection: Source RECEIVED: $source');
+              debugPrint('DetailsListSection: InspectionId: ${widget.inspectionId}');
+              debugPrint('DetailsListSection: TopicId: ${widget.detail.topicId}');
+              debugPrint('DetailsListSection: ItemId: ${widget.detail.itemId}');
+              debugPrint('DetailsListSection: DetailId: ${widget.detail.id}');
+              debugPrint('DetailsListSection: Calling captureAndProcessMediaSimple with source: $source');
+              
               // Processar e salvar mídia
               await _serviceFactory.mediaService.captureAndProcessMediaSimple(
                 inputPath: filePath,
@@ -586,6 +634,8 @@ class _DetailListItemState extends State<DetailListItem> {
                 detailId: widget.detail.id,
                 source: source,
               );
+              
+              debugPrint('DetailsListSection: ✅ captureAndProcessMediaSimple completed successfully');
 
               // O contador será atualizado automaticamente via MediaCounterNotifier
 
@@ -1019,11 +1069,11 @@ class _DetailListItemState extends State<DetailListItem> {
         final profundidade = _depthController.text.trim();
 
         final parts = <String>[];
-        if (altura.isNotEmpty) parts.add('A:$altura');
-        if (largura.isNotEmpty) parts.add('L:$largura');
-        if (profundidade.isNotEmpty) parts.add('P:$profundidade');
+        if (altura.isNotEmpty) parts.add(altura);
+        if (largura.isNotEmpty) parts.add(largura);
+        if (profundidade.isNotEmpty) parts.add(profundidade);
 
-        return parts.join(' ');
+        return parts.join(' x '); // Formato mais limpo: "2 x 1 x 5"
       default:
         return _valueController.text;
     }
@@ -1169,12 +1219,13 @@ class _DetailListItemState extends State<DetailListItem> {
                 controller: _heightController,
                 decoration: const InputDecoration(
                   hintText: 'Altura',
+                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
                 onChanged: (_) => _updateDetail(),
               ),
             ),
@@ -1184,12 +1235,13 @@ class _DetailListItemState extends State<DetailListItem> {
                 controller: _widthController,
                 decoration: const InputDecoration(
                   hintText: 'Largura',
+                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
                 onChanged: (_) => _updateDetail(),
               ),
             ),
@@ -1199,12 +1251,13 @@ class _DetailListItemState extends State<DetailListItem> {
                 controller: _depthController,
                 decoration: const InputDecoration(
                   hintText: 'Profundidade',
+                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
                 onChanged: (_) => _updateDetail(),
               ),
             ),

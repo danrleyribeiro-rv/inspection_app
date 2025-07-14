@@ -24,15 +24,27 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
   }
 
   Future<List<OfflineMedia>> findByTopicId(String topicId) async {
-    return await findWhere('topic_id = ?', [topicId]);
+    // Only get media that belongs specifically to the topic (not to its children)
+    return await findWhere(
+      'topic_id = ? AND item_id IS NULL AND detail_id IS NULL AND non_conformity_id IS NULL', 
+      [topicId]
+    );
   }
 
   Future<List<OfflineMedia>> findByItemId(String itemId) async {
-    return await findWhere('item_id = ?', [itemId]);
+    // Only get media that belongs specifically to the item (not to its children)
+    return await findWhere(
+      'item_id = ? AND detail_id IS NULL AND non_conformity_id IS NULL', 
+      [itemId]
+    );
   }
 
   Future<List<OfflineMedia>> findByDetailId(String detailId) async {
-    return await findWhere('detail_id = ?', [detailId]);
+    // Only get media that belongs specifically to the detail (not to its children)
+    return await findWhere(
+      'detail_id = ? AND non_conformity_id IS NULL', 
+      [detailId]
+    );
   }
 
   Future<List<OfflineMedia>> findByNonConformityId(

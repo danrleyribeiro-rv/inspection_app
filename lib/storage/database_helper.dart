@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const String _databaseName = 'inspection_offline.db';
-  static const int _databaseVersion = 8;
+  static const int _databaseVersion = 10;
 
   static Database? _database;
 
@@ -183,6 +183,7 @@ class DatabaseHelper {
         needs_sync INTEGER NOT NULL DEFAULT 0,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         source TEXT,
+        is_resolution_media INTEGER NOT NULL DEFAULT 0,
         metadata TEXT,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE,
         FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE,
@@ -224,6 +225,9 @@ class DatabaseHelper {
       )
     ''');
 
+    // Tabela de histórico de inspeções
+    await db.execute('''\n      CREATE TABLE inspection_history (\n        id TEXT PRIMARY KEY,\n        inspection_id TEXT NOT NULL,\n        date TEXT NOT NULL,\n        status TEXT NOT NULL,\n        inspector_id TEXT NOT NULL,\n        description TEXT,\n        metadata TEXT,\n        created_at TEXT NOT NULL,\n        needs_sync INTEGER NOT NULL DEFAULT 1,\n        FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE\n      )\n    ''');
+
     // Índices para performance
     await db.execute('CREATE INDEX idx_inspections_status ON inspections(status)');
     await db.execute('CREATE INDEX idx_inspections_needs_sync ON inspections(needs_sync)');
@@ -233,6 +237,8 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_media_inspection_id ON offline_media(inspection_id)');
     await db.execute('CREATE INDEX idx_media_needs_sync ON offline_media(needs_sync)');
     await db.execute('CREATE INDEX idx_sync_queue_processed ON sync_queue(is_processed)');
+    await db.execute('CREATE INDEX idx_inspection_history_inspection_id ON inspection_history(inspection_id)');
+    await db.execute('CREATE INDEX idx_inspection_history_date ON inspection_history(date)');
   }
 
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -287,6 +293,20 @@ class DatabaseHelper {
       // Migração para versão 8: Adicionar is_resolved e resolved_at à tabela non_conformities
       await db.execute('ALTER TABLE non_conformities ADD COLUMN is_resolved INTEGER NOT NULL DEFAULT 0');
       await db.execute('ALTER TABLE non_conformities ADD COLUMN resolved_at TEXT');
+    }
+    
+    if (oldVersion < 9) {
+      // Migração para versão 9: Adicionar is_resolution_media à tabela offline_media
+      await db.execute('ALTER TABLE offline_media ADD COLUMN is_resolution_media INTEGER NOT NULL DEFAULT 0');
+    }
+    
+    if (oldVersion < 10) {
+      // Migração para versão 10: Adicionar tabela inspection_history
+      await db.execute('''\n        CREATE TABLE inspection_history (\n          id TEXT PRIMARY KEY,\n          inspection_id TEXT NOT NULL,\n          date TEXT NOT NULL,\n          status TEXT NOT NULL,\n          inspector_id TEXT NOT NULL,\n          description TEXT,\n          metadata TEXT,\n          created_at TEXT NOT NULL,\n          needs_sync INTEGER NOT NULL DEFAULT 1,\n          FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE\n        )\n      ''');
+      
+      // Adicionar índices para a nova tabela
+      await db.execute('CREATE INDEX idx_inspection_history_inspection_id ON inspection_history(inspection_id)');
+      await db.execute('CREATE INDEX idx_inspection_history_date ON inspection_history(date)');
     }
   }
 

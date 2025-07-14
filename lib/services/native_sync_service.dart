@@ -147,10 +147,10 @@ class NativeSyncService {
     _isSyncing = true;
     
     try {
-      // Show starting notification
+      // Show starting notification IMMEDIATELY
       await SimpleNotificationService.instance.showDownloadProgress(
-        title: 'Baixando inspeção',
-        message: 'Preparando download...',
+        title: 'Iniciando Download',
+        message: 'Download da inspeção iniciado...',
         indeterminate: true,
       );
       

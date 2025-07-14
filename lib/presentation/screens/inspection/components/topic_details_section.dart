@@ -42,8 +42,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     _observationController.text = widget.topic.observation ?? '';
     _currentTopicName = widget.topic.topicName;
     
-    // Adicionar listener para observações
-    _observationController.addListener(_updateTopic);
+    // REMOVIDO: listener para atualização a cada letra
+    // _observationController.addListener(_updateTopic);
     
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -52,6 +52,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   @override
   void didUpdateWidget(TopicDetailsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
     if (widget.topic.topicName != _currentTopicName) {
       _currentTopicName = widget.topic.topicName;
     }
@@ -111,20 +112,29 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   void _updateTopic() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
 
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      final updatedTopic = widget.topic.copyWith(
-        observation: _observationController.text.isEmpty
-            ? null
-            : _observationController.text,
-        updatedAt: DateTime.now(),
-      );
+    // Update UI immediately
+    final trimmedText = _observationController.text.trim();
+    final observationValue = trimmedText.isEmpty ? null : trimmedText;
+    
+    final updatedTopic = Topic(
+      id: widget.topic.id,
+      inspectionId: widget.topic.inspectionId,
+      position: widget.topic.position,
+      orderIndex: widget.topic.orderIndex,
+      topicName: widget.topic.topicName,
+      topicLabel: widget.topic.topicLabel,
+      observation: observationValue,
+      isDamaged: widget.topic.isDamaged,
+      tags: widget.topic.tags,
+      createdAt: widget.topic.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    
+    widget.onTopicUpdated(updatedTopic);
 
-      debugPrint(
-          'TopicDetailsSection: Saving topic ${updatedTopic.id} with observation: ${updatedTopic.observation}');
+    // Debounce the actual save operation
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
       await _serviceFactory.dataService.updateTopic(updatedTopic);
-      debugPrint(
-          'TopicDetailsSection: Topic ${updatedTopic.id} saved successfully');
-      widget.onTopicUpdated(updatedTopic);
     });
   }
 
@@ -134,8 +144,9 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       builder: (context) {
         final controller =
             TextEditingController(text: _observationController.text);
+        
         return AlertDialog(
-          title: const Text('Observações do Tópico'),
+          title: const Text('Observações do Tópico', style: TextStyle(color: Colors.white, fontSize: 16)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
@@ -144,6 +155,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'Digite suas observações...',
+                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -154,7 +166,9 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
               child: const Text('Cancelar'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
+              onPressed: () {
+                Navigator.of(context).pop(controller.text);
+              },
               child: const Text('Salvar'),
             ),
           ],
@@ -166,15 +180,6 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       setState(() {
         _observationController.text = result;
       });
-      
-      // Atualizar UI imediatamente
-      final updatedTopic = widget.topic.copyWith(
-        observation: result.isEmpty ? null : result,
-        updatedAt: DateTime.now(),
-      );
-      widget.onTopicUpdated(updatedTopic);
-      
-      // Então salvar no banco
       _updateTopic();
     }
   }
@@ -530,7 +535,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                           'Observações',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF6F4B99),
+                            color: const Color(0xFFBB8FEB),
                             fontSize: 12,
                           ),
                         ),
@@ -544,7 +549,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                           ? 'Toque para adicionar observações...'
                           : _observationController.text,
                       style: TextStyle(
-                        color: const Color(0xFF6F4B99), // Sempre usa a cor do tópico
+                        color: const Color(0xFFBB8FEB).withAlpha((255 * 0.7).round()), // Same as topic subtitle
                         fontStyle: _observationController.text.isEmpty
                             ? FontStyle.italic
                             : FontStyle.normal,

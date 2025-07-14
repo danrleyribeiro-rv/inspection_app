@@ -12,6 +12,8 @@ import 'package:lince_inspecoes/repositories/item_repository.dart';
 import 'package:lince_inspecoes/repositories/detail_repository.dart';
 import 'package:lince_inspecoes/repositories/non_conformity_repository.dart';
 import 'package:lince_inspecoes/repositories/media_repository.dart';
+import 'package:lince_inspecoes/repositories/inspection_history_repository.dart';
+import 'package:lince_inspecoes/models/inspection_history.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 
 class EnhancedOfflineDataService {
@@ -28,6 +30,7 @@ class EnhancedOfflineDataService {
   late final DetailRepository _detailRepository;
   late final NonConformityRepository _nonConformityRepository;
   late final MediaRepository _mediaRepository;
+  late final InspectionHistoryRepository _historyRepository;
 
   bool _isInitialized = false;
 
@@ -44,6 +47,7 @@ class EnhancedOfflineDataService {
     _detailRepository = DetailRepository();
     _nonConformityRepository = NonConformityRepository();
     _mediaRepository = MediaRepository();
+    _historyRepository = InspectionHistoryRepository();
 
     _isInitialized = true;
     debugPrint(
@@ -449,9 +453,20 @@ class EnhancedOfflineDataService {
     String? detailId,
     String? nonConformityId,
     bool isUploaded = false,
+    // EXPANDED: Add support for complete media metadata preservation
+    String? source,
+    Map<String, dynamic>? metadata,
+    int? width,
+    int? height,
+    int? duration,
+    DateTime? originalCreatedAt,
+    DateTime? originalUpdatedAt,
+    String? customId,
+    bool isResolutionMedia = false,
   }) async {
+    final now = DateTime.now();
     final media = OfflineMedia(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: customId ?? DateTime.now().millisecondsSinceEpoch.toString(),
       inspectionId: inspectionId,
       topicId: topicId,
       itemId: itemId,
@@ -463,10 +478,16 @@ class EnhancedOfflineDataService {
       type: type,
       fileSize: fileSize,
       mimeType: mimeType,
+      source: source,
+      isResolutionMedia: isResolutionMedia,
+      metadata: metadata,
+      width: width,
+      height: height,
+      duration: duration,
       isProcessed: true,
       isUploaded: isUploaded,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: originalCreatedAt ?? now,
+      updatedAt: originalUpdatedAt ?? now,
     );
     
     return await _mediaRepository.insert(media);
@@ -643,6 +664,72 @@ class EnhancedOfflineDataService {
 
   Future<void> markAllMediaSynced() async {
     await _mediaRepository.markAllSynced();
+  }
+
+  // ===============================
+  // OPERAÇÕES DE HISTÓRICO DE INSPEÇÃO
+  // ===============================
+
+  /// Adiciona evento de histórico para uma inspeção
+  Future<String> addInspectionHistory({
+    required String inspectionId,
+    required HistoryStatus status,
+    required String inspectorId,
+    String? description,
+    Map<String, dynamic>? metadata,
+  }) async {
+    return await _historyRepository.addHistoryEvent(
+      inspectionId: inspectionId,
+      status: status,
+      inspectorId: inspectorId,
+      description: description,
+      metadata: metadata,
+    );
+  }
+
+  /// Busca histórico de uma inspeção
+  Future<List<InspectionHistory>> getInspectionHistory(String inspectionId) async {
+    return await _historyRepository.findByInspectionId(inspectionId);
+  }
+
+  /// Verifica se a inspeção está sincronizada
+  Future<bool> isInspectionSynced(String inspectionId) async {
+    return await _historyRepository.isInspectionSynced(inspectionId);
+  }
+
+  /// Busca o último download de uma inspeção
+  Future<InspectionHistory?> getLastInspectionDownload(String inspectionId) async {
+    return await _historyRepository.findLastDownload(inspectionId);
+  }
+
+  /// Busca o último upload de uma inspeção
+  Future<InspectionHistory?> getLastInspectionUpload(String inspectionId) async {
+    return await _historyRepository.findLastUpload(inspectionId);
+  }
+
+  /// Verifica se há conflitos não resolvidos
+  Future<bool> hasUnresolvedConflicts(String inspectionId) async {
+    return await _historyRepository.hasUnresolvedConflicts(inspectionId);
+  }
+
+  /// Busca eventos de conflito
+  Future<List<InspectionHistory>> getConflictEvents(String inspectionId) async {
+    return await _historyRepository.findConflictEvents(inspectionId);
+  }
+
+  /// Estatísticas de histórico de uma inspeção
+  Future<Map<String, int>> getInspectionHistoryStats(String inspectionId) async {
+    return await _historyRepository.getHistoryStats(inspectionId);
+  }
+
+  /// Busca histórico que precisa ser sincronizado
+  Future<List<InspectionHistory>> getHistoryPendingSync() async {
+    return await _historyRepository.findPendingSync();
+  }
+
+  /// Marca histórico como sincronizado
+  Future<void> markHistorySynced(String historyId) async {
+    await _historyRepository.markSynced(historyId);
   }
 
   // ===============================

@@ -104,9 +104,14 @@ class MediaCaptureDialog extends StatelessWidget {
       );
 
       if (photo != null) {
-        debugPrint('MediaCaptureDialog: Photo captured successfully, calling callback with path: ${photo.path}');
+        debugPrint('MediaCaptureDialog: ========== PHOTO CAPTURED ==========');
+        debugPrint('MediaCaptureDialog: Path: ${photo.path}');
+        debugPrint('MediaCaptureDialog: Type: image');
+        debugPrint('MediaCaptureDialog: Source: camera');
+        debugPrint('MediaCaptureDialog: Calling onMediaCaptured callback...');
         onMediaCaptured(photo.path, 'image', 'camera');
-        debugPrint('MediaCaptureDialog: Callback called successfully');
+        debugPrint('MediaCaptureDialog: ✅ Callback called successfully with source=camera');
+        debugPrint('MediaCaptureDialog: ========== PHOTO CAPTURE COMPLETE ==========');
       } else {
         debugPrint('MediaCaptureDialog: Photo capture was cancelled by user');
       }
@@ -126,9 +131,14 @@ class MediaCaptureDialog extends StatelessWidget {
       );
 
       if (video != null) {
-        debugPrint('MediaCaptureDialog: Video captured successfully, calling callback with path: ${video.path}');
+        debugPrint('MediaCaptureDialog: ========== VIDEO CAPTURED ==========');
+        debugPrint('MediaCaptureDialog: Path: ${video.path}');
+        debugPrint('MediaCaptureDialog: Type: video');
+        debugPrint('MediaCaptureDialog: Source: camera');
+        debugPrint('MediaCaptureDialog: Calling onMediaCaptured callback...');
         onMediaCaptured(video.path, 'video', 'camera');
-        debugPrint('MediaCaptureDialog: Callback called successfully');
+        debugPrint('MediaCaptureDialog: ✅ Callback called successfully with source=camera');
+        debugPrint('MediaCaptureDialog: ========== VIDEO CAPTURE COMPLETE ==========');
       } else {
         debugPrint('MediaCaptureDialog: Video capture was cancelled by user');
       }

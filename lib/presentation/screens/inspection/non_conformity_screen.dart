@@ -546,7 +546,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               hintText: 'Pesquisar não conformidades...',
-                              hintStyle: const TextStyle(color: Colors.white54),
+                              hintStyle: const TextStyle(color: Colors.white54, fontSize: 12),
                               prefixIcon: const Icon(Icons.search, color: Colors.white54),
                               suffixIcon: _searchQuery.isNotEmpty
                                   ? IconButton(
@@ -569,7 +569,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                               setState(() => _searchQuery = value);
                             },
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           
                           // Level Filter
                           Row(

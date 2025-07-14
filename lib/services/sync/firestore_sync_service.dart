@@ -12,6 +12,8 @@ import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
+import 'package:lince_inspecoes/models/inspection_history.dart';
+import 'package:lince_inspecoes/services/simple_notification_service.dart';
 
 class FirestoreSyncService {
   final FirebaseService _firebaseService;
@@ -100,6 +102,7 @@ class FirestoreSyncService {
       final QuerySnapshot querySnapshot = await _firebaseService.firestore
           .collection('inspections')
           .where('inspector_id', isEqualTo: currentUser.uid)
+          .where('deleted_at', isNull: true)
           .get();
 
       for (final doc in querySnapshot.docs) {
@@ -128,6 +131,22 @@ class FirestoreSyncService {
             
             // Baixar template da inspeção se necessário
             await _downloadInspectionTemplate(cloudInspection);
+
+            // Registrar evento de download no histórico
+            final currentUser = _firebaseService.currentUser;
+            if (currentUser != null) {
+              await _offlineService.addInspectionHistory(
+                inspectionId: doc.id,
+                status: HistoryStatus.downloadedInspection,
+                inspectorId: currentUser.uid,
+                description: 'Inspeção baixada da nuvem com sucesso',
+                metadata: {
+                  'source': 'cloud_sync',
+                  'downloaded_at': DateTime.now().toIso8601String(),
+                  'inspection_title': cloudInspection.title,
+                },
+              );
+            }
 
             debugPrint('FirestoreSyncService: Synced inspection ${doc.id}');
           }
@@ -480,9 +499,65 @@ class FirestoreSyncService {
 
   Future<void> _downloadInspectionMedia(String inspectionId) async {
     try {
-      debugPrint('FirestoreSyncService: Downloading media for inspection $inspectionId');
+      debugPrint('FirestoreSyncService: ========== STARTING MEDIA DOWNLOAD FOR INSPECTION $inspectionId ==========');
       
-      // Buscar a inspeção atual com estrutura aninhada
+      // Show immediate media-specific progress notification
+      await _showProgressNotification(
+        title: 'Baixando Mídias',
+        message: 'Verificando mídias disponíveis...',
+        progress: 0,
+        indeterminate: true,
+      );
+      
+      // Get the local structure that was already created by _downloadInspectionRelatedData
+      final localTopics = await _offlineService.getTopics(inspectionId);
+      debugPrint('FirestoreSyncService: Found ${localTopics.length} local topics for inspection $inspectionId');
+      
+      // Build local ID maps for efficient lookup
+      final Map<String, Topic> localTopicsByPosition = {};
+      final Map<String, Item> localItemsByPosition = {};
+      final Map<String, Detail> localDetailsByPosition = {};
+      final Map<String, NonConformity> localNonConformitiesByFirestoreId = {};
+      
+      // Map topics by position
+      for (final topic in localTopics) {
+        localTopicsByPosition['${topic.position}'] = topic;
+      }
+      
+      // Map items by position within their topics
+      for (final topic in localTopics) {
+        if (topic.id != null) {
+          final items = await _offlineService.getItems(topic.id!);
+          for (final item in items) {
+            localItemsByPosition['${topic.position}_${item.position}'] = item;
+          }
+        }
+      }
+      
+      // Map details by position within their items
+      for (final topic in localTopics) {
+        if (topic.id != null) {
+          final items = await _offlineService.getItems(topic.id!);
+          for (final item in items) {
+            if (item.id != null) {
+              final details = await _offlineService.getDetails(item.id!);
+              for (final detail in details) {
+                localDetailsByPosition['${topic.position}_${item.position}_${detail.position}'] = detail;
+              }
+            }
+          }
+        }
+      }
+      
+      // Map non-conformities by their original Firestore ID
+      final allNonConformities = await _offlineService.getNonConformities(inspectionId);
+      for (final nc in allNonConformities) {
+        localNonConformitiesByFirestoreId[nc.id] = nc;
+      }
+      
+      debugPrint('FirestoreSyncService: Built local maps - Topics: ${localTopicsByPosition.length}, Items: ${localItemsByPosition.length}, Details: ${localDetailsByPosition.length}, NCs: ${localNonConformitiesByFirestoreId.length}');
+      
+      // Fetch Firestore inspection data to get media
       final docSnapshot = await _firebaseService.firestore
           .collection('inspections')
           .doc(inspectionId)
@@ -494,180 +569,423 @@ class FirestoreSyncService {
       }
       
       final data = docSnapshot.data()!;
-      final topics = data['topics'] as List<dynamic>? ?? [];
+      final firestoreTopics = data['topics'] as List<dynamic>? ?? [];
       
       int totalMediaDownloaded = 0;
       int totalMediaFound = 0;
       
-      debugPrint('FirestoreSyncService: Found ${topics.length} topics for inspection $inspectionId');
+      debugPrint('FirestoreSyncService: Found ${firestoreTopics.length} firestore topics for inspection $inspectionId');
       
-      // DEBUG: Log complete data structure to understand media organization
-      debugPrint('FirestoreSyncService: [DEBUG] Complete inspection data keys: ${data.keys.toList()}');
-      
-      // Log structure of each topic to understand media placement
-      for (int i = 0; i < topics.length; i++) {
-        final topicData = topics[i];
+      // First pass: Count total media to provide accurate progress
+      int preliminaryMediaCount = 0;
+      for (int topicIndex = 0; topicIndex < firestoreTopics.length; topicIndex++) {
+        final topicData = firestoreTopics[topicIndex];
         final topic = Map<String, dynamic>.from(topicData);
-        debugPrint('FirestoreSyncService: [DEBUG] Topic $i (${topic['name']}) keys: ${topic.keys.toList()}');
         
-        // Check if topic has media
-        if (topic.containsKey('media')) {
-          final topicMedias = topic['media'] as List<dynamic>? ?? [];
-          debugPrint('FirestoreSyncService: [DEBUG] Topic $i has ${topicMedias.length} media files');
-        }
+        // Count topic media
+        final topicMedias = topic['media'] as List<dynamic>? ?? [];
+        preliminaryMediaCount += topicMedias.length;
         
-        // Check items structure
+        // Count item media
         final items = topic['items'] as List<dynamic>? ?? [];
-        for (int j = 0; j < items.length; j++) {
-          final itemData = items[j];
+        for (final itemData in items) {
           final item = Map<String, dynamic>.from(itemData);
-          debugPrint('FirestoreSyncService: [DEBUG] Item $j (${item['name']}) keys: ${item.keys.toList()}');
+          final itemMedias = item['media'] as List<dynamic>? ?? [];
+          preliminaryMediaCount += itemMedias.length;
           
-          if (item.containsKey('media')) {
-            final itemMedias = item['media'] as List<dynamic>? ?? [];
-            debugPrint('FirestoreSyncService: [DEBUG] Item $j has ${itemMedias.length} media files');
-          }
-          
-          // Check details structure
+          // Count detail media
           final details = item['details'] as List<dynamic>? ?? [];
-          for (int k = 0; k < details.length; k++) {
-            final detailData = details[k];
+          for (final detailData in details) {
             final detail = Map<String, dynamic>.from(detailData);
-            if (detail.containsKey('media')) {
-              final detailMedias = detail['media'] as List<dynamic>? ?? [];
-              debugPrint('FirestoreSyncService: [DEBUG] Detail $k (${detail['name']}) has ${detailMedias.length} media files');
-              
-              // Log first media data structure if exists
-              if (detailMedias.isNotEmpty) {
-                debugPrint('FirestoreSyncService: [DEBUG] Sample media data: ${detailMedias[0]}');
-              }
+            final detailMedias = detail['media'] as List<dynamic>? ?? [];
+            preliminaryMediaCount += detailMedias.length;
+            
+            // Count NC media (both media and solved_media)
+            final nonConformities = detail['non_conformities'] as List<dynamic>? ?? [];
+            for (final ncData in nonConformities) {
+              final nc = Map<String, dynamic>.from(ncData);
+              final ncMedias = nc['media'] as List<dynamic>? ?? [];
+              final ncSolvedMedias = nc['solved_media'] as List<dynamic>? ?? [];
+              preliminaryMediaCount += ncMedias.length + ncSolvedMedias.length;
             }
           }
+          
+          // Count item-level NC media (both media and solved_media)
+          final itemNonConformities = item['non_conformities'] as List<dynamic>? ?? [];
+          for (final ncData in itemNonConformities) {
+            final nc = Map<String, dynamic>.from(ncData);
+            final ncMedias = nc['media'] as List<dynamic>? ?? [];
+            final ncSolvedMedias = nc['solved_media'] as List<dynamic>? ?? [];
+            preliminaryMediaCount += ncMedias.length + ncSolvedMedias.length;
+          }
+        }
+        
+        // Count topic-level NC media (both media and solved_media)
+        final topicNonConformities = topic['non_conformities'] as List<dynamic>? ?? [];
+        for (final ncData in topicNonConformities) {
+          final nc = Map<String, dynamic>.from(ncData);
+          final ncMedias = nc['media'] as List<dynamic>? ?? [];
+          final ncSolvedMedias = nc['solved_media'] as List<dynamic>? ?? [];
+          preliminaryMediaCount += ncMedias.length + ncSolvedMedias.length;
         }
       }
       
-      // Processar mídias em todos os níveis da hierarquia
-      for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
-        final topicData = topics[topicIndex];
+      debugPrint('FirestoreSyncService: Found $preliminaryMediaCount total media files to download');
+      
+      // Show initial progress with known total
+      if (preliminaryMediaCount > 0) {
+        await _showProgressNotification(
+          title: 'Baixando Mídias',
+          message: 'Iniciando download de $preliminaryMediaCount mídias...',
+          progress: 0,
+          indeterminate: false,
+        );
+      } else {
+        await _showProgressNotification(
+          title: 'Verificação Completa',
+          message: 'Nenhuma mídia encontrada para download',
+          progress: 100,
+          indeterminate: false,
+        );
+      }
+      
+      // Update totals for accurate progress tracking
+      totalMediaFound = preliminaryMediaCount;
+      
+      // Process media at all hierarchy levels
+      for (int topicIndex = 0; topicIndex < firestoreTopics.length; topicIndex++) {
+        final topicData = firestoreTopics[topicIndex];
         final topic = Map<String, dynamic>.from(topicData);
+        final localTopic = localTopicsByPosition['$topicIndex'];
         
-        // Mídias no nível do tópico
+        if (localTopic == null) {
+          debugPrint('FirestoreSyncService: No local topic found for position $topicIndex');
+          continue;
+        }
+        
+        // Process topic-level media
         final topicMedias = topic['media'] as List<dynamic>? ?? [];
         totalMediaFound += topicMedias.length;
         if (topicMedias.isNotEmpty) {
-          debugPrint('FirestoreSyncService: Found ${topicMedias.length} media files in topic ${topic['name']}');
+          debugPrint('FirestoreSyncService: Processing ${topicMedias.length} media files for topic ${localTopic.topicName}');
         }
         
         for (final mediaData in topicMedias) {
           final media = Map<String, dynamic>.from(mediaData);
-          if (await _downloadAndSaveMedia(media, inspectionId, topic['name'])) {
+          
+          // Update progress notification less frequently (first item, every 5th item, or last item)
+          final shouldShowNotification = totalMediaDownloaded == 0 || 
+                                       (totalMediaDownloaded + 1) % 5 == 0 || 
+                                       totalMediaDownloaded + 1 >= totalMediaFound;
+          
+          if (shouldShowNotification) {
+            await _showProgressNotification(
+              title: 'Baixando Mídias',
+              message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Tópico: ${localTopic.topicName}',
+              progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
+            );
+          }
+          
+          if (await _downloadAndSaveMediaWithIds(
+            media, 
+            inspectionId, 
+            topicId: localTopic.id,
+            context: 'Topic: ${localTopic.topicName}'
+          )) {
             totalMediaDownloaded++;
           }
         }
         
-        // Mídias nos itens
+        // Process item-level media
         final items = topic['items'] as List<dynamic>? ?? [];
         for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
           final itemData = items[itemIndex];
           final item = Map<String, dynamic>.from(itemData);
+          final localItem = localItemsByPosition['${topicIndex}_$itemIndex'];
           
-          // Mídias no nível do item
+          if (localItem == null) {
+            debugPrint('FirestoreSyncService: No local item found for position ${topicIndex}_$itemIndex');
+            continue;
+          }
+          
+          // Process item media
           final itemMedias = item['media'] as List<dynamic>? ?? [];
           totalMediaFound += itemMedias.length;
           if (itemMedias.isNotEmpty) {
-            debugPrint('FirestoreSyncService: Found ${itemMedias.length} media files in item ${item['name']}');
+            debugPrint('FirestoreSyncService: Processing ${itemMedias.length} media files for item ${localItem.itemName}');
           }
           
           for (final mediaData in itemMedias) {
             final media = Map<String, dynamic>.from(mediaData);
-            if (await _downloadAndSaveMedia(media, inspectionId, '${topic['name']} - ${item['name']}')) {
+            
+            // Update progress notification less frequently (first item, every 5th item, or last item)
+            final shouldShowNotification = totalMediaDownloaded == 0 || 
+                                         (totalMediaDownloaded + 1) % 5 == 0 || 
+                                         totalMediaDownloaded + 1 >= totalMediaFound;
+            
+            if (shouldShowNotification) {
+              await _showProgressNotification(
+                title: 'Baixando Mídias',
+                message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Item: ${localItem.itemName}',
+                progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
+              );
+            }
+            
+            if (await _downloadAndSaveMediaWithIds(
+              media, 
+              inspectionId, 
+              topicId: localItem.topicId,
+              itemId: localItem.id,
+              context: 'Item: ${localItem.itemName}'
+            )) {
               totalMediaDownloaded++;
             }
           }
           
-          // Mídias nos detalhes
+          // Process detail-level media
           final details = item['details'] as List<dynamic>? ?? [];
           for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
             final detailData = details[detailIndex];
             final detail = Map<String, dynamic>.from(detailData);
+            final localDetail = localDetailsByPosition['${topicIndex}_${itemIndex}_$detailIndex'];
             
-            // Mídias no nível do detalhe
+            if (localDetail == null) {
+              debugPrint('FirestoreSyncService: No local detail found for position ${topicIndex}_${itemIndex}_$detailIndex');
+              continue;
+            }
+            
+            // Process detail media
             final detailMedias = detail['media'] as List<dynamic>? ?? [];
             totalMediaFound += detailMedias.length;
             if (detailMedias.isNotEmpty) {
-              debugPrint('FirestoreSyncService: Found ${detailMedias.length} media files in detail ${detail['name']}');
+              debugPrint('FirestoreSyncService: Processing ${detailMedias.length} media files for detail ${localDetail.detailName}');
             }
             
             for (final mediaData in detailMedias) {
               final media = Map<String, dynamic>.from(mediaData);
-              if (await _downloadAndSaveMedia(media, inspectionId, '${topic['name']} - ${item['name']} - ${detail['name']}')) {
+              
+              // Update progress notification less frequently (first item, every 5th item, or last item)
+              final shouldShowNotification = totalMediaDownloaded == 0 || 
+                                           (totalMediaDownloaded + 1) % 5 == 0 || 
+                                           totalMediaDownloaded + 1 >= totalMediaFound;
+              
+              if (shouldShowNotification) {
+                await _showProgressNotification(
+                  title: 'Baixando Mídias',
+                  message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Detalhe: ${localDetail.detailName}',
+                  progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
+                );
+              }
+              
+              if (await _downloadAndSaveMediaWithIds(
+                media, 
+                inspectionId, 
+                topicId: localDetail.topicId,
+                itemId: localDetail.itemId,
+                detailId: localDetail.id,
+                context: 'Detail: ${localDetail.detailName}'
+              )) {
                 totalMediaDownloaded++;
               }
             }
             
-            // Mídias nas não conformidades
+            // Process non-conformity media
             final nonConformities = detail['non_conformities'] as List<dynamic>? ?? [];
-            for (int ncIndex = 0; ncIndex < nonConformities.length; ncIndex++) {
-              final ncData = nonConformities[ncIndex];
+            for (final ncData in nonConformities) {
               final nc = Map<String, dynamic>.from(ncData);
+              final ncId = nc['id'] as String?;
+              final localNc = ncId != null ? localNonConformitiesByFirestoreId[ncId] : null;
+              
+              if (localNc == null) {
+                debugPrint('FirestoreSyncService: No local non-conformity found for ID $ncId');
+                continue;
+              }
+              
+              // Process NC media
               final ncMedias = nc['media'] as List<dynamic>? ?? [];
               totalMediaFound += ncMedias.length;
               if (ncMedias.isNotEmpty) {
-                debugPrint('FirestoreSyncService: Found ${ncMedias.length} media files in non-conformity ${nc['description']}');
+                debugPrint('FirestoreSyncService: Processing ${ncMedias.length} media files for non-conformity ${localNc.title}');
               }
               
               for (final mediaData in ncMedias) {
                 final media = Map<String, dynamic>.from(mediaData);
-                if (await _downloadAndSaveMedia(media, inspectionId, 'NC: ${nc['description']}')) {
+                
+                // Update progress notification for NC media less frequently (first item, every 5th item, or last item)
+                final shouldShowNotification = totalMediaDownloaded == 0 || 
+                                             (totalMediaDownloaded + 1) % 5 == 0 || 
+                                             totalMediaDownloaded + 1 >= totalMediaFound;
+                
+                if (shouldShowNotification) {
+                  await _showProgressNotification(
+                    title: 'Baixando Mídias',
+                    message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - NC: ${localNc.title}',
+                    progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
+                  );
+                }
+                
+                if (await _downloadAndSaveMediaWithIds(
+                  media, 
+                  inspectionId, 
+                  topicId: localNc.topicId,
+                  itemId: localNc.itemId,
+                  detailId: localNc.detailId,
+                  nonConformityId: localNc.id,
+                  context: 'NC: ${localNc.title}'
+                )) {
                   totalMediaDownloaded++;
                 }
               }
             }
           }
-        }
-      }
-      
-      debugPrint('FirestoreSyncService: Media download summary - Found: $totalMediaFound, Downloaded: $totalMediaDownloaded for inspection $inspectionId');
-      
-      // Logs adicionais para debug
-      if (totalMediaFound == 0) {
-        debugPrint('FirestoreSyncService: WARNING - No media found in Firestore for inspection $inspectionId');
-        debugPrint('FirestoreSyncService: This might indicate that the inspection has no media or the media structure is different than expected');
-      } else if (totalMediaDownloaded == 0) {
-        debugPrint('FirestoreSyncService: WARNING - Media found but none downloaded for inspection $inspectionId');
-        debugPrint('FirestoreSyncService: This might indicate URL/filename issues or media already exists locally');
-      } else if (totalMediaDownloaded < totalMediaFound) {
-        debugPrint('FirestoreSyncService: WARNING - Some media not downloaded for inspection $inspectionId');
-        debugPrint('FirestoreSyncService: ${totalMediaFound - totalMediaDownloaded} media files failed to download');
-      }
-      
-      // Log detalhado da estrutura se não encontrou mídias
-      if (totalMediaFound == 0) {
-        debugPrint('FirestoreSyncService: Detailed structure analysis for inspection $inspectionId:');
-        for (int i = 0; i < topics.length; i++) {
-          final topic = Map<String, dynamic>.from(topics[i]);
-          debugPrint('  Topic $i: ${topic['name']} - Keys: ${topic.keys.toList()}');
           
-          final items = topic['items'] as List<dynamic>? ?? [];
-          for (int j = 0; j < items.length; j++) {
-            final item = Map<String, dynamic>.from(items[j]);
-            debugPrint('    Item $j: ${item['name']} - Keys: ${item.keys.toList()}');
+          // Process item-level non-conformities
+          final itemNonConformities = item['non_conformities'] as List<dynamic>? ?? [];
+          for (final ncData in itemNonConformities) {
+            final nc = Map<String, dynamic>.from(ncData);
+            final ncId = nc['id'] as String?;
+            final localNc = ncId != null ? localNonConformitiesByFirestoreId[ncId] : null;
             
-            final details = item['details'] as List<dynamic>? ?? [];
-            for (int k = 0; k < details.length; k++) {
-              final detail = Map<String, dynamic>.from(details[k]);
-              debugPrint('      Detail $k: ${detail['name']} - Keys: ${detail.keys.toList()}');
+            if (localNc == null) {
+              debugPrint('FirestoreSyncService: No local item non-conformity found for ID $ncId');
+              continue;
+            }
+            
+            final ncMedias = nc['media'] as List<dynamic>? ?? [];
+            totalMediaFound += ncMedias.length;
+            if (ncMedias.isNotEmpty) {
+              debugPrint('FirestoreSyncService: Processing ${ncMedias.length} media files for item non-conformity ${localNc.title}');
+            }
+            
+            for (final mediaData in ncMedias) {
+              final media = Map<String, dynamic>.from(mediaData);
+              
+              // Update progress notification for Item NC media less frequently (first item, every 5th item, or last item)
+              final shouldShowNotification = totalMediaDownloaded == 0 || 
+                                           (totalMediaDownloaded + 1) % 5 == 0 || 
+                                           totalMediaDownloaded + 1 >= totalMediaFound;
+              
+              if (shouldShowNotification) {
+                await _showProgressNotification(
+                  title: 'Baixando Mídias',
+                  message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Item NC: ${localNc.title}',
+                  progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
+                );
+              }
+              
+              if (await _downloadAndSaveMediaWithIds(
+                media, 
+                inspectionId, 
+                topicId: localNc.topicId,
+                itemId: localNc.itemId,
+                nonConformityId: localNc.id,
+                context: 'Item NC: ${localNc.title}'
+              )) {
+                totalMediaDownloaded++;
+              }
+            }
+          }
+        }
+        
+        // Process topic-level non-conformities  
+        final topicNonConformities = topic['non_conformities'] as List<dynamic>? ?? [];
+        for (final ncData in topicNonConformities) {
+          final nc = Map<String, dynamic>.from(ncData);
+          final ncId = nc['id'] as String?;
+          final localNc = ncId != null ? localNonConformitiesByFirestoreId[ncId] : null;
+          
+          if (localNc == null) {
+            debugPrint('FirestoreSyncService: No local topic non-conformity found for ID $ncId');
+            continue;
+          }
+          
+          final ncMedias = nc['media'] as List<dynamic>? ?? [];
+          totalMediaFound += ncMedias.length;
+          if (ncMedias.isNotEmpty) {
+            debugPrint('FirestoreSyncService: Processing ${ncMedias.length} media files for topic non-conformity ${localNc.title}');
+          }
+          
+          for (final mediaData in ncMedias) {
+            final media = Map<String, dynamic>.from(mediaData);
+            
+            // Update progress notification for Topic NC media less frequently (first item, every 5th item, or last item)
+            final shouldShowNotification = totalMediaDownloaded == 0 || 
+                                         (totalMediaDownloaded + 1) % 5 == 0 || 
+                                         totalMediaDownloaded + 1 >= totalMediaFound;
+            
+            if (shouldShowNotification) {
+              await _showProgressNotification(
+                title: 'Baixando Mídias',
+                message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Topic NC: ${localNc.title}',
+                progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
+              );
+            }
+            
+            if (await _downloadAndSaveMediaWithIds(
+              media, 
+              inspectionId, 
+              topicId: localNc.topicId,
+              nonConformityId: localNc.id,
+              context: 'Topic NC: ${localNc.title}'
+            )) {
+              totalMediaDownloaded++;
             }
           }
         }
       }
+      
+      debugPrint('FirestoreSyncService: ========== MEDIA DOWNLOAD SUMMARY ==========');
+      debugPrint('FirestoreSyncService: Found: $totalMediaFound, Downloaded: $totalMediaDownloaded for inspection $inspectionId');
+      
+      // Show final progress notification
+      if (totalMediaFound == 0) {
+        await _showProgressNotification(
+          title: 'Download Concluído',
+          message: 'Nenhuma mídia encontrada para esta vistoria',
+          progress: 100,
+        );
+        debugPrint('FirestoreSyncService: WARNING - No media found in Firestore for inspection $inspectionId');
+      } else if (totalMediaDownloaded == 0) {
+        await _showProgressNotification(
+          title: 'Aviso de Download',
+          message: 'Mídias encontradas mas não baixadas (podem já existir)',
+          progress: 100,
+        );
+        debugPrint('FirestoreSyncService: WARNING - Media found but none downloaded for inspection $inspectionId');
+      } else if (totalMediaDownloaded < totalMediaFound) {
+        await _showProgressNotification(
+          title: 'Download Parcialmente Concluído',
+          message: 'Baixadas $totalMediaDownloaded de $totalMediaFound mídias',
+          progress: (totalMediaDownloaded / totalMediaFound * 100).round(),
+        );
+        debugPrint('FirestoreSyncService: WARNING - Some media not downloaded for inspection $inspectionId');
+        debugPrint('FirestoreSyncService: ${totalMediaFound - totalMediaDownloaded} media files failed to download');
+      } else {
+        await _showProgressNotification(
+          title: 'Download Concluído',
+          message: 'Todas as $totalMediaDownloaded mídias foram baixadas com sucesso!',
+          progress: 100,
+        );
+        debugPrint('FirestoreSyncService: ✅ All media downloaded successfully!');
+      }
+      
+      debugPrint('FirestoreSyncService: ========== MEDIA DOWNLOAD COMPLETED ==========');
       
     } catch (e) {
       debugPrint('FirestoreSyncService: Error downloading media for inspection $inspectionId: $e');
     }
   }
 
-  Future<bool> _downloadAndSaveMedia(Map<String, dynamic> mediaData, String inspectionId, String context) async {
+  Future<bool> _downloadAndSaveMediaWithIds(
+    Map<String, dynamic> mediaData, 
+    String inspectionId, {
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    String? nonConformityId,
+    required String context,
+    bool isResolutionMedia = false,
+  }) async {
     try {
       debugPrint('FirestoreSyncService: Processing media in context: $context');
       debugPrint('FirestoreSyncService: Media data keys: ${mediaData.keys.toList()}');
@@ -693,6 +1011,7 @@ class FirestoreSyncService {
       }
       
       debugPrint('FirestoreSyncService: Downloading media $filename from $cloudUrl for context: $context');
+      debugPrint('FirestoreSyncService: Target IDs - Topic: $topicId, Item: $itemId, Detail: $detailId, NC: $nonConformityId');
       
       // Baixar arquivo do Firebase Storage
       final storageRef = _firebaseService.storage.refFromURL(cloudUrl);
@@ -700,29 +1019,142 @@ class FirestoreSyncService {
       
       await storageRef.writeToFile(localFile);
       
-      // Salvar metadata da mídia no banco
+      // Extract and preserve ALL metadata from Firestore
+      debugPrint('FirestoreSyncService: Extracting complete metadata from Firestore data');
+      
+      // Parse original timestamps
+      DateTime? originalCreatedAt;
+      DateTime? originalUpdatedAt;
+      try {
+        if (mediaData['created_at'] != null) {
+          final createdAtValue = mediaData['created_at'];
+          if (createdAtValue is String) {
+            originalCreatedAt = DateTime.parse(createdAtValue);
+          } else if (createdAtValue.toString().contains('_seconds')) {
+            // Firestore Timestamp format
+            final seconds = createdAtValue['_seconds'] as int?;
+            final nanoseconds = createdAtValue['_nanoseconds'] as int?;
+            if (seconds != null) {
+              originalCreatedAt = DateTime.fromMillisecondsSinceEpoch(
+                seconds * 1000 + (nanoseconds ?? 0) ~/ 1000000
+              );
+            }
+          }
+        }
+        
+        if (mediaData['updated_at'] != null) {
+          final updatedAtValue = mediaData['updated_at'];
+          if (updatedAtValue is String) {
+            originalUpdatedAt = DateTime.parse(updatedAtValue);
+          } else if (updatedAtValue.toString().contains('_seconds')) {
+            // Firestore Timestamp format
+            final seconds = updatedAtValue['_seconds'] as int?;
+            final nanoseconds = updatedAtValue['_nanoseconds'] as int?;
+            if (seconds != null) {
+              originalUpdatedAt = DateTime.fromMillisecondsSinceEpoch(
+                seconds * 1000 + (nanoseconds ?? 0) ~/ 1000000
+              );
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('FirestoreSyncService: Error parsing timestamps: $e');
+      }
+      
+      // Extract complete metadata including visual indicators and source info
+      final completeMetadata = <String, dynamic>{};
+      
+      // Preserve original Firestore data for complete reconstruction
+      completeMetadata['original_firestore_data'] = Map<String, dynamic>.from(mediaData);
+      
+      // Extract critical visual and functional properties
+      if (mediaData['isFromCamera'] != null) {
+        completeMetadata['isFromCamera'] = mediaData['isFromCamera'];
+      }
+      if (mediaData['isResolutionMedia'] != null) {
+        completeMetadata['isResolutionMedia'] = mediaData['isResolutionMedia'];
+      }
+      if (mediaData['nonConformityStatus'] != null) {
+        completeMetadata['nonConformityStatus'] = mediaData['nonConformityStatus'];
+      }
+      if (mediaData['captureContext'] != null) {
+        completeMetadata['captureContext'] = mediaData['captureContext'];
+      }
+      if (mediaData['tags'] != null) {
+        completeMetadata['tags'] = mediaData['tags'];
+      }
+      if (mediaData['orientation'] != null) {
+        completeMetadata['orientation'] = mediaData['orientation'];
+      }
+      if (mediaData['location'] != null) {
+        completeMetadata['location'] = mediaData['location'];
+      }
+      if (mediaData['deviceInfo'] != null) {
+        completeMetadata['deviceInfo'] = mediaData['deviceInfo'];
+      }
+      
+      debugPrint('FirestoreSyncService: Extracted metadata keys: ${completeMetadata.keys.toList()}');
+      
+      // Salvar metadata completa da mídia no banco com todos os dados preservados
       await _offlineService.saveOfflineMedia(
         inspectionId: inspectionId,
         filename: filename,
         localPath: localFile.path,
         cloudUrl: cloudUrl,
         type: mediaData['type'] as String? ?? 'image',
-        fileSize: mediaData['fileSize'] as int? ?? 0,
-        mimeType: mediaData['mimeType'] as String? ?? 'image/jpeg',
-        topicId: mediaData['topic_id'] as String?,
-        itemId: mediaData['item_id'] as String?,
-        detailId: mediaData['detail_id'] as String?,
-        nonConformityId: mediaData['non_conformity_id'] as String?,
+        fileSize: mediaData['fileSize'] as int? ?? mediaData['file_size'] as int? ?? 0,
+        mimeType: mediaData['mimeType'] as String? ?? mediaData['mime_type'] as String? ?? 'image/jpeg',
+        topicId: topicId,
+        itemId: itemId,
+        detailId: detailId,
+        nonConformityId: nonConformityId,
         isUploaded: true,
+        // PRESERVE COMPLETE ORIGINAL METADATA
+        source: mediaData['source'] as String?,
+        metadata: completeMetadata,
+        width: mediaData['width'] as int? ?? mediaData['dimensions']?['width'] as int?,
+        height: mediaData['height'] as int? ?? mediaData['dimensions']?['height'] as int?,
+        duration: mediaData['duration'] as int?,
+        originalCreatedAt: originalCreatedAt,
+        originalUpdatedAt: originalUpdatedAt,
+        customId: mediaData['id'] as String?, // Preserve original ID if available
+        isResolutionMedia: isResolutionMedia,
       );
       
-      debugPrint('FirestoreSyncService: Successfully downloaded and saved media $filename for context: $context');
+      debugPrint('FirestoreSyncService: Successfully downloaded and saved media $filename for context: $context with local IDs');
       return true;
       
     } catch (e) {
       debugPrint('FirestoreSyncService: Error downloading media in context $context: $e');
       debugPrint('FirestoreSyncService: Media data was: $mediaData');
       return false;
+    }
+  }
+
+  // ===============================
+  // PROGRESS NOTIFICATION HELPER
+  // ===============================
+  
+  Future<void> _showProgressNotification({
+    required String title,
+    required String message,
+    int? progress,
+    bool indeterminate = false,
+  }) async {
+    try {
+      debugPrint('FirestoreSyncService: Showing progress notification: $title - $message (progress: $progress, indeterminate: $indeterminate)');
+      
+      // Show real system notification using SimpleNotificationService
+      await SimpleNotificationService.instance.showDownloadProgress(
+        title: title,
+        message: message,
+        progress: progress,
+        indeterminate: indeterminate,
+      );
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error showing progress notification: $e');
+      // Fallback: at least show debug message
+      debugPrint('FirestoreSyncService: NOTIFICATION - $title: $message');
     }
   }
 
@@ -888,6 +1320,23 @@ class FirestoreSyncService {
           // Mark all related entities as synced
           await _markInspectionAndChildrenSynced(inspection.id);
 
+          // Registrar evento de upload no histórico
+          final currentUser = _firebaseService.currentUser;
+          if (currentUser != null) {
+            await _offlineService.addInspectionHistory(
+              inspectionId: inspection.id,
+              status: HistoryStatus.uploadedInspection,
+              inspectorId: currentUser.uid,
+              description: 'Inspeção enviada para nuvem com sucesso',
+              metadata: {
+                'source': 'local_sync',
+                'uploaded_at': DateTime.now().toIso8601String(),
+                'inspection_title': inspection.title,
+                'inspection_status': inspection.status,
+              },
+            );
+          }
+
           debugPrint(
               'FirestoreSyncService: Uploaded inspection with nested structure ${inspection.id}');
         } catch (e) {
@@ -954,9 +1403,12 @@ class FirestoreSyncService {
     final topics = await _offlineService.getTopics(inspection.id);
     final topicsData = <Map<String, dynamic>>[];
 
+
     for (final topic in topics) {
+      
       // Get topic-level media
       final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');
+      
       final topicMediaData = topicMedia.map((media) => {
         'filename': media.filename,
         'type': media.type,
@@ -969,21 +1421,14 @@ class FirestoreSyncService {
         'createdAt': media.createdAt.toIso8601String(),
       }).toList();
       
-      // Get topic-level non-conformities
+      // Get topic-level non-conformities with hierarchical media structure
       final topicNCs = await _offlineService.getNonConformitiesByTopic(topic.id ?? '');
-      final topicNonConformitiesData = topicNCs.map((nc) => {
-        'id': nc.id,
-        'title': nc.title,
-        'description': nc.description,
-        'severity': nc.severity,
-        'status': nc.status,
-        'corrective_action': nc.correctiveAction,
-        'deadline': nc.deadline?.toIso8601String(),
-        'is_resolved': nc.isResolved,
-        'resolved_at': nc.resolvedAt?.toIso8601String(),
-        'createdAt': nc.createdAt.toIso8601String(),
-        'updatedAt': nc.updatedAt.toIso8601String(),
-      }).toList();
+      final topicNonConformitiesData = <Map<String, dynamic>>[];
+      
+      for (final nc in topicNCs) {
+        final ncData = await _buildNonConformityWithHierarchicalMedia(nc);
+        topicNonConformitiesData.add(ncData);
+      }
 
       final topicData = <String, dynamic>{
         'name': topic.topicName,
@@ -1001,6 +1446,7 @@ class FirestoreSyncService {
       for (final item in items) {
         // Get item-level media
         final itemMedia = await _offlineService.getMediaByItem(item.id ?? '');
+        
         final itemMediaData = itemMedia.map((media) => {
           'filename': media.filename,
           'type': media.type,
@@ -1013,21 +1459,14 @@ class FirestoreSyncService {
           'createdAt': media.createdAt.toIso8601String(),
         }).toList();
         
-        // Get item-level non-conformities
+        // Get item-level non-conformities with hierarchical media structure
         final itemNCs = await _offlineService.getNonConformitiesByItem(item.id ?? '');
-        final itemNonConformitiesData = itemNCs.map((nc) => {
-          'id': nc.id,
-          'title': nc.title,
-          'description': nc.description,
-          'severity': nc.severity,
-          'status': nc.status,
-          'corrective_action': nc.correctiveAction,
-          'deadline': nc.deadline?.toIso8601String(),
-          'is_resolved': nc.isResolved,
-          'resolved_at': nc.resolvedAt?.toIso8601String(),
-          'createdAt': nc.createdAt.toIso8601String(),
-          'updatedAt': nc.updatedAt.toIso8601String(),
-        }).toList();
+        final itemNonConformitiesData = <Map<String, dynamic>>[];
+        
+        for (final nc in itemNCs) {
+          final ncData = await _buildNonConformityWithHierarchicalMedia(nc);
+          itemNonConformitiesData.add(ncData);
+        }
 
         final itemData = <String, dynamic>{
           'name': item.itemName,
@@ -1058,22 +1497,14 @@ class FirestoreSyncService {
             'createdAt': media.createdAt.toIso8601String(),
           }).toList();
           
-          // Get non-conformities for this detail
+          // Get non-conformities for this detail with hierarchical media structure
           final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id ?? '');
+          final nonConformitiesData = <Map<String, dynamic>>[];
           
-          final nonConformitiesData = detailNCs.map((nc) => {
-            'id': nc.id,
-            'title': nc.title,
-            'description': nc.description,
-            'severity': nc.severity,
-            'status': nc.status,
-            'corrective_action': nc.correctiveAction,
-            'deadline': nc.deadline?.toIso8601String(),
-            'is_resolved': nc.isResolved,
-            'resolved_at': nc.resolvedAt?.toIso8601String(),
-            'createdAt': nc.createdAt.toIso8601String(),
-            'updatedAt': nc.updatedAt.toIso8601String(),
-          }).toList();
+          for (final nc in detailNCs) {
+            final ncData = await _buildNonConformityWithHierarchicalMedia(nc);
+            nonConformitiesData.add(ncData);
+          }
 
           final detailData = <String, dynamic>{
             'name': detail.detailName,
@@ -1103,6 +1534,55 @@ class FirestoreSyncService {
 
     return data;
   }
+
+  // Helper method to build non-conformity data with hierarchical media structure (media vs solved_media)
+  Future<Map<String, dynamic>> _buildNonConformityWithHierarchicalMedia(NonConformity nc) async {
+    // Get all media for this non-conformity
+    final allMedia = await _offlineService.getMediaByNonConformity(nc.id);
+    
+    // Separate media based on resolution status
+    final mediaList = <Map<String, dynamic>>[];
+    final solvedMediaList = <Map<String, dynamic>>[];
+    
+    for (final media in allMedia) {
+      final mediaData = {
+        'filename': media.filename,
+        'type': media.type,
+        'localPath': media.localPath,
+        'cloudUrl': media.cloudUrl,
+        'thumbnailPath': media.thumbnailPath,
+        'fileSize': media.fileSize,
+        'mimeType': media.mimeType,
+        'isUploaded': media.isUploaded,
+        'createdAt': media.createdAt.toIso8601String(),
+        'isResolutionMedia': media.isResolutionMedia,
+        'source': media.source,
+      };
+      
+      if (media.isResolutionMedia) {
+        solvedMediaList.add(mediaData);
+      } else {
+        mediaList.add(mediaData);
+      }
+    }
+    
+    return {
+      'id': nc.id,
+      'title': nc.title,
+      'description': nc.description,
+      'severity': nc.severity,
+      'status': nc.status,
+      'corrective_action': nc.correctiveAction,
+      'deadline': nc.deadline?.toIso8601String(),
+      'is_resolved': nc.isResolved,
+      'resolved_at': nc.resolvedAt?.toIso8601String(),
+      'createdAt': nc.createdAt.toIso8601String(),
+      'updatedAt': nc.updatedAt.toIso8601String(),
+      'media': mediaList,           // Media for unresolved state
+      'solved_media': solvedMediaList, // Media for resolved state
+    };
+  }
+
 
   Future<void> _markInspectionAndChildrenSynced(String inspectionId) async {
     // Mark inspection as synced

@@ -224,12 +224,18 @@ class InspectionCard extends StatelessWidget {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                                // Call both sync functions if they exist
-                                if (onSync != null) {
+                                // Show conflict warning if there are conflicts
+                                if (hasConflicts) {
+                                  // This will be handled by the parent widget
                                   await onSync!();
-                                }
-                                if (onSyncImages != null) {
-                                  await onSyncImages!();
+                                } else {
+                                  // Call both sync functions if they exist
+                                  if (onSync != null) {
+                                    await onSync!();
+                                  }
+                                  if (onSyncImages != null) {
+                                    await onSyncImages!();
+                                  }
                                 }
                               },
                               style: ElevatedButton.styleFrom(

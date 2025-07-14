@@ -47,11 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // Verifica se as notificações já estão habilitadas
     final areEnabled = await SimpleNotificationService.instance.areNotificationsEnabled();
     
-    if (!areEnabled) {
+    if (!areEnabled && mounted) {
       // Mostra o diálogo de permissão
       final granted = await NotificationPermissionDialog.show(context);
       
-      if (granted && mounted) {
+      if (granted && mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Notificações habilitadas! Você receberá atualizações sobre sincronizações.'),
