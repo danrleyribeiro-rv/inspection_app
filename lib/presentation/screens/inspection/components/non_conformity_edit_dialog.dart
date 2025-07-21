@@ -20,7 +20,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _descriptionController;
   late TextEditingController _correctiveActionController;
-  late String _severity;
+  String? _severity;
 
   @override
   void initState() {
@@ -30,9 +30,9 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
     _correctiveActionController = TextEditingController(
         text: widget.nonConformity['corrective_action'] ?? '');
     
-    // Normalize severity value to match dropdown options
-    final severityValue = widget.nonConformity['severity'] ?? 'Média';
-    _severity = _normalizeSeverity(severityValue);
+    // Normalize severity value to match dropdown options (can be null)
+    final severityValue = widget.nonConformity['severity'];
+    _severity = severityValue != null && severityValue.isNotEmpty ? _normalizeSeverity(severityValue) : null;
   }
 
   @override
@@ -43,7 +43,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
   }
 
   /// Normalize severity values to match dropdown options
-  String _normalizeSeverity(String value) {
+  String? _normalizeSeverity(String value) {
     final normalized = value.toLowerCase().trim();
     switch (normalized) {
       case 'baixa':
@@ -61,7 +61,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
       case 'critical':
         return 'Crítica';
       default:
-        return 'Média'; // Default fallback
+        return null; // No default fallback, return null for unknown values
     }
   }
 
@@ -78,8 +78,41 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Severity dropdown
-              const Text('Severidade:'),
+              // Description field
+              const Text('Descrição:'),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                maxLines: 3,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'A descrição é obrigatória'
+                    : null,
+              ),
+
+              const SizedBox(height: 16),
+
+              // Corrective action field
+              const Text('Ação Corretiva (opcional):'),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _correctiveActionController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                maxLines: 3,
+              ),
+
+              const SizedBox(height: 16),
+
+              // Severity dropdown (optional, moved to end)
+              const Text('Severidade (opcional):'),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _severity,
@@ -89,6 +122,16 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                       EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
                 items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Row(
+                      children: [
+                        Icon(Icons.circle, color: Colors.grey, size: 12),
+                        SizedBox(width: 8),
+                        Text('Não definida'),
+                      ],
+                    ),
+                  ),
                   DropdownMenuItem(
                     value: 'Baixa',
                     child: Row(
@@ -97,7 +140,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                           width: 12,
                           height: 12,
                           decoration: const BoxDecoration(
-                            color: Colors.green,
+                            color: Colors.yellow,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -159,43 +202,8 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                   ),
                 ],
                 onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _severity = value);
-                  }
+                  setState(() => _severity = value);
                 },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Description field
-              const Text('Descrição:'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                maxLines: 3,
-                validator: (value) => value == null || value.isEmpty
-                    ? 'A descrição é obrigatória'
-                    : null,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Corrective action field
-              const Text('Ação Corretiva (opcional):'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _correctiveActionController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                maxLines: 3,
               ),
 
               const SizedBox(height: 16),
@@ -219,7 +227,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
                 'corrective_action': _correctiveActionController.text.isEmpty
                     ? null
                     : _correctiveActionController.text,
-                'severity': _severity,
+                'severity': _severity?.isNotEmpty == true ? _severity : null,
               };
 
               widget.onSave(updatedData);

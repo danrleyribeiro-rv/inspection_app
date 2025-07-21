@@ -271,7 +271,7 @@ class _NonConformityListState extends State<NonConformityList> {
     final itemName = item['item_name'] ?? 'Item não especificado';
     final detailName = item['detail_name'] ?? 'Detalhe não especificado';
 
-    final severity = item['severity'] ?? 'Média';
+    final severity = item['severity'];
     final status = item['status'] ?? 'pendente';
 
     // More robust resolution check
@@ -290,13 +290,15 @@ class _NonConformityListState extends State<NonConformityList> {
     // Se resolvido, usar cor verde escura. Senão, usar cor baseada na severidade
     Color cardColor = isResolved
         ? const Color(0xFF1B5E20) // Verde escuro para resolvidos
-        : switch (severity?.toLowerCase()) {
-            'alta' => const Color(0xFF4A1E1E), // Vermelho escuro
-            'média' || 'media' => const Color(0xFF4A3B1E), // Laranja escuro
-            'baixa' => const Color(0xFF4A4A1E), // Amarelo escuro
-            'crítica' || 'critica' => const Color(0xFF3A1E4A), // Roxo escuro
-            _ => const Color(0xFF3A3A3A), // Cinza escuro
-          };
+        : (severity == null || severity.isEmpty)
+            ? const Color(0xFF3A3A3A) // Cinza escuro para sem severidade
+            : switch (severity.toLowerCase()) {
+                'alta' => const Color(0xFF4A1E1E), // Vermelho escuro
+                'média' || 'media' => const Color(0xFF4A3B1E), // Laranja escuro
+                'baixa' => const Color(0xFF4A4A1E), // Amarelo escuro
+                'crítica' || 'critica' => const Color(0xFF3A1E4A), // Roxo escuro
+                _ => const Color(0xFF3A3A3A), // Cinza escuro
+              };
 
     final (statusColor, statusText) =
         isResolved ? (Colors.green, 'RESOLVIDO') : (Colors.orange, 'PENDENTE');
@@ -338,7 +340,7 @@ class _NonConformityListState extends State<NonConformityList> {
               children: [
                 _buildStatusChip(statusText, statusColor),
                 const SizedBox(width: 4),
-                _buildSeverityChip(severity),
+                if (severity != null && severity.isNotEmpty) _buildSeverityChip(severity),
                 const Spacer(),
                 if (!isResolved)
                   Container(
@@ -488,6 +490,13 @@ class _NonConformityListState extends State<NonConformityList> {
                         );
                       }
                     },
+                  ),
+                  // Botão para desmarcar como resolvida
+                  _buildActionButtonV2(
+                    icon: Icons.undo,
+                    label: 'Reabrir',
+                    color: Colors.orange,
+                    onPressed: () => _unresolveNonConformity(context, item),
                   ),
                 ],
               ],
@@ -785,8 +794,176 @@ class _NonConformityListState extends State<NonConformityList> {
     debugPrint('NonConformityList: Item data: $item');
     debugPrint(
         'NonConformityList: Current status: ${item['status']}, is_resolved: ${item['is_resolved']}');
-    // Directly show resolution capture dialog (only with photos option)
-    _showResolutionCaptureDialog(context, item);
+    
+    // Show dialog with resolution options
+    _showResolutionOptionsDialog(context, item);
+  }
+
+  void _showResolutionOptionsDialog(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Resolver Não Conformidade',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Como deseja resolver esta não conformidade?',
+              style: TextStyle(fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Botão Marcar como Resolvido
+                Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.of(dialogContext).pop();
+                            _markAsResolvedWithoutPhoto(context, item);
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Icon(
+                              Icons.check_circle,
+                              size: 40,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Marcar como\nResolvido',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                // Botão Capturar Foto
+                Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.of(dialogContext).pop();
+                            _showResolutionCaptureDialog(context, item);
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 40,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Capturar Foto\nda Resolução',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Botão Cancelar no canto inferior direito
+            Align(
+              alignment: Alignment.bottomRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey[600],
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+        actionsPadding: EdgeInsets.zero,
+        actions: const [], // Remove actions to use custom layout
+      ),
+    );
+  }
+
+  Future<void> _markAsResolvedWithoutPhoto(BuildContext context, Map<String, dynamic> item) async {
+    try {
+      debugPrint('NonConformityList: Marking NC ${item['id']} as resolved without photo');
+      
+      // Mark as resolved without resolution images
+      await _markAsResolvedDirectly(item, []);
+      
+      // Refresh the non-conformity list to update button state
+      if (widget.onNonConformityUpdated != null) {
+        widget.onNonConformityUpdated!();
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade marcada como resolvida!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('NonConformityList: Error marking as resolved without photo: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao resolver não conformidade: $e')),
+        );
+      }
+    }
   }
 
   void _showResolutionCaptureDialog(
@@ -1131,6 +1308,73 @@ class _NonConformityListState extends State<NonConformityList> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao abrir galeria de resolução: $e')),
+        );
+      }
+    }
+  }
+
+  void _unresolveNonConformity(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reabrir Não Conformidade'),
+        content: const Text('Tem certeza que deseja reabrir esta não conformidade? Ela voltará ao status pendente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _markAsUnresolvedDirectly(context, item);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Reabrir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _markAsUnresolvedDirectly(BuildContext context, Map<String, dynamic> item) async {
+    try {
+      debugPrint('NonConformityList: Marking NC ${item['id']} as unresolved');
+      
+      final updatedItem = Map<String, dynamic>.from(item);
+      
+      // Mark as unresolved
+      updatedItem['status'] = 'open';
+      updatedItem['is_resolved'] = false;
+      updatedItem['resolved_at'] = null;
+      // Keep resolution images for historical record, but mark as unresolved
+      
+      debugPrint('NonConformityList: Updated item: $updatedItem');
+      
+      // Update the non-conformity directly
+      widget.onEditNonConformity(updatedItem);
+      
+      // Refresh the non-conformity list to update button state
+      if (widget.onNonConformityUpdated != null) {
+        widget.onNonConformityUpdated!();
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não conformidade reaberta com sucesso!'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('NonConformityList: Error marking as unresolved: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao reabrir não conformidade: $e')),
         );
       }
     }

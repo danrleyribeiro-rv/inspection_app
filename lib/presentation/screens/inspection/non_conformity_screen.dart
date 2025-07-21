@@ -109,14 +109,27 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
       for (final topic in topics) {
         if (topic.id != null) {
-          final items = await _serviceFactory.dataService.getItems(topic.id!);
-          allItems.addAll(items);
+          // Check if topic has direct details
+          if (topic.directDetails == true) {
+            // Load direct details (details that belong directly to topic, not to items)
+            try {
+              final directDetails = await _serviceFactory.dataService.getDirectDetails(topic.id!);
+              allDetails.addAll(directDetails);
+              debugPrint('NonConformityScreen: Loaded ${directDetails.length} direct details for topic ${topic.topicName}');
+            } catch (e) {
+              debugPrint('NonConformityScreen: Error loading direct details for topic ${topic.id}: $e');
+            }
+          } else {
+            // Load items and their details (normal hierarchy)
+            final items = await _serviceFactory.dataService.getItems(topic.id!);
+            allItems.addAll(items);
 
-          for (final item in items) {
-            if (item.id != null) {
-              final details =
-                  await _serviceFactory.dataService.getDetails(item.id!);
-              allDetails.addAll(details);
+            for (final item in items) {
+              if (item.id != null) {
+                final details =
+                    await _serviceFactory.dataService.getDetails(item.id!);
+                allDetails.addAll(details);
+              }
             }
           }
         }
@@ -139,27 +152,10 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
         if (selectedTopic != null) {
           await _topicSelected(selectedTopic);
-        } else if (_topics.isNotEmpty) {
-          await _topicSelected(_topics.first);
-        }
-
-        if (widget.preSelectedItem != null && _items.isNotEmpty) {
-          Item? selectedItem;
-          for (var item in _items) {
-            if (item.id != null &&
-                item.id.toString() == widget.preSelectedItem.toString()) {
-              selectedItem = item;
-              break;
-            }
-          }
-
-          if (selectedItem != null) {
-            await _itemSelected(selectedItem);
-          } else if (_items.isNotEmpty) {
-            await _itemSelected(_items.first);
-          }
-
-          if (widget.preSelectedDetail != null && _details.isNotEmpty) {
+          
+          // Handle direct details (topic has direct details and no preSelectedItem)
+          if (selectedTopic.directDetails == true && widget.preSelectedItem == null && widget.preSelectedDetail != null) {
+            debugPrint('NonConformityScreen: Handling direct detail preselection for topic ${selectedTopic.topicName}');
             Detail? selectedDetail;
             for (var detail in _details) {
               if (detail.id != null &&
@@ -171,10 +167,48 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
             if (selectedDetail != null) {
               _detailSelected(selectedDetail);
+              debugPrint('NonConformityScreen: Preselected direct detail: ${selectedDetail.detailName}');
             } else if (_details.isNotEmpty) {
               _detailSelected(_details.first);
+              debugPrint('NonConformityScreen: Fallback to first direct detail');
             }
           }
+          // Handle normal hierarchy (topic has items)
+          else if (widget.preSelectedItem != null && _items.isNotEmpty) {
+            Item? selectedItem;
+            for (var item in _items) {
+              if (item.id != null &&
+                  item.id.toString() == widget.preSelectedItem.toString()) {
+                selectedItem = item;
+                break;
+              }
+            }
+
+            if (selectedItem != null) {
+              await _itemSelected(selectedItem);
+            } else if (_items.isNotEmpty) {
+              await _itemSelected(_items.first);
+            }
+
+            if (widget.preSelectedDetail != null && _details.isNotEmpty) {
+              Detail? selectedDetail;
+              for (var detail in _details) {
+                if (detail.id != null &&
+                    detail.id.toString() == widget.preSelectedDetail.toString()) {
+                  selectedDetail = detail;
+                  break;
+                }
+              }
+
+              if (selectedDetail != null) {
+                _detailSelected(selectedDetail);
+              } else if (_details.isNotEmpty) {
+                _detailSelected(_details.first);
+              }
+            }
+          }
+        } else if (_topics.isNotEmpty) {
+          await _topicSelected(_topics.first);
         }
       }
 
@@ -285,10 +319,19 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
     if (topic.id != null) {
       try {
-        final items = await _serviceFactory.dataService.getItems(topic.id!);
-        setState(() => _items = items);
+        if (topic.directDetails == true) {
+          // Load direct details for topics with direct details
+          final directDetails = await _serviceFactory.dataService.getDirectDetails(topic.id!);
+          setState(() => _details = directDetails);
+          debugPrint('NonConformityScreen: _topicSelected - Loaded ${directDetails.length} direct details for topic ${topic.topicName}');
+        } else {
+          // Load items for topics with normal hierarchy
+          final items = await _serviceFactory.dataService.getItems(topic.id!);
+          setState(() => _items = items);
+          debugPrint('NonConformityScreen: _topicSelected - Loaded ${items.length} items for topic ${topic.topicName}');
+        }
       } catch (e) {
-        debugPrint('Erro ao carregar itens: $e');
+        debugPrint('Erro ao carregar dados para tópico ${topic.topicName}: $e');
       }
     }
   }

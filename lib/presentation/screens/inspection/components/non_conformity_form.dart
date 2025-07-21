@@ -157,6 +157,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
       return;
     }
 
+    // Detectar se é hierarquia direta (tópico → detalhe sem item)
+    final isDirectHierarchy = widget.selectedDetail != null && widget.selectedItem == null;
+    
     // Validação baseada no nível
     if (widget.level == 'topic') {
       if (widget.selectedTopic == null) {
@@ -173,13 +176,24 @@ class _NonConformityFormState extends State<NonConformityForm> {
         return;
       }
     } else if (widget.level == 'detail') {
-      if (widget.selectedTopic == null ||
-          widget.selectedItem == null ||
-          widget.selectedDetail == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selecione um tópico, item e detalhe')),
-        );
-        return;
+      if (isDirectHierarchy) {
+        // Para hierarquia direta: apenas tópico e detalhe
+        if (widget.selectedTopic == null || widget.selectedDetail == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Selecione um tópico e detalhe')),
+          );
+          return;
+        }
+      } else {
+        // Para hierarquia normal: tópico, item e detalhe
+        if (widget.selectedTopic == null ||
+            widget.selectedItem == null ||
+            widget.selectedDetail == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Selecione um tópico, item e detalhe')),
+          );
+          return;
+        }
       }
     }
 
@@ -190,12 +204,13 @@ class _NonConformityFormState extends State<NonConformityForm> {
       final itemId = widget.selectedItem?.id;
       final detailId = widget.selectedDetail?.id;
 
-      // Validação de IDs baseada no nível
+      // Validação de IDs baseada no nível e hierarquia
       if (topicId == null) {
         throw Exception('Tópico sem ID válido');
       }
 
-      if (widget.level != 'topic' && itemId == null) {
+      // Para hierarquia direta, não validar itemId
+      if (widget.level != 'topic' && !isDirectHierarchy && itemId == null) {
         throw Exception('Item sem ID válido');
       }
 
@@ -203,15 +218,15 @@ class _NonConformityFormState extends State<NonConformityForm> {
         throw Exception('Detalhe sem ID válido');
       }
 
-      // Create a non-conformity object baseado no nível
+      // Create a non-conformity object baseado no nível e hierarquia
       final nonConformity = NonConformity.create(
         inspectionId: widget.inspectionId,
         topicId: topicId,
-        itemId: widget.level != 'topic' ? itemId : null,
+        itemId: isDirectHierarchy ? null : (widget.level != 'topic' ? itemId : null),
         detailId: widget.level == 'detail' ? detailId : null,
         title: _descriptionController.text.trim(),
         description: _descriptionController.text.trim(),
-        severity: _severity?.toLowerCase() ?? 'média',
+        severity: _severity?.toLowerCase() ?? '',
         status: 'open',
       );
 
@@ -274,6 +289,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
   }
 
   Widget _buildLocationCard() {
+    // Detectar se é hierarquia direta (tópico → detalhe sem item)
+    final isDirectHierarchy = widget.selectedDetail != null && widget.selectedItem == null;
+    
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -303,7 +321,22 @@ class _NonConformityFormState extends State<NonConformityForm> {
               displayText: (topic) => topic.topicName,
               icon: Icons.home_work_outlined,
             ),
-            if (widget.level == 'item' || widget.level == 'detail') ...[
+            // Para hierarquia direta: não mostrar item, apenas detalhe
+            if (widget.level == 'detail' && isDirectHierarchy) ...[
+              const SizedBox(height: 12),
+              _buildDropdown<Detail>(
+                label: 'Detalhe',
+                value: widget.selectedDetail,
+                items: widget.details,
+                onChanged: (value) {
+                  if (value != null) widget.onDetailSelected(value);
+                },
+                displayText: (detail) => detail.detailName,
+                icon: Icons.details,
+                enabled: widget.selectedTopic != null,
+              ),
+            ] else if (widget.level == 'item' || widget.level == 'detail') ...[
+              // Para hierarquia normal: mostrar item e depois detalhe
               const SizedBox(height: 12),
               _buildDropdown<Item>(
                 label: 'Item',
@@ -316,20 +349,20 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 icon: Icons.list_alt,
                 enabled: widget.selectedTopic != null,
               ),
-            ],
-            if (widget.level == 'detail') ...[
-              const SizedBox(height: 12),
-              _buildDropdown<Detail>(
-                label: 'Detalhe',
-                value: widget.selectedDetail,
-                items: widget.details,
-                onChanged: (value) {
-                  if (value != null) widget.onDetailSelected(value);
-                },
-                displayText: (detail) => detail.detailName,
-                icon: Icons.details,
-                enabled: widget.selectedItem != null,
-              ),
+              if (widget.level == 'detail') ...[
+                const SizedBox(height: 12),
+                _buildDropdown<Detail>(
+                  label: 'Detalhe',
+                  value: widget.selectedDetail,
+                  items: widget.details,
+                  onChanged: (value) {
+                    if (value != null) widget.onDetailSelected(value);
+                  },
+                  displayText: (detail) => detail.detailName,
+                  icon: Icons.details,
+                  enabled: widget.selectedItem != null,
+                ),
+              ],
             ],
           ],
         ),
