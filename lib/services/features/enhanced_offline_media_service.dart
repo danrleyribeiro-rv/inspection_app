@@ -120,6 +120,7 @@ class EnhancedOfflineMediaService {
       final isResolutionMedia = sourceValue.contains('resolution');
       
       // Criar o objeto OfflineMedia com todos os dados
+      final now = DateTime.now();
       final media = OfflineMedia(
         id: const Uuid().v4(),
         inspectionId: inspectionId,
@@ -138,8 +139,9 @@ class EnhancedOfflineMediaService {
         isProcessed: true,
         isUploaded: false,
         needsSync: true,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
+        capturedAt: now, // Set capturedAt for proper date/time display
         source: sourceValue,
         isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
         metadata: processedMetadata,
@@ -198,24 +200,12 @@ class EnhancedOfflineMediaService {
           
           // Atualizar mídia com thumbnail e GPS
           if (asyncThumbnailPath != null || asyncPosition != null) {
-            debugPrint('EnhancedOfflineMediaService: ========== UPDATING MEDIA WITH GPS DATA ==========');
-            debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
-            debugPrint('EnhancedOfflineMediaService: Thumbnail path: ${asyncThumbnailPath ?? "none"}');
-            debugPrint('EnhancedOfflineMediaService: GPS data available: ${asyncPosition != null ? "YES" : "NO"}');
-            
             final updatedMedia = media.copyWith(
               thumbnailPath: asyncThumbnailPath,
               metadata: updatedMetadata,
             );
             
             await _mediaRepository.update(updatedMedia);
-            
-            debugPrint('EnhancedOfflineMediaService: ✅ Media successfully updated in database');
-            debugPrint('EnhancedOfflineMediaService: GPS coordinates are now stored in metadata');
-            debugPrint('EnhancedOfflineMediaService: Ready for sync to cloud with GPS data');
-            debugPrint('EnhancedOfflineMediaService: ========== MEDIA UPDATE COMPLETE ==========');
-          } else {
-            debugPrint('EnhancedOfflineMediaService: ⚠️  No thumbnail or GPS data to update');
           }
         } catch (e) {
           debugPrint('EnhancedOfflineMediaService: Error in async processing: $e');
@@ -496,6 +486,7 @@ class EnhancedOfflineMediaService {
       }
 
       // Criar o objeto OfflineMedia com todos os dados
+      final now = DateTime.now();
       final media = OfflineMedia(
         id: const Uuid().v4(),
         inspectionId: inspectionId,
@@ -515,8 +506,9 @@ class EnhancedOfflineMediaService {
         isProcessed: true,
         isUploaded: false,
         needsSync: true,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
+        capturedAt: now, // Set capturedAt for proper date/time display
         source: source,
         metadata: processedMetadata,
       );
@@ -648,6 +640,7 @@ class EnhancedOfflineMediaService {
       debugPrint('EnhancedOfflineMediaService: Source being saved to metadata: ${processedMetadata['source']}');
       
       // Criar registro de mídia com dados completos
+      final now = DateTime.now();
       final media = OfflineMedia(
         id: mediaId,
         inspectionId: inspectionId,
@@ -666,8 +659,9 @@ class EnhancedOfflineMediaService {
         isProcessed: true,
         isUploaded: false,
         needsSync: true,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
+        capturedAt: now, // Set capturedAt for proper date/time display
         source: source,
         isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
         metadata: processedMetadata,
@@ -686,14 +680,11 @@ class EnhancedOfflineMediaService {
       // Criar thumbnail de forma assíncrona (não bloqueia o retorno)
       Future.microtask(() async {
         try {
-          debugPrint('EnhancedOfflineMediaService: Starting async thumbnail creation for captureAndProcessMediaSimple');
           final asyncThumbnailPath = await _createImageThumbnail(localPath);
           if (asyncThumbnailPath != null) {
-            debugPrint('EnhancedOfflineMediaService: Async thumbnail created: $asyncThumbnailPath');
             // Atualizar mídia com thumbnail
             final updatedMedia = media.copyWith(thumbnailPath: asyncThumbnailPath);
             await _mediaRepository.update(updatedMedia);
-            debugPrint('EnhancedOfflineMediaService: Media updated with thumbnail');
             
             // Segunda notificação para atualizar UI com thumbnail
             MediaCounterNotifier.instance.notifyMediaAdded(
@@ -801,29 +792,23 @@ class EnhancedOfflineMediaService {
   }
 
   Future<void> deleteMedia(String mediaId) async {
-    debugPrint('EnhancedOfflineMediaService: Starting deletion of media $mediaId');
     final media = await _mediaRepository.findById(mediaId);
     if (media != null) {
-      debugPrint('EnhancedOfflineMediaService: Media found, proceeding with deletion');
-      
       // Deletar arquivos físicos
       final file = File(media.localPath);
       if (await file.exists()) {
         await file.delete();
-        debugPrint('EnhancedOfflineMediaService: Physical file deleted: ${media.localPath}');
       }
 
       if (media.thumbnailPath != null) {
         final thumbnailFile = File(media.thumbnailPath!);
         if (await thumbnailFile.exists()) {
           await thumbnailFile.delete();
-          debugPrint('EnhancedOfflineMediaService: Thumbnail deleted: ${media.thumbnailPath}');
         }
       }
 
       // Deletar do banco de dados (soft delete)
       await _mediaRepository.delete(mediaId);
-      debugPrint('EnhancedOfflineMediaService: Media marked as deleted in database');
 
       // Notificar contadores sobre mídia removida
       MediaCounterNotifier.instance.notifyMediaRemoved(
@@ -1048,18 +1033,73 @@ class EnhancedOfflineMediaService {
         return false;
       }
 
+      // Notificar remoção da localização anterior
+      MediaCounterNotifier.instance.notifyMediaRemoved(
+        inspectionId: media.inspectionId,
+        topicId: media.topicId,
+        itemId: media.itemId,
+        detailId: media.detailId,
+      );
+
+      // Determinar se a mídia deve manter o status isResolutionMedia
+      bool shouldKeepResolutionStatus = media.isResolutionMedia;
+      
       // Create updated media with new location
-      final updatedMedia = media.copyWith(
-        topicId: newTopicId,
-        itemId: newItemId,
-        detailId: newDetailId,
+      // IMPORTANT: We need to explicitly handle null values for moving to higher levels
+      final updatedMedia = OfflineMedia(
+        id: media.id,
+        inspectionId: media.inspectionId,
+        topicId: newTopicId ?? media.topicId,
+        itemId: newItemId, // This can be null for topic-level moves
+        detailId: newDetailId, // This can be null for topic/item-level moves
         nonConformityId: newNonConformityId,
+        type: media.type,
+        localPath: media.localPath,
+        cloudUrl: media.cloudUrl,
+        filename: media.filename,
+        fileSize: media.fileSize,
+        mimeType: media.mimeType,
+        thumbnailPath: media.thumbnailPath,
+        duration: media.duration,
+        width: media.width,
+        height: media.height,
+        isProcessed: media.isProcessed,
+        isUploaded: media.isUploaded,
+        uploadProgress: media.uploadProgress,
+        createdAt: media.createdAt,
         updatedAt: DateTime.now(),
         needsSync: true,
+        isDeleted: media.isDeleted,
+        source: media.source,
+        isResolutionMedia: shouldKeepResolutionStatus,
+        metadata: media.metadata,
+        capturedAt: media.capturedAt,
+        latitude: media.latitude,
+        longitude: media.longitude,
       );
+
+      // Debug: Log the final media object
+      debugPrint('EnhancedOfflineMediaService: Updated media object - topic=${updatedMedia.topicId}, item=${updatedMedia.itemId}, detail=${updatedMedia.detailId}');
 
       // Update in database
       await _mediaRepository.update(updatedMedia);
+
+      // DEBUG: Verify the move was successful by re-querying the database
+      final verifyMedia = await _mediaRepository.findById(mediaId);
+      if (verifyMedia != null) {
+        debugPrint('EnhancedOfflineMediaService: Verification - media after update: topic=${verifyMedia.topicId}, item=${verifyMedia.itemId}, detail=${verifyMedia.detailId}');
+      } else {
+        debugPrint('EnhancedOfflineMediaService: ERROR - Media not found after update!');
+      }
+
+      // Notificar adição na nova localização
+      debugPrint('EnhancedOfflineMediaService: Notifying media addition to: topic=$newTopicId, item=$newItemId, detail=$newDetailId');
+      MediaCounterNotifier.instance.notifyMediaAdded(
+        inspectionId: inspectionId,
+        topicId: newTopicId,
+        itemId: newItemId,
+        detailId: newDetailId,
+      );
 
       debugPrint(
           'EnhancedOfflineMediaService: Media moved successfully: $mediaId');

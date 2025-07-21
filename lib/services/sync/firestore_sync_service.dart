@@ -52,33 +52,25 @@ class FirestoreSyncService {
   }
 
   // ===============================
-  // SINCRONIZAÇÃO COMPLETA
+  // SINCRONIZAÇÃO COMPLETA SIMPLIFICADA
   // ===============================
 
   Future<void> performFullSync() async {
-    if (_isSyncing) {
-      debugPrint('FirestoreSyncService: Sync already in progress');
-      return;
-    }
-
-    if (!await isConnected()) {
-      debugPrint('FirestoreSyncService: No internet connection');
+    if (_isSyncing || !await isConnected()) {
+      debugPrint('FirestoreSyncService: Sync in progress or no connection');
       return;
     }
 
     try {
       _isSyncing = true;
-      debugPrint('FirestoreSyncService: Starting full sync');
+      debugPrint('FirestoreSyncService: Starting simplified full sync');
 
-      // Primeiro: baixar inspeções da nuvem
       await downloadInspectionsFromCloud();
-
-      // Segundo: fazer upload de alterações locais
       await uploadLocalChangesToCloud();
 
-      debugPrint('FirestoreSyncService: Full sync completed successfully');
+      debugPrint('FirestoreSyncService: Full sync completed');
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error during full sync: $e');
+      debugPrint('FirestoreSyncService: Error during sync: $e');
       rethrow;
     } finally {
       _isSyncing = false;
@@ -91,74 +83,103 @@ class FirestoreSyncService {
 
   Future<void> downloadInspectionsFromCloud() async {
     try {
-      debugPrint('FirestoreSyncService: Downloading inspections from cloud');
-
       final currentUser = _firebaseService.currentUser;
-      if (currentUser == null) {
-        debugPrint('FirestoreSyncService: No user logged in');
-        return;
-      }
+      if (currentUser == null) return;
 
-      final QuerySnapshot querySnapshot = await _firebaseService.firestore
+      final querySnapshot = await _firebaseService.firestore
           .collection('inspections')
           .where('inspector_id', isEqualTo: currentUser.uid)
           .where('deleted_at', isNull: true)
           .get();
 
+      debugPrint('FirestoreSyncService: Found ${querySnapshot.docs.length} inspections to download');
+
       for (final doc in querySnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-
-        // Converter timestamps do Firestore
-        final convertedData = _convertFirestoreTimestamps(data);
-
-        try {
-          final cloudInspection = Inspection.fromMap(convertedData);
-          final localInspection = await _offlineService.getInspection(doc.id);
-
-          // Verificar se precisa atualizar
-          if (localInspection == null ||
-              cloudInspection.updatedAt.isAfter(localInspection.updatedAt)) {
-            // Usar insertOrUpdate para evitar conflitos de UNIQUE constraint
-            await _offlineService.insertOrUpdateInspection(cloudInspection);
-            await _offlineService.markInspectionSynced(doc.id);
-            
-            // Baixar dados relacionados
-            await _downloadInspectionRelatedData(doc.id);
-            
-            // Baixar mídias da inspeção
-            await _downloadInspectionMedia(doc.id);
-            
-            // Baixar template da inspeção se necessário
-            await _downloadInspectionTemplate(cloudInspection);
-
-            // Registrar evento de download no histórico
-            final currentUser = _firebaseService.currentUser;
-            if (currentUser != null) {
-              await _offlineService.addInspectionHistory(
-                inspectionId: doc.id,
-                status: HistoryStatus.downloadedInspection,
-                inspectorId: currentUser.uid,
-                description: 'Inspeção baixada da nuvem com sucesso',
-                metadata: {
-                  'source': 'cloud_sync',
-                  'downloaded_at': DateTime.now().toIso8601String(),
-                  'inspection_title': cloudInspection.title,
-                },
-              );
-            }
-
-            debugPrint('FirestoreSyncService: Synced inspection ${doc.id}');
-          }
-        } catch (e) {
-          debugPrint(
-              'FirestoreSyncService: Error processing inspection ${doc.id}: $e');
-        }
+        await _downloadSingleInspection(doc);
       }
 
-      debugPrint('FirestoreSyncService: Finished downloading inspections');
+      debugPrint('FirestoreSyncService: Download completed');
     } catch (e) {
       debugPrint('FirestoreSyncService: Error downloading inspections: $e');
+    }
+  }
+
+  Future<void> _downloadSingleInspection(QueryDocumentSnapshot doc) async {
+    try {
+      debugPrint('FirestoreSyncService: Starting download of inspection ${doc.id}');
+      
+      final data = doc.data() as Map<String, dynamic>;
+      data['id'] = doc.id;
+
+      // Converter timestamps do Firestore primeiro
+      final convertedData = _convertFirestoreTimestamps(data);
+      
+      // Criar objeto Inspection a partir dos dados convertidos
+      final cloudInspection = Inspection.fromMap(convertedData);
+      debugPrint('FirestoreSyncService: Created inspection object - Title: "${cloudInspection.title}", Inspector: ${cloudInspection.inspectorId}');
+      
+      final localInspection = await _offlineService.getInspection(doc.id);
+      debugPrint('FirestoreSyncService: Local inspection exists: ${localInspection != null}');
+
+      // Sempre fazer download se não existe localmente ou se é mais recente
+      if (localInspection == null || cloudInspection.updatedAt.isAfter(localInspection.updatedAt)) {
+        debugPrint('FirestoreSyncService: Proceeding with download of inspection ${doc.id}');
+        
+        // Preparar inspeção para salvamento local
+        final downloadedInspection = cloudInspection.copyWith(
+          hasLocalChanges: false,
+          isSynced: true,
+          lastSyncAt: DateTime.now(),
+        );
+        
+        debugPrint('FirestoreSyncService: Saving inspection ${doc.id} to local database');
+        await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
+        
+        // Verificar se foi salva
+        final savedInspection = await _offlineService.getInspection(doc.id);
+        debugPrint('FirestoreSyncService: Verification - Inspection ${doc.id} saved successfully: ${savedInspection != null}');
+        
+        // Processar estrutura aninhada apenas se a inspeção foi salva
+        if (savedInspection != null) {
+          final topicsData = convertedData['topics'] as List<dynamic>? ?? [];
+          final topicsMapList = topicsData.map((t) => Map<String, dynamic>.from(t)).toList();
+          await _processNestedTopicsStructure(cloudInspection.id, topicsMapList);
+          
+          // Baixar mídias
+          await _downloadInspectionMedia(doc.id);
+          
+          // Baixar template se necessário
+          await _downloadInspectionTemplate(cloudInspection);
+
+          // Registrar no histórico
+          await _addDownloadHistory(doc.id, cloudInspection.title);
+
+          debugPrint('FirestoreSyncService: Successfully downloaded inspection "${cloudInspection.title}" (${doc.id})');
+        } else {
+          debugPrint('FirestoreSyncService: ERROR - Failed to save inspection ${doc.id} to local database');
+        }
+      } else {
+        debugPrint('FirestoreSyncService: Inspection ${doc.id} is already up to date');
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error downloading inspection ${doc.id}: $e');
+    }
+  }
+
+  Future<void> _addDownloadHistory(String inspectionId, String title) async {
+    final currentUser = _firebaseService.currentUser;
+    if (currentUser != null) {
+      await _offlineService.addInspectionHistory(
+        inspectionId: inspectionId,
+        status: HistoryStatus.downloadedInspection,
+        inspectorId: currentUser.uid,
+        description: 'Inspeção baixada da nuvem com sucesso',
+        metadata: {
+          'source': 'cloud_sync',
+          'downloaded_at': DateTime.now().toIso8601String(),
+          'inspection_title': title,
+        },
+      );
     }
   }
 
@@ -175,6 +196,24 @@ class FirestoreSyncService {
 
       if (docSnapshot.exists) {
         final data = docSnapshot.data()!;
+        data['id'] = inspectionId;
+
+        // *** CORREÇÃO: Salvar a inspeção primeiro antes de processar estrutura aninhada ***
+        final convertedData = _convertFirestoreTimestamps(data);
+        final cloudInspection = Inspection.fromMap(convertedData);
+        
+        // Salvar inspeção sem marcar como alterada localmente
+        final downloadedInspection = cloudInspection.copyWith(
+          hasLocalChanges: false,
+          isSynced: true,
+          lastSyncAt: DateTime.now(),
+        );
+        
+        debugPrint('FirestoreSyncService: 💾 Salvando inspeção $inspectionId durante download de dados relacionados...');
+        debugPrint('FirestoreSyncService: 💾 Inspector ID: ${downloadedInspection.inspectorId}');
+        await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
+        debugPrint('FirestoreSyncService: ✅ Inspeção "${downloadedInspection.title}" salva no banco local');
+
         final topics = data['topics'] as List<dynamic>?;
 
         if (topics != null && topics.isNotEmpty) {
@@ -276,116 +315,93 @@ class FirestoreSyncService {
   Future<void> _processNestedTopicsStructure(
       String inspectionId, List<Map<String, dynamic>> topicsData) async {
     try {
-      debugPrint(
-          'FirestoreSyncService: Processing ${topicsData.length} topics from nested structure');
-
       for (int topicIndex = 0; topicIndex < topicsData.length; topicIndex++) {
-        final topicData = topicsData[topicIndex];
-
-        // Criar tópico
-        final topic = Topic(
-          id: '${inspectionId}_topic_$topicIndex',
-          inspectionId: inspectionId,
-          position: topicIndex,
-          orderIndex: topicIndex,
-          topicName: topicData['name'] ?? 'Tópico ${topicIndex + 1}',
-          topicLabel: topicData['description'],
-          observation: topicData['observation'],
-          isDamaged: false,
-          tags: [],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        await _offlineService.insertOrUpdateTopic(topic);
-        debugPrint(
-            'FirestoreSyncService: Created topic ${topic.id}: ${topic.topicName}');
-
-        // Processar não conformidades do tópico
-        await _processTopicNonConformities(topic, topicData);
-
-        // Processar itens do tópico
-        final itemsData = topicData['items'] as List<dynamic>? ?? [];
-        debugPrint(
-            'FirestoreSyncService: Processing ${itemsData.length} items for topic ${topic.id}');
-
-        for (int itemIndex = 0; itemIndex < itemsData.length; itemIndex++) {
-          final itemData = itemsData[itemIndex];
-
-          // Criar item
-          final item = Item(
-            id: '${inspectionId}_topic_${topicIndex}_item_$itemIndex',
-            inspectionId: inspectionId,
-            topicId: topic.id,
-            itemId: null,
-            position: itemIndex,
-            orderIndex: itemIndex,
-            itemName: itemData['name'] ?? 'Item ${itemIndex + 1}',
-            itemLabel: itemData['description'],
-            evaluation: null,
-            observation: itemData['observation'],
-            isDamaged: false,
-            tags: [],
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          );
-
-          await _offlineService.insertOrUpdateItem(item);
-          debugPrint(
-              'FirestoreSyncService: Created item ${item.id}: ${item.itemName}');
-
-          // Processar não conformidades do item
-          await _processItemNonConformities(item, itemData);
-
-          // Processar detalhes do item
-          final detailsData = itemData['details'] as List<dynamic>? ?? [];
-          debugPrint(
-              'FirestoreSyncService: Processing ${detailsData.length} details for item ${item.id}');
-
-          for (int detailIndex = 0;
-              detailIndex < detailsData.length;
-              detailIndex++) {
-            final detailData = detailsData[detailIndex];
-
-            // Criar detalhe
-            final detail = Detail(
-              id: '${inspectionId}_topic_${topicIndex}_item_${itemIndex}_detail_$detailIndex',
-              inspectionId: inspectionId,
-              topicId: topic.id,
-              itemId: item.id,
-              detailId: null,
-              position: detailIndex,
-              orderIndex: detailIndex,
-              detailName: detailData['name'] ?? 'Detalhe ${detailIndex + 1}',
-              detailValue: detailData['value']?.toString(),
-              observation: detailData['observation'],
-              isDamaged: detailData['is_damaged'] == true,
-              tags: [],
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-              type: detailData['type'] ?? 'text',
-              options: detailData['options'] != null
-                  ? List<String>.from(detailData['options'])
-                  : null,
-              status: 'pending',
-              isRequired: detailData['required'] == true,
-            );
-
-            await _offlineService.insertOrUpdateDetail(detail);
-            debugPrint(
-                'FirestoreSyncService: Created detail ${detail.id}: ${detail.detailName}');
-
-            // Processar não conformidades do detalhe
-            await _processDetailNonConformities(detail, detailData);
-          }
-        }
+        await _processSingleTopic(inspectionId, topicsData[topicIndex], topicIndex);
       }
-
-      debugPrint(
-          'FirestoreSyncService: Successfully processed nested topics structure');
+      debugPrint('FirestoreSyncService: Processed ${topicsData.length} topics');
     } catch (e) {
-      debugPrint(
-          'FirestoreSyncService: Error processing nested topics structure: $e');
+      debugPrint('FirestoreSyncService: Error processing topics: $e');
+    }
+  }
+
+  Future<void> _processSingleTopic(String inspectionId, Map<String, dynamic> topicData, int topicIndex) async {
+    final hasDirectDetails = topicData['direct_details'] == true;
+    
+    final topic = Topic(
+      id: '${inspectionId}_topic_$topicIndex',
+      inspectionId: inspectionId,
+      position: topicIndex,
+      orderIndex: topicIndex,
+      topicName: topicData['name'] ?? 'Tópico ${topicIndex + 1}',
+      topicLabel: topicData['description'],
+      observation: topicData['observation'],
+      directDetails: hasDirectDetails,
+      isDamaged: false,
+      tags: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _offlineService.insertOrUpdateTopic(topic);
+    
+    // Processar dados relacionados
+    await _processTopicNonConformities(topic, topicData);
+    await _processTopicMedia(topic, topicData);
+
+    if (hasDirectDetails) {
+      await _processTopicDirectDetails(inspectionId, topic.id!, topicData);
+    } else {
+      await _processTopicItems(inspectionId, topic.id!, topicData, topicIndex);
+    }
+  }
+
+  Future<void> _processTopicDirectDetails(String inspectionId, String topicId, Map<String, dynamic> topicData) async {
+    final detailsData = topicData['details'] as List<dynamic>? ?? [];
+    for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
+      await _processDetailFromJson(inspectionId, topicId, null, detailsData[detailIndex], detailIndex);
+    }
+  }
+
+  Future<void> _processTopicItems(String inspectionId, String topicId, Map<String, dynamic> topicData, int topicIndex) async {
+    final itemsData = topicData['items'] as List<dynamic>? ?? [];
+    for (int itemIndex = 0; itemIndex < itemsData.length; itemIndex++) {
+      await _processSingleItem(inspectionId, topicId, itemsData[itemIndex], topicIndex, itemIndex);
+    }
+  }
+
+  Future<void> _processSingleItem(String inspectionId, String topicId, Map<String, dynamic> itemData, int topicIndex, int itemIndex) async {
+    final item = Item(
+      id: '${inspectionId}_topic_${topicIndex}_item_$itemIndex',
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: null,
+      position: itemIndex,
+      orderIndex: itemIndex,
+      itemName: itemData['name'] ?? 'Item ${itemIndex + 1}',
+      itemLabel: itemData['description'],
+      evaluation: null,
+      observation: itemData['observation'],
+      evaluable: itemData['evaluable'],
+      evaluationOptions: itemData['evaluation_options'] != null 
+          ? List<String>.from(itemData['evaluation_options']) 
+          : null,
+      evaluationValue: itemData['evaluation_value'],
+      isDamaged: false,
+      tags: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _offlineService.insertOrUpdateItem(item);
+    
+    // Processar dados relacionados
+    await _processItemNonConformities(item, itemData);
+    await _processItemMedia(item, itemData);
+
+    // Processar detalhes do item
+    final detailsData = itemData['details'] as List<dynamic>? ?? [];
+    for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
+      await _processDetailFromJson(inspectionId, topicId, item.id, detailsData[detailIndex], detailIndex);
     }
   }
 
@@ -418,6 +434,9 @@ class FirestoreSyncService {
         await _offlineService.insertOrUpdateNonConformity(nonConformity);
         debugPrint(
             'FirestoreSyncService: Created non-conformity ${nonConformity.id} for topic ${topic.id}');
+
+        // Processar mídias da não conformidade
+        await _processNonConformityMedia(nonConformity, ncMap);
       }
     } catch (e) {
       debugPrint(
@@ -454,10 +473,182 @@ class FirestoreSyncService {
         await _offlineService.insertOrUpdateNonConformity(nonConformity);
         debugPrint(
             'FirestoreSyncService: Created non-conformity ${nonConformity.id} for item ${item.id}');
+
+        // Processar mídias da não conformidade
+        await _processNonConformityMedia(nonConformity, ncMap);
       }
     } catch (e) {
       debugPrint(
           'FirestoreSyncService: Error processing item non-conformities: $e');
+    }
+  }
+
+  // Método centralizado para processar detalhes
+  Future<String> _processDetailFromJson(String inspectionId, String topicId, String? itemId, Map<String, dynamic> detailData, int position) async {
+    // DEBUG: Log dados do detalhe sendo baixados da nuvem
+    debugPrint('FirestoreSyncService: 🔍 DOWNLOAD - Detalhe "${detailData['name']}" - Value vinda da nuvem: "${detailData['value'] ?? "null"}", Observation: "${detailData['observation'] ?? "null"}"');
+    
+    // Criar detalhe
+    final detail = Detail(
+      id: itemId != null 
+          ? '${inspectionId}_topic_${topicId.split('_').last}_item_${itemId.split('_').last}_detail_$position'
+          : '${inspectionId}_topic_${topicId.split('_').last}_detail_$position',
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: itemId,
+      detailId: null,
+      position: position,
+      orderIndex: position,
+      detailName: detailData['name'] ?? 'Detalhe ${position + 1}',
+      detailValue: detailData['value']?.toString(),
+      observation: detailData['observation'],
+      isDamaged: detailData['is_damaged'] == true,
+      tags: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      type: detailData['type'] ?? 'text',
+      options: detailData['options'] != null
+          ? List<String>.from(detailData['options'])
+          : null,
+      status: 'pending',
+      isRequired: detailData['required'] == true,
+    );
+
+    await _offlineService.insertOrUpdateDetail(detail);
+    debugPrint(
+        'FirestoreSyncService: Created detail ${detail.id}: ${detail.detailName}');
+
+    // Processar não conformidades do detalhe
+    await _processDetailNonConformities(detail, detailData);
+
+    // Processar mídias do detalhe
+    await _processDetailMedia(detail, detailData);
+
+    return detail.id!;
+  }
+
+  Future<void> _processTopicMedia(Topic topic, Map<String, dynamic> topicData) async {
+    try {
+      final mediaData = topicData['media'] as List<dynamic>? ?? [];
+      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for topic ${topic.id}');
+
+      for (final media in mediaData) {
+        final mediaMap = Map<String, dynamic>.from(media);
+        await _processMediaItem(
+          mediaMap, 
+          topic.inspectionId, 
+          topicId: topic.id,
+        );
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error processing topic media: $e');
+    }
+  }
+
+  Future<void> _processItemMedia(Item item, Map<String, dynamic> itemData) async {
+    try {
+      final mediaData = itemData['media'] as List<dynamic>? ?? [];
+      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for item ${item.id}');
+
+      for (final media in mediaData) {
+        final mediaMap = Map<String, dynamic>.from(media);
+        await _processMediaItem(
+          mediaMap, 
+          item.inspectionId, 
+          topicId: item.topicId,
+          itemId: item.id,
+        );
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error processing item media: $e');
+    }
+  }
+
+  Future<void> _processDetailMedia(Detail detail, Map<String, dynamic> detailData) async {
+    try {
+      final mediaData = detailData['media'] as List<dynamic>? ?? [];
+      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for detail ${detail.id}');
+
+      for (final media in mediaData) {
+        final mediaMap = Map<String, dynamic>.from(media);
+        await _processMediaItem(
+          mediaMap, 
+          detail.inspectionId, 
+          topicId: detail.topicId,
+          itemId: detail.itemId,
+          detailId: detail.id,
+        );
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error processing detail media: $e');
+    }
+  }
+
+  Future<void> _processMediaItem(
+    Map<String, dynamic> mediaData, 
+    String inspectionId, {
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    String? nonConformityId,
+  }) async {
+    try {
+      final success = await _downloadAndSaveMediaWithIds(
+        mediaData, 
+        inspectionId, 
+        topicId: topicId,
+        itemId: itemId,
+        detailId: detailId,
+        nonConformityId: nonConformityId,
+        context: 'nested_structure_processing',
+        isResolutionMedia: mediaData['isResolutionMedia'] == true,
+      );
+      
+      if (success) {
+        debugPrint('FirestoreSyncService: Successfully processed media from cloud data');
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error processing media item: $e');
+    }
+  }
+
+  Future<void> _processNonConformityMedia(NonConformity nonConformity, Map<String, dynamic> ncData) async {
+    try {
+      // Processar mídias regulares
+      final mediaData = ncData['media'] as List<dynamic>? ?? [];
+      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for non-conformity ${nonConformity.id}');
+
+      for (final media in mediaData) {
+        final mediaMap = Map<String, dynamic>.from(media);
+        await _processMediaItem(
+          mediaMap, 
+          nonConformity.inspectionId, 
+          topicId: nonConformity.topicId,
+          itemId: nonConformity.itemId,
+          detailId: nonConformity.detailId,
+          nonConformityId: nonConformity.id,
+        );
+      }
+
+      // Processar mídias de resolução (solved_media)
+      final solvedMediaData = ncData['solved_media'] as List<dynamic>? ?? [];
+      debugPrint('FirestoreSyncService: Processing ${solvedMediaData.length} solved media items for non-conformity ${nonConformity.id}');
+
+      for (final media in solvedMediaData) {
+        final mediaMap = Map<String, dynamic>.from(media);
+        // Marcar como mídia de resolução
+        mediaMap['isResolutionMedia'] = true;
+        await _processMediaItem(
+          mediaMap, 
+          nonConformity.inspectionId, 
+          topicId: nonConformity.topicId,
+          itemId: nonConformity.itemId,
+          detailId: nonConformity.detailId,
+          nonConformityId: nonConformity.id,
+        );
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error processing non-conformity media: $e');
     }
   }
 
@@ -490,6 +681,9 @@ class FirestoreSyncService {
         await _offlineService.insertOrUpdateNonConformity(nonConformity);
         debugPrint(
             'FirestoreSyncService: Created non-conformity ${nonConformity.id} for detail ${detail.id}');
+
+        // Processar mídias da não conformidade
+        await _processNonConformityMedia(nonConformity, ncMap);
       }
     } catch (e) {
       debugPrint(
@@ -1370,6 +1564,21 @@ class FirestoreSyncService {
 
       // Mark all related entities as synced
       await _markInspectionAndChildrenSynced(inspection.id);
+      
+      // Adicionar entrada no histórico de sincronização
+      final currentUser = _firebaseService.currentUser;
+      if (currentUser != null) {
+        await _offlineService.addSyncHistoryEntry(
+          inspection.id,
+          currentUser.uid,
+          'upload',
+          metadata: {
+            'source': 'single_sync',
+            'inspection_title': inspection.title,
+            'inspection_status': inspection.status,
+          },
+        );
+      }
 
       debugPrint(
           'FirestoreSyncService: Successfully uploaded single inspection with nested structure $inspectionId');
@@ -1382,8 +1591,12 @@ class FirestoreSyncService {
 
   Future<Map<String, dynamic>> _buildNestedInspectionData(
       Inspection inspection) async {
+    debugPrint('FirestoreSyncService: 🔍 DIAGNÓSTICO: Construindo dados para upload da inspeção ${inspection.id}');
+    
     // Start with basic inspection data
     final data = inspection.toMap();
+    debugPrint('FirestoreSyncService: 🔍 DADOS BASE DA INSPEÇÃO - Title: "${data['title']}", Observation: "${data['observation'] ?? "null"}"');
+    
     data.remove('id');
     data.remove('needs_sync');
     data.remove('is_deleted');
@@ -1401,15 +1614,31 @@ class FirestoreSyncService {
 
     // Get all topics for this inspection
     final topics = await _offlineService.getTopics(inspection.id);
+    debugPrint('FirestoreSyncService: 🔍 DIAGNÓSTICO: Encontrados ${topics.length} tópicos para upload');
     final topicsData = <Map<String, dynamic>>[];
 
 
     for (final topic in topics) {
+      debugPrint('FirestoreSyncService: 🔍 PROCESSANDO TÓPICO "${topic.topicName}" - Observation: "${topic.observation ?? "null"}", DirectDetails: ${topic.directDetails}');
       
       // Get topic-level media
       final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');
+      final topicMediaList = <Map<String, dynamic>>[];
       
-      final topicMediaData = topicMedia.map((media) => {
+      // Add direct topic media (sorted by orderIndex and capturedAt)
+      final sortedTopicMedia = List<OfflineMedia>.from(topicMedia)
+        ..sort((a, b) {
+          // Primary sort by orderIndex
+          final orderComparison = a.orderIndex.compareTo(b.orderIndex);
+          if (orderComparison != 0) return orderComparison;
+          
+          // Secondary sort by capturedAt if orderIndex is the same
+          final aCaptured = a.capturedAt ?? a.createdAt;
+          final bCaptured = b.capturedAt ?? b.createdAt;
+          return aCaptured.compareTo(bCaptured);
+        });
+      
+      topicMediaList.addAll(sortedTopicMedia.map((media) => {
         'filename': media.filename,
         'type': media.type,
         'localPath': media.localPath,
@@ -1419,7 +1648,38 @@ class FirestoreSyncService {
         'mimeType': media.mimeType,
         'isUploaded': media.isUploaded,
         'createdAt': media.createdAt.toIso8601String(),
-      }).toList();
+        'capturedAt': (media.capturedAt ?? media.createdAt).toIso8601String(),
+        'orderIndex': media.orderIndex,
+      }));
+      
+      // For direct_details topics, also include media from direct details in the topic media array
+      if (topic.directDetails == true) {
+        final directDetailsMedia = await _offlineService.getMediaByTopicDirectDetails(topic.id ?? '');
+        final sortedDirectDetailsMedia = List<OfflineMedia>.from(directDetailsMedia)
+          ..sort((a, b) {
+            final orderComparison = a.orderIndex.compareTo(b.orderIndex);
+            if (orderComparison != 0) return orderComparison;
+            final aCaptured = a.capturedAt ?? a.createdAt;
+            final bCaptured = b.capturedAt ?? b.createdAt;
+            return aCaptured.compareTo(bCaptured);
+          });
+        
+        topicMediaList.addAll(sortedDirectDetailsMedia.map((media) => {
+          'filename': media.filename,
+          'type': media.type,
+          'localPath': media.localPath,
+          'cloudUrl': media.cloudUrl,
+          'thumbnailPath': media.thumbnailPath,
+          'fileSize': media.fileSize,
+          'mimeType': media.mimeType,
+          'isUploaded': media.isUploaded,
+          'createdAt': media.createdAt.toIso8601String(),
+          'capturedAt': (media.capturedAt ?? media.createdAt).toIso8601String(),
+          'orderIndex': media.orderIndex,
+        }));
+      }
+      
+      final topicMediaData = topicMediaList;
       
       // Get topic-level non-conformities with hierarchical media structure
       final topicNCs = await _offlineService.getNonConformitiesByTopic(topic.id ?? '');
@@ -1436,14 +1696,71 @@ class FirestoreSyncService {
         'observation': topic.observation,
         'media': topicMediaData,
         'non_conformities': topicNonConformitiesData,
-        'items': <Map<String, dynamic>>[],
       };
+      
+      // DEBUG: Log topic data being uploaded
+      debugPrint('FirestoreSyncService: Uploading topic "${topic.topicName}" with observation: "${topic.observation ?? "null"}"');
 
-      // Get all items for this topic
-      final items = await _offlineService.getItems(topic.id ?? '');
-      final itemsData = <Map<String, dynamic>>[];
+      // Check if this is a direct_details topic
+      if (topic.directDetails == true) {
+        // For direct_details topics, add details directly to topic
+        topicData['direct_details'] = true;
+        
+        // Get all details for this topic (no items)
+        final details = await _offlineService.getDetailsByTopic(topic.id ?? '');
+        final detailsData = <Map<String, dynamic>>[];
 
-      for (final item in items) {
+        for (final detail in details) {
+          // Get media for this detail
+          final detailMedia = await _offlineService.getMediaByDetail(detail.id ?? '');
+          
+          final mediaData = detailMedia.map((media) => {
+            'filename': media.filename,
+            'type': media.type,
+            'localPath': media.localPath,
+            'cloudUrl': media.cloudUrl,
+            'thumbnailPath': media.thumbnailPath,
+            'fileSize': media.fileSize,
+            'mimeType': media.mimeType,
+            'isUploaded': media.isUploaded,
+            'createdAt': media.createdAt.toIso8601String(),
+          }).toList();
+          
+          // Get non-conformities for this detail with hierarchical media structure
+          final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id ?? '');
+          final nonConformitiesData = <Map<String, dynamic>>[];
+          
+          for (final nc in detailNCs) {
+            final ncData = await _buildNonConformityWithHierarchicalMedia(nc);
+            nonConformitiesData.add(ncData);
+          }
+
+          final detailData = <String, dynamic>{
+            'name': detail.detailName,
+            'type': detail.type ?? 'text',
+            'options': detail.options ?? [],
+            'value': detail.detailValue,
+            'observation': detail.observation,
+            'required': detail.isRequired == true,
+            'is_damaged': detail.isDamaged == true,
+            'media': mediaData,
+            'non_conformities': nonConformitiesData,
+          };
+          
+          // DEBUG: Log detail data being uploaded
+          debugPrint('FirestoreSyncService: Uploading detail "${detail.detailName}" with value: "${detail.detailValue ?? "null"}", observation: "${detail.observation ?? "null"}"');
+
+          detailsData.add(detailData);
+        }
+
+        topicData['details'] = detailsData;
+      } else {
+        // For regular topics, get all items
+        topicData['direct_details'] = false; // PRESERVE direct_details as false for regular topics
+        final items = await _offlineService.getItems(topic.id ?? '');
+        final itemsData = <Map<String, dynamic>>[];
+
+        for (final item in items) {
         // Get item-level media
         final itemMedia = await _offlineService.getMediaByItem(item.id ?? '');
         
@@ -1472,10 +1789,17 @@ class FirestoreSyncService {
           'name': item.itemName,
           'description': item.itemLabel,
           'observation': item.observation,
+          'evaluable': item.evaluable, // PRESERVE evaluable field
+          'evaluation_options': item.evaluationOptions ?? [], // PRESERVE evaluation_options field
+          'evaluation_value': item.evaluationValue, // PRESERVE evaluation_value field
           'media': itemMediaData,
           'non_conformities': itemNonConformitiesData,
           'details': <Map<String, dynamic>>[],
         };
+        
+        // DEBUG: Log item data being uploaded
+        debugPrint('FirestoreSyncService: Uploading item "${item.itemName}" with observation: "${item.observation ?? "null"}", evaluationValue: "${item.evaluationValue ?? "null"}"');
+        debugPrint('FirestoreSyncService: Item full data - ID: ${item.id}, evaluable: ${item.evaluable}');
 
         // Get all details for this item
         final details = await _offlineService.getDetails(item.id ?? '');
@@ -1517,20 +1841,31 @@ class FirestoreSyncService {
             'media': mediaData,
             'non_conformities': nonConformitiesData,
           };
+          
+          // DEBUG: Log detail data being uploaded
+          debugPrint('FirestoreSyncService: Uploading detail "${detail.detailName}" with value: "${detail.detailValue ?? "null"}", observation: "${detail.observation ?? "null"}"');
 
           detailsData.add(detailData);
         }
 
-        itemData['details'] = detailsData;
-        itemsData.add(itemData);
-      }
+          itemData['details'] = detailsData;
+          itemsData.add(itemData);
+        }
 
-      topicData['items'] = itemsData;
+        topicData['items'] = itemsData;
+      }
+      debugPrint('FirestoreSyncService: 🔍 TÓPICO FINAL PARA UPLOAD "${topicData['name']}" - Observation: "${topicData['observation'] ?? "null"}"');
       topicsData.add(topicData);
     }
 
     // Add topics to the main data
     data['topics'] = topicsData;
+    debugPrint('FirestoreSyncService: 🔍 DADOS FINAIS CONSTRUÍDOS - ${topicsData.length} tópicos preparados para upload');
+    
+    // Add sync history
+    if (inspection.syncHistory != null) {
+      data['sync_history'] = inspection.syncHistory;
+    }
 
     return data;
   }
@@ -1722,53 +2057,61 @@ class FirestoreSyncService {
           .doc(inspectionId)
           .get();
 
-      if (docSnapshot.exists) {
+      // *** PRIMEIRO: Upload das mudanças locais (incluindo exclusões) ***
+      if (localInspection != null) {
+        debugPrint('FirestoreSyncService: 🔧 UPLOAD PRIMEIRO - Uploading local changes (data + media) for inspection $inspectionId');
+        
+        // PRIMEIRO: Upload das mídias pendentes (incluindo exclusões)
+        await _uploadMediaFiles(inspectionId);
+        
+        // SEGUNDO: Upload da inspeção com estrutura completa
+        await _uploadSingleInspectionWithNestedStructure(inspectionId);
+        
+        debugPrint('FirestoreSyncService: ✅ Successfully uploaded all local changes for inspection $inspectionId');
+      }
+
+      // *** DOWNLOAD APENAS SE NÃO TEMOS DADOS LOCAIS (primeiro download) ***
+      if (docSnapshot.exists && localInspection == null) {
+        debugPrint('FirestoreSyncService: 📥 PRIMEIRO DOWNLOAD - No local data found, downloading from cloud');
         final data = docSnapshot.data()!;
         data['id'] = inspectionId;
 
         final convertedData = _convertFirestoreTimestamps(data);
         final cloudInspection = Inspection.fromMap(convertedData);
 
-        // Check for conflicts
-        final conflicts = await _detectConflicts(localInspection, cloudInspection);
+        // Salvar a vistoria principal no banco local
+        final downloadedInspection = cloudInspection.copyWith(
+          hasLocalChanges: false,
+          isSynced: true,
+          lastSyncAt: DateTime.now(),
+        );
         
-        if (conflicts.isNotEmpty) {
-          debugPrint('FirestoreSyncService: Conflicts detected for inspection $inspectionId: ${conflicts.length} conflicts');
-          return {
-            'success': false,
-            'hasConflicts': true,
-            'conflicts': conflicts,
-            'localInspection': localInspection?.toMap(),
-            'cloudInspection': cloudInspection.toMap(),
-          };
-        }
-
-        // Usar insertOrUpdate para evitar conflitos de UNIQUE constraint
-        await _offlineService.insertOrUpdateInspection(cloudInspection);
-        await _offlineService.markInspectionSynced(inspectionId);
-
-        // Baixar dados relacionados
-        await _downloadInspectionRelatedData(inspectionId);
+        debugPrint('FirestoreSyncService: Saving inspection ${inspectionId} to local database');
+        await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
+        
+        // Processar estrutura aninhada preservando dados existentes
+        final topicsData = data['topics'] as List<dynamic>? ?? [];
+        final topicsMapList = topicsData.map((t) => Map<String, dynamic>.from(t)).toList();
+        await _processNestedTopicsStructure(cloudInspection.id, topicsMapList);
         
         // Baixar mídias da inspeção
         await _downloadInspectionMedia(inspectionId);
         
         // Baixar template da inspeção se necessário
         await _downloadInspectionTemplate(cloudInspection);
+      } else if (localInspection != null) {
+        debugPrint('FirestoreSyncService: ✅ SYNC ONLY - Local data preserved, upload completed');
+        // Apenas baixar template se necessário, sem sobrescrever dados
+        if (docSnapshot.exists) {
+          final data = docSnapshot.data()!;
+          final convertedData = _convertFirestoreTimestamps(data);
+          final cloudInspection = Inspection.fromMap(convertedData);
+          await _downloadInspectionTemplate(cloudInspection);
+        }
       }
 
-      // Upload de alterações locais - SEMPRE fazer upload para garantir sincronização
-      if (localInspection != null) {
-        debugPrint('FirestoreSyncService: Uploading local changes for inspection $inspectionId');
-        
-        // Sempre fazer upload das mídias pendentes
-        await _uploadMediaFiles(inspectionId);
-        
-        // Sempre fazer upload da inspeção específica
-        await _uploadSingleInspectionWithNestedStructure(inspectionId);
-        
-        debugPrint('FirestoreSyncService: Successfully uploaded local changes for inspection $inspectionId');
-      }
+      // Marcar como sincronizado apenas no final do processo completo
+      await _offlineService.markInspectionSynced(inspectionId);
 
       debugPrint(
           'FirestoreSyncService: Finished syncing inspection $inspectionId');

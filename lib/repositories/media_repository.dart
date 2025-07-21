@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
@@ -24,23 +25,53 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
   }
 
   Future<List<OfflineMedia>> findByTopicId(String topicId) async {
-    // Only get media that belongs specifically to the topic (not to its children)
+    // Get only media that belongs directly to this topic level
+    // Excludes media from items and details that should be handled separately
     return await findWhere(
       'topic_id = ? AND item_id IS NULL AND detail_id IS NULL AND non_conformity_id IS NULL', 
       [topicId]
     );
   }
 
-  Future<List<OfflineMedia>> findByItemId(String itemId) async {
-    // Only get media that belongs specifically to the item (not to its children)
+  Future<List<OfflineMedia>> findByTopicDirectDetails(String topicId) async {
+    // Get media from details that belong directly to a topic (direct_details = true)
+    // These are details without an intermediate item
     return await findWhere(
-      'item_id = ? AND detail_id IS NULL AND non_conformity_id IS NULL', 
-      [itemId]
+      'topic_id = ? AND item_id IS NULL AND detail_id IS NOT NULL AND non_conformity_id IS NULL', 
+      [topicId]
     );
   }
 
+  Future<List<OfflineMedia>> findByItemId(String itemId) async {
+    // Get only media that belongs directly to this item (not its children)
+    // Children (details) have their own media associations
+    final result = await findWhere(
+      'item_id = ? AND detail_id IS NULL AND non_conformity_id IS NULL', 
+      [itemId]
+    );
+    
+    // DEBUG: Check total media in database for this item
+    if (result.isEmpty) {
+      final db = await database;
+      final totalCount = await db.query(
+        'offline_media',
+        where: 'item_id = ?',
+        whereArgs: [itemId],
+      );
+      
+      if (totalCount.isNotEmpty) {
+        debugPrint('MediaRepository: ISSUE - Found ${totalCount.length} total media for item $itemId but 0 after filtering');
+        for (final media in totalCount) {
+          debugPrint('MediaRepository: Media ${media['filename']}: deleted=${media['is_deleted']}, detail_id=${media['detail_id']}, nc_id=${media['non_conformity_id']}');
+        }
+      }
+    }
+    
+    return result;
+  }
+
   Future<List<OfflineMedia>> findByDetailId(String detailId) async {
-    // Only get media that belongs specifically to the detail (not to its children)
+    // Get all media that belongs to this detail or its children
     return await findWhere(
       'detail_id = ? AND non_conformity_id IS NULL', 
       [detailId]
@@ -81,7 +112,11 @@ class MediaRepository extends BaseRepository<OfflineMedia> {
   }
 
   Future<List<OfflineMedia>> findPendingUpload() async {
-    return await findWhere('is_processed = 1 AND is_uploaded = 0', []);
+    return await findWhere('is_processed = 1 AND is_uploaded = 0 AND is_deleted = 0', []);
+  }
+
+  Future<List<OfflineMedia>> findDeletedPendingSync() async {
+    return await findWhere('is_deleted = 1 AND needs_sync = 1', []);
   }
 
   Future<List<OfflineMedia>> findByInspectionIdAndType(

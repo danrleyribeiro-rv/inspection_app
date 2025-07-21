@@ -16,6 +16,8 @@ class Detail {
   final DateTime? updatedAt;
   final String? type; // Tipo do detalhe (text, select, number, boolean)
   final List<String>? options; // Opções para o tipo select
+  final bool? allowCustomOption; // Se permite opção customizada (somente para select)
+  final String? customOptionValue; // Valor da opção customizada 
   final String? status; // Status do detalhe (pending, completed, etc)
   final bool? isRequired; // Se o detalhe é obrigatório
 
@@ -36,6 +38,8 @@ class Detail {
       this.updatedAt,
       this.type,
       this.options,
+      this.allowCustomOption,
+      this.customOptionValue,
       this.status,
       this.isRequired}) : orderIndex = orderIndex ?? position ?? 0;
 
@@ -76,8 +80,8 @@ class Detail {
       detailId: json['detail_id']?.toString(),
       position: json['position'] is int ? json['position'] : null,
       orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
-      detailName: json['detail_name'],
-      detailValue: json['detail_value']?.toString(),
+      detailName: json['detail_name'] ?? json['name'],
+      detailValue: json['detail_value'] ?? json['value']?.toString(),
       observation: json['observation'],
       isDamaged: json['is_damaged'] is bool ? json['is_damaged'] : (json['is_damaged'] is int ? json['is_damaged'] == 1 : null),
       tags: parseTags(json['tags']),
@@ -93,8 +97,10 @@ class Detail {
           : null,
       type: json['type']?.toString(),
       options: parseOptions(json['options']),
+      allowCustomOption: json['allow_custom_option'] is bool ? json['allow_custom_option'] : (json['allow_custom_option'] is int ? json['allow_custom_option'] == 1 : null),
+      customOptionValue: json['custom_option_value']?.toString(),
       status: json['status']?.toString(),
-      isRequired: json['is_required'] is bool ? json['is_required'] : (json['is_required'] is int ? json['is_required'] == 1 : null),
+      isRequired: json['is_required'] is bool ? json['is_required'] : (json['is_required'] is int ? json['is_required'] == 1 : (json['required'] is bool ? json['required'] : null)),
     );
   }
 
@@ -118,6 +124,8 @@ class Detail {
       'updated_at': updatedAt?.toIso8601String(),
       'type': type,
       'options': options != null ? options!.join(',') : '',
+      'allow_custom_option': allowCustomOption == true ? 1 : 0,
+      'custom_option_value': customOptionValue,
       'status': status,
       'is_required': isRequired == true ? 1 : 0,
       'needs_sync': 1,
@@ -143,6 +151,8 @@ class Detail {
       'updated_at': updatedAt?.toIso8601String(),
       'type': type,
       'options': options != null ? options!.join(',') : '',
+      'allow_custom_option': allowCustomOption == true ? 1 : 0,
+      'custom_option_value': customOptionValue,
       'status': status,
       'is_required': isRequired == true ? 1 : 0,
       'needs_sync': 1,
@@ -167,6 +177,8 @@ class Detail {
     DateTime? updatedAt,
     String? type,
     List<String>? options,
+    bool? allowCustomOption,
+    String? customOptionValue,
     String? status,
     bool? isRequired,
   }) {
@@ -179,14 +191,16 @@ class Detail {
       position: position ?? this.position,
       orderIndex: orderIndex ?? this.orderIndex,
       detailName: detailName ?? this.detailName,
-      detailValue: detailValue,
-      observation: observation,
+      detailValue: detailValue ?? this.detailValue,
+      observation: observation ?? this.observation,
       isDamaged: isDamaged ?? this.isDamaged,
       tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       type: type ?? this.type,
       options: options ?? this.options,
+      allowCustomOption: allowCustomOption ?? this.allowCustomOption,
+      customOptionValue: customOptionValue ?? this.customOptionValue,
       status: status ?? this.status,
       isRequired: isRequired ?? this.isRequired,
     );

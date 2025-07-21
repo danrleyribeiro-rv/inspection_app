@@ -50,7 +50,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
       EnhancedOfflineServiceFactory.instance;
 
   bool _isCreating = false;
-  String _severity = 'Média';
+  String? _severity; // Agora opcional
 
   @override
   void dispose() {
@@ -74,7 +74,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
               constraints: const BoxConstraints(maxHeight: 250),
               child: TextFormField(
                 controller: controller,
-                maxLines: 5,
+                maxLines: 1,
                 autofocus: true,
                 decoration: const InputDecoration(
                   hintText: 'Descreva a não conformidade encontrada...',
@@ -119,7 +119,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
               constraints: const BoxConstraints(maxHeight: 220),
               child: TextFormField(
                 controller: controller,
-                maxLines: 5,
+                maxLines: 3,
                 autofocus: true,
                 decoration: const InputDecoration(
                   hintText: 'Descreva as ações necessárias para correção...',
@@ -211,7 +211,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         detailId: widget.level == 'detail' ? detailId : null,
         title: _descriptionController.text.trim(),
         description: _descriptionController.text.trim(),
-        severity: _severity.toLowerCase(),
+        severity: _severity?.toLowerCase() ?? 'média',
         status: 'open',
       );
 
@@ -246,7 +246,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
     _descriptionController.clear();
     _correctiveActionController.clear();
     setState(() {
-      _severity = 'Média';
+      _severity = null;
       _isCreating = false;
     });
   }
@@ -265,7 +265,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
             _buildNonConformityDetailsCard(),
             const SizedBox(height: 8),
             _buildSaveButton(),
-            const SizedBox(height: 8),
+            const SizedBox(
+                height: 80), // Extra padding para evitar sobreposição
           ],
         ),
       ),
@@ -302,7 +303,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
               displayText: (topic) => topic.topicName,
               icon: Icons.home_work_outlined,
             ),
-            if (widget.level != 'topic') ...[
+            if (widget.level == 'item' || widget.level == 'detail') ...[
               const SizedBox(height: 12),
               _buildDropdown<Item>(
                 label: 'Item',
@@ -358,9 +359,6 @@ class _NonConformityFormState extends State<NonConformityForm> {
             ),
             const SizedBox(height: 12),
 
-            _buildSeverityDropdown(),
-            const SizedBox(height: 12),
-
             // Description field with popup
             GestureDetector(
               onTap: _editDescriptionDialog,
@@ -403,6 +401,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+
+            // Severidade (opcional) - movida para o final
+            _buildSeverityDropdown(),
           ],
         ),
       ),
@@ -434,19 +436,31 @@ class _NonConformityFormState extends State<NonConformityForm> {
       }).toList(),
       onChanged: enabled ? onChanged : null,
       isExpanded: true,
+      menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
     );
   }
 
   Widget _buildSeverityDropdown() {
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
-        labelText: 'Severidade',
+        labelText: 'Severidade (opcional)',
         labelStyle: TextStyle(fontSize: 12),
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.priority_high),
       ),
       value: _severity,
+      menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
       items: const [
+        DropdownMenuItem<String>(
+          value: null,
+          child: Row(
+            children: [
+              Icon(Icons.circle, color: Colors.grey, size: 12),
+              SizedBox(width: 8),
+              Text('Não definida'),
+            ],
+          ),
+        ),
         DropdownMenuItem(
           value: 'Baixa',
           child: Row(

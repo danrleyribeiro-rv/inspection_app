@@ -33,6 +33,10 @@ class OfflineMedia {
   final String? source; // camera, gallery, import
   final bool isResolutionMedia; // NEW: indicates if this media is for NC resolution (solved_media)
   final Map<String, dynamic>? metadata;
+  final DateTime? capturedAt; // Timestamp quando a mídia foi capturada/registrada
+  final double? latitude; // GPS latitude
+  final double? longitude; // GPS longitude
+  final int orderIndex; // Índice de ordenação fixa para preservar ordem cronológica
 
   OfflineMedia({
     required this.id,
@@ -61,6 +65,10 @@ class OfflineMedia {
     this.source,
     this.isResolutionMedia = false,
     this.metadata,
+    this.capturedAt,
+    this.latitude,
+    this.longitude,
+    this.orderIndex = 0,
   });
 
   factory OfflineMedia.create({
@@ -80,6 +88,10 @@ class OfflineMedia {
     String? source,
     bool isResolutionMedia = false,
     Map<String, dynamic>? metadata,
+    DateTime? capturedAt,
+    double? latitude,
+    double? longitude,
+    int? orderIndex,
   }) {
     final now = DateTime.now();
     return OfflineMedia(
@@ -104,6 +116,10 @@ class OfflineMedia {
       source: source,
       isResolutionMedia: isResolutionMedia,
       metadata: metadata,
+      capturedAt: capturedAt ?? now, // Use provided timestamp or current time
+      latitude: latitude,
+      longitude: longitude,
+      orderIndex: orderIndex ?? DateTime.now().millisecondsSinceEpoch, // Use timestamp as default order
     );
   }
 
@@ -153,6 +169,9 @@ class OfflineMedia {
       source: map['source'] as String?,
       isResolutionMedia: (map['is_resolution_media'] as int? ?? 0) == 1,
       metadata: metadata,
+      capturedAt: map['captured_at'] != null ? DateTime.parse(map['captured_at'] as String) : null,
+      latitude: map['latitude'] as double?,
+      longitude: map['longitude'] as double?,
     );
   }
 
@@ -184,6 +203,9 @@ class OfflineMedia {
       'source': source,
       'is_resolution_media': isResolutionMedia ? 1 : 0,
       'metadata': metadata != null ? jsonEncode(metadata) : null,
+      'captured_at': capturedAt?.toIso8601String(),
+      'latitude': latitude,
+      'longitude': longitude,
     };
   }
 
@@ -214,6 +236,9 @@ class OfflineMedia {
     String? source,
     bool? isResolutionMedia,
     Map<String, dynamic>? metadata,
+    DateTime? capturedAt,
+    double? latitude,
+    double? longitude,
   }) {
     return OfflineMedia(
       id: id ?? this.id,
@@ -242,6 +267,9 @@ class OfflineMedia {
       source: source ?? this.source,
       isResolutionMedia: isResolutionMedia ?? this.isResolutionMedia,
       metadata: metadata ?? this.metadata,
+      capturedAt: capturedAt ?? this.capturedAt,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
     );
   }
 

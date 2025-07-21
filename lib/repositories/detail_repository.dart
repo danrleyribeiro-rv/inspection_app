@@ -228,4 +228,188 @@ class DetailRepository extends BaseRepository<Detail> {
     );
     return result.first['count'] as int;
   }
+
+  // =================================
+  // MÉTODOS PARA HIERARQUIAS FLEXÍVEIS
+  // =================================
+
+  // Buscar detalhes diretos de tópico (sem item intermediário)
+  Future<List<Detail>> findDirectDetailsByTopicId(String topicId) async {
+    return await findWhere('topic_id = ? AND item_id IS NULL', [topicId]);
+  }
+
+  // Buscar detalhes diretos de tópico ordenados
+  Future<List<Detail>> findDirectDetailsByTopicIdOrdered(String topicId) async {
+    final db = await database;
+    final maps = await db.query(
+      tableName,
+      where: 'topic_id = ? AND item_id IS NULL AND is_deleted = 0',
+      whereArgs: [topicId],
+      orderBy: 'order_index ASC',
+    );
+
+    return maps.map((map) => fromMap(map)).toList();
+  }
+
+  // Contar detalhes diretos de tópico
+  Future<int> countDirectDetailsByTopicId(String topicId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM $tableName WHERE topic_id = ? AND item_id IS NULL AND is_deleted = 0',
+      [topicId],
+    );
+    return result.first['count'] as int;
+  }
+
+  // Contar detalhes diretos completados de tópico
+  Future<int> countDirectDetailsCompletedByTopicId(String topicId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM $tableName WHERE topic_id = ? AND item_id IS NULL AND is_deleted = 0 AND status = ?',
+      [topicId, 'completed'],
+    );
+    return result.first['count'] as int;
+  }
+
+  // Buscar detalhes por hierarquia flexível
+  Future<List<Detail>> findByHierarchy({
+    required String inspectionId,
+    String? topicId,
+    String? itemId,
+    String? detailId,
+    bool? directOnly,
+  }) async {
+    final conditions = ['inspection_id = ?'];
+    final args = [inspectionId];
+    
+    if (topicId != null) {
+      conditions.add('topic_id = ?');
+      args.add(topicId);
+    }
+    if (itemId != null) {
+      conditions.add('item_id = ?');
+      args.add(itemId);
+    } else if (directOnly == true) {
+      conditions.add('item_id IS NULL');
+    }
+    if (detailId != null) {
+      conditions.add('detail_id = ?');
+      args.add(detailId);
+    }
+    
+    return await findWhere(conditions.join(' AND '), args);
+  }
+
+  // Buscar detalhes por contexto específico com ordenação
+  Future<List<Detail>> findDetailsByContextOrdered({
+    required String inspectionId,
+    String? topicId,
+    String? itemId,
+    bool? directOnly,
+  }) async {
+    var whereClause = 'inspection_id = ? AND is_deleted = 0';
+    var args = [inspectionId];
+    
+    if (topicId != null) {
+      whereClause += ' AND topic_id = ?';
+      args.add(topicId);
+    }
+    
+    if (itemId != null) {
+      whereClause += ' AND item_id = ?';
+      args.add(itemId);
+    } else if (directOnly == true) {
+      whereClause += ' AND item_id IS NULL';
+    }
+
+    final db = await database;
+    final maps = await db.query(
+      tableName,
+      where: whereClause,
+      whereArgs: args,
+      orderBy: 'order_index ASC',
+    );
+
+    return maps.map((map) => fromMap(map)).toList();
+  }
+
+  // Reordenar detalhes diretos de tópico
+  Future<void> reorderDirectDetails(String topicId, List<String> detailIds) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (int i = 0; i < detailIds.length; i++) {
+        await txn.update(
+          tableName,
+          {
+            'order_index': i,
+            'updated_at': DateTime.now().toIso8601String(),
+            'needs_sync': 1,
+          },
+          where: 'id = ? AND topic_id = ? AND item_id IS NULL',
+          whereArgs: [detailIds[i], topicId],
+        );
+      }
+    });
+  }
+
+  // Validar hierarquia do detalhe
+  Future<bool> validateDetailHierarchy(Detail detail) async {
+    // Se é detalhe direto de tópico, verificar se o tópico permite
+    if (detail.topicId != null && detail.itemId == null) {
+      // Buscar o tópico para verificar se permite detalhes diretos
+      final db = await database;
+      final result = await db.query(
+        'topics',
+        columns: ['direct_details'],
+        where: 'id = ? AND is_deleted = 0',
+        whereArgs: [detail.topicId],
+      );
+      
+      if (result.isNotEmpty) {
+        final directDetails = result.first['direct_details'] as int;
+        return directDetails == 1;
+      }
+      return false;
+    }
+    
+    // Se é detalhe de item, verificar se o item existe
+    if (detail.itemId != null) {
+      final db = await database;
+      final result = await db.query(
+        'items',
+        columns: ['id'],
+        where: 'id = ? AND is_deleted = 0',
+        whereArgs: [detail.itemId],
+      );
+      return result.isNotEmpty;
+    }
+    
+    return true;
+  }
+
+  // Obter máximo order_index para detalhes diretos de tópico
+  Future<int> getMaxOrderIndexForTopic(String topicId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT MAX(order_index) as max_index FROM $tableName WHERE topic_id = ? AND item_id IS NULL AND is_deleted = 0',
+      [topicId],
+    );
+    return (result.first['max_index'] as int?) ?? 0;
+  }
+
+  // Atualizar opção customizada
+  Future<void> updateCustomOption(String detailId, bool allowCustom, String? customValue) async {
+    final db = await database;
+    await db.update(
+      tableName,
+      {
+        'allow_custom_option': allowCustom ? 1 : 0,
+        'custom_option_value': customValue,
+        'updated_at': DateTime.now().toIso8601String(),
+        'needs_sync': 1,
+      },
+      where: 'id = ?',
+      whereArgs: [detailId],
+    );
+  }
 }

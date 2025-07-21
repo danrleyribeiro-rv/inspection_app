@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:lince_inspecoes/presentation/widgets/media/non_conformity_media_widget.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
-import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class NonConformityList extends StatefulWidget {
@@ -37,17 +37,18 @@ class NonConformityList extends StatefulWidget {
 }
 
 class _NonConformityListState extends State<NonConformityList> {
-  final EnhancedOfflineServiceFactory _serviceFactory = EnhancedOfflineServiceFactory.instance;
+  final EnhancedOfflineServiceFactory _serviceFactory =
+      EnhancedOfflineServiceFactory.instance;
   final Map<String, int> _mediaCountCache = {};
   final Map<String, ValueNotifier<int>> _mediaCountNotifiers = {};
-  
+
   @override
   void initState() {
     super.initState();
     // Listen for media changes to invalidate cache
     _setupMediaChangeListener();
   }
-  
+
   @override
   void dispose() {
     // Dispose all notifiers
@@ -57,22 +58,22 @@ class _NonConformityListState extends State<NonConformityList> {
     _mediaCountNotifiers.clear();
     super.dispose();
   }
-  
+
   void _setupMediaChangeListener() {
     // Clear cache and force rebuild when media changes
     // This ensures counters update immediately when media is deleted
     _clearMediaCache();
   }
-  
+
   void _clearMediaCache() {
     debugPrint('NonConformityList: Clearing media cache');
     _mediaCountCache.clear();
-    
+
     // Refresh all notifiers
     for (final notifier in _mediaCountNotifiers.values) {
       notifier.value = 0;
     }
-    
+
     // Refresh all counts asynchronously
     for (final entry in _mediaCountNotifiers.entries) {
       final key = entry.key;
@@ -83,22 +84,23 @@ class _NonConformityListState extends State<NonConformityList> {
         _refreshMediaCount(key);
       }
     }
-    
+
     if (mounted) {
       setState(() {});
     }
   }
-  
+
   @override
   void didUpdateWidget(NonConformityList oldWidget) {
     super.didUpdateWidget(oldWidget);
     // If the non-conformities list changed, clear cache to ensure fresh counts
     if (oldWidget.nonConformities != widget.nonConformities) {
-      debugPrint('NonConformityList: Non-conformities list updated, clearing cache');
+      debugPrint(
+          'NonConformityList: Non-conformities list updated, clearing cache');
       _clearMediaCache();
     }
   }
-  
+
   // Public method to be called when media changes externally
   void refreshMediaCounts() {
     debugPrint('NonConformityList: External refresh requested');
@@ -135,16 +137,16 @@ class _NonConformityListState extends State<NonConformityList> {
       final medias = await _serviceFactory.mediaService.getMediaByContext(
         nonConformityId: nonConformityId,
       );
-      
+
       // Filter out resolution medias to show only regular NC medias
       final regularMedias = medias.where((media) {
         final source = media.source ?? '';
         return source != 'resolution_camera' && source != 'resolution_gallery';
       }).toList();
-      
+
       final count = regularMedias.length;
       _mediaCountCache[nonConformityId] = count;
-      
+
       if (_mediaCountNotifiers.containsKey(nonConformityId)) {
         _mediaCountNotifiers[nonConformityId]!.value = count;
       }
@@ -155,7 +157,6 @@ class _NonConformityListState extends State<NonConformityList> {
       }
     }
   }
-
 
   ValueNotifier<int> _getResolutionMediaCountNotifier(String nonConformityId) {
     final cacheKey = 'resolution_$nonConformityId';
@@ -173,27 +174,27 @@ class _NonConformityListState extends State<NonConformityList> {
       final medias = await _serviceFactory.mediaService.getMediaByContext(
         nonConformityId: nonConformityId,
       );
-      
+
       // Filter medias that are resolution images based on source
       final resolutionMedias = medias.where((media) {
         final source = media.source ?? '';
         return source == 'resolution_camera' || source == 'resolution_gallery';
       }).toList();
-      
+
       final count = resolutionMedias.length;
       _mediaCountCache[cacheKey] = count;
-      
+
       if (_mediaCountNotifiers.containsKey(cacheKey)) {
         _mediaCountNotifiers[cacheKey]!.value = count;
       }
     } catch (e) {
-      debugPrint('Error getting resolution media count for NC $nonConformityId: $e');
+      debugPrint(
+          'Error getting resolution media count for NC $nonConformityId: $e');
       if (_mediaCountNotifiers.containsKey(cacheKey)) {
         _mediaCountNotifiers[cacheKey]!.value = 0;
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -214,14 +215,14 @@ class _NonConformityListState extends State<NonConformityList> {
     }
 
     List<Map<String, dynamic>> filteredNCs = widget.nonConformities;
-    
+
     // Apply detail filter if provided
     if (widget.filterByDetailId != null) {
       filteredNCs = filteredNCs
           .where((nc) => nc['detail_id'] == widget.filterByDetailId)
           .toList();
     }
-    
+
     // Apply search filter
     if (widget.searchQuery.isNotEmpty) {
       final query = widget.searchQuery.toLowerCase();
@@ -231,15 +232,15 @@ class _NonConformityListState extends State<NonConformityList> {
         final itemName = (nc['item_name'] ?? '').toString().toLowerCase();
         final detailName = (nc['detail_name'] ?? '').toString().toLowerCase();
         final severity = (nc['severity'] ?? '').toString().toLowerCase();
-        
+
         return description.contains(query) ||
-               topicName.contains(query) ||
-               itemName.contains(query) ||
-               detailName.contains(query) ||
-               severity.contains(query);
+            topicName.contains(query) ||
+            itemName.contains(query) ||
+            detailName.contains(query) ||
+            severity.contains(query);
       }).toList();
     }
-    
+
     // Apply level filter
     if (widget.levelFilter != null) {
       filteredNCs = filteredNCs.where((nc) {
@@ -275,12 +276,15 @@ class _NonConformityListState extends State<NonConformityList> {
 
     // More robust resolution check
     final isResolvedField = item['is_resolved'];
-    final isResolved = (isResolvedField == true || isResolvedField == 1 || isResolvedField == '1') || 
-                       (item['status'] == 'closed');
-    
+    final isResolved = (isResolvedField == true ||
+            isResolvedField == 1 ||
+            isResolvedField == '1') ||
+        (item['status'] == 'closed');
+
     // Debug para verificar status
     if (item['id'] != null) {
-      debugPrint('NonConformityList: NC ${item['id']} - status: $status, is_resolved: ${item['is_resolved']} (type: ${item['is_resolved'].runtimeType}), resolved: $isResolved');
+      debugPrint(
+          'NonConformityList: NC ${item['id']} - status: $status, is_resolved: ${item['is_resolved']} (type: ${item['is_resolved'].runtimeType}), resolved: $isResolved');
     }
 
     // Se resolvido, usar cor verde escura. Senão, usar cor baseada na severidade
@@ -359,7 +363,8 @@ class _NonConformityListState extends State<NonConformityList> {
                         borderRadius: BorderRadius.circular(20),
                         onTap: () => _resolveNonConformity(context, item),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -413,7 +418,7 @@ class _NonConformityListState extends State<NonConformityList> {
                     color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.w500),
-                maxLines: 2,
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis),
 
             // Ação corretiva se houver
@@ -421,7 +426,7 @@ class _NonConformityListState extends State<NonConformityList> {
               const SizedBox(height: 4),
               Text('Ação: ${item['corrective_action']}',
                   style: const TextStyle(color: Colors.white60, fontSize: 10),
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis),
             ],
 
@@ -456,11 +461,12 @@ class _NonConformityListState extends State<NonConformityList> {
                   color: Colors.blue,
                   onPressed: () => _showEditDialog(context, item),
                 ),
-                
+
                 // Botões de resolução (só para NCs resolvidas)
                 if (isResolved) ...[
                   ValueListenableBuilder<int>(
-                    valueListenable: _getResolutionMediaCountNotifier(item['id'] ?? ''),
+                    valueListenable:
+                        _getResolutionMediaCountNotifier(item['id'] ?? ''),
                     builder: (context, resolutionCount, child) {
                       if (resolutionCount > 0) {
                         // Se tem mídias de resolução, mostrar botão de galeria
@@ -468,7 +474,8 @@ class _NonConformityListState extends State<NonConformityList> {
                           icon: Icons.photo_library,
                           label: 'Resolvido',
                           color: Colors.green,
-                          onPressed: () => _showResolutionGallery(context, item),
+                          onPressed: () =>
+                              _showResolutionGallery(context, item),
                           count: resolutionCount,
                         );
                       } else {
@@ -576,7 +583,8 @@ class _NonConformityListState extends State<NonConformityList> {
                       const Text('Criada:',
                           style: TextStyle(color: Colors.white54, fontSize: 8)),
                       Text(DateFormat('dd/MM/yyyy HH:mm').format(createdAt),
-                          style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 9)),
                     ],
                   ),
                 const Spacer(),
@@ -587,26 +595,28 @@ class _NonConformityListState extends State<NonConformityList> {
                     children: [
                       const Text('Resolvida:',
                           style: TextStyle(color: Colors.green, fontSize: 8)),
-                      Text(
-                        () {
-                          try {
-                            final resolvedAtData = item['resolved_at'];
-                            if (resolvedAtData != null) {
-                              final resolvedAt = resolvedAtData is String
-                                  ? DateTime.parse(resolvedAtData)
-                                  : resolvedAtData?.toDate?.call();
-                              return resolvedAt != null
-                                  ? DateFormat('dd/MM/yyyy HH:mm').format(resolvedAt)
-                                  : 'Agora mesmo';
-                            } else {
-                              // If no resolved_at, show current time as fallback
-                              return DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-                            }
-                          } catch (e) {
-                            return 'Agora mesmo';
+                      Text(() {
+                        try {
+                          final resolvedAtData = item['resolved_at'];
+                          if (resolvedAtData != null) {
+                            final resolvedAt = resolvedAtData is String
+                                ? DateTime.parse(resolvedAtData)
+                                : resolvedAtData?.toDate?.call();
+                            return resolvedAt != null
+                                ? DateFormat('dd/MM/yyyy HH:mm')
+                                    .format(resolvedAt)
+                                : 'Agora mesmo';
+                          } else {
+                            // If no resolved_at, show current time as fallback
+                            return DateFormat('dd/MM/yyyy HH:mm')
+                                .format(DateTime.now());
                           }
-                        }(),
-                        style: const TextStyle(color: Colors.green, fontSize: 9)),
+                        } catch (e) {
+                          return 'Agora mesmo';
+                        }
+                      }(),
+                          style: const TextStyle(
+                              color: Colors.green, fontSize: 9)),
                     ],
                   ),
               ],
@@ -770,48 +780,59 @@ class _NonConformityListState extends State<NonConformityList> {
   }
 
   void _resolveNonConformity(BuildContext context, Map<String, dynamic> item) {
-    debugPrint('NonConformityList: _resolveNonConformity called for NC ${item['id']}');
+    debugPrint(
+        'NonConformityList: _resolveNonConformity called for NC ${item['id']}');
     debugPrint('NonConformityList: Item data: $item');
-    debugPrint('NonConformityList: Current status: ${item['status']}, is_resolved: ${item['is_resolved']}');
+    debugPrint(
+        'NonConformityList: Current status: ${item['status']}, is_resolved: ${item['is_resolved']}');
     // Directly show resolution capture dialog (only with photos option)
     _showResolutionCaptureDialog(context, item);
   }
 
   void _showResolutionCaptureDialog(
       BuildContext context, Map<String, dynamic> item) {
-    debugPrint('NonConformityList: Showing resolution capture dialog for NC ${item['id']}');
-    showDialog(
-      context: context,
-      builder: (context) => MediaCaptureDialog(
-        onMediaCaptured: (filePath, type, source) async {
-          debugPrint('NonConformityList: Media captured in dialog: $filePath, type: $type, source: $source');
-          try {
-            await _handleResolutionMediaCapture(context, item, [filePath]);
-          } catch (e) {
-            debugPrint('NonConformityList: ERROR in onMediaCaptured: $e');
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Erro ao capturar mídia: $e')),
-              );
+    debugPrint(
+        'NonConformityList: Showing resolution capture dialog for NC ${item['id']}');
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InspectionCameraScreen(
+          inspectionId: widget.inspectionId,
+          topicId: item['topic_id'],
+          itemId: item['item_id'],
+          detailId: item['detail_id'],
+          nonConformityId: item['id'],
+          source: 'resolution_camera',
+          onMediaCaptured: (capturedFiles) async {
+            debugPrint(
+                'NonConformityList: ${capturedFiles.length} media files captured');
+            try {
+              await _handleResolutionMediaCapture(context, item, capturedFiles);
+            } catch (e) {
+              debugPrint('NonConformityList: ERROR in onMediaCaptured: $e');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Erro ao capturar mídia: $e')),
+                );
+              }
             }
-          }
-        },
+          },
+        ),
       ),
     );
   }
 
-  Future<void> _handleResolutionMediaCapture(
-      BuildContext context, 
-      Map<String, dynamic> item, 
-      List<String> imagePaths) async {
+  Future<void> _handleResolutionMediaCapture(BuildContext context,
+      Map<String, dynamic> item, List<String> imagePaths) async {
     try {
-      debugPrint('NonConformityList: Starting resolution media capture for NC ${item['id']}');
+      debugPrint(
+          'NonConformityList: Starting resolution media capture for NC ${item['id']}');
       final serviceFactory = EnhancedOfflineServiceFactory.instance;
       final nonConformityId = item['id'] ?? '';
-      
+
       // Process and save each resolution image
       for (final imagePath in imagePaths) {
-        debugPrint('NonConformityList: Processing resolution image: $imagePath');
+        debugPrint(
+            'NonConformityList: Processing resolution image: $imagePath');
         await serviceFactory.mediaService.captureAndProcessMediaSimple(
           inputPath: imagePath,
           inspectionId: widget.inspectionId,
@@ -822,29 +843,36 @@ class _NonConformityListState extends State<NonConformityList> {
           nonConformityId: nonConformityId,
           source: 'resolution_camera', // Mark as resolution media
         );
-        debugPrint('NonConformityList: Resolution image processed successfully');
+        debugPrint(
+            'NonConformityList: Resolution image processed successfully');
       }
-      
+
       // Mark as resolved with resolution images
-      debugPrint('NonConformityList: Checking if context is mounted: ${context.mounted}');
-      debugPrint('NonConformityList: About to mark NC ${item['id']} as resolved (regardless of context)');
-      debugPrint('NonConformityList: Current item status: ${item['status']}, is_resolved: ${item['is_resolved']}');
+      debugPrint(
+          'NonConformityList: Checking if context is mounted: ${context.mounted}');
+      debugPrint(
+          'NonConformityList: About to mark NC ${item['id']} as resolved (regardless of context)');
+      debugPrint(
+          'NonConformityList: Current item status: ${item['status']}, is_resolved: ${item['is_resolved']}');
       debugPrint('NonConformityList: Image paths to pass: $imagePaths');
-      
+
       // Mark as resolved even if context is not mounted - this is critical for data consistency
       await _markAsResolvedDirectly(item, imagePaths);
       debugPrint('NonConformityList: _markAsResolvedDirectly completed');
-      
+
       debugPrint('NonConformityList: Marked as resolved, triggering refresh');
       // Refresh the non-conformity list to update button state
       if (widget.onNonConformityUpdated != null) {
-        debugPrint('NonConformityList: Calling onNonConformityUpdated callback');
+        debugPrint(
+            'NonConformityList: Calling onNonConformityUpdated callback');
         widget.onNonConformityUpdated!();
-        debugPrint('NonConformityList: onNonConformityUpdated callback completed');
+        debugPrint(
+            'NonConformityList: onNonConformityUpdated callback completed');
       } else {
-        debugPrint('NonConformityList: onNonConformityUpdated callback is null');
+        debugPrint(
+            'NonConformityList: onNonConformityUpdated callback is null');
       }
-      
+
       // Show success message only if context is still mounted
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -857,7 +885,8 @@ class _NonConformityListState extends State<NonConformityList> {
         );
       }
     } catch (e) {
-      debugPrint('NonConformityList: ERROR in _handleResolutionMediaCapture: $e');
+      debugPrint(
+          'NonConformityList: ERROR in _handleResolutionMediaCapture: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao processar mídia de resolução: $e')),
@@ -866,15 +895,15 @@ class _NonConformityListState extends State<NonConformityList> {
     }
   }
 
-
-  Future<void> _markAsResolvedDirectly(Map<String, dynamic> item,
-      List<String> resolutionImages) async {
-    debugPrint('NonConformityList: ========== _markAsResolvedDirectly STARTED ==========');
+  Future<void> _markAsResolvedDirectly(
+      Map<String, dynamic> item, List<String> resolutionImages) async {
+    debugPrint(
+        'NonConformityList: ========== _markAsResolvedDirectly STARTED ==========');
     debugPrint('NonConformityList: Input item: $item');
     debugPrint('NonConformityList: Resolution images: $resolutionImages');
-    
+
     final updatedItem = Map<String, dynamic>.from(item);
-    
+
     // Ensure all resolution fields are properly set
     updatedItem['status'] = 'closed';
     updatedItem['is_resolved'] = true;
@@ -882,8 +911,10 @@ class _NonConformityListState extends State<NonConformityList> {
     updatedItem['resolution_images'] = resolutionImages;
 
     debugPrint('NonConformityList: Marking NC ${item['id']} as resolved');
-    debugPrint('NonConformityList: Original item status: ${item['status']}, is_resolved: ${item['is_resolved']}');
-    debugPrint('NonConformityList: Updated item status: ${updatedItem['status']}, is_resolved: ${updatedItem['is_resolved']}');
+    debugPrint(
+        'NonConformityList: Original item status: ${item['status']}, is_resolved: ${item['is_resolved']}');
+    debugPrint(
+        'NonConformityList: Updated item status: ${updatedItem['status']}, is_resolved: ${updatedItem['is_resolved']}');
     debugPrint('NonConformityList: Updated item: $updatedItem');
 
     try {
@@ -891,7 +922,7 @@ class _NonConformityListState extends State<NonConformityList> {
       debugPrint('NonConformityList: Calling widget.onEditNonConformity');
       widget.onEditNonConformity(updatedItem);
       debugPrint('NonConformityList: widget.onEditNonConformity completed');
-      
+
       // Add a delay to ensure database operation completes
       await Future.delayed(const Duration(milliseconds: 1000));
       debugPrint('NonConformityList: Delay completed');
@@ -901,48 +932,57 @@ class _NonConformityListState extends State<NonConformityList> {
         debugPrint('NonConformityList: Widget still mounted, updating state');
         setState(() {
           // Force rebuild
-          
+
           // Also update the local item state immediately for instant feedback
           if (widget.nonConformities.isNotEmpty) {
-            final index = widget.nonConformities.indexWhere((nc) => nc['id'] == item['id']);
-            debugPrint('NonConformityList: Looking for NC ${item['id']} in list, found at index: $index');
+            final index = widget.nonConformities
+                .indexWhere((nc) => nc['id'] == item['id']);
+            debugPrint(
+                'NonConformityList: Looking for NC ${item['id']} in list, found at index: $index');
             if (index >= 0) {
               widget.nonConformities[index]['status'] = 'closed';
               widget.nonConformities[index]['is_resolved'] = true;
-              widget.nonConformities[index]['resolved_at'] = updatedItem['resolved_at'];
-              debugPrint('NonConformityList: Updated local state for NC at index $index');
+              widget.nonConformities[index]['resolved_at'] =
+                  updatedItem['resolved_at'];
+              debugPrint(
+                  'NonConformityList: Updated local state for NC at index $index');
             }
           }
         });
         debugPrint('NonConformityList: State update completed');
       } else {
-        debugPrint('NonConformityList: Widget not mounted, skipping state update');
+        debugPrint(
+            'NonConformityList: Widget not mounted, skipping state update');
       }
     } catch (e) {
       debugPrint('NonConformityList: Error during direct resolution: $e');
     }
   }
 
-
   void _showCaptureDialog(BuildContext context, Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (context) => MediaCaptureDialog(
-        onMediaCaptured: (filePath, type, source) async {
-          try {
-            await _handleMediaCapture(context, item, [filePath]);
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Erro ao capturar mídia: $e')),
-              );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InspectionCameraScreen(
+          inspectionId: widget.inspectionId,
+          topicId: item['topic_id'],
+          itemId: item['item_id'],
+          detailId: item['detail_id'],
+          source: 'camera',
+          onMediaCaptured: (capturedFiles) async {
+            try {
+              await _handleMediaCapture(context, item, capturedFiles);
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Erro ao capturar mídia: $e')),
+                );
+              }
             }
-          }
-        },
+          },
+        ),
       ),
     );
   }
-
 
   Future<void> _handleMediaCapture(BuildContext context,
       Map<String, dynamic> item, List<String> imagePaths) async {
@@ -974,11 +1014,11 @@ class _NonConformityListState extends State<NonConformityList> {
       final nonConformityIdForCache = item['id'] ?? '';
       _mediaCountCache.remove(nonConformityIdForCache);
       _mediaCountCache.remove('resolution_$nonConformityIdForCache');
-      
+
       // Refresh the specific counters
       _refreshMediaCount(nonConformityIdForCache);
       _refreshResolutionMediaCount(nonConformityIdForCache);
-      
+
       // Forçar rebuild do widget para mostrar nova contagem
       if (mounted) {
         setState(() {
@@ -995,6 +1035,10 @@ class _NonConformityListState extends State<NonConformityList> {
           ),
         );
 
+        // Navegar para a galeria após captura
+        Navigator.of(context).pop(); // Fechar o dialog de captura se ainda estiver aberto
+        _showMediaGallery(context, item);
+
         // Refresh the non-conformity list
         if (widget.onNonConformityUpdated != null) {
           widget.onNonConformityUpdated!();
@@ -1009,7 +1053,8 @@ class _NonConformityListState extends State<NonConformityList> {
     }
   }
 
-  void _showMediaGallery(BuildContext context, Map<String, dynamic> item) async {
+  void _showMediaGallery(
+      BuildContext context, Map<String, dynamic> item) async {
     try {
       final nonConformityId = item['id'] ?? '';
       await Navigator.of(context).push(
@@ -1019,25 +1064,27 @@ class _NonConformityListState extends State<NonConformityList> {
             initialTopicId: item['topic_id'],
             initialItemId: item['item_id'],
             initialDetailId: item['detail_id'],
-            initialNonConformityId: nonConformityId, // CRITICAL: Pass the specific NC ID
+            initialNonConformityId:
+                nonConformityId, // CRITICAL: Pass the specific NC ID
             initialIsNonConformityOnly: true,
-            excludeResolutionMedia: true, // Exclude resolution medias from regular gallery
+            excludeResolutionMedia:
+                true, // Exclude resolution medias from regular gallery
           ),
         ),
       );
-      
+
       // Clear cache when returning from gallery to update counters
-      debugPrint('NonConformityList: Returned from media gallery, refreshing counts');
+      debugPrint(
+          'NonConformityList: Returned from media gallery, refreshing counts');
       _mediaCountCache.remove(nonConformityId);
       _mediaCountCache.remove('resolution_$nonConformityId');
-      
+
       // Refresh the specific counters
       _refreshMediaCount(nonConformityId);
       _refreshResolutionMediaCount(nonConformityId);
-      
+
       if (mounted) {
-        setState(() {
-        });
+        setState(() {});
       }
     } catch (e) {
       if (context.mounted) {
@@ -1048,7 +1095,8 @@ class _NonConformityListState extends State<NonConformityList> {
     }
   }
 
-  void _showResolutionGallery(BuildContext context, Map<String, dynamic> item) async {
+  void _showResolutionGallery(
+      BuildContext context, Map<String, dynamic> item) async {
     try {
       // Show only resolution images for this specific resolved non-conformity
       final nonConformityId = item['id'] ?? '';
@@ -1060,23 +1108,24 @@ class _NonConformityListState extends State<NonConformityList> {
             initialItemId: item['item_id'],
             initialDetailId: item['detail_id'],
             initialNonConformityId: nonConformityId, // Filter by specific NC
-            initialMediaSource: 'resolution_camera', // Filter by resolution media (primary source)
+            initialMediaSource:
+                'resolution_camera', // Filter by resolution media (primary source)
           ),
         ),
       );
-      
+
       // Clear cache when returning from resolution gallery to update counters
-      debugPrint('NonConformityList: Returned from resolution gallery, refreshing counts');
+      debugPrint(
+          'NonConformityList: Returned from resolution gallery, refreshing counts');
       _mediaCountCache.remove(nonConformityId);
       _mediaCountCache.remove('resolution_$nonConformityId');
-      
+
       // Refresh the specific counters
       _refreshMediaCount(nonConformityId);
       _refreshResolutionMediaCount(nonConformityId);
-      
+
       if (mounted) {
-        setState(() {
-        });
+        setState(() {});
       }
     } catch (e) {
       if (context.mounted) {
@@ -1088,65 +1137,76 @@ class _NonConformityListState extends State<NonConformityList> {
   }
 
   void _addResolutionMedia(BuildContext context, Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (context) => MediaCaptureDialog(
-        onMediaCaptured: (filePath, type, source) async {
-          try {
-            // Process resolution media with correct type and source
-            final serviceFactory = EnhancedOfflineServiceFactory.instance;
-            final nonConformityId = item['id'] ?? '';
-            
-            await serviceFactory.mediaService.captureAndProcessMediaSimple(
-              inputPath: filePath,
-              inspectionId: widget.inspectionId,
-              type: type, // 'image' or 'video' from MediaCaptureDialog
-              topicId: item['topic_id'],
-              itemId: item['item_id'],
-              detailId: item['detail_id'],
-              nonConformityId: nonConformityId,
-              source: 'resolution_camera', // Mark as resolution media
-            );
-            
-            // Limpar cache para atualizar contadores
-            _mediaCountCache.remove('resolution_$nonConformityId');
-            _mediaCountCache.remove(nonConformityId); // Também limpar cache regular
-            
-            // Refresh the specific counters
-            _refreshMediaCount(nonConformityId);
-            _refreshResolutionMediaCount(nonConformityId);
-            
-            // Forçar rebuild do widget para mostrar nova contagem
-            if (mounted) {
-              setState(() {
-                // Força rebuild do FutureBuilder
-              });
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InspectionCameraScreen(
+          inspectionId: widget.inspectionId,
+          topicId: item['topic_id'],
+          itemId: item['item_id'],
+          detailId: item['detail_id'],
+          source: 'camera',
+          onMediaCaptured: (capturedFiles) async {
+            try {
+              // Process resolution media with correct type and source
+              final serviceFactory = EnhancedOfflineServiceFactory.instance;
+              final nonConformityId = item['id'] ?? '';
+
+              // Process each captured file
+              for (final filePath in capturedFiles) {
+                await serviceFactory.mediaService.captureAndProcessMediaSimple(
+                  inputPath: filePath,
+                  inspectionId: widget.inspectionId,
+                  type: 'image', // Default to image, will be detected by service
+                  topicId: item['topic_id'],
+                  itemId: item['item_id'],
+                  detailId: item['detail_id'],
+                  nonConformityId: nonConformityId,
+                  source: 'resolution_camera', // Mark as resolution media
+                );
+              }
+
+              // Limpar cache para atualizar contadores
+              _mediaCountCache.remove('resolution_$nonConformityId');
+              _mediaCountCache
+                  .remove(nonConformityId); // Também limpar cache regular
+
+              // Refresh the specific counters
+              _refreshMediaCount(nonConformityId);
+              _refreshResolutionMediaCount(nonConformityId);
+
+              // Forçar rebuild do widget para mostrar nova contagem
+              if (mounted) {
+                setState(() {
+                  // Força rebuild do FutureBuilder
+                });
+              }
+
+              // Refresh the non-conformity list to update button state
+              if (widget.onNonConformityUpdated != null) {
+                widget.onNonConformityUpdated!();
+              }
+
+              if (context.mounted) {
+                final message = capturedFiles.length == 1
+                    ? 'Mídia de resolução adicionada com sucesso!'
+                    : '${capturedFiles.length} mídias de resolução adicionadas com sucesso!';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Erro ao capturar mídia: $e')),
+                );
+              }
             }
-            
-            // Refresh the non-conformity list to update button state
-            if (widget.onNonConformityUpdated != null) {
-              widget.onNonConformityUpdated!();
-            }
-            
-            if (context.mounted) {
-              final mediaType = type == 'image' ? 'Foto' : 'Vídeo';
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$mediaType de resolução adicionada com sucesso!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Erro ao capturar mídia: $e')),
-              );
-            }
-          }
-        },
+          },
+        ),
       ),
     );
   }
-
 }

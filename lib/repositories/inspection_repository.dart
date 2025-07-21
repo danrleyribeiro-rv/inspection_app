@@ -26,7 +26,14 @@ class InspectionRepository extends BaseRepository<Inspection> {
 
   // Métodos específicos da Inspection
   Future<List<Inspection>> findByInspectorId(String inspectorId) async {
-    return await findWhere('inspector_id = ?', [inspectorId]);
+    debugPrint('InspectionRepository: 🔍 Executando query para inspector_id: $inspectorId');
+    debugPrint('InspectionRepository: 🔍 Query SQL: SELECT * FROM inspections WHERE inspector_id = ? AND is_deleted = 0');
+    final result = await findWhere('inspector_id = ?', [inspectorId]);
+    debugPrint('InspectionRepository: 📋 Query retornou ${result.length} inspeções');
+    for (final inspection in result) {
+      debugPrint('InspectionRepository: 📄 → "${inspection.title}" (ID: ${inspection.id}, Inspector: ${inspection.inspectorId})');
+    }
+    return result;
   }
 
   Future<List<Inspection>> findByStatus(String status) async {
@@ -170,15 +177,22 @@ class InspectionRepository extends BaseRepository<Inspection> {
           debugPrint(
               'InspectionRepository: Downloaded new inspection $inspectionId');
         } else {
-          // Existing inspection, check for conflicts or update
-          if (cloudInspection.updatedAt.isAfter(existingInspection.updatedAt)) {
-            await insertOrUpdate(cloudInspection);
+          // Existing inspection, use intelligent merge instead of overwrite
+          debugPrint(
+              'InspectionRepository: Found existing inspection $inspectionId, using intelligent merge');
+          
+          // Create merged inspection preserving local changes
+          final mergedInspection = _mergeInspectionData(existingInspection, cloudInspection);
+          
+          // Only update if merge produced changes
+          if (mergedInspection != existingInspection) {
+            await insertOrUpdate(mergedInspection);
             await markSynced(inspectionId);
             debugPrint(
-                'InspectionRepository: Updated existing inspection $inspectionId from cloud');
+                'InspectionRepository: Applied intelligent merge for inspection $inspectionId');
           } else {
             debugPrint(
-                'InspectionRepository: Skipping download for $inspectionId - local is newer');
+                'InspectionRepository: No changes after merge for inspection $inspectionId');
           }
         }
       }
@@ -243,5 +257,56 @@ class InspectionRepository extends BaseRepository<Inspection> {
     });
 
     return converted;
+  }
+
+  // Intelligent merge to preserve local changes while applying cloud updates
+  Inspection _mergeInspectionData(Inspection local, Inspection cloud) {
+    debugPrint('InspectionRepository: Merging inspection data - preserving local changes');
+    
+    // Priority: Local filled values > Cloud filled values > Keep unchanged
+    return local.copyWith(
+      title: _mergeStringField(local.title, cloud.title),
+      observation: _mergeStringField(local.observation, cloud.observation),
+      status: local.status, // Always preserve local status (user might have progressed)
+      
+      // Address fields - merge intelligently, preserving cloud address object
+      street: _mergeStringField(local.street, cloud.street),
+      neighborhood: _mergeStringField(local.neighborhood, cloud.neighborhood),
+      city: _mergeStringField(local.city, cloud.city),
+      state: _mergeStringField(local.state, cloud.state),
+      zipCode: _mergeStringField(local.zipCode, cloud.zipCode),
+      addressString: _mergeStringField(local.addressString, cloud.addressString),
+      
+      // Preserve cloud address object if exists
+      address: cloud.address ?? local.address,
+      
+      // Other fields that might have been updated in cloud
+      projectId: cloud.projectId ?? local.projectId,
+      templateId: cloud.templateId ?? local.templateId,
+      inspectorId: cloud.inspectorId ?? local.inspectorId,
+      scheduledDate: cloud.scheduledDate ?? local.scheduledDate,
+      
+      // Preserve local modification state
+      updatedAt: local.updatedAt.isAfter(cloud.updatedAt) ? local.updatedAt : cloud.updatedAt,
+      
+      // Preserve nested structures (topics should be handled separately)
+      topics: local.topics?.isNotEmpty == true ? local.topics : cloud.topics,
+    );
+  }
+
+  // Helper to merge string fields - preserves filled local values
+  String? _mergeStringField(String? localValue, String? cloudValue) {
+    // If local has content, keep it (user might have edited)
+    if (localValue != null && localValue.trim().isNotEmpty) {
+      return localValue;
+    }
+    
+    // If local is empty/null but cloud has content, use cloud
+    if (cloudValue != null && cloudValue.trim().isNotEmpty) {
+      return cloudValue;
+    }
+    
+    // Both empty/null - return null
+    return null;
   }
 }

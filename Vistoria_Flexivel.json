@@ -1,0 +1,195 @@
+{
+  "title": "Flexível 2",
+  "observation": null,
+  "project_id": "DQOFavelUHcuwdEuPE4I",
+  "template_id": "KrzoTXUdv1yRcYDWBND2",
+  "inspector_id": "bSTmE0Ix6WbBMueqvZWfpKc3Ngy2",
+  "status": "pending",
+  "scheduled_date": {
+    "_seconds": 1752807600,
+    "_nanoseconds": 0
+  },
+  "address": {
+    "cep": "88062110",
+    "street": "Rua Crisógono Vieira da Cruz",
+    "number": "233",
+    "complement": "",
+    "neighborhood": "Lagoa da Conceição",
+    "city": "Florianópolis",
+    "state": "SC"
+  },
+  "address_string": "Rua Crisógono Vieira da Cruz, 233, Lagoa da Conceição, Florianópolis - SC",
+  "is_templated": true,
+  "area": "0",
+  "topics": [
+    {
+      "name": "Novo Tópico 1",
+      "description": null,
+      "observation": null,
+      "direct_details": false,
+      "items": [
+        {
+          "name": "Novo Item 1",
+          "description": null,
+          "observation": null,
+          "evaluable": true,
+          "evaluation_options": [
+            "a",
+            "b",
+            "c"
+          ],
+          "evaluation_value": null,
+          "details": [
+            {
+              "name": "Novo Detalhe 1",
+              "type": "text",
+              "required": false,
+              "options": [],
+              "value": null,
+              "observation": null,
+              "is_damaged": false,
+              "media": [],
+              "non_conformities": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Novo Tópico 2",
+      "description": null,
+      "observation": null,
+      "direct_details": true,
+      "details": [
+        {
+          "name": "Novo Detalhe 1",
+          "type": "select",
+          "required": false,
+          "options": [
+            "a",
+            "b",
+            "c"
+          ],
+          "value": null,
+          "observation": null,
+          "is_damaged": false,
+          "media": [],
+          "non_conformities": []
+        }
+      ]
+    },
+    {
+      "name": "Novo Tópico 3",
+      "description": null,
+      "observation": null,
+      "direct_details": true,
+      "details": [
+        {
+          "name": "Novo Detalhe 1",
+          "type": "boolean",
+          "required": false,
+          "options": [],
+          "value": null,
+          "observation": null,
+          "is_damaged": false,
+          "media": [],
+          "non_conformities": []
+        }
+      ]
+    },
+    {
+      "name": "Novo Tópico 4",
+      "description": null,
+      "observation": null,
+      "direct_details": true,
+      "details": [
+        {
+          "name": "Novo Detalhe 1",
+          "type": "measure",
+          "required": false,
+          "options": [],
+          "value": null,
+          "observation": null,
+          "is_damaged": false,
+          "media": [],
+          "non_conformities": []
+        }
+      ]
+    },
+    {
+      "name": "Novo Tópico 5",
+      "description": null,
+      "observation": null,
+      "direct_details": false,
+      "items": [
+        {
+          "name": "Novo Item 1",
+          "description": null,
+          "observation": null,
+          "evaluable": false,
+          "evaluation_options": [],
+          "evaluation_value": null,
+          "details": [
+            {
+              "name": "Novo Detalhe 1",
+              "type": "boolean",
+              "required": false,
+              "options": [],
+              "value": null,
+              "observation": null,
+              "is_damaged": false,
+              "media": [],
+              "non_conformities": []
+            },
+            {
+              "name": "Novo Detalhe 2",
+              "type": "number",
+              "required": false,
+              "options": [],
+              "value": null,
+              "observation": null,
+              "is_damaged": false,
+              "media": [],
+              "non_conformities": []
+            }
+          ]
+        },
+        {
+          "name": "Novo Item 2",
+          "description": null,
+          "observation": null,
+          "evaluable": true,
+          "evaluation_options": [
+            "a",
+            "b",
+            "c"
+          ],
+          "evaluation_value": null,
+          "details": [
+            {
+              "name": "Novo Detalhe 1",
+              "type": "number",
+              "required": false,
+              "options": [],
+              "value": null,
+              "observation": null,
+              "is_damaged": false,
+              "media": [],
+              "non_conformities": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cod": "INSP250718-005.TP0004",
+  "deleted_at": null,
+  "updated_at": {
+    "_seconds": 1752881965,
+    "_nanoseconds": 359000000
+  },
+  "created_at": {
+    "_seconds": 1752881965,
+    "_nanoseconds": 359000000
+  }
+}

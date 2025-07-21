@@ -1,5 +1,6 @@
 // lib/presentation/widgets/details_list_section.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/item.dart';
@@ -8,8 +9,7 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
-import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
-import 'package:lince_inspecoes/services/navigation_state_service.dart';
+import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 // O widget DetailsListSection e seu State permanecem os mesmos.
@@ -18,28 +18,33 @@ import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class DetailsListSection extends StatefulWidget {
   final List<Detail> details;
-  final Item item;
+  final Item? item; // Tornado opcional para hierarquias flexíveis
   final Topic topic;
   final String inspectionId;
   final Function(Detail) onDetailUpdated;
   final Future<void> Function() onDetailAction;
   final String? expandedDetailId; // ID do detalhe que deve estar expandido
-  final Function(String?)? onDetailExpanded; // Callback quando um detalhe é expandido
-  final int topicIndex; // Índice do tópico atual na lista
-  final int itemIndex;  // Índice do item atual na lista
+  final Function(String?)?
+      onDetailExpanded; // Callback quando um detalhe é expandido
+  final int? topicIndex; // Tornado opcional
+  final int? itemIndex; // Tornado opcional
+  final bool isDirectDetails; // Nova propriedade para indicar hierarquia direta
+  final Function(List<Detail>)? onDetailsUpdated; // Nova propriedade para callback de atualização
 
   const DetailsListSection({
     super.key,
     required this.details,
-    required this.item,
+    this.item, // Agora opcional
     required this.topic,
     required this.inspectionId,
     required this.onDetailUpdated,
     required this.onDetailAction,
     this.expandedDetailId,
     this.onDetailExpanded,
-    required this.topicIndex,
-    required this.itemIndex,
+    this.topicIndex,
+    this.itemIndex,
+    this.isDirectDetails = false, // Default para hierarquia normal
+    this.onDetailsUpdated,
   });
 
   @override
@@ -56,12 +61,53 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     _localDetails = List.from(widget.details);
     _setInitialExpandedDetail();
   }
-  
+
   void _setInitialExpandedDetail() {
     if (widget.expandedDetailId != null) {
-      final index = _localDetails.indexWhere((detail) => detail.id == widget.expandedDetailId);
+      final index = _localDetails
+          .indexWhere((detail) => detail.id == widget.expandedDetailId);
       if (index >= 0) {
         _expandedDetailIndex = index;
+        // Scroll to ensure the expanded detail is visible after a short delay
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToExpandedDetail(index);
+        });
+      }
+    }
+  }
+
+  void _scrollToExpandedDetail(int index) {
+    // Find the context of the expanded detail
+    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      // Calculate the position of the expanded detail
+      final double itemHeight = 60.0; // Approximate collapsed item height
+      final double expandedHeight = 400.0; // Approximate expanded item height
+      final double position = index * itemHeight;
+      
+      // Find the scrollable ancestor
+      final ScrollableState? scrollableState = Scrollable.of(context);
+      if (scrollableState != null) {
+        final ScrollController? controller = scrollableState.widget.controller;
+        if (controller != null && controller.hasClients && controller.positions.length == 1) {
+          // Get current scroll position
+          final double currentOffset = controller.offset;
+          final double viewportHeight = scrollableState.context.size?.height ?? 600;
+          
+          // Calculate if we need to scroll
+          final double itemBottom = position + expandedHeight;
+          final double viewportBottom = currentOffset + viewportHeight;
+          
+          if (itemBottom > viewportBottom) {
+            // Need to scroll down to show the full expanded content
+            final double targetOffset = itemBottom - viewportHeight + 50; // 50px padding
+            controller.animateTo(
+              targetOffset.clamp(0, controller.position.maxScrollExtent),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
       }
     }
   }
@@ -100,13 +146,25 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       });
 
       // Use the repository's efficient reorder method
-      final itemId = widget.item.id;
+      final itemId = widget.item?.id;
       if (itemId != null) {
         final detailIds = _localDetails.map((detail) => detail.id!).toList();
-        
-        debugPrint('DetailsListSection: Reordering details with IDs: $detailIds');
-        await EnhancedOfflineServiceFactory.instance.dataService.reorderDetails(itemId, detailIds);
-        debugPrint('DetailsListSection: Details reordered successfully in database');
+
+        debugPrint(
+            'DetailsListSection: Reordering details with IDs: $detailIds');
+        await EnhancedOfflineServiceFactory.instance.dataService
+            .reorderDetails(itemId, detailIds);
+        debugPrint(
+            'DetailsListSection: Details reordered successfully in database');
+      } else if (widget.isDirectDetails && widget.topic.id != null) {
+        // For direct details, use topic-based reordering
+        final detailIds = _localDetails.map((detail) => detail.id!).toList();
+        debugPrint(
+            'DetailsListSection: Reordering direct details with IDs: $detailIds');
+        await EnhancedOfflineServiceFactory.instance.dataService
+            .reorderDirectDetails(widget.topic.id!, detailIds);
+        debugPrint(
+            'DetailsListSection: Direct details reordered successfully in database');
       }
 
       debugPrint(
@@ -124,7 +182,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao reordenar detalhe: $e')),
         );
-        
+
         // Restore original order from widget
         setState(() {
           _localDetails = List.from(widget.details);
@@ -165,10 +223,19 @@ class _DetailsListSectionState extends State<DetailsListSection> {
               setState(() {
                 _expandedDetailIndex = isExpanded ? -1 : index;
               });
-              
+
               // Notifica qual detalhe foi expandido
-              final expandedDetail = _expandedDetailIndex >= 0 ? _localDetails[_expandedDetailIndex] : null;
+              final expandedDetail = _expandedDetailIndex >= 0
+                  ? _localDetails[_expandedDetailIndex]
+                  : null;
               widget.onDetailExpanded?.call(expandedDetail?.id);
+
+              // Se expandido, fazer scroll para garantir que está visível
+              if (!isExpanded && _expandedDetailIndex == index) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToExpandedDetail(index);
+                });
+              }
             },
             onDetailUpdated: (updatedDetail) {
               setState(() {
@@ -296,7 +363,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 class DetailListItem extends StatefulWidget {
   final int index;
   final Detail detail;
-  final Item item;
+  final Item? item; // Made nullable for direct details
   final Topic topic;
   final String inspectionId;
   final bool isExpanded;
@@ -304,14 +371,14 @@ class DetailListItem extends StatefulWidget {
   final Function(Detail) onDetailUpdated;
   final VoidCallback onDetailDeleted;
   final VoidCallback onDetailDuplicated;
-  final int topicIndex; // Índice do tópico atual
-  final int itemIndex;  // Índice do item atual
+  final int? topicIndex; // Made nullable for direct details
+  final int? itemIndex; // Made nullable for direct details
 
   const DetailListItem({
     super.key,
     required this.index,
     required this.detail,
-    required this.item,
+    this.item, // Now optional
     required this.topic,
     required this.inspectionId,
     required this.isExpanded,
@@ -319,8 +386,8 @@ class DetailListItem extends StatefulWidget {
     required this.onDetailUpdated,
     required this.onDetailDeleted,
     required this.onDetailDuplicated,
-    required this.topicIndex,
-    required this.itemIndex,
+    this.topicIndex, // Now optional
+    this.itemIndex, // Now optional
   });
 
   @override
@@ -343,37 +410,135 @@ class _DetailListItemState extends State<DetailListItem> {
   String _currentDetailName = '';
   final Map<String, int> _mediaCountCache = {};
   int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
-  
+  String? _currentSelectValue; // Valor atual do dropdown select
+
   @override
   void initState() {
     super.initState();
     _initializeControllers();
     _observationController.addListener(_updateDetail);
-    
+    _currentSelectValue = widget.detail.detailValue;
+
     // Escutar mudanças nos contadores de mídia
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
   }
-  
+
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
     final cacheKey = '${widget.detail.id}';
+    debugPrint('DetailListItem: Media counter changed for detail ${widget.detail.id}, clearing cache key: $cacheKey');
     _mediaCountCache.remove(cacheKey);
-    
+
     if (mounted) {
       setState(() {
         _mediaCountVersion++; // Força rebuild do FutureBuilder
       });
+      debugPrint('DetailListItem: State updated, media count version incremented to $_mediaCountVersion');
     }
   }
 
   @override
   void didUpdateWidget(DetailListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.detail.detailName != _currentDetailName ||
-        widget.detail.detailValue != _valueController.text ||
-        widget.detail.observation != _observationController.text) {
-      _initializeControllers();
+    
+    // For select fields, avoid reinitializing if we have an active debounce timer
+    // This prevents the UI from reverting during the save process
+    if (widget.detail.type == 'select' && _debounce?.isActive == true) {
+      // Only update if the detail name changed (different detail altogether)
+      if (widget.detail.detailName != _currentDetailName) {
+        _initializeControllers();
+      }
+      // Don't override _currentSelectValue during active debounce
+      return;
     }
+    
+    // For boolean fields, avoid reinitializing if we have an active debounce timer
+    // This prevents the UI from reverting during the save process
+    if (widget.detail.type == 'boolean' && _debounce?.isActive == true) {
+      // Only reinitialize if the detail name changed (different detail altogether)
+      if (widget.detail.detailName != _currentDetailName) {
+        _initializeControllers();
+      }
+      return;
+    }
+    
+    // Standard logic for other field types or when no debounce is active
+    if (widget.detail.type == 'measure') {
+      // For measure fields, only reinitialize on name change to avoid typing interference
+      if (widget.detail.detailName != _currentDetailName) {
+        _initializeControllers();
+      }
+    } else if (widget.detail.type == 'select') {
+      // For select fields, check if we need to update from external changes
+      if (widget.detail.detailName != _currentDetailName) {
+        _initializeControllers();
+      } else if (widget.detail.detailValue != _currentSelectValue && 
+                 oldWidget.detail.detailValue != widget.detail.detailValue) {
+        // Only update if this is a real external change, not our own update
+        setState(() {
+          _currentSelectValue = widget.detail.detailValue;
+          _valueController.text = widget.detail.detailValue ?? '';
+        });
+      }
+    } else if (widget.detail.type == 'boolean') {
+      // For boolean fields, check if we need to update from external changes
+      if (widget.detail.detailName != _currentDetailName) {
+        _initializeControllers();
+      } else if (widget.detail.detailValue != _booleanValue && 
+                 oldWidget.detail.detailValue != widget.detail.detailValue) {
+        // Only update if this is a real external change, not our own update
+        setState(() {
+          if (widget.detail.detailValue?.toLowerCase() == 'true' ||
+              widget.detail.detailValue == '1' ||
+              widget.detail.detailValue?.toLowerCase() == 'sim') {
+            _booleanValue = 'sim';
+          } else if (widget.detail.detailValue?.toLowerCase() == 'false' ||
+              widget.detail.detailValue == '0' ||
+              widget.detail.detailValue?.toLowerCase() == 'não') {
+            _booleanValue = 'não';
+          } else {
+            _booleanValue = 'não_se_aplica';
+          }
+        });
+      }
+    } else {
+      String currentValue = _valueController.text;
+      
+      if (widget.detail.detailName != _currentDetailName ||
+          widget.detail.detailValue != currentValue ||
+          widget.detail.observation != _observationController.text) {
+        _initializeControllers();
+      }
+    }
+  }
+
+  bool _isValidSelectValue(String? value) {
+    if (value == null) return true;
+    
+    final options = widget.detail.options ?? [];
+    // Always consider the current select value as valid, even if not in options yet
+    return options.contains(value) || value == 'Outro' || value == _currentSelectValue;
+  }
+
+  void _updateSelectValue(String? value) {
+    if (_currentSelectValue == value) return;
+
+    setState(() {
+      _currentSelectValue = value;
+      _valueController.text = value ?? '';
+    });
+
+    _updateDetail();
+  }
+
+  void _updateBooleanValue(String value) {
+    if (_booleanValue == value) return;
+
+    setState(() {
+      _booleanValue = value;
+    });
+
+    _updateDetail();
   }
 
   void _initializeControllers() {
@@ -384,20 +549,20 @@ class _DetailListItemState extends State<DetailListItem> {
       String altura = '';
       String largura = '';
       String profundidade = '';
-      
+
       if (detailValue.startsWith('{') && detailValue.endsWith('}')) {
         // New JSON format: {largura: 2, altura: 1, profundidade: 5}
         try {
           // Remove braces and split by comma
           final content = detailValue.substring(1, detailValue.length - 1);
           final pairs = content.split(',');
-          
+
           for (final pair in pairs) {
             final keyValue = pair.split(':');
             if (keyValue.length == 2) {
               final key = keyValue[0].trim();
               final value = keyValue[1].trim();
-              
+
               switch (key) {
                 case 'altura':
                   altura = value;
@@ -421,21 +586,29 @@ class _DetailListItemState extends State<DetailListItem> {
         largura = measurements.length > 1 ? measurements[1].trim() : '';
         profundidade = measurements.length > 2 ? measurements[2].trim() : '';
       }
-      
+
       _heightController.text = altura;
       _widthController.text = largura;
       _depthController.text = profundidade;
     } else if (widget.detail.type == 'boolean') {
       // Suporte para três estados: sim, não, não_se_aplica
-      if (detailValue.toLowerCase() == 'true' || detailValue == '1' || detailValue.toLowerCase() == 'sim') {
+      if (detailValue.toLowerCase() == 'true' ||
+          detailValue == '1' ||
+          detailValue.toLowerCase() == 'sim') {
         _booleanValue = 'sim';
-      } else if (detailValue.toLowerCase() == 'false' || detailValue == '0' || detailValue.toLowerCase() == 'não') {
+      } else if (detailValue.toLowerCase() == 'false' ||
+          detailValue == '0' ||
+          detailValue.toLowerCase() == 'não') {
         _booleanValue = 'não';
       } else {
         _booleanValue = 'não_se_aplica';
       }
     } else {
       _valueController.text = detailValue;
+      // For select types, also initialize _currentSelectValue
+      if (widget.detail.type == 'select') {
+        _currentSelectValue = detailValue.isNotEmpty ? detailValue : null;
+      }
     }
 
     _observationController.text = widget.detail.observation ?? '';
@@ -512,16 +685,16 @@ class _DetailListItemState extends State<DetailListItem> {
             TextEditingController(text: _observationController.text);
         return AlertDialog(
           title: const Text('Observações do Detalhe',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
               controller: controller,
-              maxLines: 6,
-              autofocus: true,
+              maxLines: 3,
+              autofocus: false,
               decoration: const InputDecoration(
                 hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -609,107 +782,67 @@ class _DetailListItemState extends State<DetailListItem> {
 
   Future<void> _captureDetailMedia() async {
     try {
-      await showDialog(
-        context: context,
-        builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type, source) async {
-            try {
-              debugPrint('DetailsListSection: ========== MEDIA CAPTURED CALLBACK ==========');
-              debugPrint('DetailsListSection: FilePath: $filePath');
-              debugPrint('DetailsListSection: Type: $type');
-              debugPrint('DetailsListSection: Source RECEIVED: $source');
-              debugPrint('DetailsListSection: InspectionId: ${widget.inspectionId}');
-              debugPrint('DetailsListSection: TopicId: ${widget.detail.topicId}');
-              debugPrint('DetailsListSection: ItemId: ${widget.detail.itemId}');
-              debugPrint('DetailsListSection: DetailId: ${widget.detail.id}');
-              debugPrint('DetailsListSection: Calling captureAndProcessMediaSimple with source: $source');
-              
-              // Processar e salvar mídia
-              await _serviceFactory.mediaService.captureAndProcessMediaSimple(
-                inputPath: filePath,
-                inspectionId: widget.inspectionId,
-                type: type,
-                topicId: widget.detail.topicId,
-                itemId: widget.detail.itemId,
-                detailId: widget.detail.id,
-                source: source,
-              );
-              
-              debugPrint('DetailsListSection: ✅ captureAndProcessMediaSimple completed successfully');
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => InspectionCameraScreen(
+            inspectionId: widget.inspectionId,
+            topicId: widget.detail.topicId,
+            itemId: widget.detail.itemId,
+            detailId: widget.detail.id,
+            source: 'camera',
+            onMediaCaptured: (capturedFiles) async {
+              try {
+                debugPrint('DetailsListSection: ${capturedFiles.length} media files captured');
 
-              // O contador será atualizado automaticamente via MediaCounterNotifier
+                // O contador será atualizado automaticamente via MediaCounterNotifier
 
-              if (mounted && context.mounted) {
-                // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia
-                if (widget.detail.id != null) {
-                  debugPrint('DetailListItem: IMMEDIATELY navigating to gallery for detail ${widget.detail.id}');
-                  debugPrint('DetailListItem: TopicId=${widget.detail.topicId}, ItemId=${widget.detail.itemId}');
-                  
-                  // Salva o estado para que este detalhe específico fique expandido quando voltar
-                  await NavigationStateService.saveExpandedDetailState(
-                    inspectionId: widget.inspectionId,
-                    detailId: widget.detail.id!,
-                    topicIndex: widget.topicIndex,
-                    itemIndex: widget.itemIndex,
+                if (mounted && context.mounted) {
+                  // Mostrar mensagem de sucesso e navegar para galeria
+                  final message = capturedFiles.length == 1
+                      ? 'Mídia salva!'
+                      : '${capturedFiles.length} mídias salvas!';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 1),
+                    ),
                   );
-                  
-                  if (context.mounted) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => MediaGalleryScreen(
-                          inspectionId: widget.inspectionId,
-                          initialTopicId: widget.detail.topicId,
-                          initialItemId: widget.detail.itemId,
-                          initialDetailId: widget.detail.id,
-                          // Força filtro específico do detalhe
-                          initialIsNonConformityOnly: false,
-                        ),
-                      ),
-                    );
-                  }
 
-                  // Mostrar mensagem após um pequeno delay para não interferir na navegação
-                  Future.delayed(const Duration(milliseconds: 500), () {
-                    if (context.mounted) {
-                      final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(message),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  });
+                  // Navegar para a galeria após captura
+                  _openDetailGallery();
+                }
+              } catch (e) {
+                debugPrint('Error processing media: $e');
+                if (mounted && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao processar mídia: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
                 }
               }
-            } catch (e) {
-              debugPrint('Error processing media: $e');
-              if (mounted && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Erro ao processar mídia: $e'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            }
-          },
+            },
+          ),
         ),
       );
     } catch (e) {
-      debugPrint('Error showing capture dialog: $e');
+      debugPrint('Error showing camera screen: $e');
     }
   }
 
   Future<int> _getDetailMediaCount() async {
     final cacheKey = '${widget.detail.id}';
     if (_mediaCountCache.containsKey(cacheKey)) {
-      return _mediaCountCache[cacheKey]!;
+      final cachedCount = _mediaCountCache[cacheKey]!;
+      debugPrint('DetailListItem: Using cached media count for detail ${widget.detail.id}: $cachedCount');
+      return cachedCount;
     }
 
     try {
+      debugPrint('DetailListItem: Fetching fresh media count for detail ${widget.detail.id}');
       final medias = await _serviceFactory.mediaService.getMediaByContext(
         inspectionId: widget.inspectionId,
         topicId: widget.detail.topicId,
@@ -718,9 +851,11 @@ class _DetailListItemState extends State<DetailListItem> {
       );
       final count = medias.length;
       _mediaCountCache[cacheKey] = count;
+      debugPrint('DetailListItem: Fresh media count for detail ${widget.detail.id}: $count');
       return count;
     } catch (e) {
-      debugPrint('Error getting media count for detail ${widget.detail.id}: $e');
+      debugPrint(
+          'Error getting media count for detail ${widget.detail.id}: $e');
       return 0;
     }
   }
@@ -803,17 +938,16 @@ class _DetailListItemState extends State<DetailListItem> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.white70,
-          ),
-        ),
+        // Text(
+        //   label,
+        //   style: const TextStyle(
+        //     fontSize: 11,
+        //     color: Colors.white70,
+        //   ),
+        // ),
       ],
     );
   }
-
 
   // Métodos _buildValueInput e _getDisplayValue permanecem os mesmos
   // ...
@@ -862,7 +996,7 @@ class _DetailListItemState extends State<DetailListItem> {
                               child: Text(
                                 _currentDetailName,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                   color: _isDamaged
                                       ? Colors.red
@@ -936,7 +1070,7 @@ class _DetailListItemState extends State<DetailListItem> {
                             child: Text(
                               displayValue,
                               style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: Colors.green.shade800,
                                   fontWeight: FontWeight.w500),
                             ),
@@ -958,10 +1092,9 @@ class _DetailListItemState extends State<DetailListItem> {
                 children: [
                   _buildValueInput(),
                   const SizedBox(height: 2),
-                                    // Botões de ação para detalhes
+                  // Botões de ação para detalhes
                   if (widget.detail.id != null &&
-                      widget.detail.topicId != null &&
-                      widget.detail.itemId != null) ...[
+                      widget.detail.topicId != null) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -974,7 +1107,8 @@ class _DetailListItemState extends State<DetailListItem> {
                         ),
                         // Botão Galeria com contador de mídia
                         FutureBuilder<int>(
-                          key: ValueKey('detail_media_${widget.detail.id}_$_mediaCountVersion'),
+                          key: ValueKey(
+                              'detail_media_${widget.detail.id}_$_mediaCountVersion'),
                           future: _getDetailMediaCount(),
                           builder: (context, snapshot) {
                             final count = snapshot.data ?? 0;
@@ -1020,7 +1154,7 @@ class _DetailListItemState extends State<DetailListItem> {
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: Colors.green.shade300,
-                                      fontSize: 12)),
+                                      fontSize: 11)),
                               const Spacer(),
                               Icon(Icons.edit,
                                   size: 16, color: Colors.green.shade300),
@@ -1038,7 +1172,7 @@ class _DetailListItemState extends State<DetailListItem> {
                               fontStyle: _observationController.text.isEmpty
                                   ? FontStyle.italic
                                   : FontStyle.normal,
-                              fontSize: 12,
+                              fontSize: 11,
                             ),
                           ),
                         ],
@@ -1058,10 +1192,14 @@ class _DetailListItemState extends State<DetailListItem> {
     switch (widget.detail.type) {
       case 'boolean':
         switch (_booleanValue) {
-          case 'sim': return 'Sim';
-          case 'não': return 'Não';
-          case 'não_se_aplica': return 'Não se aplica';
-          default: return 'Não se aplica';
+          case 'sim':
+            return 'Sim';
+          case 'não':
+            return 'Não';
+          case 'não_se_aplica':
+            return 'Não se aplica';
+          default:
+            return 'Não se aplica';
         }
       case 'measure':
         final altura = _heightController.text.trim();
@@ -1074,6 +1212,8 @@ class _DetailListItemState extends State<DetailListItem> {
         if (profundidade.isNotEmpty) parts.add(profundidade);
 
         return parts.join(' x '); // Formato mais limpo: "2 x 1 x 5"
+      case 'select':
+        return _currentSelectValue ?? '';
       default:
         return _valueController.text;
     }
@@ -1085,30 +1225,52 @@ class _DetailListItemState extends State<DetailListItem> {
         if (widget.detail.options != null &&
             widget.detail.options!.isNotEmpty) {
           return DropdownButtonFormField<String>(
-            value:
-                _valueController.text.isNotEmpty ? _valueController.text : null,
+            value: _isValidSelectValue(_currentSelectValue) ? _currentSelectValue : null,
             decoration: InputDecoration(
-              labelText: 'R',
+              labelText: 'Resposta',
+              labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),
               border: const OutlineInputBorder(),
               hintText: 'Selecione um valor',
-              labelStyle: TextStyle(color: Colors.green.shade300),
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(color: Colors.green.shade300),
               ),
               isDense: true,
             ),
             dropdownColor: const Color(0xFF4A3B6B),
-            style: const TextStyle(color: Colors.white),
-            items: widget.detail.options!.map((option) {
-              return DropdownMenuItem<String>(
-                value: option,
-                child: Text(option),
-              );
-            }).toList(),
+            style: const TextStyle(color: Colors.white, fontSize: 11),
+            menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('(Sem resposta)', style: TextStyle(color: Colors.grey, fontSize: 11)),
+              ),
+              ...() {
+                final allOptions = List<String>.from(widget.detail.options!);
+                // Ensure current value is in the options list
+                if (_currentSelectValue != null && 
+                    _currentSelectValue!.isNotEmpty && 
+                    _currentSelectValue != 'Outro' &&
+                    !allOptions.contains(_currentSelectValue!)) {
+                  allOptions.add(_currentSelectValue!);
+                }
+                return allOptions.map((option) {
+                  return DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(option, style: TextStyle(fontSize: 11)),
+                  );
+                });
+              }(),
+              // Adicionar opção "Outro"
+              const DropdownMenuItem<String>(
+                value: 'Outro',
+                child: Text('Outro', style: TextStyle(fontSize: 11)),
+              ),
+            ],
             onChanged: (value) {
-              if (value != null) {
-                setState(() => _valueController.text = value);
-                _updateDetail();
+              if (value == 'Outro') {
+                _showCustomOptionDialog();
+              } else {
+                _updateSelectValue(value);
               }
             },
           );
@@ -1117,22 +1279,24 @@ class _DetailListItemState extends State<DetailListItem> {
       case 'boolean':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [ 
+          children: [
             Row(
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      setState(() => _booleanValue = 'sim');
-                      _updateDetail();
-                    },
+                    onTap: () => _updateBooleanValue('sim'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: _booleanValue == 'sim' ? Colors.green : Colors.grey.shade700,
+                        color: _booleanValue == 'sim'
+                            ? Colors.green
+                            : Colors.grey.shade700,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: _booleanValue == 'sim' ? Colors.green : Colors.grey.shade500,
+                          color: _booleanValue == 'sim'
+                              ? Colors.green
+                              : Colors.grey.shade500,
                           width: 1.5,
                         ),
                       ),
@@ -1140,9 +1304,13 @@ class _DetailListItemState extends State<DetailListItem> {
                         'Sim',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _booleanValue == 'sim' ? Colors.white : Colors.grey.shade300,
-                          fontSize: 12,
-                          fontWeight: _booleanValue == 'sim' ? FontWeight.bold : FontWeight.normal,
+                          color: _booleanValue == 'sim'
+                              ? Colors.white
+                              : Colors.grey.shade300,
+                          fontSize: 11,
+                          fontWeight: _booleanValue == 'sim'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
@@ -1151,17 +1319,19 @@ class _DetailListItemState extends State<DetailListItem> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      setState(() => _booleanValue = 'não');
-                      _updateDetail();
-                    },
+                    onTap: () => _updateBooleanValue('não'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: _booleanValue == 'não' ? Colors.red : Colors.grey.shade700,
+                        color: _booleanValue == 'não'
+                            ? Colors.red
+                            : Colors.grey.shade700,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: _booleanValue == 'não' ? Colors.red : Colors.grey.shade500,
+                          color: _booleanValue == 'não'
+                              ? Colors.red
+                              : Colors.grey.shade500,
                           width: 1.5,
                         ),
                       ),
@@ -1169,9 +1339,13 @@ class _DetailListItemState extends State<DetailListItem> {
                         'Não',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _booleanValue == 'não' ? Colors.white : Colors.grey.shade300,
-                          fontSize: 12,
-                          fontWeight: _booleanValue == 'não' ? FontWeight.bold : FontWeight.normal,
+                          color: _booleanValue == 'não'
+                              ? Colors.white
+                              : Colors.grey.shade300,
+                          fontSize: 11,
+                          fontWeight: _booleanValue == 'não'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
@@ -1180,17 +1354,19 @@ class _DetailListItemState extends State<DetailListItem> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      setState(() => _booleanValue = 'não_se_aplica');
-                      _updateDetail();
-                    },
+                    onTap: () => _updateBooleanValue('não_se_aplica'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: _booleanValue == 'não_se_aplica' ? Colors.yellowAccent : Colors.grey.shade700,
+                        color: _booleanValue == 'não_se_aplica'
+                            ? Colors.yellowAccent
+                            : Colors.grey.shade700,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: _booleanValue == 'não_se_aplica' ? Colors.yellowAccent : Colors.grey.shade500,
+                          color: _booleanValue == 'não_se_aplica'
+                              ? Colors.yellowAccent
+                              : Colors.grey.shade500,
                           width: 1.5,
                         ),
                       ),
@@ -1198,9 +1374,13 @@ class _DetailListItemState extends State<DetailListItem> {
                         'N/A',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _booleanValue == 'não_se_aplica' ? Colors.grey.shade500 : Colors.grey.shade300,
-                          fontSize: 12,
-                          fontWeight: _booleanValue == 'não_se_aplica' ? FontWeight.bold : FontWeight.normal,
+                          color: _booleanValue == 'não_se_aplica'
+                              ? Colors.grey.shade500
+                              : Colors.grey.shade300,
+                          fontSize: 11,
+                          fontWeight: _booleanValue == 'não_se_aplica'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
@@ -1225,7 +1405,10 @@ class _DetailListItemState extends State<DetailListItem> {
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
                 onChanged: (_) => _updateDetail(),
               ),
             ),
@@ -1241,7 +1424,10 @@ class _DetailListItemState extends State<DetailListItem> {
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
                 onChanged: (_) => _updateDetail(),
               ),
             ),
@@ -1257,7 +1443,10 @@ class _DetailListItemState extends State<DetailListItem> {
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
                 onChanged: (_) => _updateDetail(),
               ),
             ),
@@ -1269,10 +1458,10 @@ class _DetailListItemState extends State<DetailListItem> {
         return TextFormField(
           controller: _valueController,
           decoration: InputDecoration(
-            labelText: 'R',
+            labelText: 'Resposta',
             border: const OutlineInputBorder(),
             hintText: 'Digite um valor',
-            labelStyle: TextStyle(color: Colors.green.shade300),
+            labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),
             focusedBorder: OutlineInputBorder(
               borderSide: BorderSide(color: Colors.green.shade300),
             ),
@@ -1286,18 +1475,98 @@ class _DetailListItemState extends State<DetailListItem> {
     return TextFormField(
       controller: _valueController,
       decoration: InputDecoration(
-        labelText: 'R',
+        labelText: 'Resposta',
+        labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),
         border: const OutlineInputBorder(),
         hintText: 'Digite um valor',
-        labelStyle: TextStyle(color: Colors.green.shade300),
         focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: Colors.green.shade300),
         ),
         isDense: true,
       ),
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Colors.white, fontSize: 11),
       onChanged: (_) => _updateDetail(),
     );
   }
 
+  Future<void> _showCustomOptionDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Opção Personalizada',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          content: TextFormField(
+            controller: controller,
+            maxLines: 1,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Digite uma opção personalizada...',
+              hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      // Adicionar a nova opção à lista de opções do detalhe
+      final currentOptions = List<String>.from(widget.detail.options ?? []);
+      if (!currentOptions.contains(result)) {
+        currentOptions.add(result);
+        
+        // Primeiro atualizar o estado local para evitar erro no dropdown
+        setState(() {
+          _currentSelectValue = result;
+          _valueController.text = result;
+        });
+        
+        // Depois atualizar o detalhe com as novas opções
+        final updatedDetail = Detail(
+          id: widget.detail.id,
+          inspectionId: widget.detail.inspectionId,
+          topicId: widget.detail.topicId,
+          itemId: widget.detail.itemId,
+          detailId: widget.detail.detailId,
+          position: widget.detail.position,
+          orderIndex: widget.detail.orderIndex,
+          detailName: widget.detail.detailName,
+          detailValue: result, // Definir o valor customizado
+          observation: widget.detail.observation,
+          isDamaged: widget.detail.isDamaged,
+          tags: widget.detail.tags,
+          createdAt: widget.detail.createdAt,
+          updatedAt: DateTime.now(),
+          type: widget.detail.type,
+          options: currentOptions, // Novas opções incluindo a personalizada
+          status: widget.detail.status,
+          isRequired: widget.detail.isRequired,
+        );
+        widget.onDetailUpdated(updatedDetail);
+        
+        // Salvar no banco de dados
+        if (_debounce?.isActive ?? false) _debounce?.cancel();
+        _debounce = Timer(const Duration(milliseconds: 500), () async {
+          debugPrint('DetailsListSection: Saving detail with custom option: $result');
+          await _serviceFactory.dataService.updateDetail(updatedDetail);
+          debugPrint('DetailsListSection: Detail saved successfully');
+        });
+      } else {
+        // Opção já existe, apenas definir valor
+        _updateSelectValue(result);
+      }
+    }
+  }
 }

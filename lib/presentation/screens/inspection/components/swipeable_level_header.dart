@@ -136,6 +136,8 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                 : FontWeight.normal,
                             color: isSelected ? _levelColor : null,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -294,6 +296,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                                   fontWeight: FontWeight.bold,
                                                   color: _levelColor,
                                                 ),
+                                                maxLines: 3,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
@@ -385,18 +388,6 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                       size: 24,
                     ),
                   ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10.0),
-                child: LinearProgressIndicator(
-                  value: widget.progress,
-                  minHeight: 6,
-                  backgroundColor: _levelColor.withValues(alpha: 0.2),
-                  valueColor: AlwaysStoppedAnimation<Color>(_levelColor),
                 ),
               ),
             ),

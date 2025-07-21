@@ -33,7 +33,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     _pageController = PageController(initialPage: widget.initialIndex);
     // MediaService initialization removed - not used
 
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: [SystemUiOverlay.top]);
   }
 
   @override
@@ -365,7 +365,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                _formatDateTime(currentMedia['created_at']),
+                                currentMedia['type'] == 'image' ? 'Imagem' : 'Vídeo',
                                 style: const TextStyle(color: Colors.white70),
                               ),
                               const Spacer(),
@@ -402,6 +402,44 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                                 ),
                             ],
                           ),
+
+                          // Data e hora de captura
+                          if (currentMedia['captured_at'] != null || currentMedia['created_at'] != null) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  color: Colors.white70,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Capturado em: ${_formatDateTime(currentMedia['captured_at'] ?? currentMedia['created_at'])}',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          // Informações de GPS se disponíveis
+                          if (currentMedia['latitude'] != null && currentMedia['longitude'] != null) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.location_on,
+                                  color: Colors.white70,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'GPS: ${(currentMedia['latitude'] as double).toStringAsFixed(6)}, ${(currentMedia['longitude'] as double).toStringAsFixed(6)}',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ],
 
                           // Observação se existir
                           if (currentMedia['observation'] != null &&

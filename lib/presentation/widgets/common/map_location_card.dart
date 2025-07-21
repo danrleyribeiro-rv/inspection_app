@@ -149,7 +149,7 @@ class MapLocationCard extends StatelessWidget {
                           fontSize: 10,
                           color: Colors.grey[400],
                         ),
-                        maxLines: 2,
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

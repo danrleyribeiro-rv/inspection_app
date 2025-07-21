@@ -1,9 +1,10 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const String _databaseName = 'inspection_offline.db';
-  static const int _databaseVersion = 10;
+  static const int _databaseVersion = 14;
 
   static Database? _database;
 
@@ -52,7 +53,10 @@ class DatabaseHelper {
         has_local_changes INTEGER NOT NULL DEFAULT 0,
         topics TEXT,
         needs_sync INTEGER NOT NULL DEFAULT 0,
-        is_deleted INTEGER NOT NULL DEFAULT 0
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        sync_history TEXT,
+        area TEXT,
+        deleted_at TEXT
       )
     ''');
 
@@ -65,6 +69,8 @@ class DatabaseHelper {
         order_index INTEGER NOT NULL DEFAULT 0,
         topic_name TEXT NOT NULL,
         topic_label TEXT,
+        description TEXT,
+        direct_details INTEGER NOT NULL DEFAULT 0,
         observation TEXT,
         is_damaged INTEGER NOT NULL DEFAULT 0,
         tags TEXT,
@@ -87,6 +93,10 @@ class DatabaseHelper {
         order_index INTEGER NOT NULL DEFAULT 0,
         item_name TEXT NOT NULL,
         item_label TEXT,
+        description TEXT,
+        evaluable INTEGER NOT NULL DEFAULT 0,
+        evaluation_options TEXT,
+        evaluation_value TEXT,
         evaluation TEXT,
         observation TEXT,
         is_damaged INTEGER NOT NULL DEFAULT 0,
@@ -119,6 +129,8 @@ class DatabaseHelper {
         updated_at TEXT NOT NULL,
         type TEXT,
         options TEXT,
+        allow_custom_option INTEGER NOT NULL DEFAULT 0,
+        custom_option_value TEXT,
         status TEXT,
         is_required INTEGER NOT NULL DEFAULT 0,
         needs_sync INTEGER NOT NULL DEFAULT 0,
@@ -185,6 +197,10 @@ class DatabaseHelper {
         source TEXT,
         is_resolution_media INTEGER NOT NULL DEFAULT 0,
         metadata TEXT,
+        captured_at TEXT,
+        latitude REAL,
+        longitude REAL,
+        order_index INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE,
         FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE CASCADE,
         FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE,
@@ -241,6 +257,19 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_inspection_history_date ON inspection_history(date)');
   }
 
+  static Future<bool> _columnExists(Database db, String tableName, String columnName) async {
+    final result = await db.rawQuery('PRAGMA table_info($tableName)');
+    return result.any((column) => column['name'] == columnName);
+  }
+
+  static Future<bool> _tableExists(Database db, String tableName) async {
+    final result = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [tableName]
+    );
+    return result.isNotEmpty;
+  }
+
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 3) {
       // Migração para versão 3: Recriar todas as tabelas com nova estrutura
@@ -261,52 +290,196 @@ class DatabaseHelper {
     
     if (oldVersion < 4) {
       // Migração para versão 4: Adicionar order_index à tabela topics
-      await db.execute('ALTER TABLE topics ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
-      
-      // Atualizar order_index com base na position existente
-      await db.execute('UPDATE topics SET order_index = position');
+      if (!await _columnExists(db, 'topics', 'order_index')) {
+        await db.execute('ALTER TABLE topics ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+        
+        // Atualizar order_index com base na position existente
+        await db.execute('UPDATE topics SET order_index = position');
+      }
     }
     
     if (oldVersion < 5) {
       // Migração para versão 5: Adicionar order_index à tabela items
-      await db.execute('ALTER TABLE items ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
-      
-      // Atualizar order_index com base na position existente
-      await db.execute('UPDATE items SET order_index = position');
+      if (!await _columnExists(db, 'items', 'order_index')) {
+        await db.execute('ALTER TABLE items ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+        
+        // Atualizar order_index com base na position existente
+        await db.execute('UPDATE items SET order_index = position');
+      }
     }
     
     if (oldVersion < 6) {
       // Migração para versão 6: Adicionar order_index à tabela details
-      await db.execute('ALTER TABLE details ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
-      
-      // Atualizar order_index com base na position existente
-      await db.execute('UPDATE details SET order_index = COALESCE(position, 0)');
+      if (!await _columnExists(db, 'details', 'order_index')) {
+        await db.execute('ALTER TABLE details ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+        
+        // Atualizar order_index com base na position existente
+        await db.execute('UPDATE details SET order_index = COALESCE(position, 0)');
+      }
     }
     
     if (oldVersion < 7) {
       // Migração para versão 7: Adicionar corrective_action e deadline à tabela non_conformities
-      await db.execute('ALTER TABLE non_conformities ADD COLUMN corrective_action TEXT');
-      await db.execute('ALTER TABLE non_conformities ADD COLUMN deadline TEXT');
+      if (!await _columnExists(db, 'non_conformities', 'corrective_action')) {
+        await db.execute('ALTER TABLE non_conformities ADD COLUMN corrective_action TEXT');
+      }
+      if (!await _columnExists(db, 'non_conformities', 'deadline')) {
+        await db.execute('ALTER TABLE non_conformities ADD COLUMN deadline TEXT');
+      }
     }
     
     if (oldVersion < 8) {
       // Migração para versão 8: Adicionar is_resolved e resolved_at à tabela non_conformities
-      await db.execute('ALTER TABLE non_conformities ADD COLUMN is_resolved INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE non_conformities ADD COLUMN resolved_at TEXT');
+      if (!await _columnExists(db, 'non_conformities', 'is_resolved')) {
+        await db.execute('ALTER TABLE non_conformities ADD COLUMN is_resolved INTEGER NOT NULL DEFAULT 0');
+      }
+      if (!await _columnExists(db, 'non_conformities', 'resolved_at')) {
+        await db.execute('ALTER TABLE non_conformities ADD COLUMN resolved_at TEXT');
+      }
     }
     
     if (oldVersion < 9) {
       // Migração para versão 9: Adicionar is_resolution_media à tabela offline_media
-      await db.execute('ALTER TABLE offline_media ADD COLUMN is_resolution_media INTEGER NOT NULL DEFAULT 0');
+      if (!await _columnExists(db, 'offline_media', 'is_resolution_media')) {
+        await db.execute('ALTER TABLE offline_media ADD COLUMN is_resolution_media INTEGER NOT NULL DEFAULT 0');
+      }
     }
     
     if (oldVersion < 10) {
       // Migração para versão 10: Adicionar tabela inspection_history
-      await db.execute('''\n        CREATE TABLE inspection_history (\n          id TEXT PRIMARY KEY,\n          inspection_id TEXT NOT NULL,\n          date TEXT NOT NULL,\n          status TEXT NOT NULL,\n          inspector_id TEXT NOT NULL,\n          description TEXT,\n          metadata TEXT,\n          created_at TEXT NOT NULL,\n          needs_sync INTEGER NOT NULL DEFAULT 1,\n          FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE\n        )\n      ''');
+      if (!await _tableExists(db, 'inspection_history')) {
+        await db.execute('''\n        CREATE TABLE inspection_history (\n          id TEXT PRIMARY KEY,\n          inspection_id TEXT NOT NULL,\n          date TEXT NOT NULL,\n          status TEXT NOT NULL,\n          inspector_id TEXT NOT NULL,\n          description TEXT,\n          metadata TEXT,\n          created_at TEXT NOT NULL,\n          needs_sync INTEGER NOT NULL DEFAULT 1,\n          FOREIGN KEY (inspection_id) REFERENCES inspections (id) ON DELETE CASCADE\n        )\n      ''');
+        
+        // Adicionar índices para a nova tabela
+        await db.execute('CREATE INDEX idx_inspection_history_inspection_id ON inspection_history(inspection_id)');
+        await db.execute('CREATE INDEX idx_inspection_history_date ON inspection_history(date)');
+      }
+    }
+    
+    if (oldVersion < 11) {
+      // Migração para versão 11: Adicionar captured_at, latitude e longitude à tabela offline_media
+      debugPrint('DatabaseHelper: Migrating from version $oldVersion to 11');
       
-      // Adicionar índices para a nova tabela
-      await db.execute('CREATE INDEX idx_inspection_history_inspection_id ON inspection_history(inspection_id)');
-      await db.execute('CREATE INDEX idx_inspection_history_date ON inspection_history(date)');
+      if (!await _columnExists(db, 'offline_media', 'captured_at')) {
+        debugPrint('DatabaseHelper: Adding captured_at column');
+        await db.execute('ALTER TABLE offline_media ADD COLUMN captured_at TEXT');
+      } else {
+        debugPrint('DatabaseHelper: captured_at column already exists');
+      }
+      
+      if (!await _columnExists(db, 'offline_media', 'latitude')) {
+        debugPrint('DatabaseHelper: Adding latitude column');
+        await db.execute('ALTER TABLE offline_media ADD COLUMN latitude REAL');
+      } else {
+        debugPrint('DatabaseHelper: latitude column already exists');
+      }
+      
+      if (!await _columnExists(db, 'offline_media', 'longitude')) {
+        debugPrint('DatabaseHelper: Adding longitude column');
+        await db.execute('ALTER TABLE offline_media ADD COLUMN longitude REAL');
+      } else {
+        debugPrint('DatabaseHelper: longitude column already exists');
+      }
+      
+      debugPrint('DatabaseHelper: Migration to version 11 completed');
+    }
+    
+    if (oldVersion < 12) {
+      // Migração para versão 12: Adicionar novos campos para hierarquias flexíveis
+      debugPrint('DatabaseHelper: Migrating from version $oldVersion to 12');
+      
+      // Adicionar campos aos tópicos
+      if (!await _columnExists(db, 'topics', 'description')) {
+        debugPrint('DatabaseHelper: Adding description column to topics');
+        await db.execute('ALTER TABLE topics ADD COLUMN description TEXT');
+      }
+      
+      if (!await _columnExists(db, 'topics', 'direct_details')) {
+        debugPrint('DatabaseHelper: Adding direct_details column to topics');
+        await db.execute('ALTER TABLE topics ADD COLUMN direct_details INTEGER NOT NULL DEFAULT 0');
+      }
+      
+      // Adicionar campos aos itens
+      if (!await _columnExists(db, 'items', 'description')) {
+        debugPrint('DatabaseHelper: Adding description column to items');
+        await db.execute('ALTER TABLE items ADD COLUMN description TEXT');
+      }
+      
+      if (!await _columnExists(db, 'items', 'evaluable')) {
+        debugPrint('DatabaseHelper: Adding evaluable column to items');
+        await db.execute('ALTER TABLE items ADD COLUMN evaluable INTEGER NOT NULL DEFAULT 0');
+      }
+      
+      if (!await _columnExists(db, 'items', 'evaluation_options')) {
+        debugPrint('DatabaseHelper: Adding evaluation_options column to items');
+        await db.execute('ALTER TABLE items ADD COLUMN evaluation_options TEXT');
+      }
+      
+      if (!await _columnExists(db, 'items', 'evaluation_value')) {
+        debugPrint('DatabaseHelper: Adding evaluation_value column to items');
+        await db.execute('ALTER TABLE items ADD COLUMN evaluation_value TEXT');
+      }
+      
+      // Adicionar campos aos detalhes
+      if (!await _columnExists(db, 'details', 'allow_custom_option')) {
+        debugPrint('DatabaseHelper: Adding allow_custom_option column to details');
+        await db.execute('ALTER TABLE details ADD COLUMN allow_custom_option INTEGER NOT NULL DEFAULT 0');
+      }
+      
+      if (!await _columnExists(db, 'details', 'custom_option_value')) {
+        debugPrint('DatabaseHelper: Adding custom_option_value column to details');
+        await db.execute('ALTER TABLE details ADD COLUMN custom_option_value TEXT');
+      }
+      
+      debugPrint('DatabaseHelper: Migration to version 12 completed');
+    }
+    
+    if (oldVersion < 13) {
+      // Migração para versão 13: Adicionar campos de histórico de sincronização e ordem de mídia
+      debugPrint('DatabaseHelper: Migrating from version $oldVersion to 13');
+      
+      // Adicionar campos à tabela inspections
+      if (!await _columnExists(db, 'inspections', 'sync_history')) {
+        debugPrint('DatabaseHelper: Adding sync_history column to inspections');
+        await db.execute('ALTER TABLE inspections ADD COLUMN sync_history TEXT');
+      }
+      
+      if (!await _columnExists(db, 'inspections', 'area')) {
+        debugPrint('DatabaseHelper: Adding area column to inspections');
+        await db.execute('ALTER TABLE inspections ADD COLUMN area TEXT');
+      }
+      
+      // Adicionar campo order_index à tabela offline_media
+      if (!await _columnExists(db, 'offline_media', 'order_index')) {
+        debugPrint('DatabaseHelper: Adding order_index column to offline_media');
+        await db.execute('ALTER TABLE offline_media ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0');
+        
+        // Atualizar order_index baseado no timestamp para mídias existentes
+        debugPrint('DatabaseHelper: Updating order_index for existing media');
+        await db.execute('''
+          UPDATE offline_media 
+          SET order_index = (
+            CASE 
+              WHEN captured_at IS NOT NULL THEN strftime('%s', captured_at) * 1000
+              ELSE strftime('%s', created_at) * 1000
+            END
+          )
+        ''');
+      }
+      
+      debugPrint('DatabaseHelper: Migration to version 13 completed');
+    }
+    
+    if (oldVersion < 14) {
+      // Migração para versão 14: Adicionar campo deleted_at à tabela inspections
+      debugPrint('DatabaseHelper: Migrating from version $oldVersion to 14');
+      
+      if (!await _columnExists(db, 'inspections', 'deleted_at')) {
+        debugPrint('DatabaseHelper: Adding deleted_at column to inspections');
+        await db.execute('ALTER TABLE inspections ADD COLUMN deleted_at TEXT');
+      }
+      
+      debugPrint('DatabaseHelper: Migration to version 14 completed');
     }
   }
 

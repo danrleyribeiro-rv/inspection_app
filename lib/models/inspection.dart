@@ -25,6 +25,10 @@ class Inspection {
   final DateTime? lastSyncAt;
   final bool hasLocalChanges;
   final List<Map<String, dynamic>>? topics;
+  final bool needsSync;
+  final List<Map<String, dynamic>>? syncHistory;
+  final String? area;
+  final DateTime? deletedAt;
 
   Inspection({
     required this.id,
@@ -51,6 +55,10 @@ class Inspection {
     this.lastSyncAt,
     this.hasLocalChanges = false,
     this.topics,
+    this.needsSync = false,
+    this.syncHistory,
+    this.area,
+    this.deletedAt,
   });
 
   Inspection copyWith({
@@ -78,6 +86,10 @@ class Inspection {
     DateTime? lastSyncAt,
     bool? hasLocalChanges,
     List<Map<String, dynamic>>? topics,
+    bool? needsSync,
+    List<Map<String, dynamic>>? syncHistory,
+    String? area,
+    DateTime? deletedAt,
   }) {
     return Inspection(
       id: id ?? this.id,
@@ -104,6 +116,10 @@ class Inspection {
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
       hasLocalChanges: hasLocalChanges ?? this.hasLocalChanges,
       topics: topics ?? this.topics,
+      needsSync: needsSync ?? this.needsSync,
+      syncHistory: syncHistory ?? this.syncHistory,
+      area: area ?? this.area,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -118,7 +134,7 @@ class Inspection {
       'state': state,
       'zip_code': zipCode,
       'address_string': addressString,
-      'address': address?.toString(),
+      'address': address?.toString(), // Convert to string for local DB
       'status': status,
       'observation': observation,
       'scheduled_date': scheduledDate?.toIso8601String(),
@@ -132,7 +148,12 @@ class Inspection {
       'is_synced': isSynced ? 1 : 0,
       'last_sync_at': lastSyncAt?.toIso8601String(),
       'has_local_changes': hasLocalChanges ? 1 : 0,
-      'topics': topics?.toString(),
+      'topics': topics?.toString(), // Convert to string for local DB
+      'needs_sync': needsSync ? 1 : 0,
+      'sync_history': syncHistory?.toString(), // Convert to string for local DB
+      'area': area,
+      'deleted_at': deletedAt?.toIso8601String(),
+      'is_deleted': deletedAt != null ? 1 : 0, // Se tem deleted_at, está deletada
     };
 
     return data;
@@ -177,6 +198,17 @@ class Inspection {
       }
     }
 
+    bool needsSync = false;
+    if (json.containsKey('needs_sync')) {
+      if (json['needs_sync'] is bool) {
+        needsSync = json['needs_sync'];
+      } else if (json['needs_sync'] is String) {
+        needsSync = json['needs_sync'].toLowerCase() == 'true';
+      } else if (json['needs_sync'] == 1) {
+        needsSync = true;
+      }
+    }
+
     List<Map<String, dynamic>>? topics;
     if (json['topics'] != null) {
       if (json['topics'] is List) {
@@ -193,6 +225,29 @@ class Inspection {
           if (parsed.startsWith('[')) {
             // É um array JSON em string - mas não fazer parse aqui, deixar como string
             topics = null; // Será processado depois
+          }
+        } catch (e) {
+          // Se não conseguir parsear, ignorar
+        }
+      }
+    }
+
+    List<Map<String, dynamic>>? syncHistory;
+    if (json['sync_history'] != null) {
+      if (json['sync_history'] is List) {
+        syncHistory = List<Map<String, dynamic>>.from(json['sync_history'].map((item) {
+          if (item is Map) {
+            return Map<String, dynamic>.from(item);
+          }
+          return item;
+        }));
+      } else if (json['sync_history'] is String) {
+        // Tentar parsear string JSON se necessário
+        try {
+          final parsed = json['sync_history'];
+          if (parsed.startsWith('[')) {
+            // É um array JSON em string - mas não fazer parse aqui, deixar como string
+            syncHistory = null; // Será processado depois
           }
         } catch (e) {
           // Se não conseguir parsear, ignorar
@@ -227,6 +282,10 @@ class Inspection {
       lastSyncAt: _parseDateTime(json['last_sync_at']),
       hasLocalChanges: hasLocalChanges,
       topics: topics,
+      needsSync: needsSync,
+      syncHistory: syncHistory,
+      area: json['area']?.toString(),
+      deletedAt: _parseDateTime(json['deleted_at']),
     );
   }
 

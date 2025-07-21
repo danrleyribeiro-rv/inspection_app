@@ -2,15 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:intl/intl.dart';
 
 class MediaPreviewScreen extends StatefulWidget {
   final String mediaUrl;
   final String mediaType;
+  final Map<String, dynamic>? mediaMetadata;
   
   const MediaPreviewScreen({
     super.key,
     required this.mediaUrl,
     required this.mediaType,
+    this.mediaMetadata,
   });
 
   @override
@@ -20,6 +23,20 @@ class MediaPreviewScreen extends StatefulWidget {
 class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
   VideoPlayerController? _videoController;
   bool _isPlaying = false;
+  
+  String _formatDateTime(dynamic timestamp) {
+    try {
+      DateTime date;
+      if (timestamp is String) {
+        date = DateTime.parse(timestamp);
+      } else {
+        return 'Data desconhecida';
+      }
+      return DateFormat('dd/MM/yyyy HH:mm').format(date);
+    } catch (e) {
+      return 'Data inválida';
+    }
+  }
   
   @override
   void initState() {
@@ -59,6 +76,26 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
         backgroundColor: Colors.black,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        title: widget.mediaMetadata != null && 
+               (widget.mediaMetadata!['captured_at'] != null || widget.mediaMetadata!['created_at'] != null)
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.mediaType == 'image' ? 'Imagem' : 'Vídeo',
+                    style: const TextStyle(color: Colors.white, fontSize: 18),
+                  ),
+                  Text(
+                    _formatDateTime(widget.mediaMetadata!['captured_at'] ?? widget.mediaMetadata!['created_at']),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              )
+            : Text(
+                widget.mediaType == 'image' ? 'Imagem' : 'Vídeo',
+                style: const TextStyle(color: Colors.white),
+              ),
         actions: [],
       ),
       body: Center(

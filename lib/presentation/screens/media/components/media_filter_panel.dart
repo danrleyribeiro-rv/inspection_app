@@ -151,13 +151,13 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 children: [
                   const Text('Filtrar Mídia',
                       style:
-                          TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => Navigator.of(context).pop()),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
               // --- TOPIC FILTER ---
               const Text('Tópico', style: TextStyle(color: Colors.white70)),

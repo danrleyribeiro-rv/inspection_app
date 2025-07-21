@@ -1,21 +1,28 @@
-// lib/presentation/widgets/dialogs/move_media_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/models/topic.dart';
+import 'package:lince_inspecoes/models/item.dart';
+import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
+import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class MoveMediaDialog extends StatefulWidget {
   final String inspectionId;
-  final String mediaId;
+  final String? mediaId;
+  final List<String>? selectedMediaIds;
   final String currentLocation;
   final bool isOfflineMode;
+  final List<String> mediaFiles;
 
   const MoveMediaDialog({
     super.key,
     required this.inspectionId,
-    required this.mediaId,
+    this.mediaId,
+    this.selectedMediaIds,
     required this.currentLocation,
     this.isOfflineMode = false,
-  });
+    this.mediaFiles = const [],
+  }) : assert(mediaId != null || selectedMediaIds != null,
+            'Either mediaId or selectedMediaIds must be provided');
 
   @override
   State<MoveMediaDialog> createState() => _MoveMediaDialogState();
@@ -25,151 +32,44 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   final EnhancedOfflineServiceFactory _serviceFactory =
       EnhancedOfflineServiceFactory.instance;
 
-  List<Map<String, dynamic>> _topics = [];
-  List<Map<String, dynamic>> _items = [];
-  List<Map<String, dynamic>> _details = [];
-  List<Map<String, dynamic>> _nonConformities = [];
+  List<Topic> _topics = [];
+  List<Item> _items = [];
+  List<Detail> _details = [];
+  Topic? _selectedTopic;
+  Item? _selectedItem;
+  Detail? _selectedDetail;
 
-  String? _selectedTopicId;
-  String? _selectedItemId;
-  String? _selectedDetailId;
-  String? _selectedNonConformityId;
-  
-  // Destination options
-  String _destinationType = 'topic'; // 'topic', 'item', 'detail', 'nc', 'any'
+  String _selectedAction = 'move';
   bool _isLoading = true;
-  
-  // For "any" destination type - all available options
-  List<Map<String, dynamic>> _allTopics = [];
-  List<Map<String, dynamic>> _allItems = [];
-  List<Map<String, dynamic>> _allDetails = [];
-  
-  // New NC fields
-  final _newNCTitleController = TextEditingController();
-  final _newNCDescriptionController = TextEditingController();
-  final _newNCActionController = TextEditingController();
-  String _newNCSeverity = 'medium';
+  bool _isProcessing = false;
+
+  List<NonConformity> _nonConformities = [];
+  NonConformity? _selectedNonConformity;
+  final Map<String, Map<String, String>> _ncOriginInfo = {};
 
   @override
   void initState() {
     super.initState();
-    _loadHierarchy();
+    _loadTopics();
   }
 
-  @override
-  void dispose() {
-    _newNCTitleController.dispose();
-    _newNCDescriptionController.dispose();
-    _newNCActionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadHierarchy() async {
+  Future<void> _loadTopics() async {
     try {
-      debugPrint('MoveMediaDialog: Loading hierarchy for inspection ${widget.inspectionId}');
-      
-      final inspection =
-          await _serviceFactory.dataService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null) {
-        final topics = <Map<String, dynamic>>[];
-        final allTopics = <Map<String, dynamic>>[];
-        final allItems = <Map<String, dynamic>>[];
-        final allDetails = <Map<String, dynamic>>[];
+      setState(() => _isLoading = true);
+      final topics =
+          await _serviceFactory.dataService.getTopics(widget.inspectionId);
 
-        for (int i = 0; i < inspection!.topics!.length; i++) {
-          final topicData = inspection.topics![i];
-          final topicId = topicData['id'] ?? 'topic_$i';
-          final topicName = topicData['name'] ??
-              topicData['topic_name'] ??
-              topicData['topicName'] ??
-              'Tópico ${i + 1}';
-              
-          final topicEntry = {
-            'id': topicId,
-            'name': topicName,
-            'data': topicData,
-          };
-          
-          topics.add(topicEntry);
-          allTopics.add(topicEntry);
-          
-          // Load all items for "any" destination
-          final itemsList = topicData['items'] as List<dynamic>? ?? [];
-          for (int j = 0; j < itemsList.length; j++) {
-            final itemData = itemsList[j];
-            final itemId = itemData['id'] ?? 'item_${i}_$j';
-            final itemName = itemData['name'] ?? 
-                itemData['item_name'] ?? 
-                itemData['itemName'] ?? 
-                'Item ${j + 1}';
-                
-            final itemEntry = {
-              'id': itemId,
-              'name': '$topicName → $itemName',
-              'topicId': topicId,
-              'topicName': topicName,
-              'itemName': itemName,
-              'data': itemData,
-            };
-            
-            allItems.add(itemEntry);
-            
-            // Load all details for "any" destination
-            final detailsList = itemData['details'] as List<dynamic>? ?? [];
-            for (int k = 0; k < detailsList.length; k++) {
-              final detailData = detailsList[k];
-              final detailId = detailData['id'] ?? 'detail_${i}_${j}_$k';
-              final detailName = detailData['name'] ??
-                  detailData['detail_name'] ??
-                  detailData['detailName'] ??
-                  'Detalhe ${k + 1}';
-                  
-              allDetails.add({
-                'id': detailId,
-                'name': '$topicName → $itemName → $detailName',
-                'topicId': topicId,
-                'itemId': itemId,
-                'topicName': topicName,
-                'itemName': itemName,
-                'detailName': detailName,
-                'data': detailData,
-              });
-            }
-          }
-          
-          debugPrint('MoveMediaDialog: Added topic $topicId - $topicName');
-        }
-
-        if (mounted) {
-          setState(() {
-            _topics = topics;
-            _allTopics = allTopics;
-            _allItems = allItems;
-            _allDetails = allDetails;
-            _isLoading = false;
-          });
-        }
-        debugPrint('MoveMediaDialog: Loaded ${topics.length} topics, ${allItems.length} items, ${allDetails.length} details');
-      } else {
-        if (mounted) {
-          setState(() {
-            _topics = [];
-            _allTopics = [];
-            _allItems = [];
-            _allDetails = [];
-            _isLoading = false;
-          });
-        }
-        debugPrint('MoveMediaDialog: No topics found in inspection');
-      }
-    } catch (e) {
-      debugPrint('MoveMediaDialog: Error loading hierarchy: $e');
       if (mounted) {
         setState(() {
+          _topics = topics;
           _isLoading = false;
         });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar hierarquia: $e')),
+          SnackBar(content: Text('Erro ao carregar tópicos: $e')),
         );
       }
     }
@@ -177,204 +77,77 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadItems(String topicId) async {
     try {
-      debugPrint('MoveMediaDialog: Loading items for topic $topicId');
-      
-      final inspection =
-          await _serviceFactory.dataService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null) {
-        for (int topicIndex = 0;
-            topicIndex < inspection!.topics!.length;
-            topicIndex++) {
-          final topicData = inspection.topics![topicIndex];
-          final currentTopicId = topicData['id'] ?? 'topic_$topicIndex';
+      final items = await _serviceFactory.dataService.getItems(topicId);
 
-          if (currentTopicId == topicId) {
-            final items = <Map<String, dynamic>>[];
-            final itemsList = topicData['items'] as List<dynamic>? ?? [];
-
-            for (int i = 0; i < itemsList.length; i++) {
-              final itemData = itemsList[i];
-              final itemId = itemData['id'] ?? 'item_${topicIndex}_$i';
-              final itemName = itemData['name'] ?? 
-                  itemData['item_name'] ?? 
-                  itemData['itemName'] ?? 
-                  'Item ${i + 1}';
-                  
-              items.add({
-                'id': itemId,
-                'name': itemName,
-                'data': itemData,
-              });
-              
-              debugPrint('MoveMediaDialog: Added item $itemId - $itemName');
-            }
-
-            if (mounted) {
-              setState(() {
-                _items = items;
-                _selectedItemId = null;
-                _details = [];
-                _selectedDetailId = null;
-                _nonConformities = [];
-                _selectedNonConformityId = null;
-              });
-            }
-            debugPrint('MoveMediaDialog: Loaded ${items.length} items for topic $topicId');
-            return;
-          }
-        }
-      }
-      
       if (mounted) {
         setState(() {
-          _items = [];
-          _selectedItemId = null;
+          _items = items;
+          _selectedItem = null;
           _details = [];
-          _selectedDetailId = null;
-          _nonConformities = [];
-          _selectedNonConformityId = null;
+          _selectedDetail = null;
         });
       }
     } catch (e) {
-      debugPrint('MoveMediaDialog: Error loading items: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar itens: $e')),
+        );
+      }
     }
   }
 
   Future<void> _loadDetails(String itemId) async {
     try {
-      debugPrint('MoveMediaDialog: Loading details for item $itemId');
-      
-      final inspection =
-          await _serviceFactory.dataService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null) {
-        for (int topicIndex = 0;
-            topicIndex < inspection!.topics!.length;
-            topicIndex++) {
-          final topicData = inspection.topics![topicIndex];
-          final itemsList = topicData['items'] as List<dynamic>? ?? [];
+      final details = await _serviceFactory.dataService.getDetails(itemId);
 
-          for (int itemIndex = 0; itemIndex < itemsList.length; itemIndex++) {
-            final itemData = itemsList[itemIndex];
-            final currentItemId = itemData['id'] ?? 'item_${topicIndex}_$itemIndex';
-
-            if (currentItemId == itemId) {
-              final details = <Map<String, dynamic>>[];
-              final detailsList = itemData['details'] as List<dynamic>? ?? [];
-
-              for (int i = 0; i < detailsList.length; i++) {
-                final detailData = detailsList[i];
-                final detailId = detailData['id'] ?? 'detail_${topicIndex}_${itemIndex}_$i';
-                final detailName = detailData['name'] ??
-                    detailData['detail_name'] ??
-                    detailData['detailName'] ??
-                    'Detalhe ${i + 1}';
-                    
-                details.add({
-                  'id': detailId,
-                  'name': detailName,
-                  'data': detailData,
-                });
-                
-                debugPrint('MoveMediaDialog: Added detail $detailId - $detailName');
-              }
-
-              if (mounted) {
-                setState(() {
-                  _details = details;
-                  _selectedDetailId = null;
-                  _nonConformities = [];
-                  _selectedNonConformityId = null;
-                });
-              }
-              return;
-            }
-          }
-        }
-      }
-      
       if (mounted) {
         setState(() {
-          _details = [];
-          _selectedDetailId = null;
-          _nonConformities = [];
-          _selectedNonConformityId = null;
+          _details = details;
+          _selectedDetail = null;
         });
       }
     } catch (e) {
-      debugPrint('MoveMediaDialog: Error loading details: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar detalhes: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _loadNonConformities(String detailId) async {
+  Future<void> _loadAllNonConformities() async {
     try {
-      final inspection =
-          await _serviceFactory.dataService.getInspection(widget.inspectionId);
-      if (inspection?.topics != null) {
-        for (int topicIndex = 0;
-            topicIndex < inspection!.topics!.length;
-            topicIndex++) {
-          final topicData = inspection.topics![topicIndex];
-          final itemsList = topicData['items'] as List<dynamic>? ?? [];
+      // Carregar todas as não conformidades da inspeção com informações completas
+      List<NonConformity> allNCs = [];
 
-          for (int itemIndex = 0; itemIndex < itemsList.length; itemIndex++) {
-            final itemData = itemsList[itemIndex];
-            final detailsList = itemData['details'] as List<dynamic>? ?? [];
-
-            for (int detailIndex = 0;
-                detailIndex < detailsList.length;
-                detailIndex++) {
-              final detailData = detailsList[detailIndex];
-              final currentDetailId = detailData['id'] ??
-                  'detail_${topicIndex}_${itemIndex}_$detailIndex';
-
-              if (currentDetailId == detailId) {
-                final nonConformities = <Map<String, dynamic>>[];
-                final ncList =
-                    detailData['non_conformities'] as List<dynamic>? ?? [];
-
-                for (int i = 0; i < ncList.length; i++) {
-                  final ncData = ncList[i];
-                  final ncId = ncData['id'] ??
-                      'nc_${topicIndex}_${itemIndex}_${detailIndex}_$i';
-                  final title = ncData['title'] ??
-                      ncData['description'] ??
-                      'Não Conformidade';
-                  final description = ncData['description'] ?? '';
-                  final severity = ncData['severity'] ?? 'medium';
-                  final status =
-                      ncData['is_resolved'] == true ? 'Resolvida' : 'Pendente';
-
-                  final displayTitle = '${i + 1}. $title';
-                  final displaySubtitle =
-                      '${_getSeverityText(severity)} • $status${description.isNotEmpty ? ' • $description' : ''}';
-
-                  nonConformities.add({
-                    'id': ncId,
-                    'title': title,
-                    'displayTitle': displayTitle,
-                    'displaySubtitle': displaySubtitle,
-                    'description': description,
-                    'severity': severity,
-                    'status': status,
-                    'index': i + 1,
-                    'data': ncData,
-                  });
-                }
-
-                setState(() {
-                  _nonConformities = nonConformities;
-                  _selectedNonConformityId = null;
-                });
-                return;
-              }
+      // Buscar todas as NCs em todos os tópicos
+      for (final topic in _topics) {
+        final items = await _serviceFactory.dataService.getItems(topic.id!);
+        for (final item in items) {
+          final details =
+              await _serviceFactory.dataService.getDetails(item.id!);
+          for (final detail in details) {
+            final ncs = await _serviceFactory.dataService
+                .getNonConformitiesByDetail(detail.id!);
+            // Armazenar informações da origem em estrutura auxiliar
+            for (final nc in ncs) {
+              _ncOriginInfo[nc.id] = {
+                'topicName': topic.topicName,
+                'itemName': item.itemName,
+                'detailName': detail.detailName,
+              };
+              allNCs.add(nc);
             }
           }
         }
       }
-      setState(() {
-        _nonConformities = [];
-        _selectedNonConformityId = null;
-      });
+
+      if (mounted) {
+        setState(() {
+          _nonConformities = allNCs;
+          _selectedNonConformity = null;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -384,751 +157,791 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     }
   }
 
-  String _getSeverityText(String severity) {
-    switch (severity) {
-      case 'low': return 'Baixa';
-      case 'medium': return 'Média';
-      case 'high': return 'Alta';
-      case 'critical': return 'Crítica';
-      default: return 'Média';
-    }
-  }
-
-  String _getDestinationDescription() {
-    List<String> parts = [];
-
-    if (_destinationType == 'any') {
-      // For "any" destination, use the hierarchy info from the selected items
-      if (_selectedDetailId != null) {
-        final detail = _allDetails.firstWhere((d) => d['id'] == _selectedDetailId, orElse: () => {});
-        if (detail.isNotEmpty) {
-          return detail['name'] as String;
-        }
-      } else if (_selectedItemId != null) {
-        final item = _allItems.firstWhere((i) => i['id'] == _selectedItemId, orElse: () => {});
-        if (item.isNotEmpty) {
-          return item['name'] as String;
-        }
-      } else if (_selectedTopicId != null) {
-        final topic = _allTopics.firstWhere((t) => t['id'] == _selectedTopicId, orElse: () => {});
-        if (topic.isNotEmpty) {
-          return 'Tópico: ${topic['name']}';
-        }
-      }
-      return 'Nenhum destino selecionado';
+  Future<void> _createNewNonConformity() async {
+    if (_selectedTopic == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione pelo menos um tópico')),
+      );
+      return;
     }
 
-    if (_selectedTopicId != null) {
-      final topic = _topics.firstWhere((t) => t['id'] == _selectedTopicId,
-          orElse: () => {});
-      if (topic.isNotEmpty) {
-        parts.add('Tópico: ${topic['name']}');
-      }
-    }
+    setState(() => _isProcessing = true);
 
-    if (_destinationType != 'topic' && _selectedItemId != null) {
-      final item = _items.firstWhere((i) => i['id'] == _selectedItemId,
-          orElse: () => {});
-      if (item.isNotEmpty) {
-        parts.add('Item: ${item['name']}');
-      }
-    }
-
-    if (_destinationType == 'detail' || _destinationType == 'nc') {
-      if (_selectedDetailId != null) {
-        final detail = _details.firstWhere((d) => d['id'] == _selectedDetailId,
-            orElse: () => {});
-        if (detail.isNotEmpty) {
-          parts.add('Detalhe: ${detail['name']}');
-        }
-      }
-    }
-
-    if (_destinationType == 'nc') {
-      if (_selectedNonConformityId != null) {
-        final nc = _nonConformities.firstWhere(
-            (n) => n['id'] == _selectedNonConformityId,
-            orElse: () => {});
-        if (nc.isNotEmpty) {
-          parts.add('NC: ${nc['title']}');
-        }
-      } else if (_newNCTitleController.text.isNotEmpty) {
-        parts.add('NC: ${_newNCTitleController.text}');
-      } else {
-        parts.add('(Nova Não Conformidade)');
-      }
-    }
-
-    return parts.isEmpty ? 'Nenhum destino selecionado' : parts.join(' → ');
-  }
-
-  bool _isValidSelection() {
-    switch (_destinationType) {
-      case 'topic':
-        return _selectedTopicId != null;
-      case 'item':
-        return _selectedTopicId != null && _selectedItemId != null;
-      case 'detail':
-        return _selectedTopicId != null && _selectedItemId != null && _selectedDetailId != null;
-      case 'nc':
-        return _selectedTopicId != null && 
-               _selectedItemId != null && 
-               _selectedDetailId != null &&
-               (_selectedNonConformityId != null || _newNCTitleController.text.isNotEmpty);
-      case 'any':
-        return _selectedTopicId != null || _selectedItemId != null || _selectedDetailId != null;
-      default:
-        return false;
-    }
-  }
-
-  Future<void> _moveMedia() async {
     try {
-      if (!_isValidSelection()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Por favor, complete a seleção do destino'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      String? nonConformityId;
-      
-      // Create new NC if needed
-      if (_destinationType == 'nc' && _selectedNonConformityId == null) {
-        if (_newNCTitleController.text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Por favor, insira o título da nova não conformidade'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          return;
-        }
-
-        // Create new non-conformity
-        final newNC = NonConformity(
-          id: 'nc_${DateTime.now().millisecondsSinceEpoch}',
-          inspectionId: widget.inspectionId,
-          topicId: _selectedTopicId,
-          itemId: _selectedItemId,
-          detailId: _selectedDetailId,
-          title: _newNCTitleController.text,
-          description: _newNCDescriptionController.text,
-          severity: _newNCSeverity,
-          status: 'open',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          needsSync: true,
-          isDeleted: false,
-        );
-
-        await _serviceFactory.dataService.saveNonConformity(newNC);
-        nonConformityId = newNC.id;
-      } else if (_destinationType == 'nc') {
-        nonConformityId = _selectedNonConformityId;
-      }
-
-      // For "any" destination, extract the IDs from the selected entry
-      String? finalTopicId = _selectedTopicId;
-      String? finalItemId = _selectedItemId;
-      String? finalDetailId = _selectedDetailId;
-      
-      if (_destinationType == 'any') {
-        if (_selectedDetailId != null) {
-          // Detail selected - extract all IDs
-          final detail = _allDetails.firstWhere((d) => d['id'] == _selectedDetailId, orElse: () => {});
-          if (detail.isNotEmpty) {
-            finalTopicId = detail['topicId'];
-            finalItemId = detail['itemId'];
-            finalDetailId = detail['id'];
-          }
-        } else if (_selectedItemId != null) {
-          // Item selected - extract topic and item IDs
-          final item = _allItems.firstWhere((i) => i['id'] == _selectedItemId, orElse: () => {});
-          if (item.isNotEmpty) {
-            finalTopicId = item['topicId'];
-            finalItemId = item['id'];
-            finalDetailId = null;
-          }
-        }
-        // Topic ID is already correct for topic-only selection
-      }
-
-      // Move media using the media service
-      final success = await _serviceFactory.mediaService.moveMedia(
-        mediaId: widget.mediaId,
+      // Criar a não conformidade primeiro
+      final nonConformity = NonConformity.create(
         inspectionId: widget.inspectionId,
-        newTopicId: finalTopicId,
-        newItemId: (_destinationType != 'topic' && _destinationType != 'any') ? _selectedItemId : finalItemId,
-        newDetailId: (_destinationType == 'detail' || _destinationType == 'nc') ? _selectedDetailId : finalDetailId,
-        newNonConformityId: nonConformityId,
+        topicId: _selectedTopic!.id!,
+        itemId: _selectedItem?.id,
+        detailId: _selectedDetail?.id,
+        title: 'Nova Não Conformidade',
+        description: 'Criada automaticamente ao',
+        severity: 'medium',
+        status: 'open',
       );
 
+      // Salvar a não conformidade
+      await _serviceFactory.dataService.saveNonConformity(nonConformity);
+
+      // Mover as imagens para a nova não conformidade
+      final List<String> mediaIds =
+          widget.selectedMediaIds ?? [widget.mediaId!];
+      bool allSuccess = true;
+
+      for (final mediaId in mediaIds) {
+        final success = await _serviceFactory.mediaService.moveMedia(
+          mediaId: mediaId,
+          inspectionId: widget.inspectionId,
+          newTopicId: _selectedTopic!.id,
+          newItemId: _selectedItem?.id,
+          newDetailId: _selectedDetail?.id,
+          newNonConformityId: nonConformity.id,
+        );
+
+        if (!success) {
+          allSuccess = false;
+          break;
+        }
+      }
+
       if (mounted) {
-        if (success) {
+        if (allSuccess) {
           Navigator.of(context).pop(true);
+          final count = mediaIds.length;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(widget.isOfflineMode
-                  ? 'Mídia offline movida com sucesso!'
-                  : 'Mídia movida com sucesso!'),
+              content: Text(count > 1
+                  ? '$count mídias movidas para nova NC com sucesso!'
+                  : 'Mídia movida para nova NC com sucesso!'),
               backgroundColor: Colors.green,
             ),
           );
         } else {
+          setState(() => _isProcessing = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Erro ao mover mídia'),
-              backgroundColor: Colors.red,
-            ),
+                content: Text('Erro ao mover mídia para nova NC'),
+                backgroundColor: Colors.red),
           );
         }
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao mover mídia: $e'),
-            backgroundColor: Colors.red,
-          ),
+              content: Text('Erro ao criar NC e mover mídia: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
   }
 
+  Future<void> _deleteMedia() async {
+    setState(() => _isProcessing = true);
+
+    try {
+      final List<String> mediaIds =
+          widget.selectedMediaIds ?? [widget.mediaId!];
+      bool allSuccess = true;
+
+      for (final mediaId in mediaIds) {
+        try {
+          await _serviceFactory.mediaService.deleteMedia(mediaId);
+        } catch (e) {
+          allSuccess = false;
+          break;
+        }
+      }
+
+      if (mounted) {
+        if (allSuccess) {
+          Navigator.of(context).pop(true);
+          final count = mediaIds.length;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(count > 1
+                  ? '$count mídias excluídas com sucesso!'
+                  : 'Mídia excluída com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          setState(() => _isProcessing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Erro ao excluir mídia'),
+                backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao excluir mídia: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _moveMedia() async {
+    if (!_isValidSelection()) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final List<String> mediaIds =
+          widget.selectedMediaIds ?? [widget.mediaId!];
+      bool allSuccess = true;
+
+      for (final mediaId in mediaIds) {
+        try {
+          final success = await _serviceFactory.mediaService.moveMedia(
+            mediaId: mediaId,
+            inspectionId: widget.inspectionId,
+            newTopicId: _selectedTopic?.id,
+            newItemId: _selectedItem?.id,
+            newDetailId: _selectedDetail?.id,
+            newNonConformityId: null,
+          );
+
+          if (!success) {
+            allSuccess = false;
+            break;
+          }
+        } catch (e) {
+          allSuccess = false;
+          break;
+        }
+      }
+
+      if (mounted) {
+        if (allSuccess) {
+          Navigator.of(context).pop(true);
+          final count = mediaIds.length;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(count > 1
+                  ? '$count mídias movidas com sucesso!'
+                  : 'Mídia movida com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          setState(() => _isProcessing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Erro ao mover mídia'),
+                backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao mover mídia: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  bool _isValidSelection() {
+    if (_selectedAction == 'delete') {
+      return true;
+    }
+    if (_selectedAction == 'create_nc') {
+      return _selectedTopic != null;
+    }
+    if (_selectedAction == 'move_to_nc') {
+      return _selectedNonConformity != null;
+    }
+    return _selectedTopic != null;
+  }
+
+  String _getActionButtonText() {
+    final isMultiple =
+        widget.selectedMediaIds != null && widget.selectedMediaIds!.length > 1;
+
+    switch (_selectedAction) {
+      case 'move':
+        return isMultiple ? 'Mover Todas' : 'Mover Mídia';
+      case 'delete':
+        return isMultiple ? 'Excluir Todas' : 'Excluir Mídia';
+      case 'create_nc':
+        return 'Criar NC';
+      case 'move_to_nc':
+        return isMultiple ? 'Mover para NC' : 'Mover para NC';
+      default:
+        return 'Executar';
+    }
+  }
+
+  Future<void> _moveToExistingNC() async {
+    if (_selectedNonConformity == null) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final List<String> mediaIds =
+          widget.selectedMediaIds ?? [widget.mediaId!];
+      bool allSuccess = true;
+
+      for (final mediaId in mediaIds) {
+        final success = await _serviceFactory.mediaService.moveMedia(
+          mediaId: mediaId,
+          inspectionId: widget.inspectionId,
+          newTopicId: _selectedNonConformity!.topicId,
+          newItemId: _selectedNonConformity!.itemId,
+          newDetailId: _selectedNonConformity!.detailId,
+          newNonConformityId: _selectedNonConformity!.id,
+        );
+
+        if (!success) {
+          allSuccess = false;
+          break;
+        }
+      }
+
+      if (mounted) {
+        if (allSuccess) {
+          Navigator.of(context).pop(true);
+          final count = mediaIds.length;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(count > 1
+                  ? '$count mídias movidas para NC com sucesso!'
+                  : 'Mídia movida para NC com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          setState(() => _isProcessing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Erro ao mover mídia para NC'),
+                backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Erro ao mover mídia para NC: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _executeAction() async {
+    switch (_selectedAction) {
+      case 'move':
+        await _moveMedia();
+        break;
+      case 'delete':
+        await _deleteMedia();
+        break;
+      case 'create_nc':
+        await _createNewNonConformity();
+        break;
+      case 'move_to_nc':
+        await _moveToExistingNC();
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMultiple =
+        widget.selectedMediaIds != null && widget.selectedMediaIds!.length > 1;
+
     return Dialog(
+      backgroundColor: const Color(0xFF312456),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
-        width: double.maxFinite,
-        constraints: const BoxConstraints(maxHeight: 700),
+        width: MediaQuery.of(context).size.width * 0.95,
+        padding: EdgeInsets.all(15),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF6F4B99),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
+            Text(
+              isMultiple
+                  ? 'Ações para ${widget.selectedMediaIds!.length} Mídias'
+                  : 'Ações para Mídia',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Escolha uma ação:',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white),
+            ),
+            const SizedBox(height: 4),
+            DropdownButtonFormField<String>(
+              value: _selectedAction,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                isDense: true,
+                filled: true,
+                fillColor: Color(0xFF2D3748),
+              ),
+              style: const TextStyle(fontSize: 16, color: Colors.white),
+              dropdownColor: const Color(0xFF2D3748),
+              items: const [
+                DropdownMenuItem(value: 'move', child: Text('Mover Foto')),
+                DropdownMenuItem(
+                    value: 'create_nc', child: Text('Criar Não Conformidade')),
+                DropdownMenuItem(
+                    value: 'move_to_nc',
+                    child: Text('Mover para NC Existente')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedAction = value;
+                    _selectedTopic = null;
+                    _selectedItem = null;
+                    _selectedDetail = null;
+                    _selectedNonConformity = null;
+                    _items = [];
+                    _details = [];
+                    _nonConformities = [];
+                  });
+
+                  // Carregar não conformidades se a ação for mover para NC existente
+                  if (value == 'move_to_nc') {
+                    _loadAllNonConformities();
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 4),
+            if (_selectedAction == 'create_nc') ...[
+              if (_isLoading)
+                const Center(
+                    child: CircularProgressIndicator(color: Colors.orange))
+              else ...[
+                Text(
+                  'Nível da NC:',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white),
                 ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.move_to_inbox, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Mover Mídia',
-                      style: TextStyle(
-                        color: Colors.white,
+                const SizedBox(height: 4),
+                DropdownButtonFormField<Topic>(
+                  value: _selectedTopic,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    isDense: true,
+                    filled: true,
+                    fillColor: Color(0xFF2D3748),
+                  ),
+                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  dropdownColor: const Color(0xFF2D3748),
+                  hint: const Text('Selecione um tópico',
+                      style: TextStyle(color: Colors.white70)),
+                  items: _topics.map((topic) {
+                    return DropdownMenuItem<Topic>(
+                      value: topic,
+                      child: Text(topic.topicName,
+                          style: const TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                  onChanged: (topic) async {
+                    setState(() {
+                      _selectedTopic = topic;
+                      _selectedItem = null;
+                      _selectedDetail = null;
+                      _items = [];
+                      _details = [];
+                    });
+
+                    if (topic != null) {
+                      await _loadItems(topic.id!);
+                    }
+                  },
+                ),
+                const SizedBox(height: 4),
+                if (_selectedTopic != null) ...[
+                  Text(
+                    'Item (opcional):',
+                    style: const TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<Item>(
+                    value: _selectedItem,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Color(0xFF2D3748),
                     ),
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    dropdownColor: const Color(0xFF2D3748),
+                    hint: const Text('Selecione um item',
+                        style: TextStyle(color: Colors.white70)),
+                    items: _items.map((item) {
+                      return DropdownMenuItem<Item>(
+                        value: item,
+                        child: Text(item.itemName,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (item) async {
+                      setState(() {
+                        _selectedItem = item;
+                        _selectedDetail = null;
+                        _details = [];
+                      });
+
+                      if (item != null) {
+                        await _loadDetails(item.id!);
+                      }
+                    },
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                    constraints: const BoxConstraints(),
-                    padding: EdgeInsets.zero,
-                  ),
+                  const SizedBox(height: 4),
                 ],
-              ),
-            ),
+                if (_selectedItem != null) ...[
+                  Text(
+                    'Detalhe (opcional):',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<Detail>(
+                    value: _selectedDetail,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Color(0xFF2D3748),
+                    ),
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    dropdownColor: const Color(0xFF2D3748),
+                    hint: const Text('Selecione um detalhe',
+                        style: TextStyle(color: Colors.white70)),
+                    items: _details.map((detail) {
+                      return DropdownMenuItem<Detail>(
+                        value: detail,
+                        child: Text(detail.detailName,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (detail) {
+                      setState(() => _selectedDetail = detail);
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ],
+            ],
+            if (_selectedAction == 'move') ...[
+              if (_isLoading)
+                const Center(
+                    child: CircularProgressIndicator(color: Colors.orange))
+              else ...[
+                Text(
+                  'Tópico:',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white),
+                ),
+                const SizedBox(height: 4),
+                DropdownButtonFormField<Topic>(
+                  value: _selectedTopic,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    isDense: true,
+                    filled: true,
+                    fillColor: Color(0xFF2D3748),
+                  ),
+                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  dropdownColor: const Color(0xFF2D3748),
+                  hint: const Text('Selecione um tópico',
+                      style: TextStyle(color: Colors.white70)),
+                  items: _topics.map((topic) {
+                    return DropdownMenuItem<Topic>(
+                      value: topic,
+                      child: Text(topic.topicName,
+                          style: const TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                  onChanged: (topic) async {
+                    setState(() {
+                      _selectedTopic = topic;
+                      _selectedItem = null;
+                      _selectedDetail = null;
+                      _items = [];
+                      _details = [];
+                    });
 
-            // Content
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Localização atual: ${widget.currentLocation}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+                    if (topic != null) {
+                      await _loadItems(topic.id!);
+                    }
+                  },
+                ),
+                const SizedBox(height: 4),
+                if (_selectedTopic != null) ...[
+                  Text(
+                    'Item (opcional):',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<Item>(
+                    value: _selectedItem,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Color(0xFF2D3748),
+                    ),
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    dropdownColor: const Color(0xFF2D3748),
+                    hint: const Text('Selecione um item',
+                        style: TextStyle(color: Colors.white70)),
+                    items: _items.map((item) {
+                      return DropdownMenuItem<Item>(
+                        value: item,
+                        child: Text(item.itemName,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (item) async {
+                      setState(() {
+                        _selectedItem = item;
+                        _selectedDetail = null;
+                        _details = [];
+                      });
 
-                          // Destination Type Selection
-                          const Text('Destino:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
+                      if (item != null) {
+                        await _loadDetails(item.id!);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (_selectedItem != null) ...[
+                  Text(
+                    'Detalhe (opcional):',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<Detail>(
+                    value: _selectedDetail,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Color(0xFF2D3748),
+                    ),
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    dropdownColor: const Color(0xFF2D3748),
+                    hint: const Text('Selecione um detalhe',
+                        style: TextStyle(color: Colors.white70)),
+                    items: _details.map((detail) {
+                      return DropdownMenuItem<Detail>(
+                        value: detail,
+                        child: Text(detail.detailName,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (detail) {
+                      setState(() => _selectedDetail = detail);
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ],
+            ],
+            if (_selectedAction == 'move_to_nc') ...[
+              if (_isLoading)
+                const Center(
+                    child: CircularProgressIndicator(color: Colors.orange))
+              else ...[
+                Text(
+                  'Não Conformidades Existentes:',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white),
+                ),
+                const SizedBox(height: 4),
+                if (_nonConformities.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2D3748),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF4A5568)),
+                    ),
+                    child: const Text(
+                      'Nenhuma não conformidade encontrada nesta inspeção.',
+                      style: TextStyle(color: Colors.white70, fontSize: 16),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _nonConformities.length,
+                    itemBuilder: (context, index) {
+                      final nc = _nonConformities[index];
+                      final isSelected = _selectedNonConformity?.id == nc.id;
+
+                      // Extract origin information from auxiliary structure
+                      final originInfo = _ncOriginInfo[nc.id];
+                      final topicName = originInfo?['topicName'] ?? 'Tópico não identificado';
+                      final itemName = originInfo?['itemName'] ?? 'Item não identificado';
+                      final detailName = originInfo?['detailName'] ?? 'Detalhe não identificado';
+                      final originPath = '$topicName > $itemName > $detailName';
+
+                      return Card(
+                        color: isSelected
+                            ? const Color(0xFF4A90E2)
+                            : const Color(0xFF2D3748),
+                        child: ListTile(
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ChoiceChip(
-                                label: const Text('Tópico', style: TextStyle(fontSize: 12)),
-                                selected: _destinationType == 'topic',
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _destinationType = 'topic';
-                                      _selectedItemId = null;
-                                      _selectedDetailId = null;
-                                      _selectedNonConformityId = null;
-                                      _items = [];
-                                      _details = [];
-                                      _nonConformities = [];
-                                    });
-                                  }
-                                },
+                              Text(
+                                nc.title,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 16),
                               ),
-                              ChoiceChip(
-                                label: const Text('Item', style: TextStyle(fontSize: 12)),
-                                selected: _destinationType == 'item',
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _destinationType = 'item';
-                                      _selectedDetailId = null;
-                                      _selectedNonConformityId = null;
-                                      _details = [];
-                                      _nonConformities = [];
-                                    });
-                                  }
-                                },
-                              ),
-                              ChoiceChip(
-                                label: const Text('Detalhe', style: TextStyle(fontSize: 12)),
-                                selected: _destinationType == 'detail',
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _destinationType = 'detail';
-                                      _selectedNonConformityId = null;
-                                      _nonConformities = [];
-                                    });
-                                  }
-                                },
-                              ),
-                              ChoiceChip(
-                                label: const Text('Não Conformidade', style: TextStyle(fontSize: 12)),
-                                selected: _destinationType == 'nc',
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _destinationType = 'nc';
-                                    });
-                                  }
-                                },
-                              ),
-                              ChoiceChip(
-                                label: const Text('Qualquer Local', style: TextStyle(fontSize: 12)),
-                                selected: _destinationType == 'any',
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _destinationType = 'any';
-                                      _selectedItemId = null;
-                                      _selectedDetailId = null;
-                                      _selectedNonConformityId = null;
-                                      _items = [];
-                                      _details = [];
-                                      _nonConformities = [];
-                                    });
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Topic Selection
-                          const Text('Tópico:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          const SizedBox(height: 4),
-                          DropdownButtonFormField<String>(
-                            value: _selectedTopicId,
-                            hint: const Text('Selecione um tópico', style: TextStyle(fontSize: 12)),
-                            isExpanded: true,
-                            items: _topics.map((topic) {
-                              return DropdownMenuItem<String>(
-                                value: topic['id'] as String,
-                                child: Text(topic['name'] as String, style: const TextStyle(fontSize: 12)),
-                              );
-                            }).toList(),
-                            onChanged: (topicId) async {
-                              setState(() {
-                                _selectedTopicId = topicId;
-                                _items = [];
-                                _selectedItemId = null;
-                                _details = [];
-                                _selectedDetailId = null;
-                                _nonConformities = [];
-                                _selectedNonConformityId = null;
-                              });
-                              if (topicId != null && _destinationType != 'topic') {
-                                await _loadItems(topicId);
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // "Any" destination selection
-                          if (_destinationType == 'any') ...[
-                            const Text('Selecione o destino:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 8),
-                            
-                            // Topics dropdown for "any"
-                            const Text('Tópicos:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            const SizedBox(height: 4),
-                            DropdownButtonFormField<String>(
-                              value: _selectedTopicId,
-                              hint: const Text('Selecionar tópico', style: TextStyle(fontSize: 12)),
-                              isExpanded: true,
-                              items: _allTopics.map((topic) {
-                                return DropdownMenuItem<String>(
-                                  value: topic['id'] as String,
-                                  child: Text('📁 ${topic['name'] as String}', style: const TextStyle(fontSize: 12)),
-                                );
-                              }).toList(),
-                              onChanged: (topicId) {
-                                setState(() {
-                                  _selectedTopicId = topicId;
-                                  _selectedItemId = null;
-                                  _selectedDetailId = null;
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            
-                            // Items dropdown for "any"
-                            const Text('Itens:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            const SizedBox(height: 4),
-                            DropdownButtonFormField<String>(
-                              value: _selectedItemId,
-                              hint: const Text('Selecionar item', style: TextStyle(fontSize: 12)),
-                              isExpanded: true,
-                              items: _allItems.map((item) {
-                                return DropdownMenuItem<String>(
-                                  value: item['id'] as String,
-                                  child: Text('📋 ${item['name'] as String}', style: const TextStyle(fontSize: 12)),
-                                );
-                              }).toList(),
-                              onChanged: (itemId) {
-                                setState(() {
-                                  _selectedItemId = itemId;
-                                  _selectedDetailId = null;
-                                  // Update topic selection based on item
-                                  if (itemId != null) {
-                                    final item = _allItems.firstWhere((i) => i['id'] == itemId, orElse: () => {});
-                                    if (item.isNotEmpty) {
-                                      _selectedTopicId = item['topicId'];
-                                    }
-                                  }
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            
-                            // Details dropdown for "any"
-                            const Text('Detalhes:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            const SizedBox(height: 4),
-                            DropdownButtonFormField<String>(
-                              value: _selectedDetailId,
-                              hint: const Text('Selecionar detalhe', style: TextStyle(fontSize: 12)),
-                              isExpanded: true,
-                              items: _allDetails.map((detail) {
-                                return DropdownMenuItem<String>(
-                                  value: detail['id'] as String,
-                                  child: Text('🔍 ${detail['name'] as String}', style: const TextStyle(fontSize: 12)),
-                                );
-                              }).toList(),
-                              onChanged: (detailId) {
-                                setState(() {
-                                  _selectedDetailId = detailId;
-                                  // Update topic and item selection based on detail
-                                  if (detailId != null) {
-                                    final detail = _allDetails.firstWhere((d) => d['id'] == detailId, orElse: () => {});
-                                    if (detail.isNotEmpty) {
-                                      _selectedTopicId = detail['topicId'];
-                                      _selectedItemId = detail['itemId'];
-                                    }
-                                  }
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-
-                          // Item Selection (if needed)
-                          if (_destinationType != 'topic' && _destinationType != 'any') ...[
-                            const Text('Item:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 4),
-                            DropdownButtonFormField<String>(
-                              value: _selectedItemId,
-                              hint: const Text('Selecione um item', style: TextStyle(fontSize: 12)),
-                              isExpanded: true,
-                              items: _items.map((item) {
-                                return DropdownMenuItem<String>(
-                                  value: item['id'] as String,
-                                  child: Text(item['name'] as String, style: const TextStyle(fontSize: 12)),
-                                );
-                              }).toList(),
-                              onChanged: _selectedTopicId == null
-                                  ? null
-                                  : (itemId) async {
-                                      setState(() {
-                                        _selectedItemId = itemId;
-                                        _details = [];
-                                        _selectedDetailId = null;
-                                        _nonConformities = [];
-                                        _selectedNonConformityId = null;
-                                      });
-                                      if (itemId != null && (_destinationType == 'detail' || _destinationType == 'nc')) {
-                                        await _loadDetails(itemId);
-                                      }
-                                    },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-
-                          // Detail Selection (if needed)
-                          if ((_destinationType == 'detail' || _destinationType == 'nc') && _destinationType != 'any') ...[
-                            const Text('Detalhe:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 4),
-                            DropdownButtonFormField<String>(
-                              value: _selectedDetailId,
-                              hint: const Text('Selecione um detalhe', style: TextStyle(fontSize: 12)),
-                              isExpanded: true,
-                              items: _details.map((detail) {
-                                return DropdownMenuItem<String>(
-                                  value: detail['id'] as String,
-                                  child: Text(detail['name'] as String, style: const TextStyle(fontSize: 12)),
-                                );
-                              }).toList(),
-                              onChanged: _selectedItemId == null
-                                  ? null
-                                  : (detailId) async {
-                                      setState(() {
-                                        _selectedDetailId = detailId;
-                                        _nonConformities = [];
-                                        _selectedNonConformityId = null;
-                                      });
-                                      if (detailId != null && _destinationType == 'nc') {
-                                        await _loadNonConformities(detailId);
-                                      }
-                                    },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-
-                          // Non-Conformity Selection (if needed)
-                          if (_destinationType == 'nc' && _destinationType != 'any') ...[
-                            const Text('Não Conformidade:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 8),
-                            
-                            if (_nonConformities.isNotEmpty) ...[
-                              const Text('Não conformidades existentes:', style: TextStyle(fontSize: 12, color: Colors.grey)),
                               const SizedBox(height: 4),
-                              DropdownButtonFormField<String>(
-                                value: _selectedNonConformityId,
-                                hint: const Text('Selecionar existente (opcional)', style: TextStyle(fontSize: 12)),
-                                isExpanded: true,
-                                items: _nonConformities.map((nc) {
-                                  return DropdownMenuItem<String>(
-                                    value: nc['id'] as String,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          nc['displayTitle'] as String,
-                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if ((nc['displaySubtitle'] as String).isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            nc['displaySubtitle'] as String,
-                                            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (ncId) {
-                                  setState(() {
-                                    _selectedNonConformityId = ncId;
-                                    if (ncId != null) {
-                                      // Clear new NC fields when selecting existing
-                                      _newNCTitleController.clear();
-                                      _newNCDescriptionController.clear();
-                                      _newNCActionController.clear();
-                                    }
-                                  });
-                                },
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                                itemHeight: null,
-                                menuMaxHeight: 200,
+                                child: Text(
+                                  'Origem: $originPath',
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                              const SizedBox(height: 16),
-                              const Divider(),
-                              const SizedBox(height: 8),
                             ],
-
-                            // New NC Creation Form
-                            const Text('Ou criar nova não conformidade:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _newNCTitleController,
-                              decoration: const InputDecoration(
-                                labelText: 'Título da NC *',
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                              style: const TextStyle(fontSize: 12),
-                              onChanged: (value) {
-                                if (value.isNotEmpty) {
-                                  setState(() {
-                                    _selectedNonConformityId = null; // Clear existing selection
-                                  });
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _newNCDescriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Descrição',
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                              style: const TextStyle(fontSize: 12),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              nc.description,
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 14),
                               maxLines: 2,
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _newNCActionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Ação Corretiva (opcional)',
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                              style: const TextStyle(fontSize: 12),
-                              maxLines: 2,
-                            ),
-                            const SizedBox(height: 8),
-                            const Text('Severidade:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 4),
-                            DropdownButtonFormField<String>(
-                              value: _newNCSeverity,
-                              items: const [
-                                DropdownMenuItem(value: 'low', child: Text('Baixa', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'medium', child: Text('Média', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'high', child: Text('Alta', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'critical', child: Text('Crítica', style: TextStyle(fontSize: 12))),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _newNCSeverity = value ?? 'medium';
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 16),
-
-                          // Destination Summary
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              border: Border.all(color: Colors.grey[300]!),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Destino:',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: Colors.black87),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _getDestinationDescription(),
-                                  style: const TextStyle(fontSize: 11, color: Colors.black),
-                                ),
-                              ],
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-            ),
-
-            // Actions
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                border: Border(top: BorderSide(color: Colors.grey[300]!)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
+                          trailing: ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedNonConformity = nc;
+                              });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  isSelected ? Colors.white : Colors.orange,
+                              foregroundColor:
+                                  isSelected ? Colors.black : Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                            ),
+                            child: Text(
+                              isSelected ? 'Selecionado' : 'Selecionar',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancelar', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: !_isValidSelection() ? null : _moveMedia,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6F4B99),
-                      foregroundColor: Colors.white,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Mover', style: TextStyle(fontSize: 12)),
+                    child: const Text('Cancelar',
+                        style: TextStyle(fontSize: 16, color: Colors.white70)),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isProcessing ? null : _executeAction,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _selectedAction == 'delete'
+                          ? Colors.red
+                          : Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            _getActionButtonText(),
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

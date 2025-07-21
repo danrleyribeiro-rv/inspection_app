@@ -278,12 +278,26 @@ class _OfflineTemplateTopicSelectorDialogState
       final uniqueTopicName = await _generateTopicName(originalName);
       debugPrint('OfflineTemplateTopicSelectorDialog: Original name: $originalName, Unique name: $uniqueTopicName');
       
+      // Determine if this topic has direct details (no items, only details)
+      bool hasDirectDetails = false;
+      if (topicData['direct_details'] == true) {
+        hasDirectDetails = true;
+      } else if (topicData['details'] != null && topicData['items'] == null) {
+        hasDirectDetails = true;
+      } else if (topicData['items'] != null) {
+        final items = topicData['items'] as List<dynamic>;
+        hasDirectDetails = items.isEmpty;
+      }
+
+      debugPrint('OfflineTemplateTopicSelectorDialog: Topic "$uniqueTopicName" has directDetails: $hasDirectDetails');
+
       // Create topic using the data service
       final newTopic = Topic(
         inspectionId: widget.inspectionId,
         topicName: uniqueTopicName,
         topicLabel: topicData['description'] ?? '',
         position: await _getNextTopicOrder(),
+        directDetails: hasDirectDetails,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -293,62 +307,129 @@ class _OfflineTemplateTopicSelectorDialogState
       debugPrint(
           'OfflineTemplateTopicSelectorDialog._addTopicFromTemplate: Created topic $topicId from template');
 
-      // Criar items e details do template se disponíveis
+      // Criar detalhes ou itens baseado na estrutura do tópico
       try {
-        if (selectedTemplateTopic['items'] != null) {
-          final templateItems = selectedTemplateTopic['items'] as List<dynamic>;
+        if (hasDirectDetails) {
+          // Tópico com detalhes diretos (sem itens)
+          debugPrint('Creating direct details for topic $topicId');
+          
+          final templateDetails = selectedTemplateTopic['details'] as List<dynamic>? ?? [];
+          for (int detailIndex = 0; detailIndex < templateDetails.length; detailIndex++) {
+            final templateDetail = templateDetails[detailIndex];
+            final detailId = const Uuid().v4();
+            
+            // Convert options from List<dynamic> to List<String>?
+            List<String>? detailOptions;
+            if (templateDetail['options'] != null) {
+              final optionsData = templateDetail['options'];
+              if (optionsData is List) {
+                detailOptions = optionsData.map((e) => e.toString()).toList();
+              } else if (optionsData is String) {
+                detailOptions = optionsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+              }
+            }
 
-          for (final templateItem in templateItems) {
-            final itemId = const Uuid().v4();
-            final newItem = Item(
-              id: itemId,
+            final newDetail = Detail(
+              id: detailId,
               inspectionId: widget.inspectionId,
               topicId: topicId,
-              itemId: itemId,
-              position: templateItem['position'] ?? 0,
-              itemName: templateItem['name'] ?? templateItem['itemName'] ?? 'Item',
-              itemLabel: templateItem['description'] ?? templateItem['itemLabel'] ?? '',
-              evaluation: '',
+              itemId: null, // Detalhes diretos não têm itemId
+              detailId: detailId,
+              position: detailIndex,
+              detailName: templateDetail['name'] ?? templateDetail['detailName'] ?? 'Detalhe ${detailIndex + 1}',
+              detailValue: templateDetail['type'] == 'boolean' ? 'não_se_aplica' : '',
               observation: '',
+              type: templateDetail['type'] ?? 'text',
+              options: detailOptions,
+              isRequired: templateDetail['isRequired'] ?? false,
             );
 
-            await _serviceFactory.dataService.saveItem(newItem);
-            debugPrint('Created item $itemId from template with name: ${newItem.itemName}');
+            await _serviceFactory.dataService.saveDetail(newDetail);
+            debugPrint('Created direct detail $detailId for topic with name: ${newDetail.detailName}, type: ${newDetail.type}');
+          }
+        } else {
+          // Tópico com itens (estrutura normal)
+          debugPrint('Creating items for topic $topicId');
+          
+          if (selectedTemplateTopic['items'] != null) {
+            final templateItems = selectedTemplateTopic['items'] as List<dynamic>;
 
-            // Criar details do item se disponíveis
-            if (templateItem['details'] != null) {
-              final templateDetails = templateItem['details'] as List<dynamic>;
-
-              for (final templateDetail in templateDetails) {
-                final detailId = const Uuid().v4();
-                // Convert options from List<dynamic> to List<String>?
-                List<String>? detailOptions;
-                if (templateDetail['options'] != null) {
-                  final optionsData = templateDetail['options'];
-                  if (optionsData is List) {
-                    detailOptions = optionsData.map((e) => e.toString()).toList();
-                  } else if (optionsData is String) {
-                    detailOptions = optionsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                  }
+            for (int itemIndex = 0; itemIndex < templateItems.length; itemIndex++) {
+              final templateItem = templateItems[itemIndex];
+              final itemId = const Uuid().v4();
+              
+              // Determinar se o item é avaliável
+              bool isEvaluable = templateItem['evaluable'] == true;
+              List<String>? evaluationOptions;
+              
+              if (templateItem['evaluation_options'] != null) {
+                final optionsData = templateItem['evaluation_options'];
+                if (optionsData is List) {
+                  evaluationOptions = optionsData.map((e) => e.toString()).toList();
+                  isEvaluable = true; // Se tem opções, é avaliável
+                } else if (optionsData is String) {
+                  evaluationOptions = optionsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                  isEvaluable = true;
                 }
+              }
 
-                final newDetail = Detail(
-                  id: detailId,
-                  inspectionId: widget.inspectionId,
-                  topicId: topicId,
-                  itemId: itemId,
-                  detailId: detailId,
-                  position: templateDetail['position'] ?? 0,
-                  detailName: templateDetail['name'] ?? templateDetail['detailName'] ?? 'Detalhe',
-                  detailValue: templateDetail['type'] == 'boolean' ? 'não_se_aplica' : '',
-                  observation: '',
-                  type: templateDetail['type'] ?? 'text',
-                  options: detailOptions,
-                  isRequired: templateDetail['isRequired'] ?? false,
-                );
+              debugPrint('Creating item: ${templateItem['name']}, evaluable: $isEvaluable, evaluationOptions: $evaluationOptions');
 
-                await _serviceFactory.dataService.saveDetail(newDetail);
-                debugPrint('Created detail $detailId from template with name: ${newDetail.detailName}, type: ${newDetail.type}');
+              final newItem = Item(
+                id: itemId,
+                inspectionId: widget.inspectionId,
+                topicId: topicId,
+                itemId: itemId,
+                position: itemIndex,
+                itemName: templateItem['name'] ?? templateItem['itemName'] ?? 'Item ${itemIndex + 1}',
+                itemLabel: templateItem['description'] ?? templateItem['itemLabel'] ?? '',
+                evaluation: '',
+                observation: '',
+                evaluable: isEvaluable,
+                evaluationOptions: evaluationOptions,
+                evaluationValue: null, // Inicialmente sem avaliação
+              );
+
+              await _serviceFactory.dataService.saveItem(newItem);
+              debugPrint('Created item $itemId from template with name: ${newItem.itemName}, evaluable: ${newItem.evaluable}');
+
+              // Criar details do item se disponíveis
+              if (templateItem['details'] != null) {
+                final templateDetails = templateItem['details'] as List<dynamic>;
+
+                for (int detailIndex = 0; detailIndex < templateDetails.length; detailIndex++) {
+                  final templateDetail = templateDetails[detailIndex];
+                  final detailId = const Uuid().v4();
+                  
+                  // Convert options from List<dynamic> to List<String>?
+                  List<String>? detailOptions;
+                  if (templateDetail['options'] != null) {
+                    final optionsData = templateDetail['options'];
+                    if (optionsData is List) {
+                      detailOptions = optionsData.map((e) => e.toString()).toList();
+                    } else if (optionsData is String) {
+                      detailOptions = optionsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                    }
+                  }
+
+                  final newDetail = Detail(
+                    id: detailId,
+                    inspectionId: widget.inspectionId,
+                    topicId: topicId,
+                    itemId: itemId,
+                    detailId: detailId,
+                    position: detailIndex,
+                    detailName: templateDetail['name'] ?? templateDetail['detailName'] ?? 'Detalhe ${detailIndex + 1}',
+                    detailValue: templateDetail['type'] == 'boolean' ? 'não_se_aplica' : '',
+                    observation: '',
+                    type: templateDetail['type'] ?? 'text',
+                    options: detailOptions,
+                    isRequired: templateDetail['isRequired'] ?? false,
+                  );
+
+                  await _serviceFactory.dataService.saveDetail(newDetail);
+                  debugPrint('Created detail $detailId for item with name: ${newDetail.detailName}, type: ${newDetail.type}');
+                }
               }
             }
           }

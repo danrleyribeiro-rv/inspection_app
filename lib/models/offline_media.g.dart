@@ -31,7 +31,14 @@ OfflineMedia _$OfflineMediaFromJson(Map<String, dynamic> json) => OfflineMedia(
       needsSync: json['needsSync'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
       source: json['source'] as String?,
+      isResolutionMedia: json['isResolutionMedia'] as bool? ?? false,
       metadata: json['metadata'] as Map<String, dynamic>?,
+      capturedAt: json['capturedAt'] == null
+          ? null
+          : DateTime.parse(json['capturedAt'] as String),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$OfflineMediaToJson(OfflineMedia instance) =>
@@ -60,5 +67,10 @@ Map<String, dynamic> _$OfflineMediaToJson(OfflineMedia instance) =>
       'needsSync': instance.needsSync,
       'isDeleted': instance.isDeleted,
       'source': instance.source,
+      'isResolutionMedia': instance.isResolutionMedia,
       'metadata': instance.metadata,
+      'capturedAt': instance.capturedAt?.toIso8601String(),
+      'latitude': instance.latitude,
+      'longitude': instance.longitude,
+      'orderIndex': instance.orderIndex,
     };

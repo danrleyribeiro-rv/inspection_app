@@ -6,6 +6,8 @@ class Topic {
   final int orderIndex;
   final String topicName;
   final String? topicLabel;
+  final String? description;
+  final bool? directDetails;
   final String? observation;
   final bool? isDamaged;
   final List<String>? tags;
@@ -19,6 +21,8 @@ class Topic {
     int? orderIndex,
     required this.topicName,
     this.topicLabel,
+    this.description,
+    this.directDetails,
     this.observation,
     this.isDamaged,
     this.tags,
@@ -39,6 +43,18 @@ class Topic {
       }
     }
     
+    // Converter directDetails corretamente
+    bool? directDetails;
+    if (json['direct_details'] != null) {
+      if (json['direct_details'] is bool) {
+        directDetails = json['direct_details'];
+      } else if (json['direct_details'] is int) {
+        directDetails = json['direct_details'] == 1;
+      } else if (json['direct_details'] is String) {
+        directDetails = json['direct_details'].toLowerCase() == 'true';
+      }
+    }
+    
     // Converter tags corretamente
     List<String>? tags;
     if (json['tags'] != null) {
@@ -55,8 +71,10 @@ class Topic {
       inspectionId: json['inspection_id'],
       position: json['position'] is int ? json['position'] : 0,
       orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
-      topicName: json['topic_name'],
+      topicName: json['topic_name'] ?? json['name'],
       topicLabel: json['topic_label'],
+      description: json['description'],
+      directDetails: directDetails,
       observation: json['observation'],
       isDamaged: isDamaged,
       tags: tags,
@@ -81,6 +99,8 @@ class Topic {
       'order_index': orderIndex,
       'topic_name': topicName,
       'topic_label': topicLabel,
+      'description': description,
+      'direct_details': directDetails == true ? 1 : 0,
       'observation': observation,
       'is_damaged': isDamaged == true ? 1 : 0,
       'tags': tags?.join(',') ?? '',
@@ -101,6 +121,8 @@ class Topic {
     int? orderIndex,
     String? topicName,
     String? topicLabel,
+    String? description,
+    bool? directDetails,
     String? observation,
     bool? isDamaged,
     List<String>? tags,
@@ -114,6 +136,8 @@ class Topic {
       orderIndex: orderIndex ?? this.orderIndex,
       topicName: topicName ?? this.topicName,
       topicLabel: topicLabel ?? this.topicLabel,
+      description: description ?? this.description,
+      directDetails: directDetails ?? this.directDetails,
       observation: observation ?? this.observation,
       isDamaged: isDamaged ?? this.isDamaged,
       tags: tags ?? this.tags,

@@ -9,7 +9,6 @@ import 'package:lince_inspecoes/presentation/screens/inspection/inspection_detai
 import 'package:lince_inspecoes/presentation/widgets/common/inspection_card.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/native_sync_service.dart';
-import 'package:lince_inspecoes/services/debug_media_download_service.dart';
 import 'package:lince_inspecoes/models/sync_progress.dart';
 
 // Função auxiliar para formatação de data em pt-BR
@@ -40,16 +39,15 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   // Track inspections that have newer data in the cloud
   final Set<String> _inspectionsWithCloudUpdates = <String>{};
-  
+
   // Track inspections with detected conflicts
   final Set<String> _inspectionsWithConflicts = <String>{};
-  
+
   // Track inspections currently downloading
   final Set<String> _downloadingInspections = <String>{};
-  
+
   // Track inspections sync status based on history
   final Map<String, bool> _inspectionSyncStatus = <String, bool>{};
-  
 
   @override
   void initState() {
@@ -60,7 +58,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
     _startCloudUpdateChecks();
     _setupSyncProgressListener();
   }
-  
+
   void _setupSyncProgressListener() {
     NativeSyncService.instance.syncProgressStream.listen((progress) {
       if (mounted) {
@@ -68,13 +66,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
           if (progress.phase == SyncPhase.completed) {
             // Download/Upload completed, remove from downloading set
             _downloadingInspections.remove(progress.inspectionId);
-            
+
             // Update sync status - mark as synced when completed
             // This will hide the sync button after successful upload
             _inspectionSyncStatus[progress.inspectionId] = true;
             // Remove from conflicts if it was resolved
             _inspectionsWithConflicts.remove(progress.inspectionId);
-            
+
             _loadInspections();
           } else if (progress.phase == SyncPhase.error) {
             // Download/Upload failed, remove from downloading set
@@ -109,24 +107,23 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
       final userId = _auth.currentUser?.uid;
       if (userId == null) {
-        log('[InspectionsTab _loadInspections] User not logged in.');
+        // User not logged in
         await _loadCachedInspections();
         return;
       }
 
-      log('[InspectionsTab _loadInspections] Loading inspections for user ID: $userId');
+      // Loading inspections for user
 
       // OFFLINE-FIRST: Always load cached inspections only
       await _loadCachedInspections();
-      
+
       // Atualizar status de sincronização baseado no histórico
       await _updateSyncStatusForAllInspections();
 
       // In offline-first mode, we don't automatically sync from cloud
       // Users must explicitly download inspections they want to work on
-    } catch (e, s) {
-      log('[InspectionsTab _loadInspections] Error loading inspections',
-          error: e, stackTrace: s);
+    } catch (e) {
+      debugPrint('Error loading inspections: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -141,14 +138,15 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   Future<void> _updateSyncStatusForAllInspections() async {
     try {
-      log('[InspectionsTab _updateSyncStatusForAllInspections] Updating sync status for all inspections');
-      
-      final inspectionIds = _inspections.map((inspection) => inspection['id'] as String).toList();
-      
+      // Updating sync status for all inspections
+
+      final inspectionIds =
+          _inspections.map((inspection) => inspection['id'] as String).toList();
+
       for (final inspectionId in inspectionIds) {
         final isSynced = await _isInspectionSyncedWithHistory(inspectionId);
         final hasConflicts = await _hasConflictsWithHistory(inspectionId);
-        
+
         if (mounted) {
           setState(() {
             _inspectionSyncStatus[inspectionId] = isSynced;
@@ -160,16 +158,16 @@ class _InspectionsTabState extends State<InspectionsTab> {
           });
         }
       }
-      
-      log('[InspectionsTab _updateSyncStatusForAllInspections] Updated sync status for ${inspectionIds.length} inspections');
+
+      // Updated sync status for all inspections
     } catch (e) {
-      log('[InspectionsTab _updateSyncStatusForAllInspections] Error updating sync status: $e');
+      debugPrint('Error updating sync status: $e');
     }
   }
 
   Future<void> _loadCachedInspections() async {
     try {
-      log('[InspectionsTab _loadCachedInspections] Loading cached inspections only.');
+      // Loading cached inspections only
 
       final cachedInspections = await _getCachedInspections();
 
@@ -181,9 +179,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
         });
       }
 
-      log('[InspectionsTab _loadCachedInspections] Loaded ${_inspections.length} cached inspections.');
+      // Loaded cached inspections successfully
     } catch (e) {
-      log('[InspectionsTab _loadCachedInspections] Error loading cached inspections: $e');
+      debugPrint('Error loading cached inspections: $e');
       if (mounted) {
         setState(() {
           _inspections = [];
@@ -198,39 +196,47 @@ class _InspectionsTabState extends State<InspectionsTab> {
     try {
       final userId = _auth.currentUser?.uid;
       if (userId == null) {
-        log('[InspectionsTab _getCachedInspections] No user logged in');
         return [];
       }
 
+      // Get all inspections from local database
+      final allInspections =
+          await _serviceFactory.dataService.getAllInspections();
+
+      // Filter by user ID and deleted_at is null (not deleted)
+      // Accept inspections where inspectorId is either the current user or null/empty
+      // (since downloaded inspections might have missing inspectorId)
+      final userInspections = allInspections
+          .where((inspection) =>
+              (inspection.inspectorId == userId || 
+               inspection.inspectorId == null || 
+               inspection.inspectorId!.isEmpty) && 
+              inspection.deletedAt == null)
+          .toList();
+
       final cachedInspections = <Map<String, dynamic>>[];
 
-      // Get only downloaded inspections for current user (offline-first)
-      final offlineInspections =
-          await _serviceFactory.dataService.getInspectionsByInspector(userId);
-
-      for (final inspection in offlineInspections) {
+      for (final inspection in userInspections) {
         try {
           // Convert Inspection to Map format compatible with UI
           final inspectionMap = inspection.toMap();
           inspectionMap['_is_cached'] = true;
           inspectionMap['_local_status'] = inspection.status;
-          
+
           // Check if there are actual local changes that need sync
           final hasRealChanges = await _checkForRealLocalChanges(inspection.id);
           inspectionMap['has_local_changes'] = hasRealChanges;
 
           cachedInspections.add(inspectionMap);
         } catch (e) {
-          log('[InspectionsTab _getCachedInspections] Error converting inspection ${inspection.id}: $e');
-          // Skip this inspection if conversion fails
+          debugPrint('Error converting inspection ${inspection.id}: $e');
           continue;
         }
       }
 
-      log('[InspectionsTab _getCachedInspections] Found ${cachedInspections.length} downloaded inspections for current user.');
       return cachedInspections;
     } catch (e) {
-      log('[InspectionsTab _getCachedInspections] Error getting cached inspections: $e');
+      debugPrint('Error getting cached inspections: $e');
       return [];
     }
   }
@@ -272,7 +278,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                 if (formattedDate.contains(query)) matchesSearchText = true;
               }
             } catch (e) {
-              log('Error parsing date for search: $e');
+              // Error parsing date for search
             }
           }
         }
@@ -285,7 +291,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
     _applyFilters();
   }
 
-
   void _clearSearch() {
     _searchController.clear();
     setState(() {
@@ -297,31 +302,25 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Método _completeInspection removido - apenas sincronização manual disponível
 
   Future<void> _downloadInspectionData(String inspectionId) async {
-    log('[InspectionsTab _downloadInspectionData] Starting complete offline download for inspection ID: $inspectionId');
     try {
       // Add to downloading set and update UI immediately
       setState(() {
         _downloadingInspections.add(inspectionId);
       });
-      
+
       // Show notification immediately BEFORE starting download
       await NativeSyncService.instance.initialize();
-      
-      // Run detailed debug of media download
-      await _debugMediaDownload(inspectionId);
-      
+
       // Use native sync service for background download
       await NativeSyncService.instance.startInspectionDownload(inspectionId);
-
-      log('[InspectionsTab _downloadInspectionData] Complete offline download started for inspection $inspectionId');
 
       // Clear the cloud updates flag since we just downloaded the latest data
       _inspectionsWithCloudUpdates.remove(inspectionId);
 
       // Note: UI refresh will happen via sync progress listener
     } catch (e) {
-      log('[InspectionsTab _downloadInspectionData] Error downloading data for inspection $inspectionId: $e');
-      
+      debugPrint('Error downloading inspection data: $e');
+
       // Remove from downloading set on error
       setState(() {
         _downloadingInspections.remove(inspectionId);
@@ -338,23 +337,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  Future<void> _debugMediaDownload(String inspectionId) async {
-    try {
-      // Add debug service import if not already imported
-      final debugService = DebugMediaDownloadService.instance;
-      await debugService.testInspectionMediaDownload(inspectionId);
-    } catch (e) {
-      log('[InspectionsTab _debugMediaDownload] Error running debug: $e');
-    }
-  }
-
-
   Future<void> _syncInspectionData(String inspectionId) async {
-    log('[InspectionsTab _syncInspectionData] Starting sync for inspection ID: $inspectionId');
     try {
       // Check for conflicts before syncing
       final hasConflicts = await _hasConflictsWithHistory(inspectionId);
-      
+
       if (hasConflicts) {
         // Show conflict alert dialog
         if (!mounted) return;
@@ -363,10 +350,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
           builder: (context) => AlertDialog(
             title: const Text('Conflito Detectado'),
             content: const Text(
-              'A inspeção foi modificada na nuvem desde o último download. '
-              'Suas alterações podem sobrescrever as alterações feitas por outros usuários.\n\n'
-              'Deseja continuar com a sincronização?'
-            ),
+                'A inspeção foi modificada na nuvem desde o último download. '
+                'Suas alterações podem sobrescrever as alterações feitas por outros usuários.\n\n'
+                'Deseja continuar com a sincronização?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
@@ -380,7 +366,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
             ],
           ),
         );
-        
+
         if (shouldProceed != true) {
           return; // User cancelled, don't sync
         }
@@ -389,15 +375,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Use native sync service for background sync
       await NativeSyncService.instance.startInspectionSync(inspectionId);
 
-      log('[InspectionsTab _syncInspectionData] Sync started for inspection $inspectionId');
-
       // DON'T update sync status immediately - wait for actual sync completion
       // The sync status will be updated when we receive the sync result
 
       // Refresh the list to show updated sync status
       _loadInspections();
     } catch (e) {
-      log('[InspectionsTab _syncInspectionData] Error syncing data for inspection $inspectionId: $e');
+      debugPrint('Error syncing inspection data: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -414,33 +398,30 @@ class _InspectionsTabState extends State<InspectionsTab> {
     try {
       // Check if there are entities that need sync using the sync service
       final syncStatus = await _serviceFactory.syncService.getSyncStatus();
-      
+
       // Check if inspection itself needs sync
-      final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
+      final inspection =
+          await _serviceFactory.dataService.getInspection(inspectionId);
       if (inspection != null && inspection.hasLocalChanges) {
         return true;
       }
-      
+
       // Check if there are entities that need sync
-      final totalNeedingSync = (syncStatus['inspections'] ?? 0) + 
-                              (syncStatus['topics'] ?? 0) + 
-                              (syncStatus['items'] ?? 0) + 
-                              (syncStatus['details'] ?? 0) + 
-                              (syncStatus['non_conformities'] ?? 0);
-      
+      final totalNeedingSync = (syncStatus['inspections'] ?? 0) +
+          (syncStatus['topics'] ?? 0) +
+          (syncStatus['items'] ?? 0) +
+          (syncStatus['details'] ?? 0) +
+          (syncStatus['non_conformities'] ?? 0) +
+          (syncStatus['media_files'] ?? 0) +
+          (syncStatus['deleted_media'] ?? 0);
+
       if (totalNeedingSync > 0) {
         return true;
       }
-      
-      // Check for media files that need sync
-      final mediaFiles = await _serviceFactory.dataService.getMediaByInspection(inspectionId);
-      for (final media in mediaFiles) {
-        if (media.needsSync) return true;
-      }
-      
+
       return false;
     } catch (e) {
-      log('[InspectionsTab _checkForRealLocalChanges] Error checking for real local changes: $e');
+      debugPrint('Error checking for real local changes: $e');
       return false;
     }
   }
@@ -454,14 +435,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
       );
 
       final localStatus = inspectionInList['_local_status'] ?? '';
-      final hasLocalChanges = inspectionInList['has_local_changes'] == true || inspectionInList['has_local_changes'] == 1;
+      final hasLocalChanges = inspectionInList['has_local_changes'] == true ||
+          inspectionInList['has_local_changes'] == 1;
       final hasUnsyncedData = hasLocalChanges || localStatus == 'modified';
-
-      log('[InspectionsTab _hasUnsyncedData] Inspection $inspectionId: local status: $localStatus, has_local_changes: $hasLocalChanges, has unsynced: $hasUnsyncedData');
 
       return hasUnsyncedData;
     } catch (e) {
-      log('[InspectionsTab _hasUnsyncedData] Error checking unsynced data: $e');
       return false;
     }
   }
@@ -469,11 +448,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Novo método que usa o sistema de histórico para verificar sincronização
   Future<bool> _isInspectionSyncedWithHistory(String inspectionId) async {
     try {
-      final isSynced = await _serviceFactory.dataService.isInspectionSynced(inspectionId);
-      log('[InspectionsTab _isInspectionSyncedWithHistory] Inspection $inspectionId is synced: $isSynced');
+      final isSynced =
+          await _serviceFactory.dataService.isInspectionSynced(inspectionId);
       return isSynced;
     } catch (e) {
-      log('[InspectionsTab _isInspectionSyncedWithHistory] Error checking sync status: $e');
+      debugPrint('Error checking sync status: $e');
       return false;
     }
   }
@@ -481,24 +460,22 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Detecta conflitos baseado no histórico
   Future<bool> _hasConflictsWithHistory(String inspectionId) async {
     try {
-      final hasConflicts = await _serviceFactory.dataService.hasUnresolvedConflicts(inspectionId);
-      log('[InspectionsTab _hasConflictsWithHistory] Inspection $inspectionId has conflicts: $hasConflicts');
+      final hasConflicts = await _serviceFactory.dataService
+          .hasUnresolvedConflicts(inspectionId);
       return hasConflicts;
     } catch (e) {
-      log('[InspectionsTab _hasConflictsWithHistory] Error checking conflicts: $e');
+      debugPrint('Error checking conflicts: $e');
       return false;
     }
   }
-
 
   bool _isInspectionFullyDownloaded(String inspectionId) {
     try {
       // If inspection is currently downloading, don't show it as downloaded
       if (_downloadingInspections.contains(inspectionId)) {
-        log('[InspectionsTab _isInspectionFullyDownloaded] Inspection $inspectionId is currently downloading');
         return false;
       }
-      
+
       // Check if inspection exists in the local list (meaning it was downloaded)
       final inspectionInList = _inspections.firstWhere(
         (inspection) => inspection['id'] == inspectionId,
@@ -509,11 +486,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
       final isDownloaded =
           inspectionInList.isNotEmpty && inspectionInList['_is_cached'] == true;
 
-      log('[InspectionsTab _isInspectionFullyDownloaded] Inspection $inspectionId: exists in local list: ${inspectionInList.isNotEmpty}, is cached: ${inspectionInList['_is_cached']}, is downloaded: $isDownloaded');
-
       return isDownloaded;
     } catch (e) {
-      log('[InspectionsTab _isInspectionFullyDownloaded] Error checking download status: $e');
+      debugPrint('Error checking download status: $e');
       return false;
     }
   }
@@ -546,21 +521,22 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Check each downloaded inspection for cloud conflicts
       for (final inspection in _inspections) {
         final inspectionId = inspection['id'] as String;
-        
+
         // Only check fully downloaded inspections
         if (_isInspectionFullyDownloaded(inspectionId)) {
           await _checkSingleInspectionForConflicts(inspectionId);
         }
       }
     } catch (e) {
-      log('[InspectionsTab _checkForCloudUpdates] Error checking cloud updates: $e');
+      debugPrint('Error checking cloud updates: $e');
     }
   }
 
   Future<void> _checkSingleInspectionForConflicts(String inspectionId) async {
     try {
       // Get local inspection
-      final localInspection = await _serviceFactory.dataService.getInspection(inspectionId);
+      final localInspection =
+          await _serviceFactory.dataService.getInspection(inspectionId);
       if (localInspection == null) return;
 
       // Check if local inspection has changes
@@ -575,14 +551,15 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Try to detect conflicts by attempting a sync and checking the result
       // This is a simplified approach since we can't access private members directly
       try {
-        final syncResult = await _serviceFactory.syncService.syncInspection(inspectionId);
-        
+        final syncResult =
+            await _serviceFactory.syncService.syncInspection(inspectionId);
+
         if (syncResult['hasConflicts'] == true) {
           // Conflict detected
           setState(() {
             _inspectionsWithConflicts.add(inspectionId);
           });
-          log('[InspectionsTab _checkSingleInspectionForConflicts] Conflict detected for inspection $inspectionId');
+          // Conflict detected
         } else {
           // No conflict
           setState(() {
@@ -594,13 +571,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
         setState(() {
           _inspectionsWithConflicts.remove(inspectionId);
         });
-        log('[InspectionsTab _checkSingleInspectionForConflicts] Sync failed for $inspectionId: $e');
       }
     } catch (e) {
-      log('[InspectionsTab _checkSingleInspectionForConflicts] Error checking conflicts for $inspectionId: $e');
+      debugPrint('Error checking conflicts for $inspectionId: $e');
     }
   }
-
 
   // Method removed - not used anywhere
 
@@ -608,10 +583,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
     try {
       // In offline-first mode, we assume there are no pending images to sync
       // Images are stored locally and only uploaded when explicitly synced
-      log('[InspectionsTab _hasPendingImages] Inspection $inspectionId: no pending images in offline-first mode');
       return false;
     } catch (e) {
-      log('[InspectionsTab _hasPendingImages] Error checking pending images: $e');
+      debugPrint('Error checking pending images: $e');
       return false;
     }
   }
@@ -620,16 +594,14 @@ class _InspectionsTabState extends State<InspectionsTab> {
     try {
       // In offline-first mode, we assume no pending images to sync
       // Images are stored locally and only uploaded when explicitly synced
-      log('[InspectionsTab _getPendingImagesCount] No pending images in offline-first mode for inspection $inspectionId');
       return 0;
     } catch (e) {
-      log('[InspectionsTab _getPendingImagesCount] Error counting pending images: $e');
+      debugPrint('Error counting pending images: $e');
       return 0;
     }
   }
 
   Future<void> _syncInspectionImages(String inspectionId) async {
-    log('[InspectionsTab _syncInspectionImages] Starting image sync for inspection ID: $inspectionId');
     try {
       // Show loading dialog
       if (mounted) {
@@ -657,7 +629,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
-      log('[InspectionsTab _syncInspectionImages] Image sync completed successfully for inspection $inspectionId');
+      // Image sync completed successfully
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -673,7 +645,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
-      log('[InspectionsTab _syncInspectionImages] Error syncing images for inspection $inspectionId: $e');
+      debugPrint('Error syncing images: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -686,15 +658,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final bool isApiKeyAvailable =
-        _googleMapsApiKey != null && _googleMapsApiKey!.isNotEmpty;
-
-    if (!isApiKeyAvailable) {
-      log('[InspectionsTab build] API Key is missing. Map previews will not work.');
-    }
+    // API key validation happens silently
 
     return Scaffold(
       backgroundColor: const Color(0xFF312456),
@@ -762,20 +728,24 @@ class _InspectionsTabState extends State<InspectionsTab> {
                           itemBuilder: (context, index) {
                             final inspection = _filteredInspections[index];
                             final inspectionId = inspection['id'] as String;
-                            final hasLocalChanges = _hasUnsyncedData(inspectionId);
-                            final isSyncedByHistory = _inspectionSyncStatus[inspectionId] ?? false;
+                            final hasLocalChanges =
+                                _hasUnsyncedData(inspectionId);
+                            final isSyncedByHistory =
+                                _inspectionSyncStatus[inspectionId] ?? false;
                             // Only show needsSync if there are actual local changes
                             // If successfully synced via the sync status tracker, don't show sync button
-                            final needsSync = hasLocalChanges && !isSyncedByHistory;
-                            
+                            final needsSync =
+                                hasLocalChanges && !isSyncedByHistory;
+
                             return InspectionCard(
                               inspection: inspection,
                               googleMapsApiKey: _googleMapsApiKey ?? '',
-                              isFullyDownloaded: _isInspectionFullyDownloaded(inspectionId),
+                              isFullyDownloaded:
+                                  _isInspectionFullyDownloaded(inspectionId),
                               needsSync: needsSync,
-                              hasConflicts: _inspectionsWithConflicts.contains(inspectionId),
+                              hasConflicts: _inspectionsWithConflicts
+                                  .contains(inspectionId),
                               onViewDetails: () {
-                                log('[InspectionsTab] Navigating to details for inspection ID: $inspectionId');
                                 _navigateToInspectionDetail(inspectionId);
                               },
                               // onComplete removido - apenas sincronização manual
@@ -907,7 +877,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
 
-      log('[InspectionsTab _showDownloadDialog] Error: $e');
+      debugPrint('Error loading inspections: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -922,12 +892,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<List<Map<String, dynamic>>>
       _getAvailableInspectionsFromFirestore() async {
     try {
-      debugPrint(
-          'InspectionsTab: Fetching available inspections from Firestore');
+      // Fetching available inspections from Firestore
 
       final user = _serviceFactory.authService.currentUser;
       if (user == null) {
-        debugPrint('InspectionsTab: No user logged in');
+        // No user logged in
         return [];
       }
 
@@ -935,7 +904,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
           .collection('inspections')
           .where('inspector_id', isEqualTo: user.uid)
           .where('deleted_at', isNull: true)
-          .where('status', whereIn: ['pending', 'in_progress', 'completed'])
           .orderBy('scheduled_date', descending: true)
           .get();
 
@@ -953,11 +921,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
         availableInspections.add(data);
       }
 
-      debugPrint(
-          'InspectionsTab: Found ${availableInspections.length} available inspections');
       return availableInspections;
     } catch (e) {
-      debugPrint('InspectionsTab: Error fetching available inspections: $e');
+      debugPrint('Error fetching available inspections: $e');
       return [];
     }
   }
@@ -994,7 +960,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
     log('[InspectionsTab] Returned from Detail Screen for $inspectionId. Result: $result');
     _loadInspections();
   }
-
 }
 
 class _AvailableInspectionsDialog extends StatefulWidget {
@@ -1003,10 +968,12 @@ class _AvailableInspectionsDialog extends StatefulWidget {
   const _AvailableInspectionsDialog({required this.inspections});
 
   @override
-  State<_AvailableInspectionsDialog> createState() => _AvailableInspectionsDialogState();
+  State<_AvailableInspectionsDialog> createState() =>
+      _AvailableInspectionsDialogState();
 }
 
-class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog> {
+class _AvailableInspectionsDialogState
+    extends State<_AvailableInspectionsDialog> {
   bool _hideDownloaded = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -1018,17 +985,20 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((inspection) {
         final title = (inspection['title'] ?? '').toString().toLowerCase();
-        final address = (inspection['address_string'] ?? '').toString().toLowerCase();
+        final address =
+            (inspection['address_string'] ?? '').toString().toLowerCase();
         final cod = (inspection['cod'] ?? '').toString().toLowerCase();
         return title.contains(_searchQuery.toLowerCase()) ||
-               address.contains(_searchQuery.toLowerCase()) ||
-               cod.contains(_searchQuery.toLowerCase());
+            address.contains(_searchQuery.toLowerCase()) ||
+            cod.contains(_searchQuery.toLowerCase());
       }).toList();
     }
 
     // Filtro de vistorias baixadas
     if (_hideDownloaded) {
-      filtered = filtered.where((inspection) => !(inspection['isDownloaded'] ?? false)).toList();
+      filtered = filtered
+          .where((inspection) => !(inspection['isDownloaded'] ?? false))
+          .toList();
     }
 
     return filtered;
@@ -1044,35 +1014,8 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
     final title = inspection['title'] ?? 'Vistoria sem título';
     final cod = inspection['cod'] ?? '';
     final date = _formatDate(inspection['scheduled_date']);
-    final status = inspection['status'] ?? 'pending';
     final address = inspection['address_string'] ?? 'Endereço não informado';
     final isDownloaded = inspection['isDownloaded'] ?? false;
-
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-
-    switch (status) {
-      case 'pending':
-        statusColor = Colors.orange;
-        statusIcon = Icons.schedule;
-        statusText = 'Pendente';
-        break;
-      case 'in_progress':
-        statusColor = Colors.blue;
-        statusIcon = Icons.work;
-        statusText = 'Em Andamento';
-        break;
-      case 'completed':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        statusText = 'Concluída';
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusIcon = Icons.help;
-        statusText = 'Desconhecido';
-    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1098,41 +1041,16 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                         color: Colors.white,
                         fontFamily: 'BricolageGrotesque',
                       ),
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (status != 'pending') ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, size: 12, color: statusColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            statusText,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: statusColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  // Remover badge de status completamente
                 ],
               ),
-              
+
               const SizedBox(height: 8),
-              
+
               // Código da vistoria
               if (cod.isNotEmpty)
                 Padding(
@@ -1152,11 +1070,12 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                     ],
                   ),
                 ),
-              
+
               // Data programada
               Row(
                 children: [
-                  const Icon(Icons.calendar_today, size: 11, color: Colors.grey),
+                  const Icon(Icons.calendar_today,
+                      size: 11, color: Colors.grey),
                   const SizedBox(width: 4),
                   Text(
                     'Data: $date',
@@ -1164,9 +1083,9 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 4),
-              
+
               // Endereço
               Row(
                 children: [
@@ -1176,39 +1095,48 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                     child: Text(
                       address,
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Status de download
               Row(
                 children: [
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isDownloaded ? Colors.green.withOpacity(0.1) : const Color(0xFF312456).withOpacity(0.1),
+                        color: isDownloaded
+                            ? Colors.green.withOpacity(0.1)
+                            : const Color(0xFF312456).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isDownloaded ? Colors.green.withOpacity(0.3) : const Color(0xFF312456).withOpacity(0.3),
+                          color: isDownloaded
+                              ? Colors.green.withOpacity(0.3)
+                              : const Color(0xFF312456).withOpacity(0.3),
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            isDownloaded ? Icons.check_circle : Icons.cloud_download,
+                            isDownloaded
+                                ? Icons.check_circle
+                                : Icons.cloud_download,
                             size: 16,
                             color: isDownloaded ? Colors.green : Colors.white,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              isDownloaded ? 'Já baixada - Toque para abrir' : 'Toque para baixar',
+                              isDownloaded
+                                  ? 'Já baixada - Toque para abrir'
+                                  : 'Toque para baixar',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -1232,7 +1160,7 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
   @override
   Widget build(BuildContext context) {
     final filteredInspections = _filteredInspections;
-    
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
@@ -1245,7 +1173,8 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
             // Header
             Row(
               children: [
-                const Icon(Icons.cloud_download, color: Color(0xFFFFFFFF), size: 20),
+                const Icon(Icons.cloud_download,
+                    color: Color(0xFFFFFFFF), size: 20),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Text(
@@ -1264,9 +1193,9 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Barra de busca
             TextField(
               controller: _searchController,
@@ -1296,18 +1225,20 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
               ),
               onChanged: (value) => setState(() => _searchQuery = value),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Filtros
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 InkWell(
-                  onTap: () => setState(() => _hideDownloaded = !_hideDownloaded),
+                  onTap: () =>
+                      setState(() => _hideDownloaded = !_hideDownloaded),
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1316,9 +1247,11 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                           height: 18,
                           child: Checkbox(
                             value: _hideDownloaded,
-                            onChanged: (value) => setState(() => _hideDownloaded = value ?? false),
+                            onChanged: (value) => setState(
+                                () => _hideDownloaded = value ?? false),
                             activeColor: Colors.blue,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -1340,9 +1273,9 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Lista de vistorias
             Expanded(
               child: Container(
@@ -1353,13 +1286,15 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              _hideDownloaded ? Icons.visibility_off : Icons.search_off,
+                              _hideDownloaded
+                                  ? Icons.visibility_off
+                                  : Icons.search_off,
                               size: 48,
                               color: Colors.grey[400],
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              _hideDownloaded 
+                              _hideDownloaded
                                   ? 'Todas as vistorias\njá foram baixadas'
                                   : _searchQuery.isNotEmpty
                                       ? 'Nenhuma vistoria encontrada\npara "$_searchQuery"'
@@ -1390,7 +1325,8 @@ class _AvailableInspectionsDialogState extends State<_AvailableInspectionsDialog
                     : ListView.builder(
                         padding: const EdgeInsets.only(top: 8, bottom: 12),
                         itemCount: filteredInspections.length,
-                        itemBuilder: (context, index) => _buildInspectionCard(filteredInspections[index]),
+                        itemBuilder: (context, index) =>
+                            _buildInspectionCard(filteredInspections[index]),
                       ),
               ),
             ),

@@ -166,16 +166,28 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
         // Carregar itens do tópico - use fallback if ID is null
         final topicId = topic.id ?? 'topic_$topicIndex';
-        final items = await _serviceFactory.dataService.getItems(topicId);
-        _itemsCache[topicId] = items;
+        
+        // Verificar se o tópico tem detalhes diretos
+        if (topic.directDetails == true) {
+          // Para tópicos com detalhes diretos, carregar detalhes diretamente
+          final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
+          _detailsCache['${topicId}_direct'] = directDetails;
+          debugPrint('InspectionDetailScreen: Loaded ${directDetails.length} direct details for topic $topicId');
+          // Não carregar itens para tópicos com detalhes diretos
+          _itemsCache[topicId] = [];
+        } else {
+          // Para tópicos normais, carregar itens e seus detalhes
+          final items = await _serviceFactory.dataService.getItems(topicId);
+          _itemsCache[topicId] = items;
 
-        // Carregar detalhes de cada item
-        for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
-          final item = items[itemIndex];
-          final itemId = item.id ?? 'item_$itemIndex';
-          final details = await _serviceFactory.dataService.getDetails(itemId);
-          _detailsCache['${topicId}_$itemId'] = details;
-          debugPrint('InspectionDetailScreen: Loaded ${details.length} details for item $itemId');
+          // Carregar detalhes de cada item
+          for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+            final item = items[itemIndex];
+            final itemId = item.id ?? 'item_$itemIndex';
+            final details = await _serviceFactory.dataService.getDetails(itemId);
+            _detailsCache['${topicId}_$itemId'] = details;
+            debugPrint('InspectionDetailScreen: Loaded ${details.length} details for item $itemId');
+          }
         }
       }
 
@@ -630,26 +642,293 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     debugPrint('InspectionDetailScreen: Cache updated with fresh data');
   }
 
+  double _calculateInspectionProgress() {
+    if (_topics.isEmpty) return 0.0;
+    
+    int totalDetails = 0;
+    int filledDetails = 0;
+    
+    for (final topic in _topics) {
+      final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
+      
+      // Hierarquia flexível: Verificar se tem detalhes diretos
+      if (topic.directDetails == true) {
+        // Para tópicos com detalhes diretos
+        final directDetailsKey = '${topicId}_direct';
+        final details = _detailsCache[directDetailsKey] ?? [];
+        
+        for (final detail in details) {
+          totalDetails++;
+          if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
+            filledDetails++;
+          }
+        }
+      } else {
+        // Para tópicos normais com itens
+        final items = _itemsCache[topicId] ?? [];
+        
+        for (final item in items) {
+          final itemId = item.id ?? 'item_${items.indexOf(item)}';
+          final details = _detailsCache['${topicId}_$itemId'] ?? [];
+          
+          for (final detail in details) {
+            totalDetails++;
+            if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
+              filledDetails++;
+            }
+          }
+        }
+      }
+    }
+    
+    return totalDetails > 0 ? filledDetails / totalDetails : 0.0;
+  }
+
+  Future<void> _exportInspection() async {
+    if (!mounted) return;
+
+    try {
+      // Criar um backup completo da inspeção
+      final Map<String, dynamic> exportData = {
+        'inspection': _inspection?.toMap(),
+        'topics': _topics.map((topic) => topic.toMap()).toList(),
+        'items': <String, dynamic>{},
+        'details': <String, dynamic>{},
+        'media': <String, dynamic>{},
+        'non_conformities': <String, dynamic>{},
+      };
+
+      // Coletar todos os itens
+      final itemsMap = exportData['items'] as Map<String, dynamic>;
+      final detailsMap = exportData['details'] as Map<String, dynamic>;
+      
+      for (final topic in _topics) {
+        final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
+        final items = _itemsCache[topicId] ?? [];
+        itemsMap[topicId] = items.map((item) => item.toMap()).toList();
+
+        // Coletar detalhes para cada item
+        for (final item in items) {
+          final itemId = item.id ?? 'item_${items.indexOf(item)}';
+          final details = _detailsCache['${topicId}_$itemId'] ?? [];
+          detailsMap['${topicId}_$itemId'] = details.map((detail) => detail.toMap()).toList();
+        }
+      }
+
+      // Coletar mídias
+      final allMedia = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
+      exportData['media'] = allMedia.map((media) => media.toMap()).toList();
+
+      // Coletar não conformidades
+      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+      exportData['non_conformities'] = allNCs.map((nc) => nc.toMap()).toList();
+
+      // Salvar o arquivo de exportação
+      final fileName = 'inspecao_${_inspection?.cod ?? 'export'}_${DateTime.now().millisecondsSinceEpoch}.json';
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Inspeção exportada: $fileName'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      debugPrint('Inspection exported successfully: $fileName');
+      debugPrint('Export data keys: ${exportData.keys.toList()}');
+
+    } catch (e) {
+      debugPrint('Error exporting inspection: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao exportar inspeção: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _importInspection() async {
     if (!mounted) return;
 
-    await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Importar Inspeção'),
-        content: const Text(
-            'Esta funcionalidade não está disponível no modo offline.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    try {
+      // Criar um diálogo de seleção de arquivo
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Importar Inspeção'),
+          content: const Text(
+              'Esta funcionalidade permite importar uma inspeção exportada anteriormente.\n\nDeseja continuar?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Importar'),
+            ),
+          ],
+        ),
+      );
 
-    // Import functionality removed for offline-first mode
-    // This would need to be reimplemented to work with the new SQLite system
+      if (confirmed != true) return;
+
+      // Implementar importação usando createInspectionFromJson
+      await _importFromVistoriaFlexivel();
+
+    } catch (e) {
+      debugPrint('Error importing inspection: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao importar inspeção: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importFromVistoriaFlexivel() async {
+    if (!mounted) return;
+
+    try {
+      // Dados do Vistoria_Flexivel.json
+      const vistoriaFlexivelData = {
+        "title": "Flexível",
+        "observation": null,
+        "project_id": "DQOFavelUHcuwdEuPE4I",
+        "template_id": "KrzoTXUdv1yRcYDWBND2",
+        "inspector_id": "bSTmE0Ix6WbBMueqvZWfpKc3Ngy2",
+        "status": "pending",
+        "address": {
+          "cep": "88062110",
+          "street": "Rua Crisógono Vieira da Cruz",
+          "number": "233",
+          "complement": "",
+          "neighborhood": "Lagoa da Conceição",
+          "city": "Florianópolis",
+          "state": "SC"
+        },
+        "address_string": "Rua Crisógono Vieira da Cruz, 233, Lagoa da Conceição, Florianópolis - SC",
+        "is_templated": true,
+        "area": "0",
+        "topics": [
+          {
+            "name": "Novo Tópico 1",
+            "description": null,
+            "observation": null,
+            "direct_details": false,
+            "items": [
+              {
+                "name": "Novo Item 1",
+                "description": null,
+                "observation": null,
+                "evaluable": true,
+                "evaluation_options": ["a", "b", "c"],
+                "evaluation_value": null,
+                "details": [
+                  {
+                    "name": "Novo Detalhe 1",
+                    "type": "text",
+                    "required": false,
+                    "options": [],
+                    "value": null,
+                    "observation": null,
+                    "is_damaged": false,
+                    "media": [],
+                    "non_conformities": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Novo Tópico 2",
+            "description": null,
+            "observation": null,
+            "direct_details": true,
+            "details": [
+              {
+                "name": "Novo Detalhe 1",
+                "type": "select",
+                "required": false,
+                "options": ["a", "b", "c"],
+                "value": null,
+                "observation": null,
+                "is_damaged": false,
+                "media": [],
+                "non_conformities": []
+              }
+            ]
+          },
+          {
+            "name": "Novo Tópico 3",
+            "description": null,
+            "observation": null,
+            "direct_details": true,
+            "details": [
+              {
+                "name": "Novo Detalhe 1",
+                "type": "boolean",
+                "required": false,
+                "options": [],
+                "value": null,
+                "observation": null,
+                "is_damaged": false,
+                "media": [],
+                "non_conformities": []
+              }
+            ]
+          }
+        ],
+        "cod": "INSP250715-001.TP0004",
+        "deleted_at": null,
+        "updated_at": {
+          "_seconds": 1752625367,
+          "_nanoseconds": 469000000
+        },
+        "created_at": {
+          "_seconds": 1752625367,
+          "_nanoseconds": 469000000
+        }
+      };
+
+      // Usar o serviço de dados para processar a estrutura aninhada
+      await _serviceFactory.dataService.createInspectionFromJson(vistoriaFlexivelData);
+
+      // Recarregar a inspeção após importação
+      await _loadInspection();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vistoria_Flexivel.json importado com sucesso!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+    } catch (e) {
+      debugPrint('Error importing Vistoria_Flexivel.json: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao importar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   void _navigateToMediaGallery() {
@@ -668,6 +947,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     switch (value) {
       case 'import':
         await _importInspection();
+        break;
+      case 'export':
+        await _exportInspection();
         break;
       case 'nonConformities':
         Navigator.of(context).push(
@@ -750,8 +1032,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (!_isLoading) ...[
-                    const SizedBox(height: 2),
+                  if (!_isLoading && _topics.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
+                      child: LinearProgressIndicator(
+                        value: _calculateInspectionProgress(),
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _calculateInspectionProgress() >= 1.0 
+                            ? Colors.green 
+                            : Colors.white,
+                        ),
+                        minHeight: 4,
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -796,6 +1095,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                       Icon(Icons.file_upload),
                       SizedBox(width: 8),
                       Text('Importar Inspeção'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'export',
+                  child: Row(
+                    children: [
+                      Icon(Icons.file_download),
+                      SizedBox(width: 8),
+                      Text('Exportar Inspeção'),
                     ],
                   ),
                 ),

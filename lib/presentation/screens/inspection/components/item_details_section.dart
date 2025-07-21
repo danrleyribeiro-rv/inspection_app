@@ -7,7 +7,7 @@ import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_s
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
-import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class ItemDetailsSection extends StatefulWidget {
@@ -36,18 +36,19 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
   String _currentItemName = '';
-  int _processingCount = 0;
   bool _isDuplicating = false; // Flag to prevent double duplication
   final Map<String, int> _mediaCountCache = {};
   int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
+  String? _currentEvaluationValue; // Valor atual da avaliação do item
 
   @override
   void initState() {
     super.initState();
     _observationController.text = widget.item.observation ?? '';
     _currentItemName = widget.item.itemName;
+    _currentEvaluationValue = widget.item.evaluationValue;
     _observationController.addListener(_updateItemObservation);
-    
+
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
   }
@@ -61,6 +62,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     if (widget.item.observation != _observationController.text) {
       _observationController.text = widget.item.observation ?? '';
     }
+    if (widget.item.evaluationValue != _currentEvaluationValue) {
+      _currentEvaluationValue = widget.item.evaluationValue;
+    }
   }
 
   @override
@@ -70,12 +74,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
   }
-  
+
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
     final cacheKey = '${widget.item.id}_item_only';
     _mediaCountCache.remove(cacheKey);
-    
+
     if (mounted) {
       setState(() {
         _mediaCountVersion++; // Força rebuild do FutureBuilder
@@ -113,20 +117,22 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
     try {
       // Get all media for this item
-      final allItemMedias = await _serviceFactory.mediaService.getMediaByContext(
+      final allItemMedias =
+          await _serviceFactory.mediaService.getMediaByContext(
         inspectionId: widget.inspectionId,
         topicId: widget.topic.id,
         itemId: widget.item.id,
       );
-      
+
       // Filter to show only item-level media (no detail specified)
       final itemOnlyMedias = allItemMedias.where((media) {
         return media.detailId == null;
       }).toList();
-      
+
       final count = itemOnlyMedias.length;
       _mediaCountCache[cacheKey] = count;
-      debugPrint('ItemDetailsSection: Item ${widget.item.id} has $count item-only media (filtered from ${allItemMedias.length} total)');
+      debugPrint(
+          'ItemDetailsSection: Item ${widget.item.id} has $count item-only media (filtered from ${allItemMedias.length} total)');
       return count;
     } catch (e) {
       debugPrint('Error getting media count for item ${widget.item.id}: $e');
@@ -150,97 +156,57 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     _captureFromCamera();
   }
 
-
   Future<void> _captureFromCamera() async {
     try {
-      await showDialog(
-        context: context,
-        builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type, source) async {
-            try {
-              if (mounted) setState(() => _processingCount++);
-              await _processAndSaveMedia(filePath, type, source);
-              if (mounted) setState(() => _processingCount--);
-              
-              // Chamar atualização imediatamente
-              await widget.onItemAction();
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => InspectionCameraScreen(
+            inspectionId: widget.inspectionId,
+            topicId: widget.topic.id,
+            itemId: widget.item.id,
+            source: 'camera',
+            onMediaCaptured: (capturedFiles) async {
+              try {
+                // Chamar atualização imediatamente
+                await widget.onItemAction();
 
-              if (mounted && context.mounted) {
-                // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia
-                debugPrint('ItemDetailsSection: IMMEDIATELY navigating to gallery for item ${widget.item.id}');
-                debugPrint('ItemDetailsSection: TopicId=${widget.topic.id}');
-                
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => MediaGalleryScreen(
-                      inspectionId: widget.inspectionId,
-                      initialTopicId: widget.topic.id,
-                      initialItemId: widget.item.id,
-                      initialItemOnly: true,
+                if (mounted && context.mounted) {
+                  // Mostrar mensagem de sucesso e navegar para galeria
+                  final message = capturedFiles.length == 1
+                      ? 'Mídia salva!'
+                      : '${capturedFiles.length} mídias salvas!';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 1),
                     ),
-                  ),
-                );
+                  );
 
-                // Mostrar mensagem após um pequeno delay para não interferir na navegação
-                Future.delayed(const Duration(milliseconds: 500), () {
-                  if (context.mounted) {
-                    final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  }
-                });
+                  // Navegar para a galeria após captura
+                  _openItemGallery();
+                }
+              } catch (e) {
+                debugPrint('Error processing media: $e');
+                if (mounted && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao processar mídia: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               }
-            } catch (e) {
-              if (mounted) setState(() => _processingCount--);
-              debugPrint('Error processing media: $e');
-              if (mounted && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Erro ao processar mídia: $e'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            }
-          },
+            },
+          ),
         ),
       );
     } catch (e) {
-      debugPrint('Error showing capture dialog: $e');
+      debugPrint('Error showing camera screen: $e');
     }
   }
 
-
-
-
-  Future<void> _processAndSaveMedia(String localPath, String type, String source) async {
-    try {
-      // Usar método simplificado para captura rápida
-      await _serviceFactory.mediaService.captureAndProcessMediaSimple(
-        inputPath: localPath,
-        inspectionId: widget.inspectionId,
-        type: type,
-        topicId: widget.topic.id,
-        itemId: widget.item.id,
-        source: source,
-      );
-
-      // Cache será invalidado automaticamente pelo MediaCounterNotifier
-
-      // A mídia já foi salva pelo MediaService, não precisa fazer nada mais
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro ao salvar mídia: $e')));
-      }
-    }
-  }
 
   Future<void> _editObservationDialog() async {
     final result = await showDialog<String>(
@@ -250,14 +216,14 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             TextEditingController(text: _observationController.text);
         return AlertDialog(
           title: const Text('Observações do Item',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: TextFormField(
               controller: controller,
-              maxLines: 6,
+              maxLines: 3,
               autofocus: true,
               decoration: const InputDecoration(
                   hintText: 'Digite suas observações...',
-                  hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                  hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
                   border: OutlineInputBorder())),
           actions: [
             TextButton(
@@ -295,7 +261,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   Future<void> _duplicateItem() async {
     // Prevent double execution
     if (_isDuplicating) return;
-    
+
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -406,6 +372,213 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     await widget.onItemAction();
   }
 
+  bool _isValidEvaluationValue(String? value) {
+    if (value == null) return true;
+    
+    final evaluationOptions = widget.item.evaluationOptions ?? [];
+    return evaluationOptions.contains(value) || value == 'Outro';
+  }
+
+  void _updateItemEvaluation(String? value) {
+    if (_currentEvaluationValue == value) return;
+
+    setState(() {
+      _currentEvaluationValue = value;
+    });
+
+    // Update item immediately
+    final updatedItem = widget.item.copyWith(
+      evaluationValue: value,
+      updatedAt: DateTime.now(),
+    );
+    widget.onItemUpdated(updatedItem);
+
+    // Debounced save
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      debugPrint('ItemDetailsSection: Saving item evaluation: $value');
+      await _serviceFactory.dataService.updateItem(updatedItem);
+      debugPrint('ItemDetailsSection: Item evaluation saved successfully');
+    });
+  }
+
+  Future<void> _showCustomEvaluationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Avaliação Personalizada',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          content: TextFormField(
+            controller: controller,
+            maxLines: 1,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Digite uma avaliação personalizada...',
+              hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Salvar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      // Adicionar a nova opção à lista de opções (se não for vazia)
+      final currentOptions = List<String>.from(widget.item.evaluationOptions ?? []);
+      if (!currentOptions.contains(result)) {
+        currentOptions.add(result);
+        
+        // Primeiro atualizar o estado local para evitar erro no dropdown
+        setState(() {
+          _currentEvaluationValue = result;
+        });
+        
+        // Depois atualizar o item com as novas opções
+        final updatedItem = widget.item.copyWith(
+          evaluationOptions: currentOptions,
+          evaluationValue: result,
+          updatedAt: DateTime.now(),
+        );
+        widget.onItemUpdated(updatedItem);
+        
+        // Salvar no banco de dados
+        if (_debounce?.isActive ?? false) _debounce?.cancel();
+        _debounce = Timer(const Duration(milliseconds: 500), () async {
+          debugPrint('ItemDetailsSection: Saving item with custom evaluation: $result');
+          await _serviceFactory.dataService.updateItem(updatedItem);
+          debugPrint('ItemDetailsSection: Item with custom evaluation saved successfully');
+        });
+      } else {
+        // Opção já existe, apenas definir valor
+        _updateItemEvaluation(result);
+      }
+    }
+  }
+
+  Widget _buildItemEvaluationSection() {
+    final evaluationOptions = widget.item.evaluationOptions ?? [];
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.orange.withAlpha(75)),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.orange.withAlpha(15),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.assessment, size: 16, color: Colors.orange.shade300),
+              const SizedBox(width: 8),
+              Text(
+                'Avaliação do Item',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade300,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (evaluationOptions.isNotEmpty) ...[
+            // Dropdown para opções de avaliação
+            DropdownButtonFormField<String>(
+              value: _isValidEvaluationValue(_currentEvaluationValue) ? _currentEvaluationValue : null,
+              decoration: InputDecoration(
+                hintText: 'Selecione uma avaliação',
+                hintStyle: TextStyle(color: Colors.orange.shade200, fontSize: 11),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                ),
+                fillColor: Colors.orange.withAlpha(25),
+                filled: true,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              dropdownColor: const Color.fromARGB(255, 48, 48, 48).withAlpha(250),
+              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
+              items: [
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text('(Sem avaliação)', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                ...evaluationOptions.map((option) => DropdownMenuItem<String>(
+                  value: option,
+                  child: Text(option, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                )),
+                // Adicionar opção "Outro"
+                const DropdownMenuItem<String>(
+                  value: 'Outro',
+                  child: Text('Outro', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == 'Outro') {
+                  _showCustomEvaluationDialog();
+                } else {
+                  _updateItemEvaluation(value);
+                }
+              },
+            ),
+          ] else ...[
+            // Campo de texto livre para avaliação
+            TextFormField(
+              initialValue: _currentEvaluationValue ?? '',
+              decoration: InputDecoration(
+                hintText: 'Digite a avaliação do item',
+                hintStyle: TextStyle(color: Colors.orange.shade200, fontSize: 11),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                ),
+                fillColor: Colors.orange.withAlpha(25),
+                filled: true,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              style: const TextStyle(color: Colors.white, fontSize: 11),
+              onChanged: _updateItemEvaluation,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -428,7 +601,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   onPressed: _captureItemMedia,
                   color: Colors.purple),
               FutureBuilder<int>(
-                key: ValueKey('item_media_${widget.item.id}_$_mediaCountVersion'),
+                key: ValueKey(
+                    'item_media_${widget.item.id}_$_mediaCountVersion'),
                 future: _getMediaCount(),
                 builder: (context, snapshot) {
                   final count = snapshot.data ?? 0;
@@ -459,21 +633,14 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   color: Colors.red),
             ],
           ),
-          if (_processingCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 12.0),
-              child:
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-                const SizedBox(width: 12),
-                Text("Processando $_processingCount mídia(s)...",
-                    style: const TextStyle(fontStyle: FontStyle.italic)),
-              ]),
-            ),
           const SizedBox(height: 8),
+          
+          // AVALIAÇÃO DO ITEM (se for avaliável)
+          if (widget.item.evaluable == true) ...[
+            _buildItemEvaluationSection(),
+            const SizedBox(height: 8),
+          ],
+          
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
@@ -575,10 +742,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           ),
         ),
         const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: Colors.white70)),
+        // Text(label,
+        //     style: const TextStyle(fontSize: 12, color: Colors.white70)),
       ],
     );
   }
-
 }

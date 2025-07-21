@@ -5,7 +5,7 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
-import 'package:lince_inspecoes/presentation/widgets/dialogs/media_capture_dialog.dart';
+import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class TopicDetailsSection extends StatefulWidget {
@@ -146,16 +146,16 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             TextEditingController(text: _observationController.text);
         
         return AlertDialog(
-          title: const Text('Observações do Tópico', style: TextStyle(color: Colors.white, fontSize: 16)),
+          title: const Text('Observações do Tópico', style: TextStyle(color: Colors.white, fontSize: 12)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
               controller: controller,
-              maxLines: 6,
+              maxLines: 3,
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -379,73 +379,55 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
   Future<void> _captureMedia() async {
     try {
-      await showDialog(
-        context: context,
-        builder: (context) => MediaCaptureDialog(
-          onMediaCaptured: (filePath, type, source) async {
-            try {
-              // Processar e salvar mídia
-              await _serviceFactory.mediaService.captureAndProcessMediaSimple(
-                inputPath: filePath,
-                inspectionId: widget.inspectionId,
-                type: type,
-                topicId: widget.topic.id,
-                source: source,
-              );
-              
-              // Cache será invalidado automaticamente pelo MediaCounterNotifier
-              
-              // Chamar atualização imediatamente
-              await widget.onTopicAction();
-
-              if (mounted && context.mounted) {
-                // NOVA REGRA: Ir direto para galeria IMEDIATAMENTE após capturar mídia
-                debugPrint('TopicDetailsSection: IMMEDIATELY navigating to gallery for topic ${widget.topic.id}');
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => InspectionCameraScreen(
+            inspectionId: widget.inspectionId,
+            topicId: widget.topic.id,
+            source: 'camera',
+            onMediaCaptured: (capturedFiles) async {
+              try {
+                // Cache será invalidado automaticamente pelo MediaCounterNotifier
                 
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => MediaGalleryScreen(
-                      inspectionId: widget.inspectionId,
-                      initialTopicId: widget.topic.id,
-                      initialTopicOnly: true,
-                    ),
-                  ),
-                );
+                // Chamar atualização imediatamente
+                await widget.onTopicAction();
 
-                // Mostrar mensagem após um pequeno delay para não interferir na navegação
-                Future.delayed(const Duration(milliseconds: 500), () {
-                  if (context.mounted) {
-                    final message = type == 'image' ? 'Foto salva!' : 'Vídeo salvo!';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  }
-                });
+                if (mounted && context.mounted) {
+                  // Mostrar mensagem de sucesso e navegar para galeria
+                  final message = capturedFiles.length == 1
+                      ? 'Mídia salva!'
+                      : '${capturedFiles.length} mídias salvas!';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+
+                  // Navegar para a galeria após captura
+                  _showMediaGallery();
+                }
+              } catch (e) {
+                debugPrint('Error processing media: $e');
+                if (mounted && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao processar mídia: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               }
-            } catch (e) {
-              debugPrint('Error processing media: $e');
-              if (mounted && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Erro ao processar mídia: $e'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            }
-          },
+            },
+          ),
         ),
       );
     } catch (e) {
-      debugPrint('Error showing capture dialog: $e');
+      debugPrint('Error showing camera screen: $e');
     }
   }
-
 
 
   @override
@@ -621,13 +603,13 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.white70,
-          ),
-        ),
+        // Text(
+        //   label,
+        //   style: const TextStyle(
+        //     fontSize: 11,
+        //     color: Colors.white70,
+        //   ),
+        // ),
       ],
     );
   }

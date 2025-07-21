@@ -109,7 +109,7 @@ class InspectionCard extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
-                          maxLines: 1,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (cod.isNotEmpty)
@@ -119,7 +119,7 @@ class InspectionCard extends StatelessWidget {
                               fontSize: 10,
                               color: Colors.white70,
                             ),
-                            maxLines: 1,
+                            maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],

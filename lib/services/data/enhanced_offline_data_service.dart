@@ -12,6 +12,7 @@ import 'package:lince_inspecoes/repositories/item_repository.dart';
 import 'package:lince_inspecoes/repositories/detail_repository.dart';
 import 'package:lince_inspecoes/repositories/non_conformity_repository.dart';
 import 'package:lince_inspecoes/repositories/media_repository.dart';
+import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
 import 'package:lince_inspecoes/repositories/inspection_history_repository.dart';
 import 'package:lince_inspecoes/models/inspection_history.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
@@ -66,7 +67,13 @@ class EnhancedOfflineDataService {
   }
 
   Future<List<Inspection>> getInspectionsByInspector(String inspectorId) async {
-    return await _inspectionRepository.findByInspectorId(inspectorId);
+    debugPrint('EnhancedOfflineDataService: 🔍 Buscando inspeções para inspector_id: $inspectorId');
+    final result = await _inspectionRepository.findByInspectorId(inspectorId);
+    debugPrint('EnhancedOfflineDataService: 📋 Encontradas ${result.length} inspeções para inspector $inspectorId');
+    for (final inspection in result) {
+      debugPrint('EnhancedOfflineDataService: 📄 → "${inspection.title}" (ID: ${inspection.id}, Inspector: ${inspection.inspectorId})');
+    }
+    return result;
   }
 
   Future<List<Inspection>> getAllInspections() async {
@@ -94,6 +101,173 @@ class EnhancedOfflineDataService {
     debugPrint('DataService: Insert or update inspection ${inspection.id}');
     await _inspectionRepository.insertOrUpdate(inspection);
     debugPrint('DataService: Inspection ${inspection.id} insert/update completed');
+  }
+
+  Future<void> insertOrUpdateInspectionFromCloud(Inspection inspection) async {
+    debugPrint('EnhancedOfflineDataService: 💾 Insert or update inspection from cloud ${inspection.id}');
+    debugPrint('EnhancedOfflineDataService: 💾 Título: "${inspection.title}"');
+    debugPrint('EnhancedOfflineDataService: 💾 Inspector ID: ${inspection.inspectorId}');
+    debugPrint('EnhancedOfflineDataService: 💾 Status: ${inspection.status}');
+    
+    await _inspectionRepository.insertOrUpdateFromCloud(inspection);
+    
+    // Verificar se foi salvo corretamente
+    final savedInspection = await _inspectionRepository.findById(inspection.id);
+    if (savedInspection != null) {
+      debugPrint('EnhancedOfflineDataService: ✅ Vistoria "${savedInspection.title}" CONFIRMADA no banco local');
+      debugPrint('EnhancedOfflineDataService: ✅ Inspector ID salvo: ${savedInspection.inspectorId}');
+    } else {
+      debugPrint('EnhancedOfflineDataService: ❌ ERRO: Vistoria ${inspection.id} NÃO foi encontrada após salvamento!');
+    }
+    
+    debugPrint('EnhancedOfflineDataService: Inspection from cloud ${inspection.id} insert/update completed');
+  }
+
+  Future<void> insertOrUpdateTopicFromCloud(Topic topic) async {
+    debugPrint('DataService: Insert or update topic from cloud ${topic.id}');
+    await _topicRepository.insertOrUpdateFromCloud(topic);
+    debugPrint('DataService: Topic from cloud ${topic.id} insert/update completed');
+  }
+
+  Future<void> insertOrUpdateItemFromCloud(Item item) async {
+    debugPrint('DataService: Insert or update item from cloud ${item.id}');
+    await _itemRepository.insertOrUpdateFromCloud(item);
+    debugPrint('DataService: Item from cloud ${item.id} insert/update completed');
+  }
+
+  // Método para forçar sincronização de uma inspeção e todos seus dados
+  Future<void> markInspectionForSync(String inspectionId, {bool force = false}) async {
+    debugPrint('DataService: Marking inspection $inspectionId for sync (force: $force)');
+    
+    // Marcar inspeção para sincronização
+    await _inspectionRepository.markForSync(inspectionId);
+    
+    // Marcar todos os tópicos para sincronização
+    final topics = await getTopics(inspectionId);
+    for (final topic in topics) {
+      await _topicRepository.markForSync(topic.id!);
+      
+      // Marcar itens do tópico
+      final items = await getItems(topic.id!);
+      for (final item in items) {
+        await _itemRepository.markForSync(item.id!);
+        
+        // Marcar detalhes do item
+        final details = await getDetails(item.id!);
+        for (final detail in details) {
+          await _detailRepository.markForSync(detail.id!);
+        }
+      }
+      
+      // Marcar detalhes diretos do tópico
+      final directDetails = await getDetailsByTopic(topic.id!);
+      for (final detail in directDetails) {
+        await _detailRepository.markForSync(detail.id!);
+      }
+    }
+    
+    // Marcar todas as não conformidades
+    final nonConformities = await getNonConformities(inspectionId);
+    for (final nc in nonConformities) {
+      await _nonConformityRepository.markForSync(nc.id);
+    }
+    
+    // Marcar todas as mídias
+    final mediaFiles = await getMediaByInspection(inspectionId);
+    for (final media in mediaFiles) {
+      await _mediaRepository.markForSync(media.id);
+    }
+    
+    debugPrint('DataService: Marked inspection $inspectionId and all related data for sync');
+  }
+
+  // Método para marcar inspeção como sincronizada (limpar flag has_local_changes)
+  Future<void> markInspectionSynced(String inspectionId) async {
+    debugPrint('DataService: Marking inspection $inspectionId as synced');
+    
+    final inspection = await getInspection(inspectionId);
+    if (inspection == null) return;
+    
+    // Atualizar inspeção com flags de sincronização
+    final syncedInspection = inspection.copyWith(
+      hasLocalChanges: false,
+      isSynced: true,
+      lastSyncAt: DateTime.now(),
+    );
+    
+    // Usar método FromCloud para não marcar como needing sync
+    await _inspectionRepository.insertOrUpdateFromCloud(syncedInspection);
+    
+    // Marcar todos os dados relacionados como sincronizados também
+    final topics = await getTopics(inspectionId);
+    for (final topic in topics) {
+      await _topicRepository.markSynced(topic.id!);
+      
+      final items = await getItems(topic.id!);
+      for (final item in items) {
+        await _itemRepository.markSynced(item.id!);
+        
+        final details = await getDetails(item.id!);
+        for (final detail in details) {
+          await _detailRepository.markSynced(detail.id!);
+        }
+      }
+      
+      final topicDetails = await getDetailsByTopic(topic.id!);
+      for (final detail in topicDetails) {
+        await _detailRepository.markSynced(detail.id!);
+      }
+    }
+    
+    final nonConformities = await getNonConformities(inspectionId);
+    for (final nc in nonConformities) {
+      await _nonConformityRepository.markSynced(nc.id);
+    }
+    
+    final mediaFiles = await getMediaByInspection(inspectionId);
+    for (final media in mediaFiles) {
+      await _mediaRepository.markSynced(media.id);
+    }
+    
+    debugPrint('DataService: Marked inspection $inspectionId and all related data as synced');
+  }
+
+  // Método para adicionar entrada no histórico de sincronização
+  Future<void> addSyncHistoryEntry(String inspectionId, String inspectorId, String action, {Map<String, dynamic>? metadata}) async {
+    final inspection = await getInspection(inspectionId);
+    if (inspection == null) return;
+    
+    final currentHistory = inspection.syncHistory ?? [];
+    final newEntry = {
+      'inspector_id': inspectorId,
+      'action': action, // 'upload', 'download', 'conflict_resolved'
+      'timestamp': DateTime.now().toIso8601String(),
+      'metadata': metadata ?? {},
+    };
+    
+    final updatedHistory = [...currentHistory, newEntry];
+    
+    final updatedInspection = inspection.copyWith(
+      syncHistory: updatedHistory,
+      lastSyncAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    
+    await _inspectionRepository.update(updatedInspection);
+    debugPrint('DataService: Added sync history entry for inspection $inspectionId: $action');
+  }
+
+  // Método público para forçar upload com debugging
+  Future<void> forceUploadWithDebugging(String inspectionId) async {
+    final syncService = FirestoreSyncService.instance;
+    await syncService.forceUploadInspection(inspectionId);
+  }
+
+
+  Future<void> insertOrUpdateDetailFromCloud(Detail detail) async {
+    debugPrint('DataService: Insert or update detail from cloud ${detail.id}');
+    await _detailRepository.insertOrUpdateFromCloud(detail);
+    debugPrint('DataService: Detail from cloud ${detail.id} insert/update completed');
   }
 
   Future<void> deleteInspection(String id) async {
@@ -244,6 +418,14 @@ class EnhancedOfflineDataService {
     return result;
   }
 
+  // Buscar detalhes diretos de tópico (hierarquia flexível)
+  Future<List<Detail>> getDirectDetails(String topicId) async {
+    debugPrint('DataService: Getting direct details for topic $topicId');
+    final result = await _detailRepository.findDirectDetailsByTopicIdOrdered(topicId);
+    debugPrint('DataService: Found ${result.length} direct details for topic $topicId');
+    return result;
+  }
+
   Future<List<Detail>> getDetailsByTopic(String topicId) async {
     return await _detailRepository.findByTopicId(topicId);
   }
@@ -321,6 +503,15 @@ class EnhancedOfflineDataService {
     return await _detailRepository.countRequiredCompletedByItemId(itemId);
   }
 
+  // Contadores para detalhes diretos de tópico
+  Future<int> getDirectDetailCount(String topicId) async {
+    return await _detailRepository.countDirectDetailsByTopicId(topicId);
+  }
+
+  Future<int> getDirectDetailCompletedCount(String topicId) async {
+    return await _detailRepository.countDirectDetailsCompletedByTopicId(topicId);
+  }
+
   // ===============================
   // OPERAÇÕES DE NÃO CONFORMIDADE
   // ===============================
@@ -392,6 +583,10 @@ class EnhancedOfflineDataService {
 
   Future<List<OfflineMedia>> getMediaByTopic(String topicId) async {
     return await _mediaRepository.findByTopicId(topicId);
+  }
+
+  Future<List<OfflineMedia>> getMediaByTopicDirectDetails(String topicId) async {
+    return await _mediaRepository.findByTopicDirectDetails(topicId);
   }
 
   Future<List<OfflineMedia>> getMediaByItem(String itemId) async {
@@ -510,7 +705,15 @@ class EnhancedOfflineDataService {
   }
 
   Future<List<OfflineMedia>> getMediaPendingUpload() async {
-    return await _mediaRepository.findPendingUpload();
+    // Buscar mídias que precisam de upload (não foram enviadas para nuvem ainda ou needs_sync = 1)
+    return await _mediaRepository.findWhere(
+      '(is_uploaded = 0 OR cloud_url IS NULL OR cloud_url = \'\') AND needs_sync = 1',
+      []
+    );
+  }
+
+  Future<List<OfflineMedia>> getDeletedMediaPendingSync() async {
+    return await _mediaRepository.findDeletedPendingSync();
   }
 
   Future<String> saveMediaFile(
@@ -622,9 +825,6 @@ class EnhancedOfflineDataService {
     return await _mediaRepository.findPendingSync();
   }
 
-  Future<void> markInspectionSynced(String inspectionId) async {
-    await _inspectionRepository.markSynced(inspectionId);
-  }
 
   Future<void> markTopicSynced(String topicId) async {
     await _topicRepository.markSynced(topicId);
@@ -733,6 +933,254 @@ class EnhancedOfflineDataService {
   }
 
   // ===============================
+  // HIERARQUIAS FLEXÍVEIS - OPERAÇÕES ESPECIALIZADAS
+  // ===============================
+
+  // Determinar se tópico tem detalhes diretos
+  Future<bool> hasDirectDetails(String topicId) async {
+    return await _topicRepository.hasDirectDetails(topicId);
+  }
+
+  // Buscar detalhes por contexto flexível (item ou tópico direto)
+  Future<List<Detail>> getDetailsByContext({
+    required String inspectionId,
+    String? topicId,
+    String? itemId,
+    bool? directOnly,
+  }) async {
+    return await _detailRepository.findDetailsByContextOrdered(
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: itemId,
+      directOnly: directOnly,
+    );
+  }
+
+  // Salvar detalhe com validação de hierarquia
+  Future<String> saveDetailWithValidation(Detail detail) async {
+    final isValid = await _detailRepository.validateDetailHierarchy(detail);
+    if (!isValid) {
+      throw Exception('Hierarquia inválida para o detalhe');
+    }
+    return await saveDetail(detail);
+  }
+
+  // Reordenar detalhes (automaticamente detecta se é de item ou tópico direto)
+  Future<void> reorderDetailsByContext(String contextId, List<String> detailIds, {String? itemId}) async {
+    if (itemId != null) {
+      // Reordenar detalhes de item
+      await _detailRepository.reorderDetails(itemId, detailIds);
+    } else {
+      // Reordenar detalhes diretos de tópico
+      await _detailRepository.reorderDirectDetails(contextId, detailIds);
+    }
+  }
+
+  // Reordenar detalhes diretos de tópico
+  Future<void> reorderDirectDetails(String topicId, List<String> detailIds) async {
+    await _detailRepository.reorderDirectDetails(topicId, detailIds);
+  }
+
+  // Atualizar configuração de hierarquia do tópico
+  Future<void> updateTopicHierarchy(String topicId, bool directDetails) async {
+    await _topicRepository.updateDirectDetailsConfig(topicId, directDetails);
+  }
+
+  // Converter tópico entre hierarquias
+  Future<void> convertTopicHierarchy(String topicId, bool toDirectDetails) async {
+    await _topicRepository.convertTopicHierarchy(topicId, toDirectDetails);
+  }
+
+  // Estatísticas de hierarquia
+  Future<Map<String, int>> getHierarchyStats(String inspectionId) async {
+    return await _topicRepository.getHierarchyStats(inspectionId);
+  }
+
+  // ===============================
+  // IMPORTAÇÃO DE INSPEÇÕES JSON
+  // ===============================
+
+  // Criar inspeção completa a partir do formato JSON
+  Future<String> createInspectionFromJson(Map<String, dynamic> jsonData) async {
+    return await DatabaseHelper.transaction((txn) async {
+      // 1. Criar inspeção principal
+      final inspection = _createInspectionFromJsonData(jsonData);
+      final inspectionId = await _inspectionRepository.insert(inspection);
+
+      // 2. Processar tópicos
+      final topicsData = jsonData['topics'] as List<dynamic>? ?? [];
+      for (int topicIndex = 0; topicIndex < topicsData.length; topicIndex++) {
+        final topicData = topicsData[topicIndex] as Map<String, dynamic>;
+        await _processTopicFromJson(inspectionId, topicData, topicIndex);
+      }
+
+      debugPrint('DataService: Inspection created from JSON with ID: $inspectionId');
+      return inspectionId;
+    });
+  }
+
+  // Processar tópico individual do JSON
+  Future<String> _processTopicFromJson(String inspectionId, Map<String, dynamic> topicData, int position) async {
+    // Criar tópico
+    final topic = Topic(
+      inspectionId: inspectionId,
+      position: position,
+      orderIndex: position,
+      topicName: topicData['name'] ?? '',
+      description: topicData['description'],
+      directDetails: topicData['direct_details'] ?? false,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final topicId = await _topicRepository.insert(topic);
+    debugPrint('DataService: Topic created: ${topic.topicName} (${topic.directDetails == true ? 'direct details' : 'with items'})');
+
+    // Determinar se tem detalhes diretos ou itens
+    final hasDirectDetails = topicData['direct_details'] == true;
+    
+    if (hasDirectDetails) {
+      // Processar detalhes diretos
+      final detailsData = topicData['details'] as List<dynamic>? ?? [];
+      for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
+        final detailData = detailsData[detailIndex] as Map<String, dynamic>;
+        await _processDetailFromJson(inspectionId, topicId, null, detailData, detailIndex);
+      }
+    } else {
+      // Processar itens
+      final itemsData = topicData['items'] as List<dynamic>? ?? [];
+      for (int itemIndex = 0; itemIndex < itemsData.length; itemIndex++) {
+        final itemData = itemsData[itemIndex] as Map<String, dynamic>;
+        await _processItemFromJson(inspectionId, topicId, itemData, itemIndex);
+      }
+    }
+
+    return topicId;
+  }
+
+  // Processar item individual do JSON
+  Future<String> _processItemFromJson(String inspectionId, String topicId, Map<String, dynamic> itemData, int position) async {
+    // Criar item
+    final item = Item(
+      inspectionId: inspectionId,
+      topicId: topicId,
+      position: position,
+      orderIndex: position,
+      itemName: itemData['name'] ?? '',
+      description: itemData['description'],
+      evaluable: itemData['evaluable'] ?? false,
+      evaluationOptions: itemData['evaluation_options'] != null 
+          ? List<String>.from(itemData['evaluation_options']) 
+          : null,
+      evaluationValue: itemData['evaluation_value'],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final itemId = await _itemRepository.insert(item);
+    debugPrint('DataService: Item created: ${item.itemName} (evaluable: ${item.evaluable})');
+
+    // Processar detalhes do item
+    final detailsData = itemData['details'] as List<dynamic>? ?? [];
+    for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
+      final detailData = detailsData[detailIndex] as Map<String, dynamic>;
+      await _processDetailFromJson(inspectionId, topicId, itemId, detailData, detailIndex);
+    }
+
+    return itemId;
+  }
+
+  // Processar detalhe individual do JSON
+  Future<String> _processDetailFromJson(String inspectionId, String topicId, String? itemId, Map<String, dynamic> detailData, int position) async {
+    // Determinar opções
+    List<String>? options;
+    if (detailData['options'] != null) {
+      options = List<String>.from(detailData['options']);
+    }
+
+    // Criar detalhe
+    final detail = Detail(
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: itemId, // null para detalhes diretos de tópico
+      position: position,
+      orderIndex: position,
+      detailName: detailData['name'] ?? '',
+      type: detailData['type'] ?? 'text',
+      options: options,
+      isRequired: detailData['required'] ?? false,
+      detailValue: detailData['value']?.toString(),
+      observation: detailData['observation'],
+      allowCustomOption: false, // Será implementado posteriormente
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final detailId = await _detailRepository.insert(detail);
+    debugPrint('DataService: Detail created: ${detail.detailName} (${detail.type}) ${itemId != null ? 'for item' : 'direct'}');
+
+    return detailId;
+  }
+
+  // Criar modelo de inspeção a partir dos dados JSON
+  Inspection _createInspectionFromJsonData(Map<String, dynamic> jsonData) {
+    // Processar endereço
+    final addressData = jsonData['address'] as Map<String, dynamic>?;
+    final addressString = jsonData['address_string'] as String?;
+
+    // Processar datas
+    DateTime? scheduledDate;
+    if (jsonData['scheduled_date'] != null) {
+      final scheduledDateData = jsonData['scheduled_date'];
+      if (scheduledDateData is Map && scheduledDateData['_seconds'] != null) {
+        // Formato Firestore Timestamp
+        final seconds = scheduledDateData['_seconds'] as int;
+        scheduledDate = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+      }
+    }
+
+    DateTime? createdAt;
+    if (jsonData['created_at'] != null) {
+      final createdAtData = jsonData['created_at'];
+      if (createdAtData is Map && createdAtData['_seconds'] != null) {
+        final seconds = createdAtData['_seconds'] as int;
+        createdAt = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+      }
+    }
+
+    DateTime? updatedAt;
+    if (jsonData['updated_at'] != null) {
+      final updatedAtData = jsonData['updated_at'];
+      if (updatedAtData is Map && updatedAtData['_seconds'] != null) {
+        final seconds = updatedAtData['_seconds'] as int;
+        updatedAt = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+      }
+    }
+
+    return Inspection(
+      id: 'inspection_${DateTime.now().millisecondsSinceEpoch}', // Gerar ID único
+      title: jsonData['title'] ?? '',
+      cod: jsonData['cod'],
+      projectId: jsonData['project_id'],
+      templateId: jsonData['template_id'],
+      inspectorId: jsonData['inspector_id'],
+      status: jsonData['status'] ?? 'pending',
+      scheduledDate: scheduledDate,
+      observation: jsonData['observation'],
+      street: addressData?['street'],
+      neighborhood: addressData?['neighborhood'],
+      city: addressData?['city'],
+      state: addressData?['state'],
+      zipCode: addressData?['cep'],
+      addressString: addressString,
+      address: addressData,
+      isTemplated: jsonData['is_templated'] ?? false,
+      createdAt: createdAt ?? DateTime.now(),
+      updatedAt: updatedAt ?? DateTime.now(),
+    );
+  }
+
+  // ===============================
   // OPERAÇÕES TRANSACIONAIS
   // ===============================
 
@@ -778,56 +1226,88 @@ class EnhancedOfflineDataService {
   Future<void> recalculateInspectionProgress(String inspectionId) async {
     final topics = await getTopics(inspectionId);
 
-    int totalItems = 0;
-    int completedItems = 0;
+    int totalUnits = 0; // Pode ser itens ou detalhes diretos
+    int completedUnits = 0;
 
     for (final topic in topics) {
-      final items = await getItems(topic.id ?? '');
-      totalItems += items.length;
-
-      for (final item in items) {
-        final details = await getDetails(item.id ?? '');
-        final requiredDetails =
-            details.where((d) => d.isRequired == true).toList();
-
-        if (requiredDetails.isNotEmpty) {
-          final completedRequiredDetails =
-              requiredDetails.where((d) => d.status == 'completed').toList();
-          if (completedRequiredDetails.length == requiredDetails.length) {
-            completedItems++;
+      final hasDirectDetails = topic.directDetails == true;
+      
+      if (hasDirectDetails) {
+        // Tópico com detalhes diretos - contar detalhes
+        final details = await getDirectDetails(topic.id ?? '');
+        totalUnits += details.length;
+        
+        for (final detail in details) {
+          if (detail.isRequired == true) {
+            // Se é obrigatório, deve estar completo
+            if (detail.status == 'completed') {
+              completedUnits++;
+            }
+          } else {
+            // Se não é obrigatório, considera completo se tem valor
+            if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
+              completedUnits++;
+            }
           }
-        } else {
-          // Se não há detalhes obrigatórios, considerar o item como completo se tem ao menos um detalhe preenchido
-          final completedDetails =
-              details.where((d) => d.status == 'completed').toList();
-          if (completedDetails.isNotEmpty) {
-            completedItems++;
+        }
+      } else {
+        // Tópico com itens - contar itens
+        final items = await getItems(topic.id ?? '');
+        totalUnits += items.length;
+
+        for (final item in items) {
+          final details = await getDetails(item.id ?? '');
+          final requiredDetails =
+              details.where((d) => d.isRequired == true).toList();
+
+          if (requiredDetails.isNotEmpty) {
+            final completedRequiredDetails =
+                requiredDetails.where((d) => d.status == 'completed').toList();
+            if (completedRequiredDetails.length == requiredDetails.length) {
+              completedUnits++;
+            }
+          } else {
+            // Se não há detalhes obrigatórios, considerar o item como completo se tem ao menos um detalhe preenchido
+            final completedDetails =
+                details.where((d) => d.status == 'completed').toList();
+            if (completedDetails.isNotEmpty) {
+              completedUnits++;
+            }
           }
         }
       }
     }
 
-    final progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0.0;
+    final progress = totalUnits > 0 ? (completedUnits / totalUnits) * 100 : 0.0;
     await updateInspectionProgress(
-        inspectionId, progress, completedItems, totalItems);
+        inspectionId, progress, completedUnits, totalUnits);
   }
 
   Future<void> recalculateTopicProgress(String topicId) async {
-    final items = await getItems(topicId);
+    // Verificar se é tópico com detalhes diretos ou com itens
+    final hasDirectDetails = await this.hasDirectDetails(topicId);
+    
+    int totalUnits = 0;
+    int completedUnits = 0;
 
-    int totalDetails = 0;
-    int completedDetails = 0;
+    if (hasDirectDetails) {
+      // Tópico com detalhes diretos
+      final details = await getDirectDetails(topicId);
+      totalUnits = details.length;
+      completedUnits = details.where((d) => d.status == 'completed').length;
+    } else {
+      // Tópico com itens
+      final items = await getItems(topicId);
 
-    for (final item in items) {
-      final details = await getDetails(item.id ?? '');
-      totalDetails += details.length;
-      completedDetails += details.where((d) => d.status == 'completed').length;
+      for (final item in items) {
+        final details = await getDetails(item.id ?? '');
+        totalUnits += details.length;
+        completedUnits += details.where((d) => d.status == 'completed').length;
+      }
     }
 
-    final progress =
-        totalDetails > 0 ? (completedDetails / totalDetails) * 100 : 0.0;
-    await updateTopicProgress(
-        topicId, progress, completedDetails, totalDetails);
+    final progress = totalUnits > 0 ? (completedUnits / totalUnits) * 100 : 0.0;
+    await updateTopicProgress(topicId, progress, completedUnits, totalUnits);
   }
 
   Future<void> recalculateItemProgress(String itemId) async {

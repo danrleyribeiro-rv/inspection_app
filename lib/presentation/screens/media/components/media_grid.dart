@@ -1,5 +1,4 @@
 // lib/presentation/screens/media/components/media_grid.dart
-import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -125,7 +124,7 @@ class _MediaGridState extends State<MediaGrid> {
     if (confirmed == true) {
       try {
         debugPrint('MediaGrid: Deleting media with ID: $mediaId');
-        
+
         // For offline-first architecture, always use media service
         await _serviceFactory.mediaService.deleteMedia(mediaId);
 
@@ -178,7 +177,8 @@ class _MediaGridState extends State<MediaGrid> {
             left: 16,
             right: 16,
             top: 16,
-            bottom: 16 + MediaQuery.of(context).viewInsets.bottom, // Respect keyboard
+            bottom: 16 +
+                MediaQuery.of(context).viewInsets.bottom, // Respect keyboard
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -250,22 +250,26 @@ class _MediaGridState extends State<MediaGrid> {
       BuildContext context, Map<String, dynamic> mediaItem) {
     final bool isImage = mediaItem['type'] == 'image';
     final bool isNonConformity = mediaItem['is_non_conformity'] == true;
-    
+
     // Simple unique key based on media ID only
     final uniqueKey = ValueKey('media-item-${mediaItem['id']}');
-    
+
     // Try multiple path formats for compatibility
     String displayPath = '';
-    if (mediaItem['localPath'] != null && mediaItem['localPath'].toString().isNotEmpty) {
+    if (mediaItem['localPath'] != null &&
+        mediaItem['localPath'].toString().isNotEmpty) {
       displayPath = mediaItem['localPath'].toString();
-    } else if (mediaItem['local_path'] != null && mediaItem['local_path'].toString().isNotEmpty) {
+    } else if (mediaItem['local_path'] != null &&
+        mediaItem['local_path'].toString().isNotEmpty) {
       displayPath = mediaItem['local_path'].toString();
-    } else if (mediaItem['cloudUrl'] != null && mediaItem['cloudUrl'].toString().isNotEmpty) {
+    } else if (mediaItem['cloudUrl'] != null &&
+        mediaItem['cloudUrl'].toString().isNotEmpty) {
       displayPath = mediaItem['cloudUrl'].toString();
-    } else if (mediaItem['url'] != null && mediaItem['url'].toString().isNotEmpty) {
+    } else if (mediaItem['url'] != null &&
+        mediaItem['url'].toString().isNotEmpty) {
       displayPath = mediaItem['url'].toString();
     }
-    
+
     final String? status = mediaItem['status'] as String?;
 
     // Format date
@@ -289,14 +293,17 @@ class _MediaGridState extends State<MediaGrid> {
     // Create a decoration for the card with consistent dark theme colors
     // Check if this is resolution media
     final source = mediaItem['source'] as String?;
-    final isResolutionMedia = source == 'resolution_camera' || source == 'resolution_gallery';
-    
+    final isResolutionMedia =
+        source == 'resolution_camera' || source == 'resolution_gallery';
+
     BoxDecoration decoration = BoxDecoration(
       borderRadius: BorderRadius.circular(8),
       border: isNonConformity
-          ? (isResolutionMedia 
-              ? Border.all(color: Colors.green, width: 2)  // Green for resolution media
-              : Border.all(color: Colors.red, width: 2))   // Red for regular NC media
+          ? (isResolutionMedia
+              ? Border.all(
+                  color: Colors.green, width: 2) // Green for resolution media
+              : Border.all(
+                  color: Colors.red, width: 2)) // Red for regular NC media
           : Border.all(color: Colors.grey.shade700),
     );
 
@@ -305,32 +312,38 @@ class _MediaGridState extends State<MediaGrid> {
     if (isImage) {
       // Priorizar thumbnail se disponível, depois arquivo local, depois URL
       String? imagePath;
-      
+
       // 1. Verificar se há thumbnail disponível
-      final thumbnailPath = mediaItem['thumbnail_path'] ?? mediaItem['thumbnailPath'];
+      final thumbnailPath =
+          mediaItem['thumbnail_path'] ?? mediaItem['thumbnailPath'];
       if (thumbnailPath != null && thumbnailPath.toString().isNotEmpty) {
         final thumbnailFile = File(thumbnailPath.toString());
         if (thumbnailFile.existsSync()) {
           imagePath = thumbnailPath.toString();
           debugPrint('MediaGrid: Using thumbnail: $imagePath');
         } else {
-          debugPrint('MediaGrid: Thumbnail path exists but file not found: $thumbnailPath');
+          debugPrint(
+              'MediaGrid: Thumbnail path exists but file not found: $thumbnailPath');
         }
       } else {
-        debugPrint('MediaGrid: No thumbnail path available for media ${mediaItem['id']}');
+        debugPrint(
+            'MediaGrid: No thumbnail path available for media ${mediaItem['id']}');
       }
-      
+
       // 2. Se não há thumbnail, usar arquivo local principal
-      if (imagePath == null && displayPath.isNotEmpty && !displayPath.startsWith('http')) {
+      if (imagePath == null &&
+          displayPath.isNotEmpty &&
+          !displayPath.startsWith('http')) {
         final file = File(displayPath);
         if (file.existsSync()) {
           imagePath = displayPath;
           debugPrint('MediaGrid: Using local file: $imagePath');
         }
       }
-      
+
       // 3. Se é uma URL, usar widget de cache
-      if (imagePath == null && (displayPath.startsWith('http') || displayPath.startsWith('https'))) {
+      if (imagePath == null &&
+          (displayPath.startsWith('http') || displayPath.startsWith('https'))) {
         displayWidget = CachedMediaImage(
           mediaUrl: displayPath,
           mediaId: mediaItem['id'] as String?,
@@ -353,13 +366,15 @@ class _MediaGridState extends State<MediaGrid> {
         );
       } else {
         // Nenhuma imagem disponível
-        debugPrint('MediaGrid: No image available for media ${mediaItem['id']}');
+        debugPrint(
+            'MediaGrid: No image available for media ${mediaItem['id']}');
         displayWidget = _buildErrorPlaceholder();
       }
     } else {
       // Video - verificar se há thumbnail de vídeo
-      final thumbnailPath = mediaItem['thumbnail_path'] ?? mediaItem['thumbnailPath'];
-      
+      final thumbnailPath =
+          mediaItem['thumbnail_path'] ?? mediaItem['thumbnailPath'];
+
       if (thumbnailPath != null && thumbnailPath.toString().isNotEmpty) {
         final thumbnailFile = File(thumbnailPath.toString());
         if (thumbnailFile.existsSync()) {
@@ -428,7 +443,7 @@ class _MediaGridState extends State<MediaGrid> {
         elevation: isSelected ? 4 : 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: isSelected 
+          side: isSelected
               ? const BorderSide(color: Color(0xFF6F4B99), width: 3)
               : BorderSide.none,
         ),
@@ -494,7 +509,7 @@ class _MediaGridState extends State<MediaGrid> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
-                        _getMediaIcon(mediaItem, isImage),
+                        isImage ? Icons.image : Icons.videocam,
                         color: Colors.white,
                         size: 14,
                       ),
@@ -529,7 +544,8 @@ class _MediaGridState extends State<MediaGrid> {
                 top: 4,
                 left: 4,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.black.withAlpha((255 * 0.8).round()),
                     borderRadius: BorderRadius.circular(6),
@@ -546,18 +562,18 @@ class _MediaGridState extends State<MediaGrid> {
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 1,
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      // Tipo específico se disponível
-                      if (_getSpecificOrigin(mediaItem).isNotEmpty)
+                      // Exibir apenas informações de NC se disponível
+                      if (mediaItem['is_non_conformity'] == true)
                         Text(
-                          _getSpecificOrigin(mediaItem),
+                          '⚠️ NC',
                           style: TextStyle(
                             color: Colors.white.withAlpha((255 * 0.8).round()),
                             fontSize: 8,
                           ),
-                          maxLines: 1,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
                     ],
@@ -589,7 +605,7 @@ class _MediaGridState extends State<MediaGrid> {
                       color: Colors.white,
                       fontSize: 10,
                     ),
-                    maxLines: 1,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),
@@ -625,7 +641,9 @@ class _MediaGridState extends State<MediaGrid> {
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF6F4B99) : Colors.black.withAlpha((255 * 0.6).round()),
+                      color: isSelected
+                          ? const Color(0xFF6F4B99)
+                          : Colors.black.withAlpha((255 * 0.6).round()),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
@@ -677,41 +695,6 @@ class _MediaGridState extends State<MediaGrid> {
   }
 
   // Helper method to parse metadata consistently
-  Map<String, dynamic>? _parseMetadata(Map<String, dynamic> mediaItem) {
-    if (mediaItem['metadata'] != null) {
-      if (mediaItem['metadata'] is String) {
-        try {
-          return Map<String, dynamic>.from(
-              jsonDecode(mediaItem['metadata'] as String));
-        } catch (e) {
-          debugPrint('MediaGrid._parseMetadata: Error parsing metadata: $e');
-        }
-      } else if (mediaItem['metadata'] is Map) {
-        return mediaItem['metadata'] as Map<String, dynamic>?;
-      }
-    }
-    return null;
-  }
-
-  IconData _getMediaIcon(Map<String, dynamic> mediaItem, bool isImage) {
-    final source = mediaItem['source'] as String?;
-    final metadata = _parseMetadata(mediaItem);
-    final metadataSource = metadata?['source'] as String?;
-
-    // Verificar se é da camera (source direto ou no metadata) - includes both regular and resolution camera
-    final isFromCamera = source == 'camera' || source == 'resolution_camera' || 
-                        metadataSource == 'camera' || metadataSource == 'resolution_camera';
-
-    // Debug log para verificar os valores
-    debugPrint(
-        'MediaGrid._getMediaIcon: Media ${mediaItem['id']} - source=$source, metadataSource=$metadataSource, isFromCamera=$isFromCamera');
-
-    if (isImage) {
-      return isFromCamera ? Icons.camera_alt : Icons.folder;
-    } else {
-      return isFromCamera ? Icons.videocam : Icons.video_library;
-    }
-  }
 
   Widget _buildLoadingIndicator() {
     return const Center(
@@ -757,7 +740,7 @@ class _MediaGridState extends State<MediaGrid> {
 
   String _buildOriginText(Map<String, dynamic> mediaItem) {
     List<String> parts = [];
-    
+
     if (mediaItem['topic_name'] != null) {
       parts.add('T: ${mediaItem['topic_name']}');
     }
@@ -767,49 +750,11 @@ class _MediaGridState extends State<MediaGrid> {
     if (mediaItem['detail_name'] != null) {
       parts.add('D: ${mediaItem['detail_name']}');
     }
-    
+
     if (parts.isEmpty) {
       return 'Mídia da Inspeção';
     }
-    
-    return parts.join(' → ');
-  }
-  
-  String _getSpecificOrigin(Map<String, dynamic> mediaItem) {
-    // Parse metadata if it's a JSON string (reusing the same logic as _getMediaIcon)
-    Map<String, dynamic>? metadata = _parseMetadata(mediaItem);
 
-    final source = mediaItem['source'] as String?;
-    final metadataSource = metadata?['source'] as String?;
-    
-    // Debug logging para rastrear valores de source
-    debugPrint('MediaGrid: ========== SOURCE ANALYSIS FOR DISPLAY ==========');
-    debugPrint('MediaGrid: Media ID: ${mediaItem['id']}');
-    debugPrint('MediaGrid: Filename: ${mediaItem['filename']}');
-    debugPrint('MediaGrid: Direct source field: $source');
-    debugPrint('MediaGrid: Metadata source field: $metadataSource');
-    
-    final isFromCamera = source == 'camera' || source == 'resolution_camera' || 
-                        metadataSource == 'camera' || metadataSource == 'resolution_camera';
-    
-    debugPrint('MediaGrid: isFromCamera result: $isFromCamera');
-    debugPrint('MediaGrid: Will display: ${isFromCamera ? "📷 Câmera" : "📁 Galeria"}');
-    debugPrint('MediaGrid: ========== SOURCE ANALYSIS COMPLETE ==========');
-    
-    final isNonConformity = mediaItem['is_non_conformity'] == true;
-    
-    List<String> details = [];
-    
-    if (isFromCamera) {
-      details.add('📷 Câmera');
-    } else {
-      details.add('📁 Galeria');
-    }
-    
-    if (isNonConformity) {
-      details.add('⚠️ NC');
-    }
-    
-    return details.join(' • ');
+    return parts.join(' → ');
   }
 }

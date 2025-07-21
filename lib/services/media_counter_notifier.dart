@@ -81,6 +81,14 @@ class MediaCounterNotifier extends ChangeNotifier {
     notifyListeners();
   }
   
+  /// Invalida contadores para uma inspeção específica
+  void invalidateForInspection(String inspectionId) {
+    debugPrint('MediaCounterNotifier: Invalidating counters for inspection $inspectionId');
+    // Remover todos os contadores que possam estar relacionados à inspeção
+    _counters.clear();
+    notifyListeners();
+  }
+  
   /// Armazena um contador calculado
   void setCounter(String key, int count) {
     _counters[key] = count;

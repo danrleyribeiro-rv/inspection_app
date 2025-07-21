@@ -266,7 +266,14 @@ class _HierarchicalInspectionViewState
                         ),
                       ),
 
-                    if (topicItems.isNotEmpty)
+                    // HIERARQUIA FLEXÍVEL: Verificar se tópico tem detalhes diretos
+                    if (topic.directDetails == true)
+                      // Hierarquia direta: Tópico → Detalhe
+                      Expanded(
+                        child: _buildDirectDetailsView(topic, topicIndex),
+                      )
+                    else if (topicItems.isNotEmpty)
+                      // Hierarquia normal: Tópico → Item → Detalhe  
                       Expanded(
                         child: PageView.builder(
                           controller: topicIndex == _currentTopicIndex
@@ -536,25 +543,7 @@ class _HierarchicalInspectionViewState
                         ),
                       ),
 
-                    if (topicItems.isEmpty)
-                      Expanded(
-                        child: const Padding(
-                          padding: EdgeInsets.all(32.0),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.inbox,
-                                    size: 48, color: Colors.white30),
-                                SizedBox(height: 4),
-                                Text('Nenhum item encontrado',
-                                    style: TextStyle(
-                                        color: Colors.white70, fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                    // REMOVIDO: Não mostrar "nenhum item encontrado" - tópicos com direct_details: true não têm itens
                   ],
                 );
               },
@@ -569,6 +558,21 @@ class _HierarchicalInspectionViewState
   double _calculateTopicProgress(Topic topic) {
     if (topic.id == null) return 0.0;
 
+    // Hierarquia flexível: Verificar se tem detalhes diretos
+    if (topic.directDetails == true) {
+      // Para tópicos com detalhes diretos, calcular progresso baseado nos detalhes
+      final directDetailsKey = '${topic.id}_direct';
+      final details = widget.detailsCache[directDetailsKey] ?? [];
+      if (details.isEmpty) return 0.0;
+
+      int totalDetails = details.length;
+      int completedDetails = details.where((d) => 
+          d.detailValue != null && d.detailValue!.isNotEmpty).length;
+
+      return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
+    }
+
+    // Hierarquia normal: Calcular progresso baseado nos itens
     final items = widget.itemsCache[topic.id] ?? [];
     if (items.isEmpty) return 0.0;
 
@@ -615,4 +619,70 @@ class _HierarchicalInspectionViewState
 
     return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
   }
+
+  /// Constrói a view para tópicos com detalhes diretos (sem itens intermediários)
+  Widget _buildDirectDetailsView(Topic topic, int topicIndex) {
+    final topicId = topic.id ?? 'topic_$topicIndex';
+    // Usar chave especial para detalhes diretos
+    final directDetailsKey = '${topicId}_direct';
+    final topicDetails = widget.detailsCache[directDetailsKey] ?? <Detail>[];
+
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // REMOVIDO: Não mostrar header de item para direct_details, mostrar detalhes diretamente
+
+          // Lista de detalhes diretos - mostrar sempre, não dependente de _isDetailsExpanded
+          if (topicDetails.isNotEmpty)
+            DetailsListSection(
+              details: topicDetails,
+              item: null, // null para detalhes diretos
+              topic: topic,
+              inspectionId: widget.inspectionId,
+              isDirectDetails: true, // Nova propriedade
+              expandedDetailId: _expandedDetailId,
+              topicIndex: topicIndex,
+              itemIndex: 0, // Para detalhes diretos, usar 0 como índice
+              onDetailsUpdated: (details) async {
+                widget.detailsCache[directDetailsKey] = details;
+                setState(() {});
+              },
+              onDetailUpdated: (detail) {
+                // Callback necessário para compatibilidade
+                widget.onUpdateCache();
+              },
+              onDetailAction: () async {
+                // Atualizar cache e recarregar dados
+                await widget.onUpdateCache();
+              },
+              onDetailExpanded: (detailId) {
+                // Salva qual detalhe foi expandido
+                _expandedDetailId = detailId;
+                _saveNavigationState();
+              },
+            ),
+
+          // Mensagem quando não há detalhes
+          if (topicDetails.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.details, size: 48, color: Colors.white30),
+                    SizedBox(height: 4),
+                    Text('Nenhum detalhe encontrado',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // REMOVIDO: Método não utilizado após remoção do header de item para direct_details
 }

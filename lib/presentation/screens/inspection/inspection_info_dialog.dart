@@ -27,15 +27,17 @@ class InspectionInfoDialog extends StatelessWidget {
               fontWeight: FontWeight.bold)),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.7,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _infoRow('Total de Tópicos:', totalTopics.toString()),
-            _infoRow('Total de Itens:', totalItems.toString()),
-            _infoRow('Total de Detalhes:', totalDetails.toString()),
-            _infoRow('Total de Mídias:', totalMedia.toString()),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('Total de Tópicos:', totalTopics.toString()),
+              _infoRow('Total de Itens:', totalItems.toString()),
+              _infoRow('Total de Detalhes:', totalDetails.toString()),
+              _infoRow('Total de Mídias:', totalMedia.toString()),
+            ],
+          ),
         ),
       ),
       actions: [
