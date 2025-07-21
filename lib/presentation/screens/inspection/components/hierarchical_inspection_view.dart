@@ -256,6 +256,7 @@ class _HierarchicalInspectionViewState
                                 .indexWhere((t) => t.id == updatedTopic.id);
                             if (index >= 0) {
                               widget.topics[index] = updatedTopic;
+                              debugPrint('HierarchicalInspectionView: Topic ${updatedTopic.id} updated locally, triggering setState');
                               setState(() {}); // Atualização instantânea local
                             }
                           },
@@ -267,7 +268,8 @@ class _HierarchicalInspectionViewState
                       ),
 
                     // HIERARQUIA FLEXÍVEL: Verificar se tópico tem detalhes diretos
-                    if (topic.directDetails == true)
+                    // Usar uma condição mais robusta - verificar tanto a propriedade quanto o cache
+                    if (_shouldUseDirectDetails(topic, topicIndex))
                       // Hierarquia direta: Tópico → Detalhe
                       Expanded(
                         child: _buildDirectDetailsView(topic, topicIndex),
@@ -541,9 +543,7 @@ class _HierarchicalInspectionViewState
                             );
                           },
                         ),
-                      ),
-
-                    // REMOVIDO: Não mostrar "nenhum item encontrado" - tópicos com direct_details: true não têm itens
+                      )
                   ],
                 );
               },
@@ -552,6 +552,20 @@ class _HierarchicalInspectionViewState
         ],
       ),
     );
+  }
+
+  /// Verifica se o tópico deve usar detalhes diretos
+  bool _shouldUseDirectDetails(Topic topic, int topicIndex) {
+    final topicId = topic.id ?? 'topic_$topicIndex';
+    final directDetailsKey = '${topicId}_direct';
+    final hasDirectDetailsInCache = widget.detailsCache.containsKey(directDetailsKey) && 
+                                    (widget.detailsCache[directDetailsKey]?.isNotEmpty ?? false);
+    final hasDirectDetailsProperty = topic.directDetails == true;
+    
+    debugPrint('HierarchicalInspectionView: Topic ${topic.id} - directDetails property = $hasDirectDetailsProperty, cache has details = $hasDirectDetailsInCache');
+    
+    // Use direct details if either condition is true
+    return hasDirectDetailsProperty || hasDirectDetailsInCache;
   }
 
   // Progress calculation methods
@@ -626,6 +640,12 @@ class _HierarchicalInspectionViewState
     // Usar chave especial para detalhes diretos
     final directDetailsKey = '${topicId}_direct';
     final topicDetails = widget.detailsCache[directDetailsKey] ?? <Detail>[];
+    
+    debugPrint('HierarchicalInspectionView: _buildDirectDetailsView for topic ${topic.id}');
+    debugPrint('HierarchicalInspectionView: directDetailsKey = $directDetailsKey');
+    debugPrint('HierarchicalInspectionView: topicDetails.length = ${topicDetails.length}');
+    debugPrint('HierarchicalInspectionView: available cache keys = ${widget.detailsCache.keys.toList()}');
+    debugPrint('HierarchicalInspectionView: topic.directDetails = ${topic.directDetails}');
 
     return SingleChildScrollView(
       child: Column(
@@ -634,20 +654,24 @@ class _HierarchicalInspectionViewState
           // REMOVIDO: Não mostrar header de item para direct_details, mostrar detalhes diretamente
 
           // Lista de detalhes diretos - mostrar sempre, não dependente de _isDetailsExpanded
-          if (topicDetails.isNotEmpty)
+          if (topicDetails.isNotEmpty) ...[
+            // Debug antes de criar DetailsListSection
+            Builder(
+              builder: (context) {
+                debugPrint('HierarchicalInspectionView: About to create DetailsListSection with ${topicDetails.length} details');
+                debugPrint('HierarchicalInspectionView: Topic ID = ${topic.id}, hashCode = ${topic.hashCode}');
+                return const SizedBox.shrink();
+              }
+            ),
             DetailsListSection(
+              key: ValueKey('details_${topic.id}_${topicDetails.length}'), // Stable key
               details: topicDetails,
               item: null, // null para detalhes diretos
               topic: topic,
               inspectionId: widget.inspectionId,
-              isDirectDetails: true, // Nova propriedade
               expandedDetailId: _expandedDetailId,
               topicIndex: topicIndex,
               itemIndex: 0, // Para detalhes diretos, usar 0 como índice
-              onDetailsUpdated: (details) async {
-                widget.detailsCache[directDetailsKey] = details;
-                setState(() {});
-              },
               onDetailUpdated: (detail) {
                 // Callback necessário para compatibilidade
                 widget.onUpdateCache();
@@ -662,6 +686,7 @@ class _HierarchicalInspectionViewState
                 _saveNavigationState();
               },
             ),
+          ],
 
           // Mensagem quando não há detalhes
           if (topicDetails.isEmpty)

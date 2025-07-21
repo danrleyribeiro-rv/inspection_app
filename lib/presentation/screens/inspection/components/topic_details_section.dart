@@ -123,6 +123,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       orderIndex: widget.topic.orderIndex,
       topicName: widget.topic.topicName,
       topicLabel: widget.topic.topicLabel,
+      directDetails: widget.topic.directDetails, // IMPORTANTE: Preservar directDetails
       observation: observationValue,
       isDamaged: widget.topic.isDamaged,
       tags: widget.topic.tags,
@@ -134,7 +135,10 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
     // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () async {
+      debugPrint('TopicDetailsSection: Updating topic ${updatedTopic.id} with observation: "$observationValue"');
       await _serviceFactory.dataService.updateTopic(updatedTopic);
+      debugPrint('TopicDetailsSection: Topic ${updatedTopic.id} updated successfully');
+      // NÃO chamar onTopicAction() aqui para evitar rebuild desnecessário
     });
   }
 
@@ -387,6 +391,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             source: 'camera',
             onMediaCaptured: (capturedFiles) async {
               try {
+                debugPrint('TopicDetailsSection: ${capturedFiles.length} media files captured for topic ${widget.topic.id}');
+                
                 // Cache será invalidado automaticamente pelo MediaCounterNotifier
                 
                 // Chamar atualização imediatamente

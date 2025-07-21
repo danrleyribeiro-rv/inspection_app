@@ -60,6 +60,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     super.initState();
     _localDetails = List.from(widget.details);
     _setInitialExpandedDetail();
+    debugPrint('DetailsListSection: initState - Created with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: ${hashCode})');
   }
 
   void _setInitialExpandedDetail() {
@@ -118,7 +119,14 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     if (widget.details != oldWidget.details) {
       _localDetails = List.from(widget.details);
       _setInitialExpandedDetail(); // Reaplica a expansão se os detalhes mudaram
+      debugPrint('DetailsListSection: didUpdateWidget - Updated with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
     }
+  }
+
+  @override
+  void dispose() {
+    debugPrint('DetailsListSection: dispose() called for topic ${widget.topic.id} (hashCode: $hashCode)');
+    super.dispose();
   }
 
   Future<void> _reorderDetail(int oldIndex, int newIndex) async {
@@ -193,6 +201,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('DetailsListSection: build() called with ${_localDetails.length} details for topic ${widget.topic.id}');
     return Container(
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -792,7 +801,7 @@ class _DetailListItemState extends State<DetailListItem> {
             source: 'camera',
             onMediaCaptured: (capturedFiles) async {
               try {
-                debugPrint('DetailsListSection: ${capturedFiles.length} media files captured');
+                debugPrint('DetailsListSection: ${capturedFiles.length} media files captured for detail ${widget.detail.id}');
 
                 // O contador será atualizado automaticamente via MediaCounterNotifier
 

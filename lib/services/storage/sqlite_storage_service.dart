@@ -214,9 +214,12 @@ class SQLiteStorageService {
     final updatedInspection = inspection.copyWith(
       isSynced: true,
       lastSyncAt: DateTime.now(),
-      hasLocalChanges:
-          false, // Assuming it's synced, local changes are resolved
+      hasLocalChanges: false, // Assuming it's synced, local changes are resolved
+      status: 'completed', // Reset status from 'modified' to 'completed' after sync
     );
+    
+    debugPrint('SQLiteStorageService: Original inspection status: "${inspection.status}"');
+    debugPrint('SQLiteStorageService: Updated inspection status: "${updatedInspection.status}"');
 
     await _database!.update(
       'inspections',
@@ -229,6 +232,8 @@ class SQLiteStorageService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    
+    debugPrint('SQLiteStorageService: Marked inspection $id as synced - status reset to completed');
   }
 
   Future<List<Inspection>> getInspectionsNeedingSync() async {

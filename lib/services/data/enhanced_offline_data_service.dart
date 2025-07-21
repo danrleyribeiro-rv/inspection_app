@@ -193,7 +193,11 @@ class EnhancedOfflineDataService {
       hasLocalChanges: false,
       isSynced: true,
       lastSyncAt: DateTime.now(),
+      status: 'completed', // Reset status from 'modified' to 'completed' after sync
     );
+    
+    debugPrint('DataService: Original inspection status: "${inspection.status}"');
+    debugPrint('DataService: Updated inspection status: "${syncedInspection.status}"');
     
     // Usar método FromCloud para não marcar como needing sync
     await _inspectionRepository.insertOrUpdateFromCloud(syncedInspection);

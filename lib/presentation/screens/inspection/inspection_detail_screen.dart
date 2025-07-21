@@ -149,6 +149,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   }
 
   Future<void> _loadAllData() async {
+    debugPrint('InspectionDetailScreen: _loadAllData() called - Stack trace:');
+    debugPrint(StackTrace.current.toString().split('\n').take(8).join('\n'));
+    
     if (_inspection?.id == null) return;
 
     try {
@@ -634,12 +637,29 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   }
 
   Future<void> _updateCache() async {
+    debugPrint('InspectionDetailScreen: _updateCache() called - Stack trace:');
+    debugPrint(StackTrace.current.toString().split('\n').take(5).join('\n'));
+    
     await _markAsModified();
     
-    // Recarregar todos os dados para garantir atualização visual instantânea
-    await _loadAllData();
-    
-    debugPrint('InspectionDetailScreen: Cache updated with fresh data');
+    // Atualização incremental - apenas recarregar tópicos
+    try {
+      final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
+      if (mounted) {
+        setState(() {
+          _topics = topics;
+        });
+        debugPrint('InspectionDetailScreen: Topics updated incrementally, cache preserved');
+      }
+    } catch (e) {
+      debugPrint('InspectionDetailScreen: Error updating topics: $e');
+      // Fallback para rebuild com cache preservado
+      if (mounted) {
+        setState(() {
+          // Forçar rebuild mantendo todos os caches
+        });
+      }
+    }
   }
 
   double _calculateInspectionProgress() {
