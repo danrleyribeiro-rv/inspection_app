@@ -809,8 +809,12 @@ class _DetailListItemState extends State<DetailListItem> {
                     ),
                   );
 
-                  // Navegar para a galeria após captura
-                  _openDetailGallery();
+                  // Navegar para a galeria após captura com delay para evitar conflitos de BufferQueue
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                      _openDetailGallery();
+                    }
+                  });
                 }
               } catch (e) {
                 debugPrint('Error processing media: $e');
