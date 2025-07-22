@@ -11,7 +11,7 @@ class InspectionCard extends StatelessWidget {
   final Function()? onDownload;
   final Function()? onSyncImages; // Callback para sincronizar imagens
   final int? pendingImagesCount; // Contador de imagens pendentes
-  final String googleMapsApiKey; // <<< Add this parameter
+  final String googleMapsApiKey;
   final bool isFullyDownloaded; // Status de download completo
   final double downloadProgress; // Progresso de download (0.0 a 1.0)
   final bool

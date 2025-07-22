@@ -424,7 +424,7 @@ class _DetailListItemState extends State<DetailListItem> {
     super.initState();
     _initializeControllers();
     _observationController.addListener(_updateDetail);
-    _currentSelectValue = widget.detail.detailValue;
+    _currentSelectValue = widget.detail.detailValue?.isEmpty == true ? null : widget.detail.detailValue;
 
     // Escutar mudanças nos contadores de mídia
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -483,7 +483,7 @@ class _DetailListItemState extends State<DetailListItem> {
                  oldWidget.detail.detailValue != widget.detail.detailValue) {
         // Only update if this is a real external change, not our own update
         setState(() {
-          _currentSelectValue = widget.detail.detailValue;
+          _currentSelectValue = widget.detail.detailValue?.isEmpty == true ? null : widget.detail.detailValue;
           _valueController.text = widget.detail.detailValue ?? '';
         });
       }
@@ -614,7 +614,8 @@ class _DetailListItemState extends State<DetailListItem> {
       _valueController.text = detailValue;
       // For select types, also initialize _currentSelectValue
       if (widget.detail.type == 'select') {
-        _currentSelectValue = detailValue.isNotEmpty ? detailValue : null;
+        // Always initialize with the current value, even if empty
+        _currentSelectValue = detailValue.isEmpty ? null : detailValue;
       }
     }
 
@@ -646,6 +647,8 @@ class _DetailListItemState extends State<DetailListItem> {
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue; // Agora é string: 'sim', 'não', 'não_se_aplica'
+    } else if (widget.detail.type == 'select') {
+      value = _currentSelectValue ?? '';
     } else {
       value = _valueController.text;
     }
@@ -1253,7 +1256,7 @@ class _DetailListItemState extends State<DetailListItem> {
             items: [
               const DropdownMenuItem<String>(
                 value: null,
-                child: Text('(Sem resposta)', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                child: Text('(Sem resposta)', style: TextStyle(color: Colors.grey, fontSize: 11, fontStyle: FontStyle.italic)),
               ),
               ...() {
                 final allOptions = List<String>.from(widget.detail.options!);

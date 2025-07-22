@@ -46,8 +46,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     super.initState();
     _observationController.text = widget.item.observation ?? '';
     _currentItemName = widget.item.itemName;
-    _currentEvaluationValue = widget.item.evaluationValue;
+    _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
     _observationController.addListener(_updateItemObservation);
+    
 
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -56,14 +57,34 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   @override
   void didUpdateWidget(ItemDetailsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // Avoid reinitializing if we have an active debounce timer for evaluation
+    // This prevents the UI from reverting during the save process
+    if (_debounce?.isActive == true && 
+        widget.item.evaluationValue != _currentEvaluationValue) {
+      // Only update if the item name changed (different item altogether)
+      if (widget.item.itemName != _currentItemName) {
+        _currentItemName = widget.item.itemName;
+        _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
+      }
+      // Don't override _currentEvaluationValue during active debounce
+      return;
+    }
+    
     if (widget.item.itemName != _currentItemName) {
       _currentItemName = widget.item.itemName;
     }
     if (widget.item.observation != _observationController.text) {
       _observationController.text = widget.item.observation ?? '';
     }
-    if (widget.item.evaluationValue != _currentEvaluationValue) {
-      _currentEvaluationValue = widget.item.evaluationValue;
+    
+    // For evaluation field, check if we need to update from external changes
+    if (widget.item.evaluationValue != _currentEvaluationValue && 
+        oldWidget.item.evaluationValue != widget.item.evaluationValue) {
+      // Only update if this is a real external change, not our own update
+      setState(() {
+        _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
+      });
     }
   }
 
@@ -376,7 +397,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     if (value == null) return true;
     
     final evaluationOptions = widget.item.evaluationOptions ?? [];
-    return evaluationOptions.contains(value) || value == 'Outro';
+    // Always consider the current evaluation value as valid, even if not in options yet
+    return evaluationOptions.contains(value) || value == 'Outro' || value == _currentEvaluationValue;
   }
 
   void _updateItemEvaluation(String? value) {
@@ -386,19 +408,35 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       _currentEvaluationValue = value;
     });
 
-    // Update item immediately
-    final updatedItem = widget.item.copyWith(
-      evaluationValue: value,
+    // Update item immediately - create new item manually to force null value
+    final processedValue = value?.isEmpty == true ? null : value;
+    final updatedItem = Item(
+      id: widget.item.id,
+      inspectionId: widget.item.inspectionId,
+      topicId: widget.item.topicId,
+      itemId: widget.item.itemId,
+      position: widget.item.position,
+      orderIndex: widget.item.orderIndex,
+      itemName: widget.item.itemName,
+      itemLabel: widget.item.itemLabel,
+      description: widget.item.description,
+      evaluable: widget.item.evaluable,
+      evaluationOptions: widget.item.evaluationOptions,
+      evaluationValue: processedValue, // Force the value, even if null
+      evaluation: widget.item.evaluation,
+      observation: widget.item.observation,
+      isDamaged: widget.item.isDamaged,
+      tags: widget.item.tags,
+      createdAt: widget.item.createdAt,
       updatedAt: DateTime.now(),
     );
+    
     widget.onItemUpdated(updatedItem);
 
     // Debounced save
     if (_debounce?.isActive ?? false) _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () async {
-      debugPrint('ItemDetailsSection: Saving item evaluation: $value');
       await _serviceFactory.dataService.updateItem(updatedItem);
-      debugPrint('ItemDetailsSection: Item evaluation saved successfully');
     });
   }
 
@@ -445,10 +483,25 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           _currentEvaluationValue = result;
         });
         
-        // Depois atualizar o item com as novas opções
-        final updatedItem = widget.item.copyWith(
-          evaluationOptions: currentOptions,
-          evaluationValue: result,
+        // Depois atualizar o item com as novas opções - create manually to force values
+        final updatedItem = Item(
+          id: widget.item.id,
+          inspectionId: widget.item.inspectionId,
+          topicId: widget.item.topicId,
+          itemId: widget.item.itemId,
+          position: widget.item.position,
+          orderIndex: widget.item.orderIndex,
+          itemName: widget.item.itemName,
+          itemLabel: widget.item.itemLabel,
+          description: widget.item.description,
+          evaluable: widget.item.evaluable,
+          evaluationOptions: currentOptions, // Force new options
+          evaluationValue: result, // Force new evaluation value
+          evaluation: widget.item.evaluation,
+          observation: widget.item.observation,
+          isDamaged: widget.item.isDamaged,
+          tags: widget.item.tags,
+          createdAt: widget.item.createdAt,
           updatedAt: DateTime.now(),
         );
         widget.onItemUpdated(updatedItem);
@@ -456,9 +509,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         // Salvar no banco de dados
         if (_debounce?.isActive ?? false) _debounce?.cancel();
         _debounce = Timer(const Duration(milliseconds: 500), () async {
-          debugPrint('ItemDetailsSection: Saving item with custom evaluation: $result');
           await _serviceFactory.dataService.updateItem(updatedItem);
-          debugPrint('ItemDetailsSection: Item with custom evaluation saved successfully');
         });
       } else {
         // Opção já existe, apenas definir valor
@@ -526,12 +577,24 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
               items: [
                 const DropdownMenuItem<String>(
                   value: null,
-                  child: Text('(Sem avaliação)', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                  child: Text('(Sem avaliação)', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
                 ),
-                ...evaluationOptions.map((option) => DropdownMenuItem<String>(
-                  value: option,
-                  child: Text(option, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                )),
+                ...() {
+                  final allOptions = List<String>.from(evaluationOptions);
+                  // Ensure current value is in the options list
+                  if (_currentEvaluationValue != null && 
+                      _currentEvaluationValue!.isNotEmpty && 
+                      _currentEvaluationValue != 'Outro' &&
+                      !allOptions.contains(_currentEvaluationValue!)) {
+                    allOptions.add(_currentEvaluationValue!);
+                  }
+                  return allOptions.map((option) {
+                    return DropdownMenuItem<String>(
+                      value: option,
+                      child: Text(option, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    );
+                  });
+                }(),
                 // Adicionar opção "Outro"
                 const DropdownMenuItem<String>(
                   value: 'Outro',
