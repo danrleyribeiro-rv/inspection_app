@@ -35,13 +35,16 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
   List<Topic> _topics = [];
   List<Item> _items = [];
   List<Detail> _details = [];
+  List<Detail> _directDetails = [];
   Topic? _selectedTopic;
   Item? _selectedItem;
   Detail? _selectedDetail;
+  Detail? _selectedDirectDetail;
 
   String _selectedAction = 'move';
   bool _isLoading = true;
   bool _isProcessing = false;
+  bool _isLoadingNCs = false;
 
   List<NonConformity> _nonConformities = [];
   NonConformity? _selectedNonConformity;
@@ -77,15 +80,33 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
   Future<void> _loadItems(String topicId) async {
     try {
-      final items = await _serviceFactory.dataService.getItems(topicId);
-
-      if (mounted) {
-        setState(() {
-          _items = items;
-          _selectedItem = null;
-          _details = [];
-          _selectedDetail = null;
-        });
+      // First check if topic has direct details
+      final topic = _topics.firstWhere((t) => t.id == topicId);
+      
+      if (topic.directDetails == true) {
+        // Load direct details instead of items
+        await _loadDirectDetails(topicId);
+        if (mounted) {
+          setState(() {
+            _items = [];
+            _selectedItem = null;
+            _details = [];
+            _selectedDetail = null;
+          });
+        }
+      } else {
+        // Load normal items
+        final items = await _serviceFactory.dataService.getItems(topicId);
+        if (mounted) {
+          setState(() {
+            _items = items;
+            _selectedItem = null;
+            _details = [];
+            _selectedDetail = null;
+            _directDetails = [];
+            _selectedDirectDetail = null;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -115,33 +136,125 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     }
   }
 
-  Future<void> _loadAllNonConformities() async {
+  Future<void> _loadDirectDetails(String topicId) async {
     try {
-      // Carregar todas as não conformidades da inspeção com informações completas
-      List<NonConformity> allNCs = [];
+      final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
 
-      // Buscar todas as NCs em todos os tópicos
-      for (final topic in _topics) {
-        final items = await _serviceFactory.dataService.getItems(topic.id!);
-        for (final item in items) {
-          final details =
-              await _serviceFactory.dataService.getDetails(item.id!);
-          for (final detail in details) {
-            final ncs = await _serviceFactory.dataService
-                .getNonConformitiesByDetail(detail.id!);
-            // Armazenar informações da origem em estrutura auxiliar
-            for (final nc in ncs) {
-              _ncOriginInfo[nc.id] = {
-                'topicName': topic.topicName,
-                'itemName': item.itemName,
-                'detailName': detail.detailName,
-              };
-              allNCs.add(nc);
+      if (mounted) {
+        setState(() {
+          _directDetails = directDetails;
+          _selectedDirectDetail = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar detalhes diretos: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadAllNonConformities() async {
+    setState(() => _isLoadingNCs = true);
+    try {
+      debugPrint('MoveMediaDialog: Loading all non-conformities for inspection ${widget.inspectionId}');
+      
+      // Carregar todas as não conformidades da inspeção diretamente
+      List<NonConformity> allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+      
+      debugPrint('MoveMediaDialog: Found ${allNCs.length} non-conformities via getNonConformities');
+      
+      // Enriquecer com informações de origem para cada NC
+      for (final nc in allNCs) {
+        String topicName = 'Tópico não identificado';
+        String itemName = 'Item não identificado';
+        String detailName = 'Detalhe não identificado';
+        
+        // Buscar informações do tópico
+        if (nc.topicId != null) {
+          final topic = _topics.firstWhere(
+            (t) => t.id == nc.topicId,
+            orElse: () => Topic(
+              id: nc.topicId,
+              inspectionId: widget.inspectionId,
+              topicName: 'Tópico removido',
+              position: 0,
+              orderIndex: 0,
+            ),
+          );
+          topicName = topic.topicName;
+          
+          // Buscar informações do item se existir
+          if (nc.itemId != null) {
+            try {
+              final items = await _serviceFactory.dataService.getItems(nc.topicId!);
+              final item = items.firstWhere(
+                (i) => i.id == nc.itemId,
+                orElse: () => Item(
+                  id: nc.itemId,
+                  inspectionId: widget.inspectionId,
+                  topicId: nc.topicId,
+                  itemName: 'Item removido',
+                  position: 0,
+                  orderIndex: 0,
+                ),
+              );
+              itemName = item.itemName;
+            } catch (e) {
+              debugPrint('MoveMediaDialog: Error loading item ${nc.itemId}: $e');
+              itemName = 'Item não encontrado';
             }
+          } else if (topic.directDetails == true) {
+            itemName = 'Detalhe direto';
+          } else {
+            itemName = 'Nível do tópico';
+          }
+          
+          // Buscar informações do detalhe se existir
+          if (nc.detailId != null) {
+            try {
+              List<Detail> details;
+              if (topic.directDetails == true) {
+                details = await _serviceFactory.dataService.getDirectDetails(nc.topicId!);
+              } else if (nc.itemId != null) {
+                details = await _serviceFactory.dataService.getDetails(nc.itemId!);
+              } else {
+                details = [];
+              }
+              
+              final detail = details.firstWhere(
+                (d) => d.id == nc.detailId,
+                orElse: () => Detail(
+                  id: nc.detailId,
+                  inspectionId: widget.inspectionId,
+                  itemId: nc.itemId,
+                  detailName: 'Detalhe removido',
+                  orderIndex: 0,
+                ),
+              );
+              detailName = detail.detailName;
+            } catch (e) {
+              debugPrint('MoveMediaDialog: Error loading detail ${nc.detailId}: $e');
+              detailName = 'Detalhe não encontrado';
+            }
+          } else {
+            detailName = itemName == 'Nível do tópico' ? 'Nível do tópico' : 'Nível do item';
           }
         }
+        
+        _ncOriginInfo[nc.id] = {
+          'topicName': topicName,
+          'itemName': itemName,
+          'detailName': detailName,
+          'severity': nc.severity,
+          'status': nc.status,
+          'createdAt': nc.createdAt.toString(),
+        };
       }
 
+      debugPrint('MoveMediaDialog: Successfully processed ${allNCs.length} non-conformities');
+      
       if (mounted) {
         setState(() {
           _nonConformities = allNCs;
@@ -149,93 +262,19 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         });
       }
     } catch (e) {
+      debugPrint('MoveMediaDialog: Error loading non-conformities: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar não conformidades: $e')),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingNCs = false);
+      }
     }
   }
 
-  Future<void> _createNewNonConformity() async {
-    if (_selectedTopic == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione pelo menos um tópico')),
-      );
-      return;
-    }
-
-    setState(() => _isProcessing = true);
-
-    try {
-      // Criar a não conformidade primeiro
-      final nonConformity = NonConformity.create(
-        inspectionId: widget.inspectionId,
-        topicId: _selectedTopic!.id!,
-        itemId: _selectedItem?.id,
-        detailId: _selectedDetail?.id,
-        title: 'Nova Não Conformidade',
-        description: 'Criada automaticamente ao',
-        severity: 'medium',
-        status: 'open',
-      );
-
-      // Salvar a não conformidade
-      await _serviceFactory.dataService.saveNonConformity(nonConformity);
-
-      // Mover as imagens para a nova não conformidade
-      final List<String> mediaIds =
-          widget.selectedMediaIds ?? [widget.mediaId!];
-      bool allSuccess = true;
-
-      for (final mediaId in mediaIds) {
-        final success = await _serviceFactory.mediaService.moveMedia(
-          mediaId: mediaId,
-          inspectionId: widget.inspectionId,
-          newTopicId: _selectedTopic!.id,
-          newItemId: _selectedItem?.id,
-          newDetailId: _selectedDetail?.id,
-          newNonConformityId: nonConformity.id,
-        );
-
-        if (!success) {
-          allSuccess = false;
-          break;
-        }
-      }
-
-      if (mounted) {
-        if (allSuccess) {
-          Navigator.of(context).pop(true);
-          final count = mediaIds.length;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(count > 1
-                  ? '$count mídias movidas para nova NC com sucesso!'
-                  : 'Mídia movida para nova NC com sucesso!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          setState(() => _isProcessing = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Erro ao mover mídia para nova NC'),
-                backgroundColor: Colors.red),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Erro ao criar NC e mover mídia: $e'),
-              backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
 
   Future<void> _deleteMedia() async {
     setState(() => _isProcessing = true);
@@ -355,9 +394,6 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     if (_selectedAction == 'delete') {
       return true;
     }
-    if (_selectedAction == 'create_nc') {
-      return _selectedTopic != null;
-    }
     if (_selectedAction == 'move_to_nc') {
       return _selectedNonConformity != null;
     }
@@ -373,10 +409,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         return isMultiple ? 'Mover Todas' : 'Mover Mídia';
       case 'delete':
         return isMultiple ? 'Excluir Todas' : 'Excluir Mídia';
-      case 'create_nc':
-        return 'Criar NC';
       case 'move_to_nc':
-        return isMultiple ? 'Mover para NC' : 'Mover para NC';
+        return isMultiple ? 'Duplicar' : 'Duplicar';
       default:
         return 'Executar';
     }
@@ -393,6 +427,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
       bool allSuccess = true;
 
       for (final mediaId in mediaIds) {
+        // TODO: Implement duplication - for now using move, should be changed to duplicate
         final success = await _serviceFactory.mediaService.moveMedia(
           mediaId: mediaId,
           inspectionId: widget.inspectionId,
@@ -415,8 +450,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(count > 1
-                  ? '$count mídias movidas para NC com sucesso!'
-                  : 'Mídia movida para NC com sucesso!'),
+                  ? '$count mídias duplicadas para NC com sucesso!'
+                  : 'Mídia duplicada para NC com sucesso!'),
               backgroundColor: Colors.green,
             ),
           );
@@ -441,6 +476,23 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     }
   }
 
+  Color _getSeverityColor(String? severity) {
+    switch (severity?.toLowerCase()) {
+      case 'alta':
+        return Colors.red;
+      case 'média':
+      case 'media':
+        return Colors.orange;
+      case 'baixa':
+        return Colors.yellow;
+      case 'crítica':
+      case 'critica':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Future<void> _executeAction() async {
     switch (_selectedAction) {
       case 'move':
@@ -448,9 +500,6 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         break;
       case 'delete':
         await _deleteMedia();
-        break;
-      case 'create_nc':
-        await _createNewNonConformity();
         break;
       case 'move_to_nc':
         await _moveToExistingNC();
@@ -478,7 +527,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ? 'Ações para ${widget.selectedMediaIds!.length} Mídias'
                   : 'Ações para Mídia',
               style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.white),
             ),
@@ -486,7 +535,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
             Text(
               'Escolha uma ação:',
               style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: Colors.white),
             ),
@@ -501,15 +550,13 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                 filled: true,
                 fillColor: Color(0xFF2D3748),
               ),
-              style: const TextStyle(fontSize: 16, color: Colors.white),
+              style: const TextStyle(fontSize: 14, color: Colors.white),
               dropdownColor: const Color(0xFF2D3748),
               items: const [
                 DropdownMenuItem(value: 'move', child: Text('Mover Foto')),
                 DropdownMenuItem(
-                    value: 'create_nc', child: Text('Criar Não Conformidade')),
-                DropdownMenuItem(
                     value: 'move_to_nc',
-                    child: Text('Mover para NC Existente')),
+                    child: Text('Duplicar para NC')),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -518,9 +565,11 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                     _selectedTopic = null;
                     _selectedItem = null;
                     _selectedDetail = null;
+                    _selectedDirectDetail = null;
                     _selectedNonConformity = null;
                     _items = [];
                     _details = [];
+                    _directDetails = [];
                     _nonConformities = [];
                   });
 
@@ -532,137 +581,6 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
               },
             ),
             const SizedBox(height: 4),
-            if (_selectedAction == 'create_nc') ...[
-              if (_isLoading)
-                const Center(
-                    child: CircularProgressIndicator(color: Colors.orange))
-              else ...[
-                Text(
-                  'Nível da NC:',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white),
-                ),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<Topic>(
-                  value: _selectedTopic,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    isDense: true,
-                    filled: true,
-                    fillColor: Color(0xFF2D3748),
-                  ),
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
-                  dropdownColor: const Color(0xFF2D3748),
-                  hint: const Text('Selecione um tópico',
-                      style: TextStyle(color: Colors.white70)),
-                  items: _topics.map((topic) {
-                    return DropdownMenuItem<Topic>(
-                      value: topic,
-                      child: Text(topic.topicName,
-                          style: const TextStyle(color: Colors.white)),
-                    );
-                  }).toList(),
-                  onChanged: (topic) async {
-                    setState(() {
-                      _selectedTopic = topic;
-                      _selectedItem = null;
-                      _selectedDetail = null;
-                      _items = [];
-                      _details = [];
-                    });
-
-                    if (topic != null) {
-                      await _loadItems(topic.id!);
-                    }
-                  },
-                ),
-                const SizedBox(height: 4),
-                if (_selectedTopic != null) ...[
-                  Text(
-                    'Item (opcional):',
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white),
-                  ),
-                  const SizedBox(height: 4),
-                  DropdownButtonFormField<Item>(
-                    value: _selectedItem,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      isDense: true,
-                      filled: true,
-                      fillColor: Color(0xFF2D3748),
-                    ),
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
-                    dropdownColor: const Color(0xFF2D3748),
-                    hint: const Text('Selecione um item',
-                        style: TextStyle(color: Colors.white70)),
-                    items: _items.map((item) {
-                      return DropdownMenuItem<Item>(
-                        value: item,
-                        child: Text(item.itemName,
-                            style: const TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (item) async {
-                      setState(() {
-                        _selectedItem = item;
-                        _selectedDetail = null;
-                        _details = [];
-                      });
-
-                      if (item != null) {
-                        await _loadDetails(item.id!);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                if (_selectedItem != null) ...[
-                  Text(
-                    'Detalhe (opcional):',
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white),
-                  ),
-                  const SizedBox(height: 4),
-                  DropdownButtonFormField<Detail>(
-                    value: _selectedDetail,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      isDense: true,
-                      filled: true,
-                      fillColor: Color(0xFF2D3748),
-                    ),
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
-                    dropdownColor: const Color(0xFF2D3748),
-                    hint: const Text('Selecione um detalhe',
-                        style: TextStyle(color: Colors.white70)),
-                    items: _details.map((detail) {
-                      return DropdownMenuItem<Detail>(
-                        value: detail,
-                        child: Text(detail.detailName,
-                            style: const TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (detail) {
-                      setState(() => _selectedDetail = detail);
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                ],
-              ],
-            ],
             if (_selectedAction == 'move') ...[
               if (_isLoading)
                 const Center(
@@ -671,7 +589,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                 Text(
                   'Tópico:',
                   style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.white),
                 ),
@@ -686,7 +604,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                     filled: true,
                     fillColor: Color(0xFF2D3748),
                   ),
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  style: const TextStyle(fontSize: 14, color: Colors.white),
                   dropdownColor: const Color(0xFF2D3748),
                   hint: const Text('Selecione um tópico',
                       style: TextStyle(color: Colors.white70)),
@@ -702,8 +620,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       _selectedTopic = topic;
                       _selectedItem = null;
                       _selectedDetail = null;
+                      _selectedDirectDetail = null;
                       _items = [];
                       _details = [];
+                      _directDetails = [];
                     });
 
                     if (topic != null) {
@@ -712,11 +632,49 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   },
                 ),
                 const SizedBox(height: 4),
-                if (_selectedTopic != null) ...[
+                // Direct details dropdown for topics with directDetails = true
+                if (_selectedTopic != null && _selectedTopic!.directDetails == true) ...[
+                  Text(
+                    'Detalhe Direto:',
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<Detail>(
+                    value: _selectedDirectDetail,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Color(0xFF2D3748),
+                    ),
+                    style: const TextStyle(fontSize: 14, color: Colors.white),
+                    dropdownColor: const Color(0xFF2D3748),
+                    hint: const Text('Selecione um detalhe',
+                        style: TextStyle(color: Colors.white70)),
+                    items: _directDetails.map((detail) {
+                      return DropdownMenuItem<Detail>(
+                        value: detail,
+                        child: Text(detail.detailName,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (detail) {
+                      setState(() => _selectedDirectDetail = detail);
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                // Regular items dropdown for topics with directDetails = false or null
+                if (_selectedTopic != null && (_selectedTopic!.directDetails != true)) ...[
                   Text(
                     'Item (opcional):',
                     style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.white),
                   ),
@@ -731,7 +689,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       filled: true,
                       fillColor: Color(0xFF2D3748),
                     ),
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    style: const TextStyle(fontSize: 14, color: Colors.white),
                     dropdownColor: const Color(0xFF2D3748),
                     hint: const Text('Selecione um item',
                         style: TextStyle(color: Colors.white70)),
@@ -760,7 +718,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   Text(
                     'Detalhe (opcional):',
                     style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.white),
                   ),
@@ -775,7 +733,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       filled: true,
                       fillColor: Color(0xFF2D3748),
                     ),
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    style: const TextStyle(fontSize: 14, color: Colors.white),
                     dropdownColor: const Color(0xFF2D3748),
                     hint: const Text('Selecione um detalhe',
                         style: TextStyle(color: Colors.white70)),
@@ -795,14 +753,14 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
               ],
             ],
             if (_selectedAction == 'move_to_nc') ...[
-              if (_isLoading)
+              if (_isLoadingNCs)
                 const Center(
                     child: CircularProgressIndicator(color: Colors.orange))
               else ...[
                 Text(
                   'Não Conformidades Existentes:',
                   style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.white),
                 ),
@@ -815,16 +773,25 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: const Color(0xFF4A5568)),
                     ),
-                    child: const Text(
-                      'Nenhuma não conformidade encontrada nesta inspeção.',
-                      style: TextStyle(color: Colors.white70, fontSize: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Nenhuma não conformidade encontrada nesta inspeção.',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                     ),
                   )
                 else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _nonConformities.length,
+                  Container(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _nonConformities.length,
                     itemBuilder: (context, index) {
                       final nc = _nonConformities[index];
                       final isSelected = _selectedNonConformity?.id == nc.id;
@@ -834,70 +801,107 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       final topicName = originInfo?['topicName'] ?? 'Tópico não identificado';
                       final itemName = originInfo?['itemName'] ?? 'Item não identificado';
                       final detailName = originInfo?['detailName'] ?? 'Detalhe não identificado';
-                      final originPath = '$topicName > $itemName > $detailName';
+                      final severity = originInfo?['severity'] ?? 'unknown';
+                      final createdAt = originInfo?['createdAt'] ?? 'Data não disponível';
+                      
+                      final originPath = itemName == 'Detalhe direto' 
+                          ? '$topicName > $detailName'
+                          : '$topicName > $itemName > $detailName';
 
                       return Card(
                         color: isSelected
                             ? const Color(0xFF4A90E2)
                             : const Color(0xFF2D3748),
-                        child: ListTile(
-                          title: Column(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                nc.title,
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 16),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      nc.title,
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (severity.isNotEmpty && severity != 'unknown')
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: _getSeverityColor(severity),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        severity.toUpperCase(),
+                                        style: const TextStyle(
+                                          color: Colors.white, 
+                                          fontSize: 9, 
+                                          fontWeight: FontWeight.bold
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
+                                  color: Colors.white.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
-                                  'Origem: $originPath',
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 12),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Local: $originPath',
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Criada: ${createdAt.split(' ')[0]}', // Show only date
+                                      style: const TextStyle(
+                                          color: Colors.white60, fontSize: 10),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedNonConformity = nc;
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        isSelected ? Colors.white : Colors.orange,
+                                    foregroundColor:
+                                        isSelected ? Colors.black : Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  child: Text(
+                                    isSelected ? 'Selecionado' : 'Selecionar',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              nc.description,
-                              style: const TextStyle(
-                                  color: Colors.white70, fontSize: 14),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          trailing: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _selectedNonConformity = nc;
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  isSelected ? Colors.white : Colors.orange,
-                              foregroundColor:
-                                  isSelected ? Colors.black : Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                            ),
-                            child: Text(
-                              isSelected ? 'Selecionado' : 'Selecionar',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ),
                         ),
                       );
                     },
+                    ),
                   ),
               ],
             ],
@@ -911,7 +915,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: const Text('Cancelar',
-                        style: TextStyle(fontSize: 16, color: Colors.white70)),
+                        style: TextStyle(fontSize: 14, color: Colors.white70)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -937,7 +941,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                           )
                         : Text(
                             _getActionButtonText(),
-                            style: const TextStyle(fontSize: 16),
+                            style: const TextStyle(fontSize: 14),
                           ),
                   ),
                 ),

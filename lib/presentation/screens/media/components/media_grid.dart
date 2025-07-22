@@ -194,8 +194,8 @@ class _MediaGridState extends State<MediaGrid> {
               ),
               ListTile(
                 leading: const Icon(Icons.move_up, color: Color(0xFF6F4B99)),
-                title: const Text('Mover Mídia',
-                    style: TextStyle(color: Colors.white)),
+                title: const Text('Mover Mídia(s)',
+                    style: TextStyle(color: Colors.white, fontSize: 16)),
                 subtitle: const Text('Mover para outro tópico, item ou detalhe',
                     style: TextStyle(color: Colors.grey)),
                 onTap: () {
@@ -205,7 +205,7 @@ class _MediaGridState extends State<MediaGrid> {
               ),
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Excluir Mídia',
+                title: const Text('Excluir Mídia(s)',
                     style: TextStyle(color: Colors.white)),
                 subtitle: Text(
                   mediaItem['source'] == 'offline'

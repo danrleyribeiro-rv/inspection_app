@@ -87,27 +87,25 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       final double position = index * itemHeight;
       
       // Find the scrollable ancestor
-      final ScrollableState? scrollableState = Scrollable.of(context);
-      if (scrollableState != null) {
-        final ScrollController? controller = scrollableState.widget.controller;
-        if (controller != null && controller.hasClients && controller.positions.length == 1) {
-          // Get current scroll position
-          final double currentOffset = controller.offset;
-          final double viewportHeight = scrollableState.context.size?.height ?? 600;
-          
-          // Calculate if we need to scroll
-          final double itemBottom = position + expandedHeight;
-          final double viewportBottom = currentOffset + viewportHeight;
-          
-          if (itemBottom > viewportBottom) {
-            // Need to scroll down to show the full expanded content
-            final double targetOffset = itemBottom - viewportHeight + 50; // 50px padding
-            controller.animateTo(
-              targetOffset.clamp(0, controller.position.maxScrollExtent),
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          }
+      final ScrollableState scrollableState = Scrollable.of(context);
+      final ScrollController? controller = scrollableState.widget.controller;
+      if (controller != null && controller.hasClients && controller.positions.length == 1) {
+        // Get current scroll position
+        final double currentOffset = controller.offset;
+        final double viewportHeight = scrollableState.context.size?.height ?? 600;
+        
+        // Calculate if we need to scroll
+        final double itemBottom = position + expandedHeight;
+        final double viewportBottom = currentOffset + viewportHeight;
+        
+        if (itemBottom > viewportBottom) {
+          // Need to scroll down to show the full expanded content
+          final double targetOffset = itemBottom - viewportHeight + 50; // 50px padding
+          controller.animateTo(
+            targetOffset.clamp(0, controller.position.maxScrollExtent),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         }
       }
     }

@@ -1352,13 +1352,13 @@ class _AvailableInspectionsDialogState
                           horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: isDownloaded
-                            ? Colors.green.withOpacity(0.1)
-                            : const Color(0xFF312456).withOpacity(0.1),
+                            ? Colors.green.withValues(alpha: 0.1)
+                            : const Color(0xFF312456).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isDownloaded
-                              ? Colors.green.withOpacity(0.3)
-                              : const Color(0xFF312456).withOpacity(0.3),
+                              ? Colors.green.withValues(alpha: 0.3)
+                              : const Color(0xFF312456).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
@@ -1453,14 +1453,14 @@ class _AvailableInspectionsDialogState
                     : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                  borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Color(0xFF312456)),
                 ),
                 filled: true,
-                fillColor: Colors.grey.withOpacity(0.05),
+                fillColor: Colors.grey.withValues(alpha: 0.05),
               ),
               onChanged: (value) => setState(() => _searchQuery = value),
             ),

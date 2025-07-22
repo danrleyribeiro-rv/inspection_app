@@ -284,74 +284,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     }
   }
 
-  Future<void> _manuallyApplyTemplate() async {
-    if (_inspection == null || !_isOnline || _isApplyingTemplate) return;
-
-    final isAlreadyApplied = _topics.isNotEmpty;
-    if (!mounted) return;
-
-    final shouldApply = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Aplicar Template'),
-            content: Text(isAlreadyApplied
-                ? 'Esta inspeção já tem um template aplicado. Deseja reaplicá-lo?'
-                : 'Deseja aplicar o template a esta inspeção?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: TextButton.styleFrom(
-                    backgroundColor: Color(0xFF6F4B99),
-                    foregroundColor: Colors.white),
-                child: const Text('Aplicar Template'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (!mounted || !shouldApply) return;
-
-    setState(() => _isApplyingTemplate = true);
-
-    try {
-      if (isAlreadyApplied) {
-        await FirebaseFirestore.instance
-            .collection('inspections')
-            .doc(_inspection!.id)
-            .update({
-          'is_templated': false,
-          'updated_at': FieldValue.serverTimestamp(),
-        });
-        if (mounted) {
-          setState(() {
-            _inspection = _inspection!.copyWith(isTemplated: false);
-          });
-        }
-      }
-
-      if (mounted) {
-        await _checkAndApplyTemplate();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao aplicar template: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isApplyingTemplate = false);
-      }
-    }
-  }
 
   void _showErrorSnackBar(String message) {
     if (mounted) {
@@ -713,79 +645,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
   }
 
-  /// Calcula o progresso específico de um tópico
-  double _calculateTopicProgress(Topic topic) {
-    final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
-    int totalUnits = 0;
-    int completedUnits = 0;
-    
-    // Hierarquia flexível: Verificar se tem detalhes diretos
-    if (topic.directDetails == true) {
-      // Para tópicos com detalhes diretos
-      final directDetailsKey = '${topicId}_direct';
-      final details = _detailsCache[directDetailsKey] ?? [];
-      
-      for (final detail in details) {
-        totalUnits++;
-        if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-          completedUnits++;
-        }
-      }
-    } else {
-      // Para tópicos normais com itens
-      final items = _itemsCache[topicId] ?? [];
-      
-      for (final item in items) {
-        final itemId = item.id ?? 'item_${items.indexOf(item)}';
-        
-        // Contar item avaliável como unidade se for avaliável
-        if (item.evaluable == true) {
-          totalUnits++;
-          if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
-            completedUnits++;
-          }
-        }
-        
-        // Contar detalhes do item
-        final details = _detailsCache['${topicId}_$itemId'] ?? [];
-        for (final detail in details) {
-          totalUnits++;
-          if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-            completedUnits++;
-          }
-        }
-      }
-    }
-    
-    return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
-  }
-
-  /// Calcula o progresso específico de um item
-  double _calculateItemProgress(Item item, Topic topic) {
-    final topicId = topic.id ?? '';
-    final itemId = item.id ?? '';
-    int totalUnits = 0;
-    int completedUnits = 0;
-    
-    // Contar item avaliável como unidade se for avaliável
-    if (item.evaluable == true) {
-      totalUnits++;
-      if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
-        completedUnits++;
-      }
-    }
-    
-    // Contar detalhes do item
-    final details = _detailsCache['${topicId}_$itemId'] ?? [];
-    for (final detail in details) {
-      totalUnits++;
-      if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-        completedUnits++;
-      }
-    }
-    
-    return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
-  }
 
   Future<void> _exportInspection() async {
     if (!mounted) return;
@@ -1161,18 +1020,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           ],
         ),
         actions: [
-          if (_isOnline &&
-              _inspection != null &&
-              _inspection!.templateId != null)
-            IconButton(
-              icon: const Icon(Icons.architecture, size: 22),
-              tooltip: _inspection!.isTemplated
-                  ? 'Reaplicar Template'
-                  : 'Aplicar Template',
-              onPressed: _isApplyingTemplate ? null : _manuallyApplyTemplate,
-              padding: const EdgeInsets.all(5),
-              visualDensity: VisualDensity.compact,
-            ),
           if (_isSyncing || _isApplyingTemplate)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
