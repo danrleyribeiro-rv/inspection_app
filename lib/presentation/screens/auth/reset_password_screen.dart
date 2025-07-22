@@ -28,6 +28,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           const SnackBar(
             content: Text('Senhas não coincidem'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -45,6 +46,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           const SnackBar(
             content: Text('Sua senha foi atualizada com sucesso'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
 
@@ -64,6 +66,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           SnackBar(
             content: Text(message),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }

@@ -47,15 +47,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(message), 
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Ocorreu um erro inesperado: $e'),
-              backgroundColor: Colors.red),
+            content: Text('Ocorreu um erro inesperado: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {

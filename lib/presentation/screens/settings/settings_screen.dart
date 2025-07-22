@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/terms_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -77,7 +79,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao sair: $e')),
+          SnackBar(
+            content: Text('Erro ao sair: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {
@@ -143,7 +148,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao excluir conta: $e')),
+          SnackBar(
+            content: Text('Erro ao excluir conta: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {
@@ -254,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             content: Text(
                 'Cache limpo com sucesso! Todas as vistorias baixadas e dados temporários foram removidos.'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -264,11 +272,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text('Erro ao limpar cache: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showTerms() async {
+    await showDialog(
+      context: context,
+      builder: (context) => const TermsDialog(isRegistration: false),
+    );
+  }
+
+  Future<void> _contactSupport() async {
+    const supportEmail = 'it@lincehub.com.br';
+    const subject = 'Suporte - Lince Inspeções';
+    const body = 'Olá,\n\nPreciso de ajuda com:\n\n[Descreva sua dúvida ou problema aqui]';
+    
+    final uri = Uri(
+      scheme: 'mailto',
+      path: supportEmail,
+      query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+    );
+
+    try {
+      await launchUrl(uri);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível abrir o aplicativo de e-mail. Entre em contato através do e-mail: it@lincehub.com.br'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -284,7 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
-                _buildSectionHeader('Notificações'),
+                _buildSectionHeader('Permissões'),
                 SwitchListTile(
                   title: const Text('Notificações',
                       style: TextStyle(color: Colors.white)),
@@ -298,7 +339,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _handleNotificationChange(value);
                   },
                 ),
-                _buildSectionHeader('Permissões'),
                 SwitchListTile(
                   title: const Text('Localização',
                       style: TextStyle(color: Colors.white)),
@@ -358,19 +398,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   title: const Text('Versão do App',
                       style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Alpha-0.5.0',
+                  subtitle: const Text('1.0',
                       style: TextStyle(color: Colors.white70)),
                   leading: const Icon(Icons.info, color: Colors.white),
                 ),
                 ListTile(
-                  title: const Text('Política de Privacidade',
-                      style: TextStyle(color: Colors.white)),
-                  leading: const Icon(Icons.privacy_tip, color: Colors.white),
-                ),
-                ListTile(
-                  title: const Text('Termos de Uso',
+                  title: const Text('Termos de Uso e Política de Privacidade',
                       style: TextStyle(color: Colors.white)),
                   leading: const Icon(Icons.gavel, color: Colors.white),
+                  onTap: _showTerms,
+                ),
+                _buildSectionHeader('Suporte'),
+                ListTile(
+                  title: const Text('Entrar em Contato',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('it@lincehub.com.br',
+                      style: TextStyle(color: Colors.white70)),
+                  leading: const Icon(Icons.support_agent, color: Colors.white),
+                  onTap: _contactSupport,
                 ),
               ],
             ),

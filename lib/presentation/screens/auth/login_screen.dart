@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/terms_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   content: Text(
                       'Apenas vistoriadores podem acessar este aplicativo.'),
                   backgroundColor: Colors.red,
+                  duration: Duration(seconds: 2),
                 ),
               );
             }
@@ -79,6 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      
       String message = 'Ocorreu um erro durante o login.';
 
       switch (e.code) {
@@ -97,21 +101,31 @@ class _LoginScreenState extends State<LoginScreen> {
         case 'unauthorized-role':
           message = 'Apenas vistoriadores podem acessar este aplicativo.';
           break;
+        case 'terms-not-accepted':
+          // Show terms dialog and handle acceptance
+          await _handleTermsNotAccepted();
+          return; // Don't show error message, handled in method
         default:
           message = e.message ?? 'Ocorreu um erro desconhecido.';
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(message), 
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Ocorreu um erro inesperado: $e'),
-              backgroundColor: Colors.red),
+            content: Text('Ocorreu um erro inesperado: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {
@@ -119,6 +133,72 @@ class _LoginScreenState extends State<LoginScreen> {
       // while the sign-in was in progress.
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleTermsNotAccepted() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const TermsDialog(isRegistration: true),
+    );
+
+    if (!mounted) return;
+
+    if (accepted == true) {
+      // Try to sign in again after accepting terms
+      try {
+        // First, we need to get the current user's ID
+        // We'll try to sign in with Firebase directly to get the user
+        final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        if (credential.user != null) {
+          // Accept terms for this user
+          await _authService.acceptTerms(credential.user!.uid);
+          
+          // Now try the full sign in process again
+          await _authService.signOut(); // Sign out first
+          await _authService.signInWithEmailAndPassword(
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Termos aceitos com sucesso! Bem-vindo!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            Navigator.of(context).pushReplacementNamed('/home');
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erro ao aceitar termos: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } else {
+      // User rejected terms
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('É necessário aceitar os termos para acessar o aplicativo.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
@@ -211,7 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _isLoading ? null : _signIn,
                             child: _isLoading
                                 ? const CircularProgressIndicator(
-                                    color: Colors.black)
+                                    color: Color(0xFFFFFFFF))
                                 : const Text('Login'),
                           ),
                         ),

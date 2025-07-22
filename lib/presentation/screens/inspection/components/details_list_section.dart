@@ -186,7 +186,10 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       debugPrint('DetailsListSection: Error reordering details: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao reordenar detalhe: $e')),
+          SnackBar(
+            content: Text('Erro ao reordenar detalhe: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
 
         // Restore original order from widget
@@ -301,13 +304,17 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           const SnackBar(
             content: Text('Detalhe excluído com sucesso'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao excluir detalhe: $e')),
+          SnackBar(
+            content: Text('Erro ao excluir detalhe: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -351,6 +358,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           const SnackBar(
             content: Text('Detalhe duplicado com sucesso'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -358,7 +366,10 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       debugPrint('DetailsListSection: Error duplicating detail: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao duplicar detalhe: $e')),
+          SnackBar(
+            content: Text('Erro ao duplicar detalhe: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -784,7 +795,10 @@ class _DetailListItemState extends State<DetailListItem> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao navegar para não conformidade: $e')),
+          SnackBar(
+            content: Text('Erro ao navegar para não conformidade: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -890,7 +904,10 @@ class _DetailListItemState extends State<DetailListItem> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao abrir galeria: $e')),
+          SnackBar(
+            content: Text('Erro ao abrir galeria: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }

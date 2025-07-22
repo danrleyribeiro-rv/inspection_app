@@ -119,7 +119,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao selecionar imagem: $e')),
+          SnackBar(
+            content: Text('Erro ao selecionar imagem: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -144,6 +147,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SnackBar(
               content: Text('CEP não encontrado'),
               backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
             ),
           );
         } else {
@@ -164,13 +168,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao buscar CEP: ${response.statusCode}')),
+          SnackBar(
+            content: Text('Erro ao buscar CEP: ${response.statusCode}'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao buscar CEP: $e')),
+          SnackBar(
+            content: Text('Erro ao buscar CEP: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {
@@ -221,6 +231,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SnackBar(
             content: Text('Perfil atualizado com sucesso!'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
         Navigator.of(context).pop(true);
@@ -228,7 +239,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar perfil: $e')),
+          SnackBar(
+            content: Text('Erro ao atualizar perfil: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {

@@ -152,7 +152,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
   Future<void> _saveNonConformity() async {
     if (_descriptionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A descrição é obrigatória')),
+        const SnackBar(
+          content: Text('A descrição é obrigatória'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
@@ -164,14 +167,20 @@ class _NonConformityFormState extends State<NonConformityForm> {
     if (widget.level == 'topic') {
       if (widget.selectedTopic == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selecione um tópico')),
+          const SnackBar(
+            content: Text('Selecione um tópico'),
+            duration: Duration(seconds: 2),
+          ),
         );
         return;
       }
     } else if (widget.level == 'item') {
       if (widget.selectedTopic == null || widget.selectedItem == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selecione um tópico e item')),
+          const SnackBar(
+            content: Text('Selecione um tópico e item'),
+            duration: Duration(seconds: 2),
+          ),
         );
         return;
       }
@@ -180,7 +189,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
         // Para hierarquia direta: apenas tópico e detalhe
         if (widget.selectedTopic == null || widget.selectedDetail == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Selecione um tópico e detalhe')),
+            const SnackBar(
+              content: Text('Selecione um tópico e detalhe'),
+              duration: Duration(seconds: 2),
+            ),
           );
           return;
         }
@@ -190,7 +202,10 @@ class _NonConformityFormState extends State<NonConformityForm> {
             widget.selectedItem == null ||
             widget.selectedDetail == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Selecione um tópico, item e detalhe')),
+            const SnackBar(
+              content: Text('Selecione um tópico, item e detalhe'),
+              duration: Duration(seconds: 2),
+            ),
           );
           return;
         }
@@ -241,6 +256,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
             content: Text(
                 'Não conformidade de ${widget.level} registrada com sucesso!'),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -251,6 +267,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
           SnackBar(
             content: Text('Erro ao registrar não conformidade: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }

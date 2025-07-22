@@ -156,6 +156,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           SnackBar(
             content: Text('Erro ao carregar as vistorias: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -371,6 +372,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           SnackBar(
             content: Text('Erro ao baixar para offline: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -428,6 +430,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           SnackBar(
             content: Text('Erro ao sincronizar: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -859,6 +862,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           const SnackBar(
             content: Text('Imagens sincronizadas com sucesso!'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
         // Refresh the list to show updated sync status
@@ -875,6 +879,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           SnackBar(
             content: Text('Erro ao sincronizar imagens: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -1079,6 +1084,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
             const SnackBar(
               content: Text('Nenhuma vistoria disponível para download.'),
               backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -1115,6 +1121,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           SnackBar(
             content: Text('Erro ao carregar vistorias: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
           ),
         );
       }

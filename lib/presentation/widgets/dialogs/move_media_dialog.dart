@@ -72,7 +72,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar tópicos: $e')),
+          SnackBar(
+            content: Text('Erro ao carregar tópicos: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -111,7 +114,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar itens: $e')),
+          SnackBar(
+            content: Text('Erro ao carregar itens: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -130,7 +136,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar detalhes: $e')),
+          SnackBar(
+            content: Text('Erro ao carregar detalhes: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -149,7 +158,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar detalhes diretos: $e')),
+          SnackBar(
+            content: Text('Erro ao carregar detalhes diretos: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -265,7 +277,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
       debugPrint('MoveMediaDialog: Error loading non-conformities: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar não conformidades: $e')),
+          SnackBar(
+            content: Text('Erro ao carregar não conformidades: $e'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } finally {
@@ -303,6 +318,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ? '$count mídias excluídas com sucesso!'
                   : 'Mídia excluída com sucesso!'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
         } else {
@@ -310,7 +326,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text('Erro ao excluir mídia'),
-                backgroundColor: Colors.red),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2)),
           );
         }
       }
@@ -320,7 +337,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Erro ao excluir mídia: $e'),
-              backgroundColor: Colors.red),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2)),
         );
       }
     }
@@ -367,6 +385,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ? '$count mídias movidas com sucesso!'
                   : 'Mídia movida com sucesso!'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
         } else {
@@ -374,7 +393,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text('Erro ao mover mídia'),
-                backgroundColor: Colors.red),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2)),
           );
         }
       }
@@ -384,7 +404,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Erro ao mover mídia: $e'),
-              backgroundColor: Colors.red),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2)),
         );
       }
     }
@@ -455,6 +476,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ? '$count mídias duplicadas para NC com sucesso!'
                   : 'Mídia duplicada para NC com sucesso!'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
         } else {
@@ -465,6 +487,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ? 'Duplicação parcial: $successCount de ${mediaIds.length} mídias duplicadas'
                   : 'Erro ao duplicar mídia para NC'),
               backgroundColor: successCount > 0 ? Colors.orange : Colors.red,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -475,7 +498,8 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Erro ao duplicar mídia para NC: $e'),
-              backgroundColor: Colors.red),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2)),
         );
       }
     }

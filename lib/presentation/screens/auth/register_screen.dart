@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:lince_inspecoes/utils/constants.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/terms_dialog.dart';
 import 'package:cpf_cnpj_validator/cpf_validator.dart' as cpf_validator;
 import 'package:cpf_cnpj_validator/cnpj_validator.dart' as cnpj_validator;
 
@@ -58,6 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SnackBar(
               content: Text('CEP não encontrado'),
               backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
             ),
           );
         } else {
@@ -78,13 +80,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao buscar CEP: ${response.statusCode}')),
+          SnackBar(
+            content: Text('Erro ao buscar CEP: ${response.statusCode}'),
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao buscar CEP: $e')),
+        SnackBar(
+          content: Text('Erro ao buscar CEP: $e'),
+          duration: const Duration(seconds: 2),
+        ),
       );
     } finally {
       if (mounted) {
@@ -101,6 +109,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SnackBar(
           content: Text('As senhas não coincidem'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -115,7 +124,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!isDocumentValid) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('O CPF informado é inválido'),
-              backgroundColor: Colors.red));
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2)));
           return;
         }
       } else if (documentDigits.length == 14) {
@@ -123,20 +133,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!isDocumentValid) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('O CNPJ informado é inválido'),
-              backgroundColor: Colors.red));
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2)));
           return;
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text(
                 'O documento deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)'),
-            backgroundColor: Colors.red));
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2)));
         return;
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Por favor, insira seu CPF ou CNPJ'),
-          backgroundColor: Colors.red));
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2)));
       return;
     }
 
@@ -157,6 +170,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'phonenumber': _phoneController.text.replaceAll(RegExp(r'\D'), ''),
       };
 
+      // Show terms dialog BEFORE creating account
+      final accepted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const TermsDialog(isRegistration: true),
+      );
+
+      if (!mounted) return;
+
+      if (accepted != true) {
+        // User rejected terms - don't create account
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('É necessário aceitar os termos para criar uma conta.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      // Only create account if terms were accepted
       final userCredential = await _authService.registerWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text.trim(),
@@ -167,6 +202,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (userCredential.user != null) {
         await userCredential.user!.sendEmailVerification();
+        
+        // Accept terms immediately after account creation
+        await _authService.acceptTerms(userCredential.user!.uid);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -174,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               content: Text(
                   'Registro bem-sucedido! Por favor, verifique seu e-mail para confirmar seu endereço.'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 5),
+              duration: Duration(seconds: 2),
             ),
           );
           Navigator.of(context).pushReplacementNamed('/login');
@@ -186,6 +224,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               content: Text(
                   'Registro concluído, mas os dados do usuário estão indisponíveis. Por favor, tente fazer login.'),
               backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
             ),
           );
           Navigator.of(context).pushReplacementNamed('/login');
@@ -213,15 +252,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(message), 
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       debugPrint('Erro inesperado durante o registro: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Ocorreu um erro inesperado: $e'),
-            backgroundColor: Colors.red),
+          content: Text('Ocorreu um erro inesperado: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
       );
     } finally {
       if (mounted) {
@@ -229,6 +274,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -272,7 +318,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               : null,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildTextField(
                       controller: _lastNameController,
@@ -369,7 +415,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                   content: Text(
-                                      'Por favor, insira um CEP primeiro')),
+                                      'Por favor, insira um CEP primeiro'),
+                                  duration: Duration(seconds: 2)),
                             );
                           }
                         },
@@ -432,11 +479,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               : null,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildTextField(
                       controller: _stateController,
-                      label: 'Estado',
+                      label: 'UF',
                       icon: Icons.map_outlined,
                       textCapitalization: TextCapitalization.characters,
                       inputFormatters: [

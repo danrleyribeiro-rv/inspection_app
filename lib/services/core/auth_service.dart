@@ -28,6 +28,16 @@ class AuthService {
       );
     }
 
+    // Check if user has accepted terms
+    final hasTermsAccepted = await hasAcceptedTerms(userCredential.user!.uid);
+    if (!hasTermsAccepted) {
+      await _firebase.auth.signOut();
+      throw FirebaseAuthException(
+        code: 'terms-not-accepted',
+        message: 'Terms of service must be accepted to access the application.',
+      );
+    }
+
     return userCredential;
   }
 
@@ -49,6 +59,7 @@ class AuthService {
       'user_id': userId,
       ...userData,
       'email': email,
+      'terms_accepted': false,
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
       'deleted_at': null,
@@ -103,5 +114,27 @@ class AuthService {
       String userId, Map<String, dynamic> data) async {
     data['updated_at'] = FieldValue.serverTimestamp();
     await _firebase.firestore.collection('inspectors').doc(userId).update(data);
+  }
+
+  Future<void> acceptTerms(String userId) async {
+    await _firebase.firestore.collection('inspectors').doc(userId).update({
+      'terms_accepted': true,
+      'terms_accepted_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<bool> hasAcceptedTerms(String userId) async {
+    try {
+      final doc = await _firebase.firestore.collection('inspectors').doc(userId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        return data != null && (data['terms_accepted'] == true);
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error checking terms acceptance: $e');
+      return false;
+    }
   }
 }

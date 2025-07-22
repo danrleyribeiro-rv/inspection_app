@@ -56,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SnackBar(
             content: Text('Notificações habilitadas! Você receberá atualizações sobre sincronizações.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }

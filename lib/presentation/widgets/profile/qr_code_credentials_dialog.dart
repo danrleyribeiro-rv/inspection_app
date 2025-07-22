@@ -99,7 +99,7 @@ class QrCodeCredentialsDialog extends StatelessWidget {
                       ],
                     ),
                     child: Image.asset(
-                      'assets/icons/logo.png',
+                      'assets/icons/logo_lince.png',
                       fit: BoxFit.contain,
                     ),
                   ),

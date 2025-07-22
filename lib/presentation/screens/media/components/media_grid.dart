@@ -43,7 +43,10 @@ class _MediaGridState extends State<MediaGrid> {
     if (inspectionId == null || mediaId == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro: IDs inválidos')),
+          const SnackBar(
+            content: Text('Erro: IDs inválidos'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
       return;
@@ -91,7 +94,10 @@ class _MediaGridState extends State<MediaGrid> {
     if (mediaId == null) {
       if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro: ID da mídia inválido')),
+          const SnackBar(
+            content: Text('Erro: ID da mídia inválido'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
       return;
@@ -137,6 +143,7 @@ class _MediaGridState extends State<MediaGrid> {
                   ? 'Mídia offline excluída com sucesso!'
                   : 'Imagem excluída com sucesso!'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
           if (widget.onRefresh != null) {
@@ -155,6 +162,7 @@ class _MediaGridState extends State<MediaGrid> {
             SnackBar(
               content: Text('Erro ao excluir mídia: $e'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
             ),
           );
         }
