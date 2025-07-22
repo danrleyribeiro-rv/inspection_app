@@ -665,8 +665,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   double _calculateInspectionProgress() {
     if (_topics.isEmpty) return 0.0;
     
-    int totalDetails = 0;
-    int filledDetails = 0;
+    int totalUnits = 0;  // Total de unidades avaliáveis (detalhes + itens avaliáveis)
+    int completedUnits = 0;  // Unidades completadas
     
     for (final topic in _topics) {
       final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
@@ -678,9 +678,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         final details = _detailsCache[directDetailsKey] ?? [];
         
         for (final detail in details) {
-          totalDetails++;
+          totalUnits++;
           if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-            filledDetails++;
+            completedUnits++;
           }
         }
       } else {
@@ -689,19 +689,102 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         
         for (final item in items) {
           final itemId = item.id ?? 'item_${items.indexOf(item)}';
-          final details = _detailsCache['${topicId}_$itemId'] ?? [];
           
+          // Contar item avaliável como unidade se for avaliável
+          if (item.evaluable == true) {
+            totalUnits++;
+            if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
+              completedUnits++;
+            }
+          }
+          
+          // Contar detalhes do item
+          final details = _detailsCache['${topicId}_$itemId'] ?? [];
           for (final detail in details) {
-            totalDetails++;
+            totalUnits++;
             if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-              filledDetails++;
+              completedUnits++;
             }
           }
         }
       }
     }
     
-    return totalDetails > 0 ? filledDetails / totalDetails : 0.0;
+    return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
+  }
+
+  /// Calcula o progresso específico de um tópico
+  double _calculateTopicProgress(Topic topic) {
+    final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
+    int totalUnits = 0;
+    int completedUnits = 0;
+    
+    // Hierarquia flexível: Verificar se tem detalhes diretos
+    if (topic.directDetails == true) {
+      // Para tópicos com detalhes diretos
+      final directDetailsKey = '${topicId}_direct';
+      final details = _detailsCache[directDetailsKey] ?? [];
+      
+      for (final detail in details) {
+        totalUnits++;
+        if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
+          completedUnits++;
+        }
+      }
+    } else {
+      // Para tópicos normais com itens
+      final items = _itemsCache[topicId] ?? [];
+      
+      for (final item in items) {
+        final itemId = item.id ?? 'item_${items.indexOf(item)}';
+        
+        // Contar item avaliável como unidade se for avaliável
+        if (item.evaluable == true) {
+          totalUnits++;
+          if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
+            completedUnits++;
+          }
+        }
+        
+        // Contar detalhes do item
+        final details = _detailsCache['${topicId}_$itemId'] ?? [];
+        for (final detail in details) {
+          totalUnits++;
+          if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
+            completedUnits++;
+          }
+        }
+      }
+    }
+    
+    return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
+  }
+
+  /// Calcula o progresso específico de um item
+  double _calculateItemProgress(Item item, Topic topic) {
+    final topicId = topic.id ?? '';
+    final itemId = item.id ?? '';
+    int totalUnits = 0;
+    int completedUnits = 0;
+    
+    // Contar item avaliável como unidade se for avaliável
+    if (item.evaluable == true) {
+      totalUnits++;
+      if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
+        completedUnits++;
+      }
+    }
+    
+    // Contar detalhes do item
+    final details = _detailsCache['${topicId}_$itemId'] ?? [];
+    for (final detail in details) {
+      totalUnits++;
+      if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
+        completedUnits++;
+      }
+    }
+    
+    return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
   }
 
   Future<void> _exportInspection() async {

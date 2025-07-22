@@ -116,6 +116,46 @@ class _HierarchicalInspectionViewState
   }
 
   @override
+  void didUpdateWidget(HierarchicalInspectionView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Verificar se a lista de tópicos mudou (ex: após deleção)
+    if (oldWidget.topics.length != widget.topics.length) {
+      debugPrint('HierarchicalInspectionView: Topics list changed from ${oldWidget.topics.length} to ${widget.topics.length}');
+      
+      // Se o índice atual está fora dos limites, ajustar
+      if (_currentTopicIndex >= widget.topics.length) {
+        final newIndex = (widget.topics.length - 1).clamp(0, widget.topics.length - 1);
+        debugPrint('HierarchicalInspectionView: Adjusting topic index from $_currentTopicIndex to $newIndex');
+        
+        setState(() {
+          _currentTopicIndex = newIndex;
+          _currentItemIndex = 0;
+          // Reset expansion states to ensure the new topic can be expanded
+          _isTopicExpanded = false;
+          _isItemExpanded = false;
+          _isDetailsExpanded = false;
+          _expandedDetailId = null;
+        });
+        
+        // Animar para o novo índice
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _topicPageController?.hasClients == true && widget.topics.isNotEmpty) {
+            _topicPageController?.animateToPage(
+              _currentTopicIndex,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+        
+        // Salvar o novo estado
+        _saveNavigationState();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     // Salva o estado antes de destruir o widget
     _saveNavigationState();
@@ -129,6 +169,11 @@ class _HierarchicalInspectionViewState
     setState(() {
       _currentTopicIndex = index;
       _currentItemIndex = 0;
+      // Reset expansion states when changing topics
+      _isTopicExpanded = false;
+      _isItemExpanded = false;
+      _isDetailsExpanded = false;
+      _expandedDetailId = null;
     });
 
     if (_itemPageController?.hasClients ?? false) {
@@ -213,7 +258,7 @@ class _HierarchicalInspectionViewState
 
                 return Column(
                   children: [
-                    // MODIFICADO: Usa progresso calculado diretamente
+                    // MODIFICADO: Usa progresso calculado diretamente com progresso individual
                     SwipeableLevelHeader(
                       title: topic.topicName,
                       subtitle: topic.topicLabel,
@@ -221,6 +266,7 @@ class _HierarchicalInspectionViewState
                       totalCount: widget.topics.length,
                       progress: _calculateTopicProgress(topic),
                       items: widget.topics.map((t) => t.topicName).toList(),
+                      itemProgresses: widget.topics.map((t) => _calculateTopicProgress(t)).toList(),
                       hasObservation: topic.observation != null &&
                           topic.observation!.isNotEmpty,
                       onIndexChanged: (index) {
@@ -235,6 +281,10 @@ class _HierarchicalInspectionViewState
                           if (_isTopicExpanded) {
                             _isItemExpanded = false;
                             _isDetailsExpanded = false;
+                            // Para tópicos com detalhes diretos, colapsar detalhes expandidos
+                            if (_shouldUseDirectDetails(topic, topicIndex)) {
+                              _expandedDetailId = null;
+                            }
                           }
                         });
                         // Salva o estado quando a expansão do tópico muda
@@ -317,6 +367,7 @@ class _HierarchicalInspectionViewState
                                           items: topicItems
                                               .map((i) => i.itemName)
                                               .toList(),
+                                          itemProgresses: _calculateAllItemProgressesSync(topicItems),
                                           hasObservation:
                                               item.observation != null &&
                                                   item.observation!.isNotEmpty,
@@ -345,6 +396,7 @@ class _HierarchicalInspectionViewState
                                         items: topicItems
                                             .map((i) => i.itemName)
                                             .toList(),
+                                        itemProgresses: _calculateAllItemProgressesSync(topicItems),
                                         hasObservation:
                                             item.observation != null &&
                                                 item.observation!.isNotEmpty,
@@ -510,7 +562,9 @@ class _HierarchicalInspectionViewState
                                             },
                                             onDetailExpanded: (detailId) {
                                               // Salva qual detalhe foi expandido
-                                              _expandedDetailId = detailId;
+                                              setState(() {
+                                                _expandedDetailId = detailId;
+                                              });
                                               _saveNavigationState();
                                             },
                                           ),
@@ -634,6 +688,35 @@ class _HierarchicalInspectionViewState
     return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
   }
 
+  List<double> _calculateAllItemProgressesSync(List<Item> items) {
+    return items.map((item) {
+      if (item.id == null || item.topicId == null) return 0.0;
+
+      final details = widget.detailsCache['${item.topicId}_${item.id}'] ?? [];
+      if (details.isEmpty) {
+        // Se o item é avaliável mas não tem detalhes, verificar se tem avaliação
+        if (item.evaluable == true) {
+          return (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) ? 1.0 : 0.0;
+        }
+        return 0.0;
+      }
+
+      int totalUnits = details.length;
+      int completedUnits = details.where((d) => 
+          d.detailValue != null && d.detailValue!.isNotEmpty).length;
+      
+      // Se o item também é avaliável, contar a avaliação como uma unidade adicional
+      if (item.evaluable == true) {
+        totalUnits++;
+        if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
+          completedUnits++;
+        }
+      }
+
+      return totalUnits > 0 ? (completedUnits / totalUnits) : 0.0;
+    }).toList();
+  }
+
   /// Constrói a view para tópicos com detalhes diretos (sem itens intermediários)
   Widget _buildDirectDetailsView(Topic topic, int topicIndex) {
     final topicId = topic.id ?? 'topic_$topicIndex';
@@ -681,8 +764,18 @@ class _HierarchicalInspectionViewState
                 await widget.onUpdateCache();
               },
               onDetailExpanded: (detailId) {
-                // Salva qual detalhe foi expandido
-                _expandedDetailId = detailId;
+                // Para tópicos com detalhes diretos, colapsar o tópico quando um detalhe é expandido
+                final currentTopic = widget.topics[topicIndex];
+                final isDirectDetails = _shouldUseDirectDetails(currentTopic, topicIndex);
+                
+                setState(() {
+                  _expandedDetailId = detailId;
+                  if (isDirectDetails && detailId != null) {
+                    _isTopicExpanded = false; // Colapsar tópico quando detalhe é expandido
+                  } else if (detailId == null && isDirectDetails) {
+                    // Se nenhum detalhe está expandido, permitir que o tópico seja expandido
+                  }
+                });
                 _saveNavigationState();
               },
             ),

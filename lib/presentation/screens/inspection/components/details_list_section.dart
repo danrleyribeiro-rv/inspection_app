@@ -60,7 +60,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     super.initState();
     _localDetails = List.from(widget.details);
     _setInitialExpandedDetail();
-    debugPrint('DetailsListSection: initState - Created with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: ${hashCode})');
+    debugPrint('DetailsListSection: initState - Created with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
   }
 
   void _setInitialExpandedDetail() {

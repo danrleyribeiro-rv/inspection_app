@@ -18,6 +18,7 @@ class SwipeableLevelHeader extends StatefulWidget {
   final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
   final Function(int oldIndex, int newIndex)? onReorder;
+  final List<double>? itemProgresses;
 
   const SwipeableLevelHeader({
     super.key,
@@ -37,6 +38,7 @@ class SwipeableLevelHeader extends StatefulWidget {
     this.onDuplicate,
     this.onDelete,
     this.onReorder,
+    this.itemProgresses,
   });
 
   @override
@@ -122,22 +124,62 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                       final itemTitle = localItems[index];
                       final isSelected = index == localCurrentIndex;
 
+                      final itemProgress = (widget.itemProgresses != null && 
+                                           index < widget.itemProgresses!.length) 
+                                         ? widget.itemProgresses![index] 
+                                         : 0.0;
+                      
                       return ListTile(
                         key: Key(itemTitle),
                         leading: Icon(
                           widget.icon,
                           color: isSelected ? _levelColor : null,
                         ),
-                        title: Text(
-                          itemTitle,
-                          style: TextStyle(
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isSelected ? _levelColor : null,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    itemTitle,
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected ? _levelColor : null,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (widget.itemProgresses != null) ...[
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${(itemProgress * 100).round()}%',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected ? _levelColor : Colors.grey.shade300,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (widget.itemProgresses != null) ...[
+                              const SizedBox(height: 4),
+                              LinearProgressIndicator(
+                                value: itemProgress,
+                                backgroundColor: Colors.grey.shade700,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isSelected ? _levelColor : _levelColor.withValues(alpha: 0.7),
+                                ),
+                                minHeight: 3,
+                              ),
+                            ],
+                          ],
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,

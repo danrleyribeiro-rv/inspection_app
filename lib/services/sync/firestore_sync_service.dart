@@ -2086,7 +2086,7 @@ class FirestoreSyncService {
           lastSyncAt: DateTime.now(),
         );
         
-        debugPrint('FirestoreSyncService: Saving inspection ${inspectionId} to local database');
+        debugPrint('FirestoreSyncService: Saving inspection $inspectionId to local database');
         await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
         
         // Processar estrutura aninhada preservando dados existentes
