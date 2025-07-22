@@ -487,7 +487,7 @@ class MediaService {
 
       // Save updated inspection
       await _dataService
-          .saveInspection(inspection.copyWith(topics: updatedTopics));
+          .saveInspection(inspection.copyWith(topics: updatedTopics, hasLocalChanges: true));
       debugPrint('MediaService.moveMedia: Successfully moved media $mediaId');
       return true;
     } catch (e) {

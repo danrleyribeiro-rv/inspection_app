@@ -10,6 +10,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
 import 'package:lince_inspecoes/repositories/media_repository.dart';
+import 'package:lince_inspecoes/repositories/inspection_repository.dart';
 import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
@@ -21,6 +22,7 @@ class EnhancedOfflineMediaService {
   EnhancedOfflineMediaService._();
 
   late final MediaRepository _mediaRepository;
+  late final InspectionRepository _inspectionRepository;
   late final FirestoreSyncService _syncService;
 
   bool _isInitialized = false;
@@ -29,10 +31,31 @@ class EnhancedOfflineMediaService {
     if (_isInitialized) return;
 
     _mediaRepository = MediaRepository();
+    _inspectionRepository = InspectionRepository();
     _syncService = FirestoreSyncService.instance;
 
     _isInitialized = true;
     debugPrint('EnhancedOfflineMediaService: Initialized');
+  }
+
+  // ===============================
+  // MÉTODO AUXILIAR PARA MARCAR MUDANÇAS
+  // ===============================
+
+  Future<void> _markInspectionAsModified(String inspectionId) async {
+    try {
+      final inspection = await _inspectionRepository.findById(inspectionId);
+      if (inspection != null) {
+        final modifiedInspection = inspection.copyWith(
+          hasLocalChanges: true,
+          updatedAt: DateTime.now(),
+        );
+        await _inspectionRepository.update(modifiedInspection);
+        debugPrint('EnhancedOfflineMediaService: Marked inspection $inspectionId as modified');
+      }
+    } catch (e) {
+      debugPrint('EnhancedOfflineMediaService: Error marking inspection as modified: $e');
+    }
   }
 
   // ===============================
@@ -150,6 +173,9 @@ class EnhancedOfflineMediaService {
       // Salvar no banco de dados IMEDIATAMENTE
       await _mediaRepository.insert(media);
       debugPrint('EnhancedOfflineMediaService: Media saved to database immediately');
+
+      // Marcar inspeção como modificada
+      await _markInspectionAsModified(inspectionId);
 
       // Criar thumbnail E obter GPS de forma assíncrona (não bloqueia o retorno)
       Future.microtask(() async {
@@ -278,6 +304,9 @@ class EnhancedOfflineMediaService {
 
       // Salvar no banco de dados
       await _mediaRepository.insert(media);
+
+      // Marcar inspeção como modificada para sincronização
+      await _markInspectionAsModified(inspectionId);
 
       debugPrint('EnhancedOfflineMediaService: Captured video ${media.id}');
 
@@ -516,6 +545,9 @@ class EnhancedOfflineMediaService {
       // Salvar no banco de dados
       await _mediaRepository.insert(media);
 
+      // Marcar inspeção como modificada para sincronização
+      await _markInspectionAsModified(inspectionId);
+
       // Notificar contadores sobre nova mídia IMEDIATAMENTE
       MediaCounterNotifier.instance.notifyMediaAdded(
         inspectionId: inspectionId,
@@ -669,6 +701,10 @@ class EnhancedOfflineMediaService {
 
       // Salvar no repositório IMEDIATAMENTE
       await _mediaRepository.insert(media);
+
+      // Marcar inspeção como modificada para sincronização
+      await _markInspectionAsModified(inspectionId);
+
       debugPrint('EnhancedOfflineMediaService: ========== MEDIA SAVED TO DATABASE ==========');
       debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
       debugPrint('EnhancedOfflineMediaService: Source saved: ${media.source}');
@@ -817,6 +853,9 @@ class EnhancedOfflineMediaService {
         itemId: media.itemId,
         detailId: media.detailId,
       );
+
+      // Marcar inspeção como modificada
+      await _markInspectionAsModified(media.inspectionId);
 
       // Verify deletion
       final deletedMedia = await _mediaRepository.findById(mediaId);
@@ -1101,6 +1140,9 @@ class EnhancedOfflineMediaService {
         detailId: newDetailId,
       );
 
+      // Marcar inspeção como modificada
+      await _markInspectionAsModified(inspectionId);
+
       debugPrint(
           'EnhancedOfflineMediaService: Media moved successfully: $mediaId');
       return true;
@@ -1209,6 +1251,9 @@ class EnhancedOfflineMediaService {
         itemId: newItemId,
         detailId: newDetailId,
       );
+
+      // Marcar inspeção como modificada
+      await _markInspectionAsModified(inspectionId);
 
       debugPrint('EnhancedOfflineMediaService: Media duplicated successfully: $mediaId -> $newMediaId');
       return newMediaId;

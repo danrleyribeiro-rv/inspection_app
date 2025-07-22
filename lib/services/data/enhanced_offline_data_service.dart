@@ -139,8 +139,8 @@ class EnhancedOfflineDataService {
   Future<void> markInspectionForSync(String inspectionId, {bool force = false}) async {
     debugPrint('DataService: Marking inspection $inspectionId for sync (force: $force)');
     
-    // Marcar inspeção para sincronização
-    await _inspectionRepository.markForSync(inspectionId);
+    // Marcar inspeção como modificada (hasLocalChanges=true + needs_sync=1)
+    await _inspectionRepository.markAsModified(inspectionId);
     
     // Marcar todos os tópicos para sincronização
     final topics = await getTopics(inspectionId);
@@ -331,12 +331,26 @@ class EnhancedOfflineDataService {
   Future<void> updateTopic(Topic topic) async {
     debugPrint('DataService: Updating topic ${topic.id} - ${topic.topicName}');
     await _topicRepository.update(topic);
+    
+    // Marcar inspeção como modificada
+    await markInspectionForSync(topic.inspectionId);
+    
     debugPrint('DataService: Topic ${topic.id} updated successfully');
   }
 
   Future<void> deleteTopic(String topicId) async {
     debugPrint('DataService: Deleting topic $topicId');
+    
+    // Buscar tópico para obter inspectionId antes de deletar
+    final topic = await _topicRepository.findById(topicId);
+    
     await _topicRepository.delete(topicId);
+    
+    // Marcar inspeção como modificada se tópico foi encontrado
+    if (topic != null) {
+      await markInspectionForSync(topic.inspectionId);
+    }
+    
     debugPrint('DataService: Topic $topicId deleted successfully');
   }
 
@@ -385,12 +399,26 @@ class EnhancedOfflineDataService {
   Future<void> updateItem(Item item) async {
     debugPrint('DataService: Updating item ${item.id} - ${item.itemName}');
     await _itemRepository.update(item);
+    
+    // Marcar inspeção como modificada
+    await markInspectionForSync(item.inspectionId);
+    
     debugPrint('DataService: Item ${item.id} updated successfully');
   }
 
   Future<void> deleteItem(String itemId) async {
     debugPrint('DataService: Deleting item $itemId');
+    
+    // Buscar item para obter inspectionId antes de deletar
+    final item = await _itemRepository.findById(itemId);
+    
     await _itemRepository.delete(itemId);
+    
+    // Marcar inspeção como modificada se item foi encontrado
+    if (item != null) {
+      await markInspectionForSync(item.inspectionId);
+    }
+    
     debugPrint('DataService: Item $itemId deleted successfully');
   }
 
@@ -460,31 +488,77 @@ class EnhancedOfflineDataService {
     debugPrint(
         'DataService: Updating detail ${detail.id} - ${detail.detailName} with value: ${detail.detailValue}');
     await _detailRepository.update(detail);
+    
+    // Marcar inspeção como modificada
+    await markInspectionForSync(detail.inspectionId);
+    
     debugPrint('DataService: Detail ${detail.id} updated successfully');
   }
 
   Future<void> deleteDetail(String detailId) async {
     debugPrint('DataService: Deleting detail $detailId');
+    
+    // Buscar detalhe para obter inspectionId antes de deletar
+    final detail = await _detailRepository.findById(detailId);
+    
     await _detailRepository.delete(detailId);
+    
+    // Marcar inspeção como modificada se detalhe foi encontrado
+    if (detail != null) {
+      await markInspectionForSync(detail.inspectionId);
+    }
+    
     debugPrint('DataService: Detail $detailId deleted successfully');
   }
 
   Future<void> updateDetailValue(
       String detailId, String? value, String? observations) async {
+    // Buscar detalhe para obter inspectionId
+    final detail = await _detailRepository.findById(detailId);
+    
     await _detailRepository.updateValue(detailId, value, observations);
+    
+    // Marcar inspeção como modificada se detalhe foi encontrado
+    if (detail != null) {
+      await markInspectionForSync(detail.inspectionId);
+    }
   }
 
   Future<void> markDetailCompleted(String detailId) async {
+    // Buscar detalhe para obter inspectionId
+    final detail = await _detailRepository.findById(detailId);
+    
     await _detailRepository.markAsCompleted(detailId);
+    
+    // Marcar inspeção como modificada se detalhe foi encontrado
+    if (detail != null) {
+      await markInspectionForSync(detail.inspectionId);
+    }
   }
 
   Future<void> markDetailIncomplete(String detailId) async {
+    // Buscar detalhe para obter inspectionId
+    final detail = await _detailRepository.findById(detailId);
+    
     await _detailRepository.markAsIncomplete(detailId);
+    
+    // Marcar inspeção como modificada se detalhe foi encontrado
+    if (detail != null) {
+      await markInspectionForSync(detail.inspectionId);
+    }
   }
 
   Future<void> setDetailNonConformity(
       String detailId, bool hasNonConformity) async {
+    // Buscar detalhe para obter inspectionId
+    final detail = await _detailRepository.findById(detailId);
+    
     await _detailRepository.setNonConformity(detailId, hasNonConformity);
+    
+    // Marcar inspeção como modificada se detalhe foi encontrado
+    if (detail != null) {
+      await markInspectionForSync(detail.inspectionId);
+    }
   }
 
   Future<void> reorderDetails(String itemId, List<String> detailIds) async {
@@ -542,29 +616,64 @@ class EnhancedOfflineDataService {
   }
 
   Future<String> saveNonConformity(NonConformity nonConformity) async {
-    return await _nonConformityRepository.insert(nonConformity);
+    final result = await _nonConformityRepository.insert(nonConformity);
+    
+    // Marcar inspeção como modificada
+    await markInspectionForSync(nonConformity.inspectionId);
+    
+    return result;
   }
 
   Future<void> updateNonConformity(NonConformity nonConformity) async {
     await _nonConformityRepository.update(nonConformity);
+    
+    // Marcar inspeção como modificada
+    await markInspectionForSync(nonConformity.inspectionId);
   }
 
   Future<void> insertOrUpdateNonConformity(NonConformity nonConformity) async {
     await _nonConformityRepository.insertOrUpdate(nonConformity);
+    
+    // Marcar inspeção como modificada
+    await markInspectionForSync(nonConformity.inspectionId);
   }
 
   Future<void> deleteNonConformity(String nonConformityId) async {
+    // Buscar NC para obter inspectionId antes de deletar
+    final nc = await _nonConformityRepository.findById(nonConformityId);
+    
     await _nonConformityRepository.delete(nonConformityId);
+    
+    // Marcar inspeção como modificada se NC foi encontrada
+    if (nc != null) {
+      await markInspectionForSync(nc.inspectionId);
+    }
   }
 
   Future<void> updateNonConformityStatus(
       String nonConformityId, String status) async {
+    // Buscar NC para obter inspectionId
+    final nc = await _nonConformityRepository.findById(nonConformityId);
+    
     await _nonConformityRepository.updateStatus(nonConformityId, status);
+    
+    // Marcar inspeção como modificada se NC foi encontrada
+    if (nc != null) {
+      await markInspectionForSync(nc.inspectionId);
+    }
   }
 
   Future<void> updateNonConformitySeverity(
       String nonConformityId, String severity) async {
+    // Buscar NC para obter inspectionId
+    final nc = await _nonConformityRepository.findById(nonConformityId);
+    
     await _nonConformityRepository.updateSeverity(nonConformityId, severity);
+    
+    // Marcar inspeção como modificada se NC foi encontrada
+    if (nc != null) {
+      await markInspectionForSync(nc.inspectionId);
+    }
   }
 
   Future<Map<String, int>> getNonConformityStats(String inspectionId) async {

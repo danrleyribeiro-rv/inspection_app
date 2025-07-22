@@ -92,6 +92,7 @@ class ItemService {
     final updatedInspection = inspection.copyWith(
       topics: updatedTopics,
       updatedAt: DateTime.now(),
+      hasLocalChanges: true,
     );
     await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
@@ -137,6 +138,7 @@ class ItemService {
           final updatedInspection = inspection.copyWith(
             topics: updatedTopics,
             updatedAt: DateTime.now(),
+            hasLocalChanges: true,
           );
           await _localStorage
               .saveInspection(updatedInspection); // Save to SQLite
@@ -202,7 +204,7 @@ class ItemService {
     final updatedTopics = List<Map<String, dynamic>>.from(existingTopics);
     updatedTopics[topicIndex] = topic;
 
-    final updatedInspection = inspection.copyWith(topics: updatedTopics);
+    final updatedInspection = inspection.copyWith(topics: updatedTopics, hasLocalChanges: true);
     await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
     return Item(
@@ -256,7 +258,7 @@ class ItemService {
       topic['items'] = items;
       topics[topicIndex] = topic;
 
-      final updatedInspection = inspection.copyWith(topics: topics);
+      final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
       await _localStorage.saveInspection(updatedInspection); // Save to SQLite
     }
   }
@@ -297,7 +299,7 @@ class ItemService {
           items.removeAt(itemIndex);
           topic['items'] = items;
           topics[topicIndex] = topic;
-          final updatedInspection = inspection.copyWith(topics: topics);
+          final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
           await _localStorage
               .saveInspection(updatedInspection); // Save to SQLite
         }

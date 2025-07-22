@@ -94,6 +94,21 @@ class InspectionRepository extends BaseRepository<Inspection> {
     );
   }
 
+  Future<void> markAsModified(String inspectionId) async {
+    final db = await database;
+    await db.update(
+      tableName,
+      {
+        'has_local_changes': 1,
+        'needs_sync': 1,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [inspectionId],
+    );
+    debugPrint('InspectionRepository: Marked inspection $inspectionId as modified with hasLocalChanges=true');
+  }
+
   Future<int> countByStatus(String status) async {
     final db = await database;
     final result = await db.rawQuery(

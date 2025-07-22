@@ -74,7 +74,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
               constraints: const BoxConstraints(maxHeight: 250),
               child: TextFormField(
                 controller: controller,
-                maxLines: 1,
+                maxLines: 3,
                 autofocus: true,
                 decoration: const InputDecoration(
                   hintText: 'Descreva a não conformidade encontrada...',
@@ -333,7 +333,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 },
                 displayText: (detail) => detail.detailName,
                 icon: Icons.details,
-                enabled: widget.selectedTopic != null,
+                enabled: widget.topics.isNotEmpty && widget.details.isNotEmpty,
               ),
             ] else if (widget.level == 'item' || widget.level == 'detail') ...[
               // Para hierarquia normal: mostrar item e depois detalhe
@@ -347,7 +347,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                 },
                 displayText: (item) => item.itemName,
                 icon: Icons.list_alt,
-                enabled: widget.selectedTopic != null,
+                enabled: widget.topics.isNotEmpty && widget.items.isNotEmpty,
               ),
               if (widget.level == 'detail') ...[
                 const SizedBox(height: 12),
@@ -360,7 +360,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
                   },
                   displayText: (detail) => detail.detailName,
                   icon: Icons.details,
-                  enabled: widget.selectedItem != null,
+                  enabled: widget.items.isNotEmpty && widget.details.isNotEmpty,
                 ),
               ],
             ],

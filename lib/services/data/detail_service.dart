@@ -159,7 +159,7 @@ class DetailService {
           items[itemIndex] = item;
           topic['items'] = items;
           topics[topicIndex] = topic;
-          final updatedInspection = inspection.copyWith(topics: topics);
+          final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
           // Use SQLiteStorageService to save locally and mark for sync
           await _localStorage.saveInspection(updatedInspection);
         }
@@ -207,7 +207,7 @@ class DetailService {
         final topics = List<Map<String, dynamic>>.from(inspection.topics!);
         topics[topicIndex] = topic;
 
-        final updatedInspection = inspection.copyWith(topics: topics);
+        final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
         // Use SQLiteStorageService to save locally and mark for sync
         await _localStorage.saveInspection(updatedInspection);
 
@@ -306,7 +306,7 @@ class DetailService {
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            final updatedInspection = inspection.copyWith(topics: topics);
+            final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
             // Use SQLiteStorageService to save locally and mark for sync
             await _localStorage.saveInspection(updatedInspection);
           }
@@ -337,7 +337,7 @@ class DetailService {
             items[itemIndex] = item;
             topic['items'] = items;
             topics[topicIndex] = topic;
-            final updatedInspection = inspection.copyWith(topics: topics);
+            final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
             // Use SQLiteStorageService to save locally and mark for sync
             await _localStorage.saveInspection(updatedInspection);
           }
@@ -382,7 +382,7 @@ class DetailService {
         topic['items'] = items;
         topics[topicIndex] = topic;
 
-        final updatedInspection = inspection.copyWith(topics: topics);
+        final updatedInspection = inspection.copyWith(topics: topics, hasLocalChanges: true);
         // Use SQLiteStorageService to save locally and mark for sync
         await _localStorage.saveInspection(updatedInspection);
       }

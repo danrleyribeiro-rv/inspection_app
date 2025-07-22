@@ -139,7 +139,7 @@ class NonConformityService {
             topics[topicIndex] = topic;
 
             await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics)); // Save to SQLite
+                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
           }
         }
       }
@@ -208,7 +208,7 @@ class NonConformityService {
             topics[topicIndex] = topic;
 
             await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics)); // Save to SQLite
+                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
           }
         }
       }
@@ -252,7 +252,7 @@ class NonConformityService {
     topics[topicIndex] = topic;
 
     await _localStorage
-        .saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+        .saveInspection(inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
 
     return '$inspectionId-topic_$topicIndex-nc_${topicNCs.length - 1}';
   }
@@ -302,7 +302,7 @@ class NonConformityService {
     topics[topicIndex] = topic;
 
     await _localStorage
-        .saveInspection(inspection.copyWith(topics: topics)); // Save to SQLite
+        .saveInspection(inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
 
     return '$inspectionId-topic_$topicIndex-item_$itemIndex-nc_${itemNCs.length - 1}';
   }
@@ -354,7 +354,7 @@ class NonConformityService {
             topics[topicIndex] = topic;
 
             await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics)); // Save to SQLite
+                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
           }
         }
       }
@@ -392,7 +392,7 @@ class NonConformityService {
             topics[topicIndex] = topic;
 
             await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics)); // Save to SQLite
+                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
           }
         }
       }

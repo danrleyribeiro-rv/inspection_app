@@ -617,6 +617,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Verifica se há dados não sincronizados de forma mais direta (sem cache de status)
   Future<bool> _hasRealUnsyncedData(String inspectionId) async {
     try {
+      // PRIMEIRO: Verificar se a própria inspeção tem mudanças locais
+      final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
+      if (inspection != null && inspection.hasLocalChanges) {
+        debugPrint('InspectionTab: Inspection $inspectionId has hasLocalChanges=true');
+        return true;
+      }
+
       // Verificar se há entidades que precisam ser sincronizadas
       final topicsNeedingSync = await _serviceFactory.dataService.getTopicsNeedingSync();
       final inspectionTopics = topicsNeedingSync.where((t) => t.inspectionId == inspectionId).toList();

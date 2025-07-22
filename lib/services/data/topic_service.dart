@@ -68,6 +68,7 @@ class TopicService {
     final updatedInspection = inspection.copyWith(
       topics: updatedTopics,
       updatedAt: DateTime.now(),
+      hasLocalChanges: true,
     );
     await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
@@ -143,6 +144,7 @@ class TopicService {
     final updatedInspection = inspection.copyWith(
       topics: updatedTopics,
       updatedAt: DateTime.now(),
+      hasLocalChanges: true,
     );
     await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
@@ -180,6 +182,7 @@ class TopicService {
           final updatedInspection = inspection.copyWith(
             topics: updatedTopics,
             updatedAt: DateTime.now(),
+            hasLocalChanges: true,
           );
 
           await _localStorage
@@ -245,6 +248,7 @@ class TopicService {
     final updatedInspection = inspection.copyWith(
       topics: updatedTopics,
       updatedAt: DateTime.now(),
+      hasLocalChanges: true,
     );
     await _localStorage.saveInspection(updatedInspection); // Save to SQLite
 
@@ -283,6 +287,7 @@ class TopicService {
       final updatedInspection = inspection.copyWith(
         topics: reorderedTopics,
         updatedAt: DateTime.now(),
+        hasLocalChanges: true,
       );
       await _localStorage.saveInspection(updatedInspection); // Save to SQLite
     }
@@ -442,6 +447,7 @@ class TopicService {
         final updatedInspection = inspection.copyWith(
           topics: topics,
           updatedAt: DateTime.now(),
+          hasLocalChanges: true,
         );
         await _localStorage.saveInspection(updatedInspection); // Save to SQLite
       }
@@ -569,6 +575,7 @@ class TopicService {
       final updatedInspection = inspection.copyWith(
         topics: updatedTopics,
         updatedAt: DateTime.now(),
+        hasLocalChanges: true,
       );
 
       await _localStorage.saveInspection(updatedInspection); // Save to SQLite
