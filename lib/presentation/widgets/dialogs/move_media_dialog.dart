@@ -416,7 +416,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
     }
   }
 
-  Future<void> _moveToExistingNC() async {
+  Future<void> _duplicateToExistingNC() async {
     if (_selectedNonConformity == null) return;
 
     setState(() => _isProcessing = true);
@@ -425,10 +425,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
       final List<String> mediaIds =
           widget.selectedMediaIds ?? [widget.mediaId!];
       bool allSuccess = true;
+      int successCount = 0;
 
       for (final mediaId in mediaIds) {
-        // TODO: Implement duplication - for now using move, should be changed to duplicate
-        final success = await _serviceFactory.mediaService.moveMedia(
+        final duplicatedMediaId = await _serviceFactory.mediaService.duplicateMedia(
           mediaId: mediaId,
           inspectionId: widget.inspectionId,
           newTopicId: _selectedNonConformity!.topicId,
@@ -437,16 +437,18 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
           newNonConformityId: _selectedNonConformity!.id,
         );
 
-        if (!success) {
+        if (duplicatedMediaId != null) {
+          successCount++;
+        } else {
           allSuccess = false;
           break;
         }
       }
 
       if (mounted) {
-        if (allSuccess) {
+        if (allSuccess && successCount > 0) {
           Navigator.of(context).pop(true);
-          final count = mediaIds.length;
+          final count = successCount;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(count > 1
@@ -458,9 +460,12 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         } else {
           setState(() => _isProcessing = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Erro ao mover mídia para NC'),
-                backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(successCount > 0 
+                  ? 'Duplicação parcial: $successCount de ${mediaIds.length} mídias duplicadas'
+                  : 'Erro ao duplicar mídia para NC'),
+              backgroundColor: successCount > 0 ? Colors.orange : Colors.red,
+            ),
           );
         }
       }
@@ -469,7 +474,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Erro ao mover mídia para NC: $e'),
+              content: Text('Erro ao duplicar mídia para NC: $e'),
               backgroundColor: Colors.red),
         );
       }
@@ -502,7 +507,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
         await _deleteMedia();
         break;
       case 'move_to_nc':
-        await _moveToExistingNC();
+        await _duplicateToExistingNC();
         break;
     }
   }

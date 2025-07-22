@@ -1110,6 +1110,114 @@ class EnhancedOfflineMediaService {
     }
   }
 
+  Future<String?> duplicateMedia({
+    required String mediaId,
+    required String inspectionId,
+    String? newTopicId,
+    String? newItemId,
+    String? newDetailId,
+    String? newNonConformityId,
+  }) async {
+    try {
+      final media = await _mediaRepository.findById(mediaId);
+      if (media == null) {
+        debugPrint('EnhancedOfflineMediaService: Media not found for duplication: $mediaId');
+        return null;
+      }
+
+      debugPrint('EnhancedOfflineMediaService: Starting duplication of media: $mediaId');
+      debugPrint('EnhancedOfflineMediaService: Original location - topic=${media.topicId}, item=${media.itemId}, detail=${media.detailId}');
+      debugPrint('EnhancedOfflineMediaService: New location - topic=$newTopicId, item=$newItemId, detail=$newDetailId');
+
+      // Generate new unique filename and ID
+      final newMediaId = const Uuid().v4();
+      final fileExtension = path.extension(media.filename);
+      final newFilename = '${const Uuid().v4()}$fileExtension';
+      
+      // Get media and thumbnail directories
+      final mediaDir = await _mediaDirectory;
+      final thumbnailDir = await _thumbnailDirectory;
+      
+      final originalFilePath = media.localPath;
+      final newFilePath = path.join(mediaDir.path, newFilename);
+
+      // Copy the media file
+      final originalFile = File(originalFilePath);
+      if (!await originalFile.exists()) {
+        debugPrint('EnhancedOfflineMediaService: Original file not found: $originalFilePath');
+        return null;
+      }
+      
+      await originalFile.copy(newFilePath);
+      debugPrint('EnhancedOfflineMediaService: File copied from $originalFilePath to $newFilePath');
+
+      // Copy thumbnail if it exists
+      String? newThumbnailPath;
+      if (media.thumbnailPath != null && media.thumbnailPath!.isNotEmpty) {
+        final originalThumbnailFile = File(media.thumbnailPath!);
+        if (await originalThumbnailFile.exists()) {
+          final thumbnailExtension = path.extension(media.thumbnailPath!);
+          final newThumbnailFilename = '${const Uuid().v4()}_thumb$thumbnailExtension';
+          newThumbnailPath = path.join(thumbnailDir.path, newThumbnailFilename);
+          
+          await originalThumbnailFile.copy(newThumbnailPath);
+          debugPrint('EnhancedOfflineMediaService: Thumbnail copied to $newThumbnailPath');
+        }
+      }
+
+      // Create duplicated media object with new location
+      final now = DateTime.now();
+      final duplicatedMedia = OfflineMedia(
+        id: newMediaId,
+        inspectionId: inspectionId,
+        topicId: newTopicId,
+        itemId: newItemId,
+        detailId: newDetailId,
+        nonConformityId: newNonConformityId,
+        type: media.type,
+        localPath: newFilePath,
+        cloudUrl: null, // New media needs to be uploaded
+        filename: newFilename,
+        fileSize: media.fileSize,
+        mimeType: media.mimeType,
+        thumbnailPath: newThumbnailPath,
+        duration: media.duration,
+        width: media.width,
+        height: media.height,
+        isProcessed: true,
+        isUploaded: false, // New media needs to be uploaded
+        uploadProgress: 0,
+        createdAt: now,
+        updatedAt: now,
+        capturedAt: media.capturedAt, // Keep original capture time
+        needsSync: true,
+        isDeleted: false,
+        source: media.source,
+        isResolutionMedia: media.isResolutionMedia,
+        metadata: media.metadata, // Copy original metadata
+        latitude: media.latitude,
+        longitude: media.longitude,
+      );
+
+      // Save duplicated media to database
+      await _mediaRepository.insert(duplicatedMedia);
+      
+      // Notify addition of new media
+      MediaCounterNotifier.instance.notifyMediaAdded(
+        inspectionId: inspectionId,
+        topicId: newTopicId,
+        itemId: newItemId,
+        detailId: newDetailId,
+      );
+
+      debugPrint('EnhancedOfflineMediaService: Media duplicated successfully: $mediaId -> $newMediaId');
+      return newMediaId;
+    } catch (e) {
+      debugPrint('EnhancedOfflineMediaService: Error duplicating media: $e');
+      return null;
+    }
+  }
+
   // ===============================
   // GERAÇÃO DE THUMBNAILS
   // ===============================
