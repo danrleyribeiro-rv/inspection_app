@@ -157,8 +157,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
       return;
     }
 
-    // Detectar se é hierarquia direta (tópico → detalhe sem item)
-    final isDirectHierarchy = widget.selectedDetail != null && widget.selectedItem == null;
+    // Detectar se é hierarquia direta baseado no tópico selecionado
+    final isDirectHierarchy = widget.selectedTopic?.directDetails == true;
     
     // Validação baseada no nível
     if (widget.level == 'topic') {
@@ -289,8 +289,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
   }
 
   Widget _buildLocationCard() {
-    // Detectar se é hierarquia direta (tópico → detalhe sem item)
-    final isDirectHierarchy = widget.selectedDetail != null && widget.selectedItem == null;
+    // Detectar se é hierarquia direta baseado no tópico selecionado
+    final isDirectHierarchy = widget.selectedTopic?.directDetails == true;
     
     return Card(
       elevation: 2,
