@@ -1,6 +1,5 @@
 // lib/presentation/screens/inspection/inspection_detail_screen.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -32,7 +31,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
   bool _isLoading = true;
   final bool _isSyncing = false;
-  bool _isOnline = true;
   bool _isApplyingTemplate = false;
   bool _isAvailableOffline =
       false; // Track if inspection is fully available offline
@@ -82,12 +80,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   void _listenToConnectivity() {
     Connectivity().onConnectivityChanged.listen((connectivityResult) {
       if (mounted) {
-        final newOnlineStatus =
-            connectivityResult.contains(ConnectivityResult.wifi) ||
-                connectivityResult.contains(ConnectivityResult.mobile);
-        setState(() {
-          _isOnline = newOnlineStatus;
-        });
+        // Network status updated (removed _isOnline field)
 
         // OFFLINE-FIRST: Don't automatically apply templates when coming online
         // Templates should be applied only through manual user action
@@ -96,10 +89,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
     Connectivity().checkConnectivity().then((connectivityResult) {
       if (mounted) {
-        setState(() {
-          _isOnline = connectivityResult.contains(ConnectivityResult.wifi) ||
-              connectivityResult.contains(ConnectivityResult.mobile);
-        });
+        // Initial connectivity check (removed _isOnline field)
       }
     });
   }
@@ -207,82 +197,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     }
   }
 
-  Future<void> _checkAndApplyTemplate() async {
-    if (_inspection == null || !mounted) return;
-
-    if (_inspection!.templateId != null) {
-      // Check if template was already applied by checking if there are topics
-      final isAlreadyApplied = _topics.isNotEmpty;
-      if (!mounted || isAlreadyApplied) {
-        if (mounted) {
-          setState(
-              () => _inspection = _inspection!.copyWith(isTemplated: true));
-        }
-        return;
-      }
-      setState(() => _isApplyingTemplate = true);
-
-      try {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Aplicando template à inspeção...'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-
-        // Template application not yet implemented in new service
-        // await _serviceFactory.dataService.applyTemplate(_inspection!.id, _inspection!.templateId!);
-
-        if (!mounted) return;
-
-        // Update inspection status in Firebase
-        await FirebaseFirestore.instance
-            .collection('inspections')
-            .doc(_inspection!.id)
-            .update({
-          'is_templated': true,
-          'status': 'in_progress',
-          'updated_at': FieldValue.serverTimestamp(),
-        });
-
-        if (!mounted) return;
-
-        final updatedInspection = _inspection!.copyWith(
-          isTemplated: true,
-          status: 'in_progress',
-          updatedAt: DateTime.now(),
-        );
-        setState(() => _inspection = updatedInspection);
-
-        await _loadInspection();
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Template aplicado com sucesso!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erro ao aplicar template: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isApplyingTemplate = false);
-        }
-      }
-    }
-  }
 
 
   void _showErrorSnackBar(String message) {

@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lince_inspecoes/presentation/screens/profile/edit_profile_screen.dart';
-import 'package:lince_inspecoes/presentation/widgets/profile/qr_code_credentials_dialog.dart';
+// QR CODE CREDENTIALS - IMPORT COMENTADO PARA OCULTAR FUNCIONALIDADE
+// import 'package:lince_inspecoes/presentation/widgets/profile/qr_code_credentials_dialog.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -104,17 +105,18 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
-  void _showQrCredentials() {
-    if (_profile == null) return;
+  // QR CODE CREDENTIALS - COMENTADO PARA OCULTAR FUNCIONALIDADE
+  // void _showQrCredentials() {
+  //   if (_profile == null) return;
 
-    showDialog(
-      context: context,
-      builder: (context) => QrCodeCredentialsDialog(
-        inspectorId: _profile!['id'],
-        profile: _profile!,
-      ),
-    );
-  }
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => QrCodeCredentialsDialog(
+  //       inspectorId: _profile!['id'],
+  //       profile: _profile!,
+  //     ),
+  //   );
+  // }
 
 
   @override
@@ -145,21 +147,21 @@ class _ProfileTabState extends State<ProfileTab> {
                   _buildProfileImage(),
                   const SizedBox(height: 16),
 
-                  // QR Code Credentials Button
-                  ElevatedButton.icon(
-                    onPressed: _showQrCredentials,
-                    icon: const Icon(Icons.qr_code, size: 20),
-                    label: const Text('Credenciais'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6F4B99),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
+                  // QR CODE CREDENTIALS BUTTON - COMENTADO PARA OCULTAR FUNCIONALIDADE
+                  // ElevatedButton.icon(
+                  //   onPressed: _showQrCredentials,
+                  //   icon: const Icon(Icons.qr_code, size: 20),
+                  //   label: const Text('Credenciais'),
+                  //   style: ElevatedButton.styleFrom(
+                  //     backgroundColor: const Color(0xFF6F4B99),
+                  //     foregroundColor: Colors.white,
+                  //     padding: const EdgeInsets.symmetric(
+                  //         horizontal: 24, vertical: 12),
+                  //     shape: RoundedRectangleBorder(
+                  //       borderRadius: BorderRadius.circular(8),
+                  //     ),
+                  //   ),
+                  // ),
 
                   const SizedBox(height: 16),
 

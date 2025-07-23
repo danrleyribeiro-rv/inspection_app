@@ -3,7 +3,7 @@
     "short_name": "lince_inspecoes",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
+    "background_color": "#6F4B99",
     "theme_color": "#0175C2",
     "description": "Aplicativo para inspeções",
     "orientation": "portrait-primary",
