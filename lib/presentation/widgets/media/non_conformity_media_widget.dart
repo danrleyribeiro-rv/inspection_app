@@ -260,7 +260,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     }
 
     try {
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
       final hierarchyIds = await _getHierarchyIds();
       
       // Gerar ID específico para a não conformidade
@@ -277,7 +276,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           'source': 'camera',
           'is_non_conformity': true,
           'nc_index': widget.ncIndex,
-          'location': position,
         },
       );
       
@@ -345,7 +343,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
     }
 
     try {
-      final position = await _serviceFactory.mediaService.getCurrentLocation();
       final hierarchyIds = await _getHierarchyIds();
       
       // Gerar ID específico para a não conformidade
@@ -364,7 +361,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
           'source': 'gallery',
           'is_non_conformity': true,
           'nc_index': widget.ncIndex,
-          'location': position,
         },
       );
       

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:lince_inspecoes/services/data/offline_data_service.dart';
 
 class OfflineMediaService {
@@ -62,9 +61,6 @@ class OfflineMediaService {
 
       // Skip image processing - use original size
 
-      // Obter localização atual
-      final position = await getCurrentLocation();
-
       // Criar dados da mídia
       final mediaData = {
         'id': mediaId,
@@ -81,13 +77,6 @@ class OfflineMediaService {
         'created_at': DateTime.now().toIso8601String(),
         'metadata': {
           ...?metadata,
-          'location': position != null
-              ? {
-                  'latitude': position.latitude,
-                  'longitude': position.longitude,
-                  'accuracy': position.accuracy,
-                }
-              : null,
         },
       };
 
@@ -110,32 +99,6 @@ class OfflineMediaService {
     }
   }
 
-  // Obter localização atual
-  Future<Position?> getCurrentLocation() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return null;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          return null;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        return null;
-      }
-
-      return await Geolocator.getCurrentPosition();
-    } catch (e) {
-      debugPrint('OfflineMediaService: Error getting location: $e');
-      return null;
-    }
-  }
 
   // Obter arquivo de mídia
   Future<File?> getMediaFile(String mediaId) async {

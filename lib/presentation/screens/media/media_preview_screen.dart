@@ -1,6 +1,7 @@
 // lib/presentation/screens/media/media_preview_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
 import 'package:intl/intl.dart';
 
@@ -107,35 +108,41 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
   }
   
   Widget _buildImageViewer() {
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: Image.network(
-        widget.mediaUrl,
-        fit: BoxFit.contain,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                  : null,
+    return PhotoView(
+      imageProvider: NetworkImage(widget.mediaUrl),
+      minScale: PhotoViewComputedScale.contained * 0.5,
+      maxScale: PhotoViewComputedScale.covered * 3.0,
+      initialScale: PhotoViewComputedScale.contained,
+      basePosition: Alignment.center,
+      scaleStateChangedCallback: (PhotoViewScaleState state) {
+        debugPrint('PhotoView scale state: $state');
+      },
+      enableRotation: false,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.high,
+      heroAttributes: PhotoViewHeroAttributes(tag: widget.mediaUrl),
+      loadingBuilder: (context, event) {
+        return Center(
+          child: CircularProgressIndicator(
+            value: event == null ? null : event.cumulativeBytesLoaded / (event.expectedTotalBytes ?? 1),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, color: Colors.white, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Erro ao carregar imagem',
+              style: TextStyle(color: Colors.white),
             ),
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error, color: Colors.white, size: 48),
-              const SizedBox(height: 16),
-              const Text(
-                'Erro ao carregar imagem',
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
-          );
-        },
+          ],
+        );
+      },
+      backgroundDecoration: const BoxDecoration(
+        color: Colors.black,
       ),
     );
   }

@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
-import 'package:lince_inspecoes/presentation/widgets/common/cached_media_image.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> mediaItems;
@@ -22,18 +21,13 @@ class MediaViewerScreen extends StatefulWidget {
 class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late PageController _pageController;
   late int _currentIndex;
-  bool _showUI = true;
   final Map<int, VideoPlayerController?> _videoControllers = {};
-  // MediaService removed - not used in this implementation
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    // MediaService initialization removed - not used
-
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: [SystemUiOverlay.top]);
   }
 
   @override
@@ -43,14 +37,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     for (var controller in _videoControllers.values) {
       controller?.dispose();
     }
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
-  }
-
-  void _toggleUI() {
-    setState(() {
-      _showUI = !_showUI;
-    });
   }
 
   String _formatDateTime(dynamic timestamp) {
@@ -82,12 +69,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       displayPath = media['url'].toString();
     }
 
-    debugPrint('MediaViewerScreen: Media ID ${media['id']} - displayPath: $displayPath');
-    debugPrint('MediaViewerScreen: Available keys: ${media.keys.toList()}');
-
     // Check if media is available
     if (displayPath.isEmpty) {
-      debugPrint('MediaViewerScreen: No valid path found for media ${media['id']}');
       return _buildUnavailableWidget();
     }
 
@@ -95,7 +78,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     if (!displayPath.startsWith('http')) {
       final file = File(displayPath);
       if (!file.existsSync()) {
-        debugPrint('MediaViewerScreen: Local file does not exist: $displayPath');
         return _buildUnavailableWidget();
       }
     }
@@ -103,83 +85,18 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     if (isImage) {
       return _buildImageWidget(displayPath);
     } else {
-      // Video
-      return _buildVideoPlayer(media, index);
+      return _buildVideoWidget(displayPath, index);
     }
   }
 
-  Widget _buildVideoPlayer(Map<String, dynamic> media, int index) {
-    VideoPlayerController? controller = _videoControllers[index];
-    if (controller == null) {
-      // Get best available path using multiple formats
-      String displayPath = '';
-      if (media['localPath'] != null && media['localPath'].toString().isNotEmpty) {
-        displayPath = media['localPath'].toString();
-      } else if (media['local_path'] != null && media['local_path'].toString().isNotEmpty) {
-        displayPath = media['local_path'].toString();
-      } else if (media['cloudUrl'] != null && media['cloudUrl'].toString().isNotEmpty) {
-        displayPath = media['cloudUrl'].toString();
-      } else if (media['url'] != null && media['url'].toString().isNotEmpty) {
-        displayPath = media['url'].toString();
-      }
-      
-      if (displayPath.isEmpty) {
-        return _buildUnavailableWidget();
-      }
-
-      // Initialize controller based on path type
-      if (displayPath.startsWith('http')) {
-        controller = VideoPlayerController.networkUrl(Uri.parse(displayPath));
-      } else {
-        controller = VideoPlayerController.file(File(displayPath));
-      }
-
-      _videoControllers[index] = controller;
-      controller.initialize().then((_) {
-        if (mounted) setState(() {});
-      }).catchError((error) {
-        debugPrint('Error initializing video player: $error');
-        if (mounted) setState(() {});
-      });
-    }
-
-    if (!controller.value.isInitialized) {
-      return _buildLoadingWidget();
-    }
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: VideoPlayer(controller),
-        ),
-        if (!controller.value.isPlaying)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha((255 * 0.5).round()),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.play_arrow, color: Colors.white, size: 48),
-              onPressed: () {
-                controller!.play();
-                setState(() {});
-              },
-            ),
-          ),
-        if (controller.value.isPlaying)
-          GestureDetector(
-            onTap: () {
-              controller!.pause();
-              setState(() {});
-            },
-            child: Container(
-              color: Colors.transparent,
-              width: double.infinity,
-              height: double.infinity,
-            ),
-          ),
-      ],
+  Widget _buildVideoWidget(String path, int index) {
+    // Simplified video widget - you can enhance this later
+    return const Center(
+      child: Text(
+        'Vídeo Player\n(Em desenvolvimento)',
+        style: TextStyle(color: Colors.white),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
@@ -196,31 +113,41 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         children: [
           Icon(Icons.error_outline, color: Colors.white, size: 64),
           SizedBox(height: 16),
-          Text('Erro ao carregar mídia', style: TextStyle(color: Colors.white)),
+          Text(
+            'Erro ao carregar mídia',
+            style: TextStyle(color: Colors.white),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildImageWidget(String displayPath) {
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: displayPath.startsWith('http')
-          ? CachedMediaImage(
-              mediaUrl: displayPath,
-              fit: BoxFit.contain,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return _buildLoadingWidget();
-              },
-              errorBuilder: (ctx, error, _) => _buildErrorWidget(),
-            )
-          : Image.file(
-              File(displayPath),
-              fit: BoxFit.contain,
-              errorBuilder: (ctx, error, _) => _buildErrorWidget(),
-            ),
+    return PhotoView(
+      imageProvider: displayPath.startsWith('http')
+          ? NetworkImage(displayPath)
+          : FileImage(File(displayPath)) as ImageProvider,
+      minScale: PhotoViewComputedScale.contained * 0.5,
+      maxScale: PhotoViewComputedScale.covered * 3.0,
+      initialScale: PhotoViewComputedScale.contained,
+      basePosition: Alignment.center,
+      scaleStateChangedCallback: (PhotoViewScaleState state) {
+        debugPrint('PhotoView scale state: $state');
+      },
+      onTapUp: (context, details, controllerValue) {
+        if (controllerValue.scale! <= PhotoViewComputedScale.contained.multiplier) {
+          // Only toggle UI when not zoomed
+        }
+      },
+      enableRotation: false,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.high,
+      heroAttributes: PhotoViewHeroAttributes(tag: displayPath),
+      loadingBuilder: (context, event) => _buildLoadingWidget(),
+      errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+      backgroundDecoration: const BoxDecoration(
+        color: Colors.black,
+      ),
     );
   }
 
@@ -244,284 +171,31 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentMedia = widget.mediaItems[_currentIndex];
-
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleUI,
-        child: Stack(
-          children: [
-            // PageView para swipe entre imagens
-            PageView.builder(
-              controller: _pageController,
-              itemCount: widget.mediaItems.length,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-              itemBuilder: (context, index) {
-                return Center(
-                  child: _buildMediaWidget(widget.mediaItems[index], index),
-                );
-              },
-            ),
-
-            // AppBar superior
-            if (_showUI)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withAlpha((255 * 0.7).round()),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: AppBar(
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      title: Text(
-                        '${_currentIndex + 1} de ${widget.mediaItems.length}',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      iconTheme: const IconThemeData(color: Colors.white),
-                      actions: [],
-                    ),
-                  ),
-                ),
-              ),
-
-            // Informações na parte inferior
-            if (_showUI)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withAlpha((255 * 0.8).round()),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Localização
-                          if (currentMedia['topic_name'] != null)
-                            Text(
-                              'Tópico: ${currentMedia['topic_name']}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          if (currentMedia['item_name'] != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Item: ${currentMedia['item_name']}',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                          if (currentMedia['detail_name'] != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Detalhe: ${currentMedia['detail_name']}',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-
-                          const SizedBox(height: 12),
-
-                          // Data e tipo
-                          Row(
-                            children: [
-                              Icon(
-                                currentMedia['type'] == 'image'
-                                    ? Icons.photo
-                                    : Icons.videocam,
-                                color: Colors.white70,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                currentMedia['type'] == 'image' ? 'Imagem' : 'Vídeo',
-                                style: const TextStyle(color: Colors.white70),
-                              ),
-                              const Spacer(),
-                              if (currentMedia['is_non_conformity'] == true)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red
-                                        .withAlpha((255 * 0.8).round()),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.warning_amber_rounded,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'NC',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-
-                          // Data e hora de captura
-                          if (currentMedia['captured_at'] != null || currentMedia['created_at'] != null) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.access_time,
-                                  color: Colors.white70,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Capturado em: ${_formatDateTime(currentMedia['captured_at'] ?? currentMedia['created_at'])}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ],
-
-                          // Informações de GPS se disponíveis
-                          if (currentMedia['latitude'] != null && currentMedia['longitude'] != null) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.location_on,
-                                  color: Colors.white70,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'GPS: ${(currentMedia['latitude'] as double).toStringAsFixed(6)}, ${(currentMedia['longitude'] as double).toStringAsFixed(6)}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ],
-
-                          // Observação se existir
-                          if (currentMedia['observation'] != null &&
-                              (currentMedia['observation'] as String)
-                                  .isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.black.withAlpha((255 * 0.3).round()),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                currentMedia['observation'],
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // Indicadores de navegação lateral
-            if (_showUI && widget.mediaItems.length > 1) ...[
-              if (_currentIndex > 0)
-                Positioned(
-                  left: 16,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withAlpha((255 * 0.5).round()),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon:
-                            const Icon(Icons.chevron_left, color: Colors.white),
-                        onPressed: () {
-                          _pageController.previousPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              if (_currentIndex < widget.mediaItems.length - 1)
-                Positioned(
-                  right: 16,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withAlpha((255 * 0.5).round()),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.chevron_right,
-                            color: Colors.white),
-                        onPressed: () {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ],
+      appBar: AppBar(
+        backgroundColor: Colors.black.withValues(alpha: 0.8),
+        foregroundColor: Colors.white,
+        title: Text(
+          '${_currentIndex + 1} de ${widget.mediaItems.length}',
+          style: const TextStyle(fontSize: 16),
         ),
+        centerTitle: true,
+        elevation: 0,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.mediaItems.length,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        itemBuilder: (context, index) {
+          return Center(
+            child: _buildMediaWidget(widget.mediaItems[index], index),
+          );
+        },
       ),
     );
   }

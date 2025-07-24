@@ -22,7 +22,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       EnhancedOfflineServiceFactory.instance;
 
   bool _notificationsEnabled = true;
-  bool _locationPermission = true;
   bool _cameraPermission = true;
   bool _isLoading = false;
 
@@ -40,7 +39,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _notificationsEnabled =
               prefs.getBool('notifications_enabled') ?? true;
-          _locationPermission = prefs.getBool('location_permission') ?? true;
           _cameraPermission = prefs.getBool('camera_permission') ?? true;
         });
       }
@@ -49,7 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         setState(() {
           _notificationsEnabled = true;
-          _locationPermission = true;
           _cameraPermission = true;
         });
       }
@@ -60,7 +57,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('notifications_enabled', _notificationsEnabled);
-      await prefs.setBool('location_permission', _locationPermission);
       await prefs.setBool('camera_permission', _cameraPermission);
       debugPrint('Configurações salvas com sucesso');
     } catch (e) {
@@ -173,17 +169,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _handleLocationPermissionChange(bool value) async {
-    if (!mounted) return;
-    setState(() => _locationPermission = value);
-    await _saveSettings();
-
-    if (value) {
-      await Permission.location.request();
-    } else {
-      await openAppSettings();
-    }
-  }
 
   Future<void> _handleCameraPermissionChange(bool value) async {
     if (!mounted) return;
@@ -337,19 +322,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // CORREÇÃO: Callback Síncrono que chama a função Async
                   onChanged: (value) {
                     _handleNotificationChange(value);
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('Localização',
-                      style: TextStyle(color: Colors.white)),
-                  subtitle: const Text(
-                      'Permitir acesso à localização do dispositivo',
-                      style: TextStyle(color: Colors.white70)),
-                  value: _locationPermission,
-                  activeColor: Color(0xFF6F4B99),
-                  // CORREÇÃO: Callback Síncrono que chama a função Async
-                  onChanged: (value) {
-                    _handleLocationPermissionChange(value);
                   },
                 ),
                 SwitchListTile(

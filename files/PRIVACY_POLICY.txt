@@ -1,0 +1,103 @@
+POLÍTICA DE PRIVACIDADE - LINCE INSPEÇÕES
+
+Última atualização: Janeiro 2025
+
+SOBRE O APLICATIVO
+==================
+
+O aplicativo Lince Inspeções é uma ferramenta profissional desenvolvida para realizar inspeções técnicas, capturar evidências fotográficas e gerenciar relatórios de conformidade.
+
+PERMISSÕES E USO DE DADOS
+========================
+
+PERMISSÃO DE CÂMERA (android.permission.CAMERA)
+-----------------------------------------------
+
+Por que precisamos desta permissão:
+• Capturar fotografias durante inspeções técnicas
+• Documentar evidências de conformidade e não conformidades  
+• Registrar detalhes visuais importantes para relatórios
+
+Como utilizamos:
+• As fotos são capturadas e armazenadas localmente no dispositivo
+• As imagens são utilizadas exclusivamente para fins de documentação técnica
+• As fotografias podem ser sincronizadas com serviços de nuvem para backup
+
+Controle do usuário:
+• Você pode negar esta permissão, mas isso limitará a funcionalidade principal
+• As fotos são capturadas apenas quando você aciona explicitamente a câmera
+• Você tem controle total sobre quando e o que fotografar
+
+OUTRAS PERMISSÕES
+----------------
+
+Armazenamento (READ/WRITE_EXTERNAL_STORAGE):
+• Necessária para salvar fotos e relatórios
+• Permite backup e sincronização de dados
+
+Internet e Rede (INTERNET, ACCESS_NETWORK_STATE):
+• Sincronização de dados com serviços de nuvem
+• Backup automático de inspeções
+
+Notificações (POST_NOTIFICATIONS):
+• Lembretes de inspeções pendentes
+• Notificações de sincronização
+
+SEGURANÇA E PROTEÇÃO DE DADOS
+=============================
+
+• Armazenamento local: Todos os dados são inicialmente armazenados de forma segura no dispositivo
+• Criptografia: Dados sensíveis são protegidos por criptografia
+• Acesso restrito: Apenas usuários autorizados podem acessar as inspeções
+• Backup seguro: Sincronização opcional com serviços de nuvem seguros
+
+COMPARTILHAMENTO DE DADOS
+========================
+
+Enfatizamos que NÃO COMPARTILHAMOS seus dados com terceiros para:
+• Publicidade
+• Marketing não solicitado  
+• Venda de informações pessoais
+
+Compartilhamento autorizado:
+• Apenas com clientes/empresas para os quais as inspeções são realizadas
+• Mediante consentimento explícito do usuário
+• Para cumprimento de obrigações legais
+
+RETENÇÃO DE DADOS
+================
+
+• Os dados são mantidos pelo tempo necessário para fins de inspeção
+• Usuários podem solicitar exclusão de dados pessoais
+• Backup automático pode ser desabilitado nas configurações
+
+DIREITOS DO USUÁRIO
+==================
+
+Você tem o direito de:
+• Acessar seus dados pessoais armazenados
+• Corrigir informações incorretas
+• Excluir seus dados pessoais
+• Restringir o processamento de dados
+• Portabilidade de dados
+
+CONTATO
+=======
+
+Para questões sobre privacidade ou exercer seus direitos:
+
+Email: contato@lincetech.com.br
+Responsável: Equipe de Desenvolvimento Lince
+
+ALTERAÇÕES NA POLÍTICA
+======================
+
+Esta política pode ser atualizada periodicamente. Usuários serão notificados sobre mudanças significativas através do aplicativo.
+
+Versão: 1.0
+Data: Janeiro 2025
+Aplicativo: Lince Inspeções v1.0.0+2
+
+---
+Política de Privacidade para cumprimento das diretrizes do Google Play Store
+Aplicativo em conformidade com LGPD (Lei Geral de Proteção de Dados)

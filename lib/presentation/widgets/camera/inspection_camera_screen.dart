@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:image/image.dart' as img;
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 
 class InspectionCameraScreen extends StatefulWidget {
@@ -75,9 +76,21 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
 
     try {
       final image = await cameraController!.takePicture();
+      final imageBytes = await image.readAsBytes();
+      
+      // Decodificar a imagem
+      img.Image? originalImage = img.decodeImage(imageBytes);
+      if (originalImage == null) {
+        throw Exception('Erro ao decodificar imagem');
+      }
+      
+      // Aplicar rotação baseada na orientação do dispositivo
+      img.Image rotatedImage = _rotateImageBasedOnDeviceOrientation(originalImage);
+      
+      // Salvar a imagem corrigida
       final path = await getMediaPath("jpg");
       final file = File(path);
-      await file.writeAsBytes(await image.readAsBytes());
+      await file.writeAsBytes(img.encodeJpg(rotatedImage));
       
       // Salvar automaticamente na vistoria
       await _saveMediaToInspection(path, 'image');
@@ -260,6 +273,44 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
         });
       }
     });
+  }
+
+  img.Image _rotateImageBasedOnDeviceOrientation(img.Image originalImage) {
+    // Converter radianos para graus
+    double rotationDegrees = deviceRotation * 180 / math.pi;
+    
+    debugPrint('Camera: Device rotation: ${rotationDegrees.toStringAsFixed(1)}°');
+    
+    // Invertendo a lógica: manter paisagem em paisagem e retrato em retrato
+    int finalRotation = 0;
+    String orientationName = '';
+    
+    if (rotationDegrees.abs() < 45) {
+      // Retrato normal (0°) - não rotacionar (manter retrato)
+      finalRotation = 0;
+      orientationName = 'Retrato normal';
+    } else if (rotationDegrees >= 45 && rotationDegrees < 135) {
+      // Paisagem esquerda (-90°) - rotacionar 90° para manter paisagem
+      finalRotation = 90;
+      orientationName = 'Paisagem esquerda';
+    } else if (rotationDegrees.abs() >= 135) {
+      // Retrato invertido (180°) - rotacionar 180° para manter retrato invertido
+      finalRotation = 180;
+      orientationName = 'Retrato invertido';
+    } else if (rotationDegrees <= -45 && rotationDegrees > -135) {
+      // Paisagem direita (90°) - rotacionar 270° para manter paisagem
+      finalRotation = 270;
+      orientationName = 'Paisagem direita';
+    }
+    
+    debugPrint('Camera: $orientationName -> Aplicando rotação de $finalRotation°');
+    
+    // Aplicar rotação se necessário
+    if (finalRotation == 0) {
+      return originalImage;
+    } else {
+      return img.copyRotate(originalImage, angle: finalRotation);
+    }
   }
 
   @override

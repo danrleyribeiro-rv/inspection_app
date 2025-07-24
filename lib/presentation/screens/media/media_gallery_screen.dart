@@ -10,8 +10,6 @@ import 'package:lince_inspecoes/presentation/screens/media/components/media_grid
 import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/move_media_dialog.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String inspectionId;
@@ -980,36 +978,6 @@ class _MediaGridTile extends StatefulWidget {
 }
 
 class _MediaGridTileState extends State<_MediaGridTile> {
-  String? _thumbnailPath;
-  bool _isLoadingThumbnail = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.media['type'] == 'video') {
-      _generateThumbnail();
-    }
-  }
-
-  Future<void> _generateThumbnail() async {
-    final String? videoPath = widget.media['localPath'];
-    if (videoPath == null || !File(videoPath).existsSync()) return;
-    if (mounted) setState(() => _isLoadingThumbnail = true);
-    try {
-      final tempDir = await getTemporaryDirectory();
-      _thumbnailPath = await VideoThumbnail.thumbnailFile(
-          video: videoPath,
-          thumbnailPath: tempDir.path,
-          imageFormat: ImageFormat.JPEG,
-          quality: 50,
-          maxWidth: 200);
-    } catch (e) {
-      debugPrint("Error generating thumbnail: $e");
-    } finally {
-      if (mounted) setState(() => _isLoadingThumbnail = false);
-    }
-  }
-
   ImageProvider? _getImageProvider() {
     if (widget.media['type'] == 'image') {
       final String? localPath = widget.media['localPath'];
@@ -1019,7 +987,7 @@ class _MediaGridTileState extends State<_MediaGridTile> {
       final String? url = widget.media['url'];
       if (url != null) return NetworkImage(url);
     }
-    if (_thumbnailPath != null) return FileImage(File(_thumbnailPath!));
+    // Para vídeos, não retorna provider - usaremos ícone
     return null;
   }
 
@@ -1040,13 +1008,9 @@ class _MediaGridTileState extends State<_MediaGridTile> {
                         children: [
                           if (imageProvider != null)
                             Image(image: imageProvider, fit: BoxFit.cover)
-                          else if (_isLoadingThumbnail)
-                            const Center(
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
                           else
                             const Icon(Icons.movie_creation_outlined,
-                                color: Colors.grey),
+                                color: Colors.grey, size: 48),
                           if (widget.media['type'] == 'video')
                             const Icon(Icons.play_circle_outline,
                                 color: Colors.white70, size: 40),
