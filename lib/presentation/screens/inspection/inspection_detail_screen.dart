@@ -1,9 +1,14 @@
 // lib/presentation/screens/inspection/inspection_detail_screen.dart
+import 'dart:convert';
+import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/hierarchical_inspection_view.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/empty_topic_state.dart';
@@ -599,21 +604,103 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
       exportData['non_conformities'] = allNCs.map((nc) => nc.toMap()).toList();
 
-      // Salvar o arquivo de exportação
-      final fileName = 'inspecao_${_inspection?.cod ?? 'export'}_${DateTime.now().millisecondsSinceEpoch}.json';
+      // Criar arquivo ZIP
+      final archive = Archive();
+      
+      // Adicionar arquivo JSON ao ZIP
+      final jsonString = jsonEncode(exportData);
+      final jsonBytes = utf8.encode(jsonString);
+      final jsonFile = ArchiveFile('inspection_data.json', jsonBytes.length, jsonBytes);
+      archive.addFile(jsonFile);
+
+      // Adicionar imagens ao ZIP
+      for (final media in allMedia) {
+        try {
+          if (media.localPath.isNotEmpty) {
+            final imageFile = File(media.localPath);
+            if (await imageFile.exists()) {
+              final imageBytes = await imageFile.readAsBytes();
+              final fileName = media.filename;
+              final archiveImageFile = ArchiveFile('images/$fileName', imageBytes.length, imageBytes);
+              archive.addFile(archiveImageFile);
+            }
+          }
+        } catch (e) {
+          debugPrint('Erro ao adicionar imagem ${media.filename}: $e');
+        }
+      }
+
+      // Gerar o arquivo ZIP
+      final zipBytes = ZipEncoder().encode(archive);
+      if (zipBytes == null) {
+        throw Exception('Erro ao criar arquivo ZIP');
+      }
+
+      // Obter diretório para salvar o arquivo
+      Directory? directory;
+      
+      try {
+        if (Platform.isAndroid) {
+          // Tentar usar Downloads primeiro
+          directory = Directory('/storage/emulated/0/Download');
+          if (!await directory.exists()) {
+            // Fallback para diretório externo da aplicação
+            directory = await getExternalStorageDirectory();
+          }
+          // Se ainda não conseguir, usar diretório interno da aplicação
+          if (directory == null || !await directory.exists()) {
+            directory = await getApplicationDocumentsDirectory();
+          }
+        } else {
+          // Para iOS e outras plataformas
+          directory = await getApplicationDocumentsDirectory();
+        }
+      } catch (e) {
+        debugPrint('Erro ao acessar diretório: $e');
+        // Fallback final para diretório interno
+        directory = await getApplicationDocumentsDirectory();
+      }
+
+
+      // Criar pasta "Lince Inspeções" se não existir
+      final linceDirectory = Directory('${directory.path}/Lince Inspeções');
+      if (!await linceDirectory.exists()) {
+        await linceDirectory.create(recursive: true);
+      }
+
+      // Salvar o arquivo ZIP
+      final fileName = 'inspecao_${_inspection?.cod ?? 'export'}_${DateTime.now().millisecondsSinceEpoch}.zip';
+      final zipFile = File('${linceDirectory.path}/$fileName');
+      await zipFile.writeAsBytes(zipBytes);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Inspeção exportada: $fileName'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Inspeção exportada como ZIP!'),
+                const SizedBox(height: 4),
+                Text(
+                  'Local: ${zipFile.path}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'ABRIR',
+              textColor: Colors.white,
+              onPressed: () => _openExportedFile(zipFile.path),
+            ),
           ),
         );
       }
 
-      debugPrint('Inspection exported successfully: $fileName');
-      debugPrint('Export data keys: ${exportData.keys.toList()}');
+      debugPrint('Inspection exported successfully as ZIP: ${zipFile.path}');
+      debugPrint('ZIP contains JSON data and ${allMedia.length} images');
 
     } catch (e) {
       debugPrint('Error exporting inspection: $e');
@@ -627,6 +714,85 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         );
       }
     }
+  }
+
+  Future<void> _openExportedFile(String filePath) async {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Arquivo Exportado com Sucesso!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.check_circle,
+              color: Colors.green,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            const Text('O arquivo ZIP foi salvo em:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: SelectableText(
+                filePath,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Você pode compartilhar o arquivo ou encontrá-lo no gerenciador de arquivos.',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              navigator.pop();
+              try {
+                await Share.shareXFiles(
+                  [XFile(filePath)],
+                  text: 'Inspeção exportada - ${_inspection?.cod ?? 'Lince Inspeções'}',
+                );
+              } catch (e) {
+                debugPrint('Erro ao compartilhar arquivo: $e');
+                if (mounted) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao compartilhar: $e'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.share),
+            label: const Text('Compartilhar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6F4B99),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _importInspection() async {
