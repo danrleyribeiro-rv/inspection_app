@@ -1484,6 +1484,32 @@ class EnhancedOfflineDataService {
   // OPERAÇÕES DE DUPLICAÇÃO RECURSIVA
   // ===============================
 
+  Future<String> _generateUniqueTopicName(String baseName, String inspectionId) async {
+    // Get all existing topics for this inspection
+    final existingTopics = await _topicRepository.findByInspectionId(inspectionId);
+    final existingNames = existingTopics.map((t) => t.topicName).toSet();
+    
+    // If base name doesn't exist, use it
+    if (!existingNames.contains(baseName)) {
+      return baseName;
+    }
+    
+    // Try with " (Cópia)" first
+    String candidateName = '$baseName (Cópia)';
+    if (!existingNames.contains(candidateName)) {
+      return candidateName;
+    }
+    
+    // Find next available number
+    int counter = 2;
+    do {
+      candidateName = '$baseName (Cópia $counter)';
+      counter++;
+    } while (existingNames.contains(candidateName));
+    
+    return candidateName;
+  }
+
   /// Duplica um tópico completo com todos os seus itens e detalhes
   Future<Topic> duplicateTopicWithChildren(String topicId) async {
     await initialize();
@@ -1494,12 +1520,15 @@ class EnhancedOfflineDataService {
       throw Exception('Tópico não encontrado: $topicId');
     }
 
-    // 2. Criar tópico duplicado
+    // 2. Generate unique name for duplicated topic
+    final uniqueName = await _generateUniqueTopicName(originalTopic.topicName, originalTopic.inspectionId);
+
+    // 3. Criar tópico duplicado
     final duplicatedTopic = Topic(
       id: null, // Será gerado automaticamente
       inspectionId: originalTopic.inspectionId,
       position: originalTopic.position,
-      topicName: '${originalTopic.topicName} (Cópia)',
+      topicName: uniqueName,
       topicLabel: originalTopic.topicLabel,
       observation: null, // Reset observation
       isDamaged: false, // Reset damage status
@@ -1600,6 +1629,42 @@ class EnhancedOfflineDataService {
     return savedItem!;
   }
 
+  Future<String> _generateUniqueDetailName(String baseName, String? topicId, String? itemId) async {
+    // Get all existing details for this topic/item context
+    List<Detail> existingDetails;
+    if (itemId != null) {
+      existingDetails = await getDetails(itemId);
+    } else if (topicId != null) {
+      // For direct details (without item) - get all details for the topic and filter those without itemId
+      final allTopicDetails = await _detailRepository.findByTopicId(topicId);
+      existingDetails = allTopicDetails.where((detail) => detail.itemId == null).toList();
+    } else {
+      return baseName; // Fallback
+    }
+    
+    final existingNames = existingDetails.map((d) => d.detailName).toSet();
+    
+    // If base name doesn't exist, use it
+    if (!existingNames.contains(baseName)) {
+      return baseName;
+    }
+    
+    // Try with " (Cópia)" first
+    String candidateName = '$baseName (Cópia)';
+    if (!existingNames.contains(candidateName)) {
+      return candidateName;
+    }
+    
+    // Find next available number
+    int counter = 2;
+    do {
+      candidateName = '$baseName (Cópia $counter)';
+      counter++;
+    } while (existingNames.contains(candidateName));
+    
+    return candidateName;
+  }
+
   /// Duplica um detalhe simples
   Future<Detail> duplicateDetailWithChildren(String detailId) async {
     await initialize();
@@ -1610,7 +1675,10 @@ class EnhancedOfflineDataService {
       throw Exception('Detalhe não encontrado: $detailId');
     }
     
-    // 2. Criar detalhe duplicado
+    // 2. Generate unique name for duplicated detail
+    final uniqueName = await _generateUniqueDetailName(originalDetail.detailName, originalDetail.topicId, originalDetail.itemId);
+    
+    // 3. Criar detalhe duplicado
     final duplicatedDetail = Detail(
       id: null, // Será gerado automaticamente
       inspectionId: originalDetail.inspectionId,
@@ -1619,7 +1687,7 @@ class EnhancedOfflineDataService {
       detailId: originalDetail.detailId,
       position: originalDetail.position,
       orderIndex: originalDetail.orderIndex,
-      detailName: '${originalDetail.detailName} (Cópia)',
+      detailName: uniqueName,
       detailValue: originalDetail.detailValue,
       observation: originalDetail.observation,
       isDamaged: originalDetail.isDamaged ?? false,

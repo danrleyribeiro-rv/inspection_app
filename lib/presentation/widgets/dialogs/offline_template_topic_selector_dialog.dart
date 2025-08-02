@@ -267,6 +267,29 @@ class _OfflineTemplateTopicSelectorDialogState
     }
   }
 
+  Future<void> _markInspectionAsModified() async {
+    try {
+      // Get the current inspection
+      final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
+      if (inspection != null) {
+        // Mark inspection as having local changes
+        final updatedInspection = inspection.copyWith(
+          hasLocalChanges: true,
+          updatedAt: DateTime.now(),
+        );
+        
+        // Save the updated inspection
+        await _serviceFactory.dataService.saveInspection(updatedInspection);
+        
+        debugPrint('OfflineTemplateTopicSelectorDialog: Inspection ${widget.inspectionId} marked as having local changes');
+      } else {
+        debugPrint('OfflineTemplateTopicSelectorDialog: Could not find inspection ${widget.inspectionId} to mark as modified');
+      }
+    } catch (e) {
+      debugPrint('OfflineTemplateTopicSelectorDialog: Error marking inspection as modified: $e');
+    }
+  }
+
   Future<void> _addTopicFromTemplate(Map<String, dynamic> topicTemplate) async {
     try {
       final topicData = topicTemplate['topicData'] as Map<String, dynamic>;
@@ -306,6 +329,9 @@ class _OfflineTemplateTopicSelectorDialogState
 
       debugPrint(
           'OfflineTemplateTopicSelectorDialog._addTopicFromTemplate: Created topic $topicId from template');
+
+      // IMPORTANTE: Marcar a inspeção como tendo mudanças locais
+      await _markInspectionAsModified();
 
       // Criar detalhes ou itens baseado na estrutura do tópico
       try {

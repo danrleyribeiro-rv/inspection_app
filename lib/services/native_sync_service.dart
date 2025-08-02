@@ -37,55 +37,38 @@ class NativeSyncService {
     _isSyncing = true;
     
     try {
-      // Show starting notification
-      await SimpleNotificationService.instance.showSyncProgress(
-        title: 'Sincronizando inspeção',
-        message: 'Preparando sincronização...',
-        indeterminate: true,
-      );
+      // Subscribe to detailed progress from FirestoreSyncService
+      late StreamSubscription progressSubscription;
+      progressSubscription = FirestoreSyncService.instance.syncProgressStream.listen((progress) {
+        if (progress.inspectionId == inspectionId || progress.inspectionId == 'multiple') {
+          // Forward progress to our stream
+          _syncProgressController.add(progress);
+          
+          // Update native notifications with detailed info
+          _updateNativeNotificationFromProgress(progress);
+        }
+      });
       
-      // Emit starting progress
-      _syncProgressController.add(SyncProgress(
-        inspectionId: inspectionId,
-        phase: SyncPhase.starting,
-        current: 0,
-        total: 1,
-        message: 'Preparando sincronização...',
-      ));
-      
-      // Update notification to uploading
-      await SimpleNotificationService.instance.showSyncProgress(
-        title: 'Sincronizando inspeção',
-        message: 'Enviando dados...',
-        indeterminate: true,
-      );
-      
-      _syncProgressController.add(SyncProgress(
-        inspectionId: inspectionId,
-        phase: SyncPhase.uploading,
-        current: 0,
-        total: 1,
-        message: 'Enviando dados...',
-      ));
-      
-      // Start sync
+      // Start enhanced sync with verification
       final result = await FirestoreSyncService.instance.syncInspection(inspectionId);
       
+      // Clean up subscription
+      await progressSubscription.cancel();
+      
       if (result['success'] == true) {
+        final verification = result['verification'];
+        String successMessage = 'Inspeção sincronizada com sucesso!';
+        
+        if (verification != null) {
+          successMessage = 'Sincronização completa e verificada na nuvem!';
+        }
+        
         // Success notification
         await SimpleNotificationService.instance.showCompletionNotification(
           title: 'Sincronização concluída',
-          message: 'Inspeção sincronizada com sucesso!',
+          message: successMessage,
           isSuccess: true,
         );
-        
-        _syncProgressController.add(SyncProgress(
-          inspectionId: inspectionId,
-          phase: SyncPhase.completed,
-          current: 1,
-          total: 1,
-          message: 'Sincronização concluída com sucesso!',
-        ));
         
         // Hide notification after 3 seconds
         Timer(const Duration(seconds: 3), () {
@@ -98,14 +81,6 @@ class NativeSyncService {
           title: 'Erro na sincronização',
           message: errorMessage,
         );
-        
-        _syncProgressController.add(SyncProgress(
-          inspectionId: inspectionId,
-          phase: SyncPhase.error,
-          current: 1,
-          total: 1,
-          message: errorMessage,
-        ));
         
         // Hide notification after 5 seconds
         Timer(const Duration(seconds: 5), () {
@@ -134,6 +109,153 @@ class NativeSyncService {
       });
     } finally {
       _isSyncing = false;
+    }
+  }
+
+  // Start sync for multiple inspections
+  Future<void> startMultipleInspectionsSync(List<String> inspectionIds) async {
+    if (_isSyncing) {
+      debugPrint('NativeSyncService: Multiple sync already in progress');
+      return;
+    }
+    
+    _isSyncing = true;
+    
+    try {
+      // Subscribe to detailed progress from FirestoreSyncService
+      late StreamSubscription progressSubscription;
+      progressSubscription = FirestoreSyncService.instance.syncProgressStream.listen((progress) {
+        // Forward progress to our stream
+        _syncProgressController.add(progress);
+        
+        // Update native notifications with detailed info including inspection count
+        _updateNativeNotificationFromProgress(progress);
+      });
+      
+      // Start enhanced multiple inspections sync
+      final result = await FirestoreSyncService.instance.syncMultipleInspections(inspectionIds);
+      
+      // Clean up subscription
+      await progressSubscription.cancel();
+      
+      if (result['success'] == true) {
+        final successCount = result['successCount'] ?? 0;
+        final totalCount = result['totalInspections'] ?? inspectionIds.length;
+        
+        // Success notification with count
+        await SimpleNotificationService.instance.showCompletionNotification(
+          title: 'Sincronização de $totalCount vistorias concluída',
+          message: 'Todas as $successCount inspeções foram sincronizadas com sucesso!',
+          isSuccess: true,
+        );
+        
+        // Hide notification after 4 seconds
+        Timer(const Duration(seconds: 4), () {
+          SimpleNotificationService.instance.hideAllNotifications();
+        });
+      } else {
+        final successCount = result['successCount'] ?? 0;
+        final failureCount = result['failureCount'] ?? 0;
+        final totalCount = result['totalInspections'] ?? inspectionIds.length;
+        
+        // Partial success notification
+        await SimpleNotificationService.instance.showErrorNotification(
+          title: 'Sincronização de $totalCount vistorias concluída',
+          message: '$successCount sincronizadas, $failureCount falharam',
+        );
+        
+        // Hide notification after 5 seconds
+        Timer(const Duration(seconds: 5), () {
+          SimpleNotificationService.instance.hideAllNotifications();
+        });
+      }
+    } catch (e) {
+      // Error notification
+      String errorMessage = 'Erro na sincronização múltipla: $e';
+      await SimpleNotificationService.instance.showErrorNotification(
+        title: 'Erro na sincronização',
+        message: errorMessage,
+      );
+      
+      _syncProgressController.add(SyncProgress(
+        inspectionId: 'multiple',
+        phase: SyncPhase.error,
+        current: 0,
+        total: inspectionIds.length,
+        message: errorMessage,
+        totalInspections: inspectionIds.length,
+      ));
+      
+      // Hide notification after 5 seconds
+      Timer(const Duration(seconds: 5), () {
+        SimpleNotificationService.instance.hideAllNotifications();
+      });
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  void _updateNativeNotificationFromProgress(SyncProgress progress) {
+    switch (progress.phase) {
+      case SyncPhase.starting:
+        String message = progress.totalInspections != null && progress.totalInspections! > 1
+            ? 'Preparando sincronização de ${progress.totalInspections} vistorias...'
+            : 'Preparando sincronização...';
+        SimpleNotificationService.instance.showSyncProgress(
+          title: 'Sincronizando',
+          message: message,
+          indeterminate: true,
+        );
+        break;
+      
+      case SyncPhase.uploading:
+        String message = progress.message;
+        if (progress.currentItem != null) {
+          message += '\n${progress.currentItem}';
+        }
+        if (progress.totalInspections != null && progress.totalInspections! > 1) {
+          message += '\nVistoria ${progress.currentInspectionIndex ?? 1} de ${progress.totalInspections}';
+        }
+        
+        SimpleNotificationService.instance.showSyncProgress(
+          title: 'Enviando dados',
+          message: message,
+          progress: (progress.progress * 100).round(),
+          indeterminate: false,
+        );
+        break;
+      
+      case SyncPhase.downloading:
+        String message = progress.message;
+        if (progress.currentItem != null) {
+          message += '\n${progress.currentItem}';
+        }
+        
+        SimpleNotificationService.instance.showDownloadProgress(
+          title: 'Baixando dados',
+          message: message,
+          progress: (progress.progress * 100).round(),
+          indeterminate: false,
+        );
+        break;
+      
+      case SyncPhase.verifying:
+        String message = 'Verificação rápida na nuvem...';
+        if (progress.currentItem != null) {
+          message = progress.currentItem!;
+        }
+        SimpleNotificationService.instance.showSyncProgress(
+          title: 'Verificando na nuvem',
+          message: message,
+          progress: (progress.progress * 100).round(),
+          indeterminate: progress.progress == 0,
+        );
+        break;
+      
+      case SyncPhase.completed:
+      case SyncPhase.error:
+        // These are handled in the main sync methods
+        break;
     }
   }
   

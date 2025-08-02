@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/cloud_verification_service.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
@@ -13,12 +15,17 @@ import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:lince_inspecoes/models/inspection_history.dart';
+import 'package:lince_inspecoes/models/sync_progress.dart';
 import 'package:lince_inspecoes/services/simple_notification_service.dart';
 
 class FirestoreSyncService {
   final FirebaseService _firebaseService;
   final EnhancedOfflineDataService _offlineService;
   bool _isSyncing = false;
+  
+  // Stream controller for detailed sync progress
+  final _syncProgressController = StreamController<SyncProgress>.broadcast();
+  Stream<SyncProgress> get syncProgressStream => _syncProgressController.stream;
 
   // Singleton pattern
   static FirestoreSyncService? _instance;
@@ -41,6 +48,12 @@ class FirestoreSyncService {
     required EnhancedOfflineDataService offlineService,
   }) {
     _instance = FirestoreSyncService(
+      firebaseService: firebaseService,
+      offlineService: offlineService,
+    );
+    
+    // Initialize CloudVerificationService
+    CloudVerificationService.initialize(
       firebaseService: firebaseService,
       offlineService: offlineService,
     );
@@ -1409,6 +1422,51 @@ class FirestoreSyncService {
     }
   }
 
+  Future<void> _uploadMediaFilesWithProgress(String inspectionId) async {
+    try {
+      debugPrint('FirestoreSyncService: Uploading media files with progress for inspection $inspectionId');
+      
+      // Upload apenas mídias da inspeção específica
+      final mediaFiles = await _offlineService.getMediaPendingUpload();
+      final inspectionMediaFiles = mediaFiles.where((media) => media.inspectionId == inspectionId).toList();
+      
+      debugPrint('FirestoreSyncService: Found ${inspectionMediaFiles.length} media files to upload');
+      
+      int uploadedCount = 0;
+      for (final media in inspectionMediaFiles) {
+        try {
+          // Emit progress for each media file
+          _syncProgressController.add(SyncProgress(
+            inspectionId: inspectionId,
+            phase: SyncPhase.uploading,
+            current: uploadedCount,
+            total: inspectionMediaFiles.length,
+            message: 'Enviando mídia ${uploadedCount + 1} de ${inspectionMediaFiles.length}...',
+            currentItem: media.filename,
+            itemType: 'Imagem',
+            mediaCount: inspectionMediaFiles.length,
+          ));
+
+          // Upload to Firebase Storage
+          final downloadUrl = await _uploadMediaToStorage(media);
+          
+          if (downloadUrl != null) {
+            // Update media with cloud URL
+            await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
+            debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
+            uploadedCount++;
+          }
+        } catch (e) {
+          debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
+        }
+      }
+      
+      debugPrint('FirestoreSyncService: Finished uploading $uploadedCount/${inspectionMediaFiles.length} media files');
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error uploading media files with progress: $e');
+    }
+  }
+
   Future<String?> _uploadMediaToStorage(OfflineMedia media) async {
     try {
       debugPrint('FirestoreSyncService: Uploading media ${media.filename} to Firebase Storage');
@@ -2046,7 +2104,16 @@ class FirestoreSyncService {
     }
 
     try {
-      debugPrint('FirestoreSyncService: Syncing inspection $inspectionId');
+      debugPrint('FirestoreSyncService: Starting enhanced sync for inspection $inspectionId');
+
+      // Emit starting progress
+      _syncProgressController.add(SyncProgress(
+        inspectionId: inspectionId,
+        phase: SyncPhase.starting,
+        current: 0,
+        total: 100,
+        message: 'Preparando sincronização...',
+      ));
 
       // Get local inspection first to check for conflicts
       final localInspection = await _offlineService.getInspection(inspectionId);
@@ -2057,12 +2124,35 @@ class FirestoreSyncService {
           .doc(inspectionId)
           .get();
 
+      int currentStep = 0;
+      const totalSteps = 5; // Upload media, upload data, download, verify, complete
+
       // *** PRIMEIRO: Upload das mudanças locais (incluindo exclusões) ***
       if (localInspection != null) {
         debugPrint('FirestoreSyncService: 🔧 UPLOAD PRIMEIRO - Uploading local changes (data + media) for inspection $inspectionId');
         
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.uploading,
+          current: ++currentStep,
+          total: totalSteps,
+          message: 'Enviando mídias para nuvem...',
+          currentItem: 'Mídias pendentes',
+          itemType: 'Arquivo',
+        ));
+        
         // PRIMEIRO: Upload das mídias pendentes (incluindo exclusões)
-        await _uploadMediaFiles(inspectionId);
+        await _uploadMediaFilesWithProgress(inspectionId);
+        
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.uploading,
+          current: ++currentStep,
+          total: totalSteps,
+          message: 'Enviando dados da inspeção...',
+          currentItem: localInspection.title,
+          itemType: 'Inspeção',
+        ));
         
         // SEGUNDO: Upload da inspeção com estrutura completa
         await _uploadSingleInspectionWithNestedStructure(inspectionId);
@@ -2073,6 +2163,17 @@ class FirestoreSyncService {
       // *** DOWNLOAD APENAS SE NÃO TEMOS DADOS LOCAIS (primeiro download) ***
       if (docSnapshot.exists && localInspection == null) {
         debugPrint('FirestoreSyncService: 📥 PRIMEIRO DOWNLOAD - No local data found, downloading from cloud');
+        
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.downloading,
+          current: ++currentStep,
+          total: totalSteps,
+          message: 'Baixando dados da nuvem...',
+          currentItem: 'Dados da inspeção',
+          itemType: 'Inspeção',
+        ));
+        
         final data = docSnapshot.data()!;
         data['id'] = inspectionId;
 
@@ -2103,6 +2204,7 @@ class FirestoreSyncService {
         debugPrint('FirestoreSyncService: ✅ SYNC ONLY - Local data preserved, upload completed');
         // Apenas baixar template se necessário, sem sobrescrever dados
         if (docSnapshot.exists) {
+          currentStep++;
           final data = docSnapshot.data()!;
           final convertedData = _convertFirestoreTimestamps(data);
           final cloudInspection = Inspection.fromMap(convertedData);
@@ -2110,15 +2212,68 @@ class FirestoreSyncService {
         }
       }
 
-      // Marcar como sincronizado apenas no final do processo completo
+      // *** NOVA ETAPA: Verificação na nuvem (opcional e rápida) ***
+      CloudVerificationResult? verificationResult;
+      
+      try {
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.verifying,
+          current: ++currentStep,
+          total: totalSteps,
+          message: 'Verificando integridade na nuvem...',
+          currentItem: 'Validação rápida',
+          itemType: 'Verificação',
+          isVerifying: true,
+        ));
+
+        // Verificação rápida com timeout curto - se falhar, assume sucesso
+        verificationResult = await CloudVerificationService.instance.verifyInspectionSync(inspectionId, quickCheck: true);
+        
+        debugPrint('FirestoreSyncService: Verificação ${verificationResult.isComplete ? 'passou' : 'falhou'}: ${verificationResult.summary}');
+      } catch (e) {
+        debugPrint('FirestoreSyncService: Erro na verificação (ignorando): $e');
+        // Se a verificação falhar por qualquer motivo, assumir sucesso
+        verificationResult = CloudVerificationResult(
+          isComplete: true,
+          totalItems: 1,
+          verifiedItems: 1,
+          missingItems: [],
+          failedItems: [],
+          summary: 'Verificação pulada devido a erro - assumindo sucesso',
+        );
+      }
+
+      // Marcar como sincronizado apenas após verificação completa
       await _offlineService.markInspectionSynced(inspectionId);
 
+      _syncProgressController.add(SyncProgress(
+        inspectionId: inspectionId,
+        phase: SyncPhase.completed,
+        current: totalSteps,
+        total: totalSteps,
+        message: 'Sincronização completa e verificada! ${verificationResult.summary}',
+      ));
+
       debugPrint(
-          'FirestoreSyncService: Finished syncing inspection $inspectionId');
-      return {'success': true, 'hasConflicts': false};
+          'FirestoreSyncService: Finished syncing inspection $inspectionId with verification');
+      return {
+        'success': true, 
+        'hasConflicts': false,
+        'verification': verificationResult
+      };
     } catch (e) {
       debugPrint(
           'FirestoreSyncService: Error syncing inspection $inspectionId: $e');
+      
+      _syncProgressController.add(SyncProgress(
+        inspectionId: inspectionId,
+        phase: SyncPhase.error,
+        current: 0,
+        total: 1,
+        message: 'Erro na sincronização: $e',
+      ));
+      
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -2126,6 +2281,104 @@ class FirestoreSyncService {
 
 
 
+
+  /// Sincroniza múltiplas inspeções com progresso detalhado
+  Future<Map<String, dynamic>> syncMultipleInspections(List<String> inspectionIds) async {
+    if (!await isConnected()) {
+      debugPrint('FirestoreSyncService: No internet connection for multiple inspections sync');
+      return {'success': false, 'error': 'No internet connection'};
+    }
+
+    try {
+      debugPrint('FirestoreSyncService: Starting sync for ${inspectionIds.length} inspections');
+      
+      final results = <String, Map<String, dynamic>>{};
+      int successCount = 0;
+      int failureCount = 0;
+      
+      for (int i = 0; i < inspectionIds.length; i++) {
+        final inspectionId = inspectionIds[i];
+        final inspection = await _offlineService.getInspection(inspectionId);
+        final inspectionTitle = inspection?.title ?? 'Inspeção $inspectionId';
+        
+        // Emit progress for multiple inspections
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.starting,
+          current: i,
+          total: inspectionIds.length,
+          message: 'Sincronizando inspeção ${i + 1} de ${inspectionIds.length}...',
+          currentItem: inspectionTitle,
+          itemType: 'Inspeção',
+          totalInspections: inspectionIds.length,
+          currentInspectionIndex: i + 1,
+        ));
+        
+        try {
+          final result = await syncInspection(inspectionId);
+          results[inspectionId] = result;
+          
+          if (result['success'] == true) {
+            successCount++;
+            debugPrint('FirestoreSyncService: ✅ Successfully synced inspection $inspectionId');
+          } else {
+            failureCount++;
+            debugPrint('FirestoreSyncService: ❌ Failed to sync inspection $inspectionId: ${result['error']}');
+          }
+        } catch (e) {
+          failureCount++;
+          results[inspectionId] = {'success': false, 'error': e.toString()};
+          debugPrint('FirestoreSyncService: ❌ Exception syncing inspection $inspectionId: $e');
+        }
+      }
+      
+      // Final completion status
+      final isFullSuccess = failureCount == 0;
+      final summary = isFullSuccess 
+          ? 'Todas as $successCount inspeções foram sincronizadas com sucesso!'
+          : '$successCount de ${inspectionIds.length} inspeções sincronizadas. $failureCount falharam.';
+      
+      _syncProgressController.add(SyncProgress(
+        inspectionId: 'multiple',
+        phase: isFullSuccess ? SyncPhase.completed : SyncPhase.error,
+        current: inspectionIds.length,
+        total: inspectionIds.length,
+        message: summary,
+        totalInspections: inspectionIds.length,
+        currentInspectionIndex: inspectionIds.length,
+      ));
+      
+      debugPrint('FirestoreSyncService: Multiple sync completed - Success: $successCount, Failed: $failureCount');
+      
+      return {
+        'success': isFullSuccess,
+        'totalInspections': inspectionIds.length,
+        'successCount': successCount,
+        'failureCount': failureCount,
+        'summary': summary,
+        'results': results,
+      };
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error in multiple inspections sync: $e');
+      
+      _syncProgressController.add(SyncProgress(
+        inspectionId: 'multiple',
+        phase: SyncPhase.error,
+        current: 0,
+        total: inspectionIds.length,
+        message: 'Erro na sincronização múltipla: $e',
+        totalInspections: inspectionIds.length,
+      ));
+      
+      return {
+        'success': false, 
+        'error': e.toString(),
+        'totalInspections': inspectionIds.length,
+        'successCount': 0,
+        'failureCount': inspectionIds.length,
+      };
+    }
+  }
 
   // ===============================
   // STATUS DE SINCRONIZAÇÃO

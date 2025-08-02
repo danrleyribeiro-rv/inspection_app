@@ -114,8 +114,14 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   @override
   void didUpdateWidget(DetailsListSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.details != oldWidget.details) {
-      _localDetails = List.from(widget.details);
+    if (widget.details != oldWidget.details || widget.details.length != oldWidget.details.length) {
+      debugPrint('DetailsListSection: didUpdateWidget - Details changed from ${oldWidget.details.length} to ${widget.details.length} for topic ${widget.topic.id}');
+      
+      // Force state update to show new details immediately
+      setState(() {
+        _localDetails = List.from(widget.details);
+      });
+      
       _setInitialExpandedDetail(); // Reaplica a expansão se os detalhes mudaram
       debugPrint('DetailsListSection: didUpdateWidget - Updated with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
     }
@@ -220,7 +226,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           final isExpanded = index == _expandedDetailIndex;
 
           return DetailListItem(
-            key: ValueKey(detail.id),
+            key: ValueKey('${widget.topic.id}_${widget.item?.id ?? 'direct'}_${detail.id}_$index'),
             index: index,
             detail: detail,
             item: widget.item,
@@ -346,19 +352,52 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       debugPrint(
           'DetailsListSection: Duplicating detail ${detail.id} with name ${detail.detailName}');
 
-      // Use the new enhanced service method for duplication
-      await EnhancedOfflineServiceFactory.instance.dataService
-          .duplicateDetailWithChildren(detail.id!);
-
-      // Reload the details to show the duplicated item
-      await widget.onDetailAction();
-
+      // Show loading state while duplicating
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Detalhe duplicado com sucesso'),
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Text('Duplicando detalhe...'),
+              ],
+            ),
+            duration: Duration(seconds: 1),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+
+      // Use the new enhanced service method for duplication
+      final duplicatedDetail = await EnhancedOfflineServiceFactory.instance.dataService
+          .duplicateDetailWithChildren(detail.id!);
+
+      debugPrint('DetailsListSection: Detail duplicated successfully with ID: ${duplicatedDetail.id}');
+
+      // Force immediate refresh multiple times to ensure UI updates
+      await widget.onDetailAction();
+      
+      // Wait a bit more and refresh again
+      if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        await widget.onDetailAction();
+        
+        // One more refresh after additional delay
+        await Future.delayed(const Duration(milliseconds: 100));
+        await widget.onDetailAction();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Detalhe "${duplicatedDetail.detailName}" criado com sucesso'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -368,12 +407,12 @@ class _DetailsListSectionState extends State<DetailsListSection> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao duplicar detalhe: $e'),
-            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     }
-    await widget.onDetailAction();
   }
 }
 

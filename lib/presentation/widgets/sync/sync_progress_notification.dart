@@ -56,6 +56,31 @@ class SyncProgressNotification extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
+                    if (progress.currentItem != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${progress.itemType ?? 'Item'}: ${progress.currentItem}',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (progress.topicName != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tópico: ${progress.topicName}',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -77,20 +102,50 @@ class SyncProgressNotification extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '${progress.current} de ${progress.total}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${progress.current} de ${progress.total}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (progress.totalInspections != null && progress.totalInspections! > 1) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Vistoria ${progress.currentInspectionIndex ?? 1} de ${progress.totalInspections}',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    Text(
-                      '${(progress.progress * 100).toInt()}%',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${(progress.progress * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (progress.mediaCount != null && progress.mediaCount! > 0) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${progress.mediaCount} mídias',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -154,6 +209,20 @@ class SyncProgressNotification extends StatelessWidget {
             size: 24,
           ),
         );
+      case SyncPhase.verifying:
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.purple.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(
+            Icons.verified,
+            color: Colors.purple,
+            size: 24,
+          ),
+        );
       case SyncPhase.completed:
         return Container(
           width: 40,
@@ -193,6 +262,8 @@ class SyncProgressNotification extends StatelessWidget {
         return 'Baixando dados';
       case SyncPhase.uploading:
         return 'Enviando dados';
+      case SyncPhase.verifying:
+        return 'Verificando sincronização';
       case SyncPhase.completed:
         return 'Sincronização concluída';
       case SyncPhase.error:
@@ -208,6 +279,8 @@ class SyncProgressNotification extends StatelessWidget {
         return Colors.blue;
       case SyncPhase.uploading:
         return Colors.orange;
+      case SyncPhase.verifying:
+        return Colors.purple;
       case SyncPhase.completed:
         return Colors.green;
       case SyncPhase.error:

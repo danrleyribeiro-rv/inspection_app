@@ -17,6 +17,8 @@ class InspectionCard extends StatelessWidget {
   final bool
       needsSync; // Se a inspeção tem mudanças que precisam ser sincronizadas
   final bool hasConflicts; // Se a inspeção tem conflitos com a versão na nuvem
+  final bool isSyncing; // Se está sincronizando no momento
+  final bool isVerified; // Se foi verificado na nuvem
 
   const InspectionCard({
     super.key,
@@ -31,6 +33,8 @@ class InspectionCard extends StatelessWidget {
     this.downloadProgress = 0.0,
     this.needsSync = false,
     this.hasConflicts = false,
+    this.isSyncing = false,
+    this.isVerified = false,
   });
 
   @override
@@ -219,43 +223,10 @@ class InspectionCard extends StatelessWidget {
                     flex: 1,
                     child: Row(
                       children: [
-                        // Sync button - only show if inspection has been downloaded and needs sync
-                        if (onSync != null && isFullyDownloaded && needsSync)
+                        // Sync button - show if inspection has been downloaded and needs sync OR is syncing
+                        if (onSync != null && isFullyDownloaded && (needsSync || isSyncing))
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                // Show conflict warning if there are conflicts
-                                if (hasConflicts) {
-                                  // This will be handled by the parent widget
-                                  await onSync!();
-                                } else {
-                                  // Call both sync functions if they exist
-                                  if (onSync != null) {
-                                    await onSync!();
-                                  }
-                                  if (onSyncImages != null) {
-                                    await onSyncImages!();
-                                  }
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 32),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 2, vertical: 4),
-                              ),
-                              icon: pendingImagesCount != null &&
-                                      pendingImagesCount! > 0
-                                  ? Badge(
-                                      label: Text('${pendingImagesCount!}'),
-                                      child: const Icon(Icons.cloud_upload,
-                                          size: 12),
-                                    )
-                                  : const Icon(Icons.cloud_upload, size: 12),
-                              label: const Text('Sincronizar',
-                                  style: TextStyle(fontSize: 10)),
-                            ),
+                            child: _buildSyncButton(),
                           ),
 
                         if (onSync != null &&
@@ -363,6 +334,113 @@ class InspectionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // --- Sync Button Builders ---
+
+  Widget _buildSyncButton() {
+    // Debug: Log do estado atual do botão
+    log('[InspectionCard] _buildSyncButton: isSyncing=$isSyncing, needsSync=$needsSync, isVerified=$isVerified');
+    
+    return ElevatedButton(
+      onPressed: isSyncing ? null : () async {
+        // Show conflict warning if there are conflicts
+        if (hasConflicts) {
+          // This will be handled by the parent widget
+          await onSync!();
+        } else {
+          // Call both sync functions if they exist
+          if (onSync != null) {
+            await onSync!();
+          }
+          if (onSyncImages != null) {
+            await onSyncImages!();
+          }
+        }
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isVerified 
+            ? Colors.green 
+            : (isSyncing ? Colors.orange.withValues(alpha: 0.7) : Colors.orange),
+        foregroundColor: Colors.white,
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        elevation: isSyncing ? 1 : 2,
+        disabledBackgroundColor: Colors.orange.withValues(alpha: 0.7),
+        disabledForegroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
+      child: isSyncing
+          ? Builder(
+              builder: (context) {
+                log('[InspectionCard] Building LOADING state - showing CircularProgressIndicator');
+                return const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Sincronizando...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            )
+          : Builder(
+              builder: (context) {
+                log('[InspectionCard] Building NORMAL state - showing icon + text');
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildSyncIcon(),
+                    const SizedBox(width: 6),
+                    Text(
+                      _getSyncButtonText(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildSyncIcon() {
+    if (isVerified) {
+      return const Icon(Icons.cloud_done, size: 16);
+    }
+    
+    if (pendingImagesCount != null && pendingImagesCount! > 0) {
+      return Badge(
+        label: Text('$pendingImagesCount'),
+        child: const Icon(Icons.cloud_upload, size: 16),
+      );
+    }
+    
+    return const Icon(Icons.cloud_upload, size: 16);
+  }
+
+  String _getSyncButtonText() {
+    if (isVerified) return 'Verificado';
+    return 'Sincronizar';
   }
 
   // --- Helper Functions (Keep Existing) ---
