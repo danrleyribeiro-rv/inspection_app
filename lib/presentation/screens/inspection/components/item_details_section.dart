@@ -35,11 +35,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       EnhancedOfflineServiceFactory.instance;
   final TextEditingController _observationController = TextEditingController();
   Timer? _debounce;
+  Timer? _evaluationDebounce;
   String _currentItemName = '';
-  bool _isDuplicating = false; // Flag to prevent double duplication
+  bool _isDuplicating = false;
   final Map<String, int> _mediaCountCache = {};
-  int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
-  String? _currentEvaluationValue; // Valor atual da avaliação do item
+  int _mediaCountVersion = 0;
+  String? _currentEvaluationValue;
 
   @override
   void initState() {
@@ -58,16 +59,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   void didUpdateWidget(ItemDetailsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    // Avoid reinitializing if we have an active debounce timer for evaluation
-    // This prevents the UI from reverting during the save process
-    if (_debounce?.isActive == true && 
+    if (_evaluationDebounce?.isActive == true && 
         widget.item.evaluationValue != _currentEvaluationValue) {
-      // Only update if the item name changed (different item altogether)
       if (widget.item.itemName != _currentItemName) {
         _currentItemName = widget.item.itemName;
         _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
       }
-      // Don't override _currentEvaluationValue during active debounce
       return;
     }
     
@@ -92,6 +89,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   void dispose() {
     _observationController.dispose();
     _debounce?.cancel();
+    _evaluationDebounce?.cancel();
     MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
   }
@@ -408,7 +406,6 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       _currentEvaluationValue = value;
     });
 
-    // Update item immediately - create new item manually to force null value
     final processedValue = value?.isEmpty == true ? null : value;
     final updatedItem = Item(
       id: widget.item.id,
@@ -422,7 +419,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       description: widget.item.description,
       evaluable: widget.item.evaluable,
       evaluationOptions: widget.item.evaluationOptions,
-      evaluationValue: processedValue, // Force the value, even if null
+      evaluationValue: processedValue,
       evaluation: widget.item.evaluation,
       observation: widget.item.observation,
       isDamaged: widget.item.isDamaged,
@@ -433,9 +430,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     
     widget.onItemUpdated(updatedItem);
 
-    // Debounced save
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
+    _evaluationDebounce?.cancel();
+    _evaluationDebounce = Timer(const Duration(milliseconds: 300), () async {
       await _serviceFactory.dataService.updateItem(updatedItem);
     });
   }

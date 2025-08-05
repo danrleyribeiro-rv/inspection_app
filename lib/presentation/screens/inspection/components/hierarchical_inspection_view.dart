@@ -42,10 +42,13 @@ class _HierarchicalInspectionViewState
   bool _isItemExpanded = false;
   bool _isDetailsExpanded = false;
   
-  String? _expandedDetailId; // ID do detalhe específico que deve ficar expandido
+  String? _expandedDetailId;
 
   PageController? _topicPageController;
   PageController? _itemPageController;
+  
+  final Map<String, double> _progressCache = {};
+  final Map<String, List<double>> _itemProgressCache = {};
 
   @override
   void initState() {
@@ -311,8 +314,12 @@ class _HierarchicalInspectionViewState
                             }
                           },
                           onTopicAction: () async {
-                            // Atualizar cache e recarregar dados
+                            _invalidateProgressCache();
                             await widget.onUpdateCache();
+                            // Force UI update after cache reload  
+                            if (mounted) {
+                              setState(() {});
+                            }
                           },
                         ),
                       ),
@@ -350,87 +357,45 @@ class _HierarchicalInspectionViewState
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // MODIFICADO: Usa FutureBuilder para obter o progresso do Item
-                                  FutureBuilder<double>(
-                                    key: ValueKey('item_progress_${item.id}'),
-                                    future: _calculateItemProgress(item),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                              ConnectionState.waiting &&
-                                          snapshot.data == null) {
-                                        return SwipeableLevelHeader(
-                                          title: item.itemName,
-                                          subtitle: item.itemLabel,
-                                          currentIndex: itemIndex,
-                                          totalCount: topicItems.length,
-                                          progress: 0,
-                                          items: topicItems
-                                              .map((i) => i.itemName)
-                                              .toList(),
-                                          itemProgresses: _calculateAllItemProgressesSync(topicItems),
-                                          hasObservation:
-                                              item.observation != null &&
-                                                  item.observation!.isNotEmpty,
-                                          onIndexChanged: (index) {
-                                            if (topicIndex ==
-                                                _currentTopicIndex) {
-                                              _itemPageController
-                                                  ?.animateToPage(index,
-                                                      duration: const Duration(
-                                                          milliseconds: 300),
-                                                      curve: Curves.easeInOut);
-                                            }
-                                          },
-                                          onExpansionChanged: () {},
-                                          isExpanded: false,
-                                          level: 2,
-                                          icon: Icons.list_alt,
-                                        );
+                                  SwipeableLevelHeader(
+                                    title: item.itemName,
+                                    subtitle: item.itemLabel,
+                                    currentIndex: itemIndex,
+                                    totalCount: topicItems.length,
+                                    progress: _calculateItemProgressSync(item),
+                                    items: topicItems
+                                        .map((i) => i.itemName)
+                                        .toList(),
+                                    itemProgresses: _getCachedItemProgresses(topicItems),
+                                    hasObservation:
+                                        item.observation != null &&
+                                            item.observation!.isNotEmpty,
+                                    onIndexChanged: (index) {
+                                      if (topicIndex == _currentTopicIndex) {
+                                        _itemPageController?.animateToPage(
+                                            index,
+                                            duration: const Duration(
+                                                milliseconds: 300),
+                                            curve: Curves.easeInOut);
                                       }
-                                      return SwipeableLevelHeader(
-                                        title: item.itemName,
-                                        subtitle: item.itemLabel,
-                                        currentIndex: itemIndex,
-                                        totalCount: topicItems.length,
-                                        progress: snapshot.data ?? 0.0,
-                                        items: topicItems
-                                            .map((i) => i.itemName)
-                                            .toList(),
-                                        itemProgresses: _calculateAllItemProgressesSync(topicItems),
-                                        hasObservation:
-                                            item.observation != null &&
-                                                item.observation!.isNotEmpty,
-                                        onIndexChanged: (index) {
-                                          if (topicIndex ==
-                                              _currentTopicIndex) {
-                                            _itemPageController?.animateToPage(
-                                                index,
-                                                duration: const Duration(
-                                                    milliseconds: 300),
-                                                curve: Curves.easeInOut);
-                                          }
-                                        },
-                                        onReorder: (oldIdx, newIdx) =>
-                                            _reorderItems(
-                                                topicId, oldIdx, newIdx),
-                                        onExpansionChanged: () {
-                                          setState(() {
-                                            _isItemExpanded = !_isItemExpanded;
-                                            if (_isItemExpanded) {
-                                              _isTopicExpanded = false;
-                                              _isDetailsExpanded = false;
-                                            }
-                                          });
-                                          // Salva o estado quando a expansão do item muda
-                                          _saveNavigationState();
-                                        },
-                                        isExpanded: _isItemExpanded &&
-                                            topicIndex == _currentTopicIndex &&
-                                            itemIndex == _currentItemIndex,
-                                        level: 2,
-                                        icon: Icons.list_alt,
-                                      );
                                     },
+                                    onReorder: (oldIdx, newIdx) =>
+                                        _reorderItems(topicId, oldIdx, newIdx),
+                                    onExpansionChanged: () {
+                                      setState(() {
+                                        _isItemExpanded = !_isItemExpanded;
+                                        if (_isItemExpanded) {
+                                          _isTopicExpanded = false;
+                                          _isDetailsExpanded = false;
+                                        }
+                                      });
+                                      _saveNavigationState();
+                                    },
+                                    isExpanded: _isItemExpanded &&
+                                        topicIndex == _currentTopicIndex &&
+                                        itemIndex == _currentItemIndex,
+                                    level: 2,
+                                    icon: Icons.list_alt,
                                   ),
 
                                   if (_isItemExpanded &&
@@ -453,8 +418,12 @@ class _HierarchicalInspectionViewState
                                         }
                                       },
                                       onItemAction: () async {
-                                        // Atualizar cache e recarregar dados
+                                        _invalidateProgressCache();
                                         await widget.onUpdateCache();
+                                        // Force UI update after cache reload
+                                        if (mounted) {
+                                          setState(() {});
+                                        }
                                       },
                                     ),
 
@@ -557,8 +526,12 @@ class _HierarchicalInspectionViewState
                                               setState(() {});
                                             },
                                             onDetailAction: () async {
-                                              // Atualizar cache e recarregar dados
+                                              _invalidateProgressCache();
                                               await widget.onUpdateCache();
+                                              // Force UI update after cache reload
+                                              if (mounted) {
+                                                setState(() {});
+                                              }
                                             },
                                             onDetailExpanded: (detailId) {
                                               // Salva qual detalhe foi expandido
@@ -675,46 +648,54 @@ class _HierarchicalInspectionViewState
     return totalItems > 0 ? (completedItems / totalItems) : 0.0;
   }
 
-  Future<double> _calculateItemProgress(Item item) async {
+  double _calculateItemProgressSync(Item item) {
     if (item.id == null || item.topicId == null) return 0.0;
+    
+    final cacheKey = '${item.topicId}_${item.id}';
+    if (_progressCache.containsKey(cacheKey)) {
+      return _progressCache[cacheKey]!;
+    }
 
-    final details = widget.detailsCache['${item.topicId}_${item.id}'] ?? [];
-    if (details.isEmpty) return 0.0;
-
-    int totalDetails = details.length;
-    int completedDetails = details.where((d) => 
-        d.detailValue != null && d.detailValue!.isNotEmpty).length;
-
-    return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
-  }
-
-  List<double> _calculateAllItemProgressesSync(List<Item> items) {
-    return items.map((item) {
-      if (item.id == null || item.topicId == null) return 0.0;
-
-      final details = widget.detailsCache['${item.topicId}_${item.id}'] ?? [];
-      if (details.isEmpty) {
-        // Se o item é avaliável mas não tem detalhes, verificar se tem avaliação
-        if (item.evaluable == true) {
-          return (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) ? 1.0 : 0.0;
-        }
-        return 0.0;
+    final details = widget.detailsCache[cacheKey] ?? [];
+    double progress = 0.0;
+    
+    if (details.isEmpty) {
+      if (item.evaluable == true) {
+        progress = (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) ? 1.0 : 0.0;
       }
-
+    } else {
       int totalUnits = details.length;
       int completedUnits = details.where((d) => 
           d.detailValue != null && d.detailValue!.isNotEmpty).length;
       
-      // Se o item também é avaliável, contar a avaliação como uma unidade adicional
       if (item.evaluable == true) {
         totalUnits++;
         if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
           completedUnits++;
         }
       }
+      
+      progress = totalUnits > 0 ? (completedUnits / totalUnits) : 0.0;
+    }
+    
+    _progressCache[cacheKey] = progress;
+    return progress;
+  }
 
-      return totalUnits > 0 ? (completedUnits / totalUnits) : 0.0;
-    }).toList();
+  List<double> _getCachedItemProgresses(List<Item> items) {
+    final itemsKey = items.map((i) => i.id).join('_');
+    if (_itemProgressCache.containsKey(itemsKey)) {
+      return _itemProgressCache[itemsKey]!;
+    }
+    
+    final progresses = items.map((item) => _calculateItemProgressSync(item)).toList();
+    _itemProgressCache[itemsKey] = progresses;
+    return progresses;
+  }
+
+  void _invalidateProgressCache() {
+    _progressCache.clear();
+    _itemProgressCache.clear();
   }
 
   /// Constrói a view para tópicos com detalhes diretos (sem itens intermediários)
@@ -756,12 +737,17 @@ class _HierarchicalInspectionViewState
               topicIndex: topicIndex,
               itemIndex: 0, // Para detalhes diretos, usar 0 como índice
               onDetailUpdated: (detail) {
-                // Callback necessário para compatibilidade
-                widget.onUpdateCache();
+                _invalidateProgressCache();
+                // OFFLINE-FIRST: Don't call onUpdateCache() automatically on detail updates
+                // This was causing automatic sync every time a detail was changed
               },
               onDetailAction: () async {
-                // Atualizar cache e recarregar dados
+                _invalidateProgressCache();
                 await widget.onUpdateCache();
+                // Force UI update after cache reload
+                if (mounted) {
+                  setState(() {});
+                }
               },
               onDetailExpanded: (detailId) {
                 // Para tópicos com detalhes diretos, colapsar o tópico quando um detalhe é expandido

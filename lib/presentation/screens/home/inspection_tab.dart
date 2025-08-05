@@ -583,86 +583,86 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   // Escuta modificações em dados da inspeção
   void _listenToDataModifications() {
-    // Por enquanto, vamos usar um timer periódico para verificar modificações
-    // Em uma implementação mais sofisticada, poderia usar um stream ou callback system
-    Timer.periodic(const Duration(seconds: 2), (timer) async {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      await _checkForDataModifications();
-    });
+    // OFFLINE-FIRST: Disabled automatic sync check timer
+    // Changes are stored locally only and sync only when the sync button is manually clicked
+    // Timer.periodic(const Duration(seconds: 2), (timer) async {
+    //   if (!mounted) {
+    //     timer.cancel();
+    //     return;
+    //   }
+    //   await _checkForDataModifications();
+    // });
   }
 
-  // Verifica se houve modificações recentes que devem invalidar o status de sync
-  Future<void> _checkForDataModifications() async {
-    try {
-      for (final inspection in _inspections) {
-        final inspectionId = inspection['id'] as String;
-        
-        // Se esta inspeção foi marcada como recentemente sincronizada, verifica se houve modificação
-        if (_inspectionSyncStatus[inspectionId] == true) {
-          // Verifica se há entidades não sincronizadas para esta inspeção
-          final hasUnsyncedData = await _hasRealUnsyncedData(inspectionId);
-          if (hasUnsyncedData) {
-            debugPrint('InspectionTab: Detected modification for $inspectionId - clearing recent sync status');
-            setState(() {
-              _inspectionSyncStatus[inspectionId] = false;
-            });
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('InspectionTab: Error checking data modifications: $e');
-    }
-  }
+  // OFFLINE-FIRST: This method is no longer used since automatic sync checks are disabled
+  // Future<void> _checkForDataModifications() async {
+  //   try {
+  //     for (final inspection in _inspections) {
+  //       final inspectionId = inspection['id'] as String;
+  //       
+  //       // Se esta inspeção foi marcada como recentemente sincronizada, verifica se houve modificação
+  //       if (_inspectionSyncStatus[inspectionId] == true) {
+  //         // Verifica se há entidades não sincronizadas para esta inspeção
+  //         final hasUnsyncedData = await _hasRealUnsyncedData(inspectionId);
+  //         if (hasUnsyncedData) {
+  //           debugPrint('InspectionTab: Detected modification for $inspectionId - clearing recent sync status');
+  //           setState(() {
+  //             _inspectionSyncStatus[inspectionId] = false;
+  //           });
+  //         }
+  //       }
+  //     }
+  //   } catch (e) {
+  //     debugPrint('InspectionTab: Error checking data modifications: $e');
+  //   }
+  // }
 
-  // Verifica se há dados não sincronizados de forma mais direta (sem cache de status)
-  Future<bool> _hasRealUnsyncedData(String inspectionId) async {
-    try {
-      // PRIMEIRO: Verificar se a própria inspeção tem mudanças locais
-      final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
-      if (inspection != null && inspection.hasLocalChanges) {
-        debugPrint('InspectionTab: Inspection $inspectionId has hasLocalChanges=true');
-        return true;
-      }
+  // OFFLINE-FIRST: This method is no longer used since automatic sync checks are disabled
+  // Future<bool> _hasRealUnsyncedData(String inspectionId) async {
+  //   try {
+  //     // PRIMEIRO: Verificar se a própria inspeção tem mudanças locais
+  //     final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
+  //     if (inspection != null && inspection.hasLocalChanges) {
+  //       debugPrint('InspectionTab: Inspection $inspectionId has hasLocalChanges=true');
+  //       return true;
+  //     }
 
-      // Verificar se há entidades que precisam ser sincronizadas
-      final topicsNeedingSync = await _serviceFactory.dataService.getTopicsNeedingSync();
-      final inspectionTopics = topicsNeedingSync.where((t) => t.inspectionId == inspectionId).toList();
-      if (inspectionTopics.isNotEmpty) {
-        debugPrint('InspectionTab: Found ${inspectionTopics.length} topics needing sync for $inspectionId');
-        return true;
-      }
+  //     // Verificar se há entidades que precisam ser sincronizadas
+  //     final topicsNeedingSync = await _serviceFactory.dataService.getTopicsNeedingSync();
+  //     final inspectionTopics = topicsNeedingSync.where((t) => t.inspectionId == inspectionId).toList();
+  //     if (inspectionTopics.isNotEmpty) {
+  //       debugPrint('InspectionTab: Found ${inspectionTopics.length} topics needing sync for $inspectionId');
+  //       return true;
+  //     }
 
-      final itemsNeedingSync = await _serviceFactory.dataService.getItemsNeedingSync();
-      final inspectionItems = itemsNeedingSync.where((i) => i.inspectionId == inspectionId).toList();
-      if (inspectionItems.isNotEmpty) {
-        debugPrint('InspectionTab: Found ${inspectionItems.length} items needing sync for $inspectionId');
-        return true;
-      }
+  //     final itemsNeedingSync = await _serviceFactory.dataService.getItemsNeedingSync();
+  //     final inspectionItems = itemsNeedingSync.where((i) => i.inspectionId == inspectionId).toList();
+  //     if (inspectionItems.isNotEmpty) {
+  //       debugPrint('InspectionTab: Found ${inspectionItems.length} items needing sync for $inspectionId');
+  //       return true;
+  //     }
 
-      final detailsNeedingSync = await _serviceFactory.dataService.getDetailsNeedingSync();
-      final inspectionDetails = detailsNeedingSync.where((d) => d.inspectionId == inspectionId).toList();
-      if (inspectionDetails.isNotEmpty) {
-        debugPrint('InspectionTab: Found ${inspectionDetails.length} details needing sync for $inspectionId');
-        return true;
-      }
+  //     final detailsNeedingSync = await _serviceFactory.dataService.getDetailsNeedingSync();
+  //     final inspectionDetails = detailsNeedingSync.where((d) => d.inspectionId == inspectionId).toList();
+  //     if (inspectionDetails.isNotEmpty) {
+  //       debugPrint('InspectionTab: Found ${inspectionDetails.length} details needing sync for $inspectionId');
+  //       return true;
+  //     }
 
-      // Verificar mídias que precisam ser sincronizadas
-      final mediaNeedingSync = await _serviceFactory.dataService.getMediaNeedingSync();
-      final inspectionMedia = mediaNeedingSync.where((m) => m.inspectionId == inspectionId).toList();
-      if (inspectionMedia.isNotEmpty) {
-        debugPrint('InspectionTab: Found ${inspectionMedia.length} media files needing sync for $inspectionId');
-        return true;
-      }
+  //     // Verificar mídias que precisam ser sincronizadas
+  //     final mediaNeedingSync = await _serviceFactory.dataService.getMediaNeedingSync();
+  //     final inspectionMedia = mediaNeedingSync.where((m) => m.inspectionId == inspectionId).toList();
+  //     if (inspectionMedia.isNotEmpty) {
+  //       debugPrint('InspectionTab: Found ${inspectionMedia.length} media files needing sync for $inspectionId');
+  //       return true;
+  //     }
 
-      return false;
-    } catch (e) {
-      debugPrint('InspectionTab: Error checking real unsynced data: $e');
-      return false;
-    }
-  }
+  //     return false;
+  //   } catch (e) {
+  //     debugPrint('InspectionTab: Error checking real unsynced data: $e');
+  //     return false;
+  //   }
+  // }
 
   // Verifica se a inspeção foi modificada após voltar da tela de detalhes
   Future<bool> _checkIfInspectionWasModified(String inspectionId) async {
@@ -774,30 +774,14 @@ class _InspectionsTabState extends State<InspectionsTab> {
         return;
       }
 
-      // Try to detect conflicts by attempting a sync and checking the result
-      // This is a simplified approach since we can't access private members directly
-      try {
-        final syncResult =
-            await _serviceFactory.syncService.syncInspection(inspectionId);
-
-        if (syncResult['hasConflicts'] == true) {
-          // Conflict detected
-          setState(() {
-            _inspectionsWithConflicts.add(inspectionId);
-          });
-          // Conflict detected
-        } else {
-          // No conflict
-          setState(() {
-            _inspectionsWithConflicts.remove(inspectionId);
-          });
-        }
-      } catch (e) {
-        // If sync fails, remove from conflicts list
-        setState(() {
-          _inspectionsWithConflicts.remove(inspectionId);
-        });
-      }
+      // OFFLINE-FIRST: Don't sync automatically to check conflicts
+      // Instead, just mark that there are local changes that need manual sync
+      debugPrint('InspectionTab: Inspection $inspectionId has local changes - manual sync required');
+      
+      // Remove from conflicts list since we're not checking cloud conflicts automatically
+      setState(() {
+        _inspectionsWithConflicts.remove(inspectionId);
+      });
     } catch (e) {
       debugPrint('Error checking conflicts for $inspectionId: $e');
     }

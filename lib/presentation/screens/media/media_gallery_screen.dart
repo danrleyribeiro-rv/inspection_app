@@ -98,21 +98,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     // Cancelar timer anterior se existe
     _refreshTimer?.cancel();
 
-    // Single targeted refresh - apenas um reload controlado
-    _refreshTimer = Timer(const Duration(milliseconds: 100), () async {
+    // Single targeted refresh - apenas recarregar se necessário
+    _refreshTimer = Timer(const Duration(milliseconds: 200), () async {
       if (mounted) {
-        debugPrint('MediaGalleryScreen: Executing single targeted reload');
-
-        setState(() {
-          _refreshVersion++;
-          _allMedia.clear();
-          _filteredMedia.clear();
-        });
-
         await _loadData();
-
-        debugPrint(
-            'MediaGalleryScreen: Single reload completed - media count: ${_filteredMedia.length}');
       }
     });
   }
@@ -139,12 +128,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   Future<void> _loadData() async {
-    debugPrint(
-        'MediaGalleryScreen._loadData: Starting data reload (version: $_refreshVersion)');
-    setState(() {
-      _isLoading = true;
-      _refreshVersion++; // Increment version to force rebuild
-    });
+    setState(() => _isLoading = true);
 
     // Force longer delay to ensure database operations and file system operations have completed
     await Future.delayed(const Duration(milliseconds: 200));
@@ -194,9 +178,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           !newIds.containsAll(previousIds);
 
       if (dataChanged) {
-        debugPrint(
-            'MediaGalleryScreen._loadData: Data changed detected, single version increment');
-        _refreshVersion++; // Single version increment only when data actually changed
+        debugPrint('MediaGalleryScreen._loadData: Data changed detected');
       }
 
       _applyFilters();
@@ -452,20 +434,11 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         'MediaGalleryScreen: Previous filtered IDs: $previousFilteredIds');
     debugPrint('MediaGalleryScreen: New filtered IDs: $newFilteredIds');
 
-    // Check if filtered data actually changed (count or content)
-    bool filteredDataChanged = previousFilteredCount != filteredMedia.length ||
-        !previousFilteredIds.containsAll(newFilteredIds) ||
-        !newFilteredIds.containsAll(previousFilteredIds);
+    // Data change tracking removed after optimization
 
     setState(() {
       _filteredMedia = filteredMedia;
       _updateActiveFiltersCount();
-      // Single version increment only if data actually changed
-      if (filteredDataChanged) {
-        _refreshVersion++;
-        debugPrint(
-            'MediaGalleryScreen: Filtered data changed, single UI update with version $_refreshVersion');
-      }
     });
     debugPrint(
         'MediaGalleryScreen: State updated with ${_filteredMedia.length} filtered media items');
@@ -580,20 +553,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
               try {
                 debugPrint('MediaGalleryScreen: ${capturedFiles.length} media files captured');
 
-                // SUPER AGGRESSIVE RELOAD para garantir aparecimento instantâneo
-                debugPrint('MediaGalleryScreen: SUPER AGGRESSIVE RELOAD to show new media');
-
-                // Força rebuild múltiplo IMEDIATO
-                setState(() {
-                  _refreshVersion += 5; // Super aggressive version increment
-                  _allMedia = []; // Força reload completo
-                  _filteredMedia = [];
-                });
-
-                // Delay mínimo para garantir que a operação de DB terminou
+                // Reload controlled after media capture
                 await Future.delayed(const Duration(milliseconds: 300));
-
-                // Reload completo dos dados
                 await _loadData();
 
                 if (mounted && context.mounted) {

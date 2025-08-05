@@ -379,18 +379,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
       debugPrint('DetailsListSection: Detail duplicated successfully with ID: ${duplicatedDetail.id}');
 
-      // Force immediate refresh multiple times to ensure UI updates
+      // Single refresh after duplication
       await widget.onDetailAction();
-      
-      // Wait a bit more and refresh again
-      if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 200));
-        await widget.onDetailAction();
-        
-        // One more refresh after additional delay
-        await Future.delayed(const Duration(milliseconds: 100));
-        await widget.onDetailAction();
-      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -462,12 +452,14 @@ class _DetailListItemState extends State<DetailListItem> {
   final TextEditingController _depthController = TextEditingController();
 
   Timer? _debounce;
+  Timer? _selectDebounce;
+  Timer? _booleanDebounce;
   bool _isDamaged = false;
-  String _booleanValue = 'não_se_aplica'; // 'sim', 'não', 'não_se_aplica'
+  String _booleanValue = 'não_se_aplica';
   String _currentDetailName = '';
   final Map<String, int> _mediaCountCache = {};
-  int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
-  String? _currentSelectValue; // Valor atual do dropdown select
+  int _mediaCountVersion = 0;
+  String? _currentSelectValue;
 
   @override
   void initState() {
@@ -498,21 +490,14 @@ class _DetailListItemState extends State<DetailListItem> {
   void didUpdateWidget(DetailListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    // For select fields, avoid reinitializing if we have an active debounce timer
-    // This prevents the UI from reverting during the save process
-    if (widget.detail.type == 'select' && _debounce?.isActive == true) {
-      // Only update if the detail name changed (different detail altogether)
+    if (widget.detail.type == 'select' && _selectDebounce?.isActive == true) {
       if (widget.detail.detailName != _currentDetailName) {
         _initializeControllers();
       }
-      // Don't override _currentSelectValue during active debounce
       return;
     }
     
-    // For boolean fields, avoid reinitializing if we have an active debounce timer
-    // This prevents the UI from reverting during the save process
-    if (widget.detail.type == 'boolean' && _debounce?.isActive == true) {
-      // Only reinitialize if the detail name changed (different detail altogether)
+    if (widget.detail.type == 'boolean' && _booleanDebounce?.isActive == true) {
       if (widget.detail.detailName != _currentDetailName) {
         _initializeControllers();
       }
@@ -682,13 +667,13 @@ class _DetailListItemState extends State<DetailListItem> {
     _widthController.dispose();
     _depthController.dispose();
     _debounce?.cancel();
+    _selectDebounce?.cancel();
+    _booleanDebounce?.cancel();
     MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
   }
 
   void _updateDetail() {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-
     String value = '';
 
     if (widget.detail.type == 'measure') {
@@ -696,14 +681,13 @@ class _DetailListItemState extends State<DetailListItem> {
           '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
-      value = _booleanValue; // Agora é string: 'sim', 'não', 'não_se_aplica'
+      value = _booleanValue;
     } else if (widget.detail.type == 'select') {
       value = _currentSelectValue ?? '';
     } else {
       value = _valueController.text;
     }
 
-    // Update UI immediately
     final updatedDetail = Detail(
       id: widget.detail.id,
       inspectionId: widget.detail.inspectionId,
@@ -727,14 +711,22 @@ class _DetailListItemState extends State<DetailListItem> {
     );
     widget.onDetailUpdated(updatedDetail);
 
-    // Debounce the actual save operation
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      debugPrint(
-          'DetailsListSection: Saving detail ${updatedDetail.id} with observation: ${updatedDetail.observation}');
-      await _serviceFactory.dataService.updateDetail(updatedDetail);
-      debugPrint(
-          'DetailsListSection: Detail ${updatedDetail.id} saved successfully');
-    });
+    if (widget.detail.type == 'select') {
+      _selectDebounce?.cancel();
+      _selectDebounce = Timer(const Duration(milliseconds: 300), () async {
+        await _serviceFactory.dataService.updateDetail(updatedDetail);
+      });
+    } else if (widget.detail.type == 'boolean') {
+      _booleanDebounce?.cancel();
+      _booleanDebounce = Timer(const Duration(milliseconds: 300), () async {
+        await _serviceFactory.dataService.updateDetail(updatedDetail);
+      });
+    } else {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 100), () async {
+        await _serviceFactory.dataService.updateDetail(updatedDetail);
+      });
+    }
   }
 
   Future<void> _editObservationDialog() async {
@@ -1628,7 +1620,7 @@ class _DetailListItemState extends State<DetailListItem> {
         
         // Salvar no banco de dados
         if (_debounce?.isActive ?? false) _debounce?.cancel();
-        _debounce = Timer(const Duration(milliseconds: 500), () async {
+        _debounce = Timer(const Duration(milliseconds: 100), () async {
           debugPrint('DetailsListSection: Saving detail with custom option: $result');
           await _serviceFactory.dataService.updateDetail(updatedDetail);
           debugPrint('DetailsListSection: Detail saved successfully');

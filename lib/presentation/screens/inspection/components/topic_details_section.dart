@@ -270,23 +270,25 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       await _serviceFactory.dataService
           .duplicateTopicWithChildren(widget.topic.id!);
 
-      // Chamar atualização imediatamente para mostrar nova estrutura
       await widget.onTopicAction();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-                'Tópico duplicado com sucesso (incluindo itens e detalhes)'),
+            content: Text('Tópico duplicado com sucesso'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      debugPrint('TopicDetailsSection: Error duplicating topic: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao duplicar tópico: $e')),
+          SnackBar(
+            content: Text('Erro ao duplicar tópico: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } finally {
@@ -461,17 +463,21 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                   onPressed: _captureMedia,
                   color: Colors.purple,
                 ),
-                FutureBuilder<int>(
-                  key: ValueKey('topic_media_${widget.topic.id}_$_mediaCountVersion'),
-                  future: _getTopicMediaCount(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-                    return _buildActionButton(
-                      icon: Icons.photo_library,
-                      label: 'Galeria',
-                      onPressed: _showMediaGallery,
-                      color: Colors.purple,
-                      count: count,
+                ValueListenableBuilder<int>(
+                  valueListenable: ValueNotifier(_mediaCountVersion),
+                  builder: (context, version, child) {
+                    return FutureBuilder<int>(
+                      future: _getTopicMediaCount(),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data ?? 0;
+                        return _buildActionButton(
+                          icon: Icons.photo_library,
+                          label: 'Galeria',
+                          onPressed: _showMediaGallery,
+                          color: Colors.purple,
+                          count: count,
+                        );
+                      },
                     );
                   },
                 ),

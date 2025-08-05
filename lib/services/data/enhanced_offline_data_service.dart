@@ -181,6 +181,17 @@ class EnhancedOfflineDataService {
     debugPrint('DataService: Marked inspection $inspectionId and all related data for sync');
   }
 
+  // OFFLINE-FIRST: Método para marcar apenas que há mudanças locais (sem triggear sync automático)
+  Future<void> markInspectionAsModifiedLocally(String inspectionId) async {
+    debugPrint('DataService: Marking inspection $inspectionId as locally modified (offline-first)');
+    
+    // Marcar apenas a inspeção como modificada (hasLocalChanges=true)
+    // NÃO marcar entidades filhas para sync automático
+    await _inspectionRepository.markAsModified(inspectionId);
+    
+    debugPrint('DataService: Inspection $inspectionId marked as locally modified');
+  }
+
   // Método para marcar inspeção como sincronizada (limpar flag has_local_changes)
   Future<void> markInspectionSynced(String inspectionId) async {
     debugPrint('DataService: Marking inspection $inspectionId as synced');
@@ -188,19 +199,10 @@ class EnhancedOfflineDataService {
     final inspection = await getInspection(inspectionId);
     if (inspection == null) return;
     
-    // Atualizar inspeção com flags de sincronização
-    final syncedInspection = inspection.copyWith(
-      hasLocalChanges: false,
-      isSynced: true,
-      lastSyncAt: DateTime.now(),
-      status: 'completed', // Reset status from 'modified' to 'completed' after sync
-    );
-    
     debugPrint('DataService: Original inspection status: "${inspection.status}"');
-    debugPrint('DataService: Updated inspection status: "${syncedInspection.status}"');
     
-    // Usar método FromCloud para não marcar como needing sync
-    await _inspectionRepository.insertOrUpdateFromCloud(syncedInspection);
+    // OFFLINE-FIRST: Use specific markAsSynced method to avoid triggering needs_sync
+    await _inspectionRepository.markAsSynced(inspectionId, status: 'completed');
     
     // Marcar todos os dados relacionados como sincronizados também
     final topics = await getTopics(inspectionId);
@@ -289,6 +291,10 @@ class EnhancedOfflineDataService {
     debugPrint(
         'DataService: Updating inspection $inspectionId status to $status');
     await _inspectionRepository.updateStatus(inspectionId, status);
+    
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(inspectionId);
+    
     debugPrint(
         'DataService: Inspection $inspectionId status updated to $status');
   }
@@ -332,8 +338,8 @@ class EnhancedOfflineDataService {
     debugPrint('DataService: Updating topic ${topic.id} - ${topic.topicName}');
     await _topicRepository.update(topic);
     
-    // Marcar inspeção como modificada
-    await markInspectionForSync(topic.inspectionId);
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(topic.inspectionId);
     
     debugPrint('DataService: Topic ${topic.id} updated successfully');
   }
@@ -341,14 +347,14 @@ class EnhancedOfflineDataService {
   Future<void> deleteTopic(String topicId) async {
     debugPrint('DataService: Deleting topic $topicId');
     
-    // Buscar tópico para obter inspectionId antes de deletar
+    // Get topic to find inspectionId before deleting
     final topic = await _topicRepository.findById(topicId);
     
     await _topicRepository.delete(topicId);
     
-    // Marcar inspeção como modificada se tópico foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (topic != null) {
-      await markInspectionForSync(topic.inspectionId);
+      await markInspectionAsModifiedLocally(topic.inspectionId);
     }
     
     debugPrint('DataService: Topic $topicId deleted successfully');
@@ -400,8 +406,8 @@ class EnhancedOfflineDataService {
     debugPrint('DataService: Updating item ${item.id} - ${item.itemName}');
     await _itemRepository.update(item);
     
-    // Marcar inspeção como modificada
-    await markInspectionForSync(item.inspectionId);
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(item.inspectionId);
     
     debugPrint('DataService: Item ${item.id} updated successfully');
   }
@@ -409,14 +415,14 @@ class EnhancedOfflineDataService {
   Future<void> deleteItem(String itemId) async {
     debugPrint('DataService: Deleting item $itemId');
     
-    // Buscar item para obter inspectionId antes de deletar
+    // Get item to find inspectionId before deleting
     final item = await _itemRepository.findById(itemId);
     
     await _itemRepository.delete(itemId);
     
-    // Marcar inspeção como modificada se item foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (item != null) {
-      await markInspectionForSync(item.inspectionId);
+      await markInspectionAsModifiedLocally(item.inspectionId);
     }
     
     debugPrint('DataService: Item $itemId deleted successfully');
@@ -489,8 +495,8 @@ class EnhancedOfflineDataService {
         'DataService: Updating detail ${detail.id} - ${detail.detailName} with value: ${detail.detailValue}');
     await _detailRepository.update(detail);
     
-    // Marcar inspeção como modificada
-    await markInspectionForSync(detail.inspectionId);
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(detail.inspectionId);
     
     debugPrint('DataService: Detail ${detail.id} updated successfully');
   }
@@ -498,14 +504,14 @@ class EnhancedOfflineDataService {
   Future<void> deleteDetail(String detailId) async {
     debugPrint('DataService: Deleting detail $detailId');
     
-    // Buscar detalhe para obter inspectionId antes de deletar
+    // Get detail to find inspectionId before deleting
     final detail = await _detailRepository.findById(detailId);
     
     await _detailRepository.delete(detailId);
     
-    // Marcar inspeção como modificada se detalhe foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (detail != null) {
-      await markInspectionForSync(detail.inspectionId);
+      await markInspectionAsModifiedLocally(detail.inspectionId);
     }
     
     debugPrint('DataService: Detail $detailId deleted successfully');
@@ -513,51 +519,51 @@ class EnhancedOfflineDataService {
 
   Future<void> updateDetailValue(
       String detailId, String? value, String? observations) async {
-    // Buscar detalhe para obter inspectionId
+    // Get detail to find inspectionId
     final detail = await _detailRepository.findById(detailId);
     
     await _detailRepository.updateValue(detailId, value, observations);
     
-    // Marcar inspeção como modificada se detalhe foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (detail != null) {
-      await markInspectionForSync(detail.inspectionId);
+      await markInspectionAsModifiedLocally(detail.inspectionId);
     }
   }
 
   Future<void> markDetailCompleted(String detailId) async {
-    // Buscar detalhe para obter inspectionId
+    // Get detail to find inspectionId
     final detail = await _detailRepository.findById(detailId);
     
     await _detailRepository.markAsCompleted(detailId);
     
-    // Marcar inspeção como modificada se detalhe foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (detail != null) {
-      await markInspectionForSync(detail.inspectionId);
+      await markInspectionAsModifiedLocally(detail.inspectionId);
     }
   }
 
   Future<void> markDetailIncomplete(String detailId) async {
-    // Buscar detalhe para obter inspectionId
+    // Get detail to find inspectionId
     final detail = await _detailRepository.findById(detailId);
     
     await _detailRepository.markAsIncomplete(detailId);
     
-    // Marcar inspeção como modificada se detalhe foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (detail != null) {
-      await markInspectionForSync(detail.inspectionId);
+      await markInspectionAsModifiedLocally(detail.inspectionId);
     }
   }
 
   Future<void> setDetailNonConformity(
       String detailId, bool hasNonConformity) async {
-    // Buscar detalhe para obter inspectionId
+    // Get detail to find inspectionId
     final detail = await _detailRepository.findById(detailId);
     
     await _detailRepository.setNonConformity(detailId, hasNonConformity);
     
-    // Marcar inspeção como modificada se detalhe foi encontrado
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (detail != null) {
-      await markInspectionForSync(detail.inspectionId);
+      await markInspectionAsModifiedLocally(detail.inspectionId);
     }
   }
 
@@ -618,8 +624,8 @@ class EnhancedOfflineDataService {
   Future<String> saveNonConformity(NonConformity nonConformity) async {
     final result = await _nonConformityRepository.insert(nonConformity);
     
-    // Marcar inspeção como modificada
-    await markInspectionForSync(nonConformity.inspectionId);
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(nonConformity.inspectionId);
     
     return result;
   }
@@ -627,52 +633,52 @@ class EnhancedOfflineDataService {
   Future<void> updateNonConformity(NonConformity nonConformity) async {
     await _nonConformityRepository.update(nonConformity);
     
-    // Marcar inspeção como modificada
-    await markInspectionForSync(nonConformity.inspectionId);
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(nonConformity.inspectionId);
   }
 
   Future<void> insertOrUpdateNonConformity(NonConformity nonConformity) async {
     await _nonConformityRepository.insertOrUpdate(nonConformity);
     
-    // Marcar inspeção como modificada
-    await markInspectionForSync(nonConformity.inspectionId);
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
+    await markInspectionAsModifiedLocally(nonConformity.inspectionId);
   }
 
   Future<void> deleteNonConformity(String nonConformityId) async {
-    // Buscar NC para obter inspectionId antes de deletar
+    // Get NC to find inspectionId
     final nc = await _nonConformityRepository.findById(nonConformityId);
     
     await _nonConformityRepository.delete(nonConformityId);
     
-    // Marcar inspeção como modificada se NC foi encontrada
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (nc != null) {
-      await markInspectionForSync(nc.inspectionId);
+      await markInspectionAsModifiedLocally(nc.inspectionId);
     }
   }
 
   Future<void> updateNonConformityStatus(
       String nonConformityId, String status) async {
-    // Buscar NC para obter inspectionId
+    // Get NC to find inspectionId
     final nc = await _nonConformityRepository.findById(nonConformityId);
     
     await _nonConformityRepository.updateStatus(nonConformityId, status);
     
-    // Marcar inspeção como modificada se NC foi encontrada
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (nc != null) {
-      await markInspectionForSync(nc.inspectionId);
+      await markInspectionAsModifiedLocally(nc.inspectionId);
     }
   }
 
   Future<void> updateNonConformitySeverity(
       String nonConformityId, String severity) async {
-    // Buscar NC para obter inspectionId
+    // Get NC to find inspectionId
     final nc = await _nonConformityRepository.findById(nonConformityId);
     
     await _nonConformityRepository.updateSeverity(nonConformityId, severity);
     
-    // Marcar inspeção como modificada se NC foi encontrada
+    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
     if (nc != null) {
-      await markInspectionForSync(nc.inspectionId);
+      await markInspectionAsModifiedLocally(nc.inspectionId);
     }
   }
 

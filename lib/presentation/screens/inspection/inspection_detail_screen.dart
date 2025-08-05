@@ -45,6 +45,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   List<Topic> _topics = [];
   final Map<String, List<Item>> _itemsCache = {};
   final Map<String, List<Detail>> _detailsCache = {};
+  double? _cachedProgress;
 
   @override
   void initState() {
@@ -144,56 +145,46 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   }
 
   Future<void> _loadAllData() async {
-    debugPrint('InspectionDetailScreen: _loadAllData() called - Stack trace:');
-    debugPrint(StackTrace.current.toString().split('\n').take(8).join('\n'));
-    
     if (_inspection?.id == null) return;
 
     try {
-      // Clear cache before reloading to ensure consistency
-      _itemsCache.clear();
-      _detailsCache.clear();
+      // Only load if cache is empty to avoid unnecessary reloads
+      if (_topics.isEmpty) {
+        final topics =
+            await _serviceFactory.dataService.getTopics(widget.inspectionId);
 
-      // Carregar todos os tópicos
-      final topics =
-          await _serviceFactory.dataService.getTopics(widget.inspectionId);
+        // Load items and details in parallel only if not already cached
+        for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
+          final topic = topics[topicIndex];
+          final topicId = topic.id ?? 'topic_$topicIndex';
+          
+          // Skip if already loaded
+          if (!_itemsCache.containsKey(topicId)) {
+            if (topic.directDetails == true) {
+              final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
+              _detailsCache['${topicId}_direct'] = directDetails;
+              _itemsCache[topicId] = [];
+            } else {
+              final items = await _serviceFactory.dataService.getItems(topicId);
+              _itemsCache[topicId] = items;
 
-      // Carregar todos os itens e detalhes em paralelo
-      for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
-        final topic = topics[topicIndex];
-
-        // Carregar itens do tópico - use fallback if ID is null
-        final topicId = topic.id ?? 'topic_$topicIndex';
-        
-        // Verificar se o tópico tem detalhes diretos
-        if (topic.directDetails == true) {
-          // Para tópicos com detalhes diretos, carregar detalhes diretamente
-          final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
-          _detailsCache['${topicId}_direct'] = directDetails;
-          debugPrint('InspectionDetailScreen: Loaded ${directDetails.length} direct details for topic $topicId');
-          // Não carregar itens para tópicos com detalhes diretos
-          _itemsCache[topicId] = [];
-        } else {
-          // Para tópicos normais, carregar itens e seus detalhes
-          final items = await _serviceFactory.dataService.getItems(topicId);
-          _itemsCache[topicId] = items;
-
-          // Carregar detalhes de cada item
-          for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
-            final item = items[itemIndex];
-            final itemId = item.id ?? 'item_$itemIndex';
-            final details = await _serviceFactory.dataService.getDetails(itemId);
-            _detailsCache['${topicId}_$itemId'] = details;
-            debugPrint('InspectionDetailScreen: Loaded ${details.length} details for item $itemId');
+              for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+                final item = items[itemIndex];
+                final itemId = item.id ?? 'item_$itemIndex';
+                if (!_detailsCache.containsKey('${topicId}_$itemId')) {
+                  final details = await _serviceFactory.dataService.getDetails(itemId);
+                  _detailsCache['${topicId}_$itemId'] = details;
+                }
+              }
+            }
           }
         }
-      }
 
-      if (mounted) {
-        setState(() {
-          _topics = topics;
-        });
-        debugPrint('InspectionDetailScreen: Successfully loaded ${topics.length} topics with cache refreshed');
+        if (mounted) {
+          setState(() {
+            _topics = topics;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -434,14 +425,9 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         rethrow;
       }
 
-      try {
-        // Processar a estrutura aninhada atualizada
-        await _serviceFactory.syncService.syncInspection(widget.inspectionId);
-        debugPrint('InspectionDetailScreen: Synced inspection');
-      } catch (e) {
-        debugPrint('InspectionDetailScreen: Error syncing inspection: $e');
-        // Não deve impedir a atualização da interface
-      }
+      // OFFLINE-FIRST: Don't auto-sync when adding topics
+      // User must manually sync when they want to upload changes
+      debugPrint('InspectionDetailScreen: Topic added to nested structure - no auto-sync');
 
       // Atualizar o estado local
       _inspection = updatedInspection;
@@ -488,27 +474,33 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   }
 
   Future<void> _updateCache() async {
-    debugPrint('InspectionDetailScreen: _updateCache() called - Stack trace:');
-    debugPrint(StackTrace.current.toString().split('\n').take(5).join('\n'));
-    
     await _markAsModified();
+    _invalidateProgressCache();
     
-    // Atualização completa - recarregar todos os dados após operações como duplicação
+    // Force reload data to show duplicated items/topics/details
+    _itemsCache.clear();
+    _detailsCache.clear();
+    _topics.clear();
+    
     await _loadAllData();
+    
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   double _calculateInspectionProgress() {
+    if (_cachedProgress != null) return _cachedProgress!;
+    
     if (_topics.isEmpty) return 0.0;
     
-    int totalUnits = 0;  // Total de unidades avaliáveis (detalhes + itens avaliáveis)
-    int completedUnits = 0;  // Unidades completadas
+    int totalUnits = 0;
+    int completedUnits = 0;
     
     for (final topic in _topics) {
       final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
       
-      // Hierarquia flexível: Verificar se tem detalhes diretos
       if (topic.directDetails == true) {
-        // Para tópicos com detalhes diretos
         final directDetailsKey = '${topicId}_direct';
         final details = _detailsCache[directDetailsKey] ?? [];
         
@@ -519,13 +511,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           }
         }
       } else {
-        // Para tópicos normais com itens
         final items = _itemsCache[topicId] ?? [];
         
         for (final item in items) {
           final itemId = item.id ?? 'item_${items.indexOf(item)}';
           
-          // Contar item avaliável como unidade se for avaliável
           if (item.evaluable == true) {
             totalUnits++;
             if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
@@ -533,7 +523,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
             }
           }
           
-          // Contar detalhes do item
           final details = _detailsCache['${topicId}_$itemId'] ?? [];
           for (final detail in details) {
             totalUnits++;
@@ -545,7 +534,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       }
     }
     
-    return totalUnits > 0 ? completedUnits / totalUnits : 0.0;
+    _cachedProgress = totalUnits > 0 ? completedUnits / totalUnits : 0.0;
+    return _cachedProgress!;
+  }
+
+  void _invalidateProgressCache() {
+    _cachedProgress = null;
   }
 
 

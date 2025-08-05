@@ -103,41 +103,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
           await _serviceFactory.dataService.getTopics(widget.inspectionId);
       setState(() => _topics = topics);
 
-      // Load all items and details for enrichment
-      final allItems = <Item>[];
-      final allDetails = <Detail>[];
-
-      for (final topic in topics) {
-        if (topic.id != null) {
-          // Check if topic has direct details
-          if (topic.directDetails == true) {
-            // Load direct details (details that belong directly to topic, not to items)
-            try {
-              final directDetails = await _serviceFactory.dataService.getDirectDetails(topic.id!);
-              allDetails.addAll(directDetails);
-              debugPrint('NonConformityScreen: Loaded ${directDetails.length} direct details for topic ${topic.topicName}');
-            } catch (e) {
-              debugPrint('NonConformityScreen: Error loading direct details for topic ${topic.id}: $e');
-            }
-          } else {
-            // Load items and their details (normal hierarchy)
-            final items = await _serviceFactory.dataService.getItems(topic.id!);
-            allItems.addAll(items);
-
-            for (final item in items) {
-              if (item.id != null) {
-                final details =
-                    await _serviceFactory.dataService.getDetails(item.id!);
-                allDetails.addAll(details);
-              }
-            }
-          }
-        }
-      }
-
       setState(() {
-        _items = allItems;
-        _details = allDetails;
+        _items = [];
+        _details = [];
       });
 
       if (widget.preSelectedTopic != null) {
@@ -231,14 +199,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       final nonConformitiesObjects = await _serviceFactory.dataService
           .getNonConformities(widget.inspectionId);
 
-      // Enrich non-conformities with topic, item, and detail names
-      final enrichedNonConformities = <Map<String, dynamic>>[];
-
-      for (final nc in nonConformitiesObjects) {
-        // Use toMap() instead of toJson() for better UI compatibility
+      final enrichedNonConformities = nonConformitiesObjects.map((nc) {
         final ncData = nc.toMap();
         
-        // Ensure UI-compatible field names and values
         ncData['id'] = nc.id;
         ncData['inspection_id'] = nc.inspectionId;
         ncData['topic_id'] = nc.topicId;
@@ -254,11 +217,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         ncData['resolved_at'] = nc.resolvedAt?.toIso8601String();
         ncData['created_at'] = nc.createdAt.toIso8601String();
         ncData['updated_at'] = nc.updatedAt.toIso8601String();
-        
-        debugPrint('NonConformityScreen: Loading NC ${nc.id} - isResolved: ${nc.isResolved}, status: ${nc.status}, resolvedAt: ${nc.resolvedAt}');
-        debugPrint('NonConformityScreen: UI Data - isResolved: ${ncData['is_resolved']}, status: ${ncData['status']}');
 
-        // Load topic name if available
         if (nc.topicId != null) {
           final topic = _topics.firstWhere((t) => t.id == nc.topicId,
               orElse: () => Topic(
@@ -269,29 +228,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
           ncData['topic_name'] = topic.topicName;
         }
 
-        // Load item name if available
-        if (nc.itemId != null) {
-          final item = _items.firstWhere((i) => i.id == nc.itemId,
-              orElse: () => Item(
-                    inspectionId: widget.inspectionId,
-                    position: 0,
-                    itemName: 'Item não especificado',
-                  ));
-          ncData['item_name'] = item.itemName;
-        }
+        ncData['item_name'] = 'Item não especificado';
+        ncData['detail_name'] = 'Detalhe não especificado';
 
-        // Load detail name if available
-        if (nc.detailId != null) {
-          final detail = _details.firstWhere((d) => d.id == nc.detailId,
-              orElse: () => Detail(
-                    inspectionId: widget.inspectionId,
-                    detailName: 'Detalhe não especificado',
-                  ));
-          ncData['detail_name'] = detail.detailName;
-        }
-
-        enrichedNonConformities.add(ncData);
-      }
+        return ncData;
+      }).toList();
 
       if (mounted) {
         setState(() {
@@ -390,12 +331,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
   }
 
   Future<void> _updateNonConformity(Map<String, dynamic> updatedData) async {
-    debugPrint('NonConformityScreen: _updateNonConformity called with data: $updatedData');
-    
-    if (_isProcessing) {
-      debugPrint('NonConformityScreen: Already processing, skipping update');
-      return;
-    }
+    if (_isProcessing) return;
 
     setState(() => _isProcessing = true);
 
