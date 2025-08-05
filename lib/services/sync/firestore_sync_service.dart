@@ -1710,32 +1710,9 @@ class FirestoreSyncService {
         'orderIndex': media.orderIndex,
       }));
       
-      // For direct_details topics, also include media from direct details in the topic media array
-      if (topic.directDetails == true) {
-        final directDetailsMedia = await _offlineService.getMediaByTopicDirectDetails(topic.id ?? '');
-        final sortedDirectDetailsMedia = List<OfflineMedia>.from(directDetailsMedia)
-          ..sort((a, b) {
-            final orderComparison = a.orderIndex.compareTo(b.orderIndex);
-            if (orderComparison != 0) return orderComparison;
-            final aCaptured = a.capturedAt ?? a.createdAt;
-            final bCaptured = b.capturedAt ?? b.createdAt;
-            return aCaptured.compareTo(bCaptured);
-          });
-        
-        topicMediaList.addAll(sortedDirectDetailsMedia.map((media) => {
-          'filename': media.filename,
-          'type': media.type,
-          'localPath': media.localPath,
-          'cloudUrl': media.cloudUrl,
-          'thumbnailPath': media.thumbnailPath,
-          'fileSize': media.fileSize,
-          'mimeType': media.mimeType,
-          'isUploaded': media.isUploaded,
-          'createdAt': media.createdAt.toIso8601String(),
-          'capturedAt': (media.capturedAt ?? media.createdAt).toIso8601String(),
-          'orderIndex': media.orderIndex,
-        }));
-      }
+      // NOTE: Removed duplication logic for direct_details topics
+      // Media from direct details should only appear in individual details, not in topic media array
+      // This prevents duplicated images in the Firestore structure
       
       final topicMediaData = topicMediaList;
       

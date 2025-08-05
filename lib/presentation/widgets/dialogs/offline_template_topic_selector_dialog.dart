@@ -272,14 +272,14 @@ class _OfflineTemplateTopicSelectorDialogState
       // Get the current inspection
       final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId);
       if (inspection != null) {
-        // Mark inspection as having local changes
+        // Mark inspection as having local changes using update method instead of save
         final updatedInspection = inspection.copyWith(
           hasLocalChanges: true,
           updatedAt: DateTime.now(),
         );
         
-        // Save the updated inspection
-        await _serviceFactory.dataService.saveInspection(updatedInspection);
+        // Use updateInspection instead of saveInspection to avoid UNIQUE constraint error
+        await _serviceFactory.dataService.updateInspection(updatedInspection);
         
         debugPrint('OfflineTemplateTopicSelectorDialog: Inspection ${widget.inspectionId} marked as having local changes');
       } else {

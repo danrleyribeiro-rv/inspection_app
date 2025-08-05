@@ -148,45 +148,44 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     if (_inspection?.id == null) return;
 
     try {
-      // Only load if cache is empty to avoid unnecessary reloads
-      if (_topics.isEmpty) {
-        final topics =
-            await _serviceFactory.dataService.getTopics(widget.inspectionId);
+      // Always load topics (especially after adding new ones)
+      final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
+      debugPrint('InspectionDetailScreen: Loaded ${topics.length} topics');
 
-        // Load items and details in parallel only if not already cached
-        for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
-          final topic = topics[topicIndex];
-          final topicId = topic.id ?? 'topic_$topicIndex';
-          
-          // Skip if already loaded
-          if (!_itemsCache.containsKey(topicId)) {
-            if (topic.directDetails == true) {
-              final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
-              _detailsCache['${topicId}_direct'] = directDetails;
-              _itemsCache[topicId] = [];
-            } else {
-              final items = await _serviceFactory.dataService.getItems(topicId);
-              _itemsCache[topicId] = items;
+      // Load items and details for all topics
+      for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
+        final topic = topics[topicIndex];
+        final topicId = topic.id ?? 'topic_$topicIndex';
+        
+        // Always reload to ensure we have the latest data
+        if (topic.directDetails == true) {
+          final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
+          _detailsCache['${topicId}_direct'] = directDetails;
+          _itemsCache[topicId] = [];
+          debugPrint('InspectionDetailScreen: Loaded ${directDetails.length} direct details for topic $topicId');
+        } else {
+          final items = await _serviceFactory.dataService.getItems(topicId);
+          _itemsCache[topicId] = items;
+          debugPrint('InspectionDetailScreen: Loaded ${items.length} items for topic $topicId');
 
-              for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
-                final item = items[itemIndex];
-                final itemId = item.id ?? 'item_$itemIndex';
-                if (!_detailsCache.containsKey('${topicId}_$itemId')) {
-                  final details = await _serviceFactory.dataService.getDetails(itemId);
-                  _detailsCache['${topicId}_$itemId'] = details;
-                }
-              }
-            }
+          for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+            final item = items[itemIndex];
+            final itemId = item.id ?? 'item_$itemIndex';
+            final details = await _serviceFactory.dataService.getDetails(itemId);
+            _detailsCache['${topicId}_$itemId'] = details;
+            debugPrint('InspectionDetailScreen: Loaded ${details.length} details for item $itemId');
           }
         }
+      }
 
-        if (mounted) {
-          setState(() {
-            _topics = topics;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _topics = topics;
+        });
+        debugPrint('InspectionDetailScreen: Updated UI with ${_topics.length} topics');
       }
     } catch (e) {
+      debugPrint('InspectionDetailScreen: Error loading data: $e');
       if (mounted) {
         _showErrorSnackBar('Erro ao carregar dados: $e');
       }
@@ -311,19 +310,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     if (result == null || !mounted) return;
 
     try {
+      // Limpar caches para forçar recarregamento
+      _itemsCache.clear();
+      _detailsCache.clear();
+      _topics.clear();
+      _invalidateProgressCache();
+
       // Adicionar o tópico à estrutura aninhada da inspeção
       await _addTopicToNestedStructure(result);
 
       await _markAsModified();
 
-      // Reload data to ensure consistency
+      // Reload data to ensure consistency and show new topic immediately
       await _loadAllData();
 
       if (mounted) {
         setState(() {}); // Trigger UI update
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tópico adicionado com sucesso'),
+          SnackBar(
+            content: Text('Tópico "${result.topicName}" adicionado com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -332,7 +337,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao atualizar interface: $e'),
+            content: Text('Erro ao adicionar tópico: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -344,29 +349,39 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     if (_inspection == null) return;
 
     try {
-      // Verificar se o tópico tem ID válido
-      if (topic.id == null) {
-        debugPrint('InspectionDetailScreen: Topic ID is null, cannot add to nested structure');
-        return;
+      // Verificar se o tópico tem ID válido, se não tiver, buscar por position
+      String? topicId = topic.id;
+      if (topicId == null) {
+        debugPrint('InspectionDetailScreen: Topic ID is null, searching by position ${topic.position}');
+        // Buscar o tópico recém-criado pelo position
+        final allTopics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
+        final matchingTopic = allTopics.where((t) => t.position == topic.position && t.topicName == topic.topicName).firstOrNull;
+        if (matchingTopic?.id != null) {
+          topicId = matchingTopic!.id;
+          debugPrint('InspectionDetailScreen: Found topic by position with ID: $topicId');
+        } else {
+          debugPrint('InspectionDetailScreen: Could not find topic by position, cannot add to nested structure');
+          return;
+        }
       }
       
-      // Buscar itens criados para este tópico
-      final items = await _serviceFactory.dataService.getItems(topic.id!);
-      debugPrint('InspectionDetailScreen: Found ${items.length} items for topic ${topic.id}');
+      // Buscar itens criados para este tópico usando o topicId encontrado
+      final items = await _serviceFactory.dataService.getItems(topicId!);
+      debugPrint('InspectionDetailScreen: Found ${items.length} items for topic $topicId');
       
-      // Criar estrutura dos itens com seus detalhes
-      final List<Map<String, dynamic>> itemsData = [];
-      for (final item in items) {
-        if (item.id == null) {
-          debugPrint('InspectionDetailScreen: Item ID is null, skipping item');
-          continue;
-        }
-        
-        final details = await _serviceFactory.dataService.getDetails(item.id!);
-        debugPrint('InspectionDetailScreen: Found ${details.length} details for item ${item.id}');
+      // Verificar se é um tópico com direct_details
+      final bool hasDirectDetails = topic.directDetails == true;
+      
+      // Criar estrutura do tópico baseada no tipo
+      Map<String, dynamic> topicData;
+      
+      if (hasDirectDetails) {
+        // Para tópicos com direct_details, buscar detalhes diretos
+        final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId!);
+        debugPrint('InspectionDetailScreen: Found ${directDetails.length} direct details for topic $topicId');
         
         final List<Map<String, dynamic>> detailsData = [];
-        for (final detail in details) {
+        for (final detail in directDetails) {
           try {
             detailsData.add({
               'name': detail.detailName,
@@ -379,32 +394,74 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
               'non_conformities': [],
             });
           } catch (e) {
-            debugPrint('InspectionDetailScreen: Error processing detail ${detail.id}: $e');
-            // Continue com outros detalhes se um falhar
+            debugPrint('InspectionDetailScreen: Error processing direct detail ${detail.id}: $e');
           }
         }
         
-        itemsData.add({
-          'name': item.itemName,
-          'description': item.itemLabel ?? '',
-          'observation': item.observation ?? '',
+        topicData = {
+          'name': topic.topicName,
+          'description': topic.topicLabel ?? '',
+          'observation': topic.observation ?? '',
+          'direct_details': true,
           'details': detailsData,
           'media': [],
           'non_conformities': [],
-        });
+        };
+      } else {
+        // Para tópicos normais, processar itens
+        final List<Map<String, dynamic>> itemsData = [];
+        for (final item in items) {
+          if (item.id == null) {
+            debugPrint('InspectionDetailScreen: Item ID is null, skipping item');
+            continue;
+          }
+          
+          final details = await _serviceFactory.dataService.getDetails(item.id!);
+          debugPrint('InspectionDetailScreen: Found ${details.length} details for item ${item.id}');
+          
+          final List<Map<String, dynamic>> detailsData = [];
+          for (final detail in details) {
+            try {
+              detailsData.add({
+                'name': detail.detailName,
+                'value': detail.detailValue ?? '',
+                'type': detail.type ?? 'text',
+                'options': detail.options ?? [],
+                'required': detail.isRequired ?? false,
+                'observation': detail.observation ?? '',
+                'media': [],
+                'non_conformities': [],
+              });
+            } catch (e) {
+              debugPrint('InspectionDetailScreen: Error processing detail ${detail.id}: $e');
+            }
+          }
+          
+          itemsData.add({
+            'name': item.itemName,
+            'description': item.itemLabel ?? '',
+            'observation': item.observation ?? '',
+            'evaluable': item.evaluable ?? false,
+            'evaluation_options': item.evaluationOptions ?? [],
+            'evaluation_value': item.evaluationValue,
+            'details': detailsData,
+            'media': [],
+            'non_conformities': [],
+          });
+        }
+        
+        topicData = {
+          'name': topic.topicName,
+          'description': topic.topicLabel ?? '',
+          'observation': topic.observation ?? '',
+          'direct_details': false,
+          'items': itemsData,
+          'media': [],
+          'non_conformities': [],
+        };
       }
       
-      // Criar estrutura do tópico como seria no Firestore
-      final topicData = {
-        'name': topic.topicName,
-        'description': topic.topicLabel ?? '',
-        'observation': topic.observation ?? '',
-        'items': itemsData,
-        'media': [],
-        'non_conformities': [],
-      };
-      
-      debugPrint('InspectionDetailScreen: Created topic data with ${itemsData.length} items');
+      debugPrint('InspectionDetailScreen: Created topic data structure with direct_details: $hasDirectDetails');
 
       // Obter os topics atuais da inspeção
       final currentTopics =
