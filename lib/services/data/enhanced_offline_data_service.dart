@@ -1494,16 +1494,11 @@ class EnhancedOfflineDataService {
       return baseName;
     }
     
-    // Try with " (Cópia)" first
-    String candidateName = '$baseName (Cópia)';
-    if (!existingNames.contains(candidateName)) {
-      return candidateName;
-    }
-    
-    // Find next available number
+    // Find next available number (starting from 2)
     int counter = 2;
+    String candidateName;
     do {
-      candidateName = '$baseName (Cópia $counter)';
+      candidateName = '$baseName $counter';
       counter++;
     } while (existingNames.contains(candidateName));
     
@@ -1570,23 +1565,51 @@ class EnhancedOfflineDataService {
         originalItem, originalItem.topicId ?? '');
   }
 
+  Future<String> _generateUniqueItemName(String baseName, String topicId) async {
+    // Get all existing items for this topic
+    final existingItems = await getItems(topicId);
+    final existingNames = existingItems.map((i) => i.itemName).toSet();
+    
+    // If base name doesn't exist, use it
+    if (!existingNames.contains(baseName)) {
+      return baseName;
+    }
+    
+    // Find next available number (starting from 2)
+    int counter = 2;
+    String candidateName;
+    do {
+      candidateName = '$baseName $counter';
+      counter++;
+    } while (existingNames.contains(candidateName));
+    
+    return candidateName;
+  }
+
   /// Método auxiliar para duplicar um item e seus detalhes
   Future<Item> _duplicateItemWithDetails(
       Item originalItem, String newTopicId) async {
-    // 1. Criar item duplicado (sem adicionar "(Cópia)" ao nome do item)
+    // 1. Generate unique name for duplicated item
+    final uniqueName = await _generateUniqueItemName(originalItem.itemName, newTopicId);
+    
+    // 2. Criar item duplicado
     final duplicatedItem = Item(
       id: null, // Será gerado automaticamente
       inspectionId: originalItem.inspectionId,
       topicId: newTopicId,
       itemId: originalItem.itemId,
       position: originalItem.position,
-      itemName: originalItem.itemName, // Manter nome original do item
+      itemName: uniqueName, // Use unique name
       itemLabel: originalItem.itemLabel,
       observation: null, // Reset observation
       isDamaged: false, // Reset damage status
       tags: originalItem.tags ?? [],
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      evaluable: originalItem.evaluable,
+      evaluationOptions: originalItem.evaluationOptions,
+      evaluationValue: null, // Reset evaluation
+      evaluation: null, // Reset evaluation
     );
 
     // 2. Salvar item duplicado
@@ -1649,16 +1672,11 @@ class EnhancedOfflineDataService {
       return baseName;
     }
     
-    // Try with " (Cópia)" first
-    String candidateName = '$baseName (Cópia)';
-    if (!existingNames.contains(candidateName)) {
-      return candidateName;
-    }
-    
-    // Find next available number
+    // Find next available number (starting from 2)
     int counter = 2;
+    String candidateName;
     do {
-      candidateName = '$baseName (Cópia $counter)';
+      candidateName = '$baseName $counter';
       counter++;
     } while (existingNames.contains(candidateName));
     

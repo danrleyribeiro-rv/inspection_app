@@ -493,24 +493,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     
     await _markAsModified();
     
-    // Atualização incremental - apenas recarregar tópicos
-    try {
-      final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
-      if (mounted) {
-        setState(() {
-          _topics = topics;
-        });
-        debugPrint('InspectionDetailScreen: Topics updated incrementally, cache preserved');
-      }
-    } catch (e) {
-      debugPrint('InspectionDetailScreen: Error updating topics: $e');
-      // Fallback para rebuild com cache preservado
-      if (mounted) {
-        setState(() {
-          // Forçar rebuild mantendo todos os caches
-        });
-      }
-    }
+    // Atualização completa - recarregar todos os dados após operações como duplicação
+    await _loadAllData();
   }
 
   double _calculateInspectionProgress() {

@@ -388,12 +388,15 @@ class InspectionCard extends StatelessWidget {
                       ),
                     ),
                     SizedBox(width: 8),
-                    Text(
-                      'Sincronizando...',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        'Sincronizando...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -408,12 +411,15 @@ class InspectionCard extends StatelessWidget {
                   children: [
                     _buildSyncIcon(),
                     const SizedBox(width: 6),
-                    Text(
-                      _getSyncButtonText(),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        _getSyncButtonText(),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

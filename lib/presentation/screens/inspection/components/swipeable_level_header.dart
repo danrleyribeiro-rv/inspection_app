@@ -130,7 +130,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                          : 0.0;
                       
                       return ListTile(
-                        key: Key(itemTitle),
+                        key: Key('${itemTitle}_$index'),
                         leading: Icon(
                           widget.icon,
                           color: isSelected ? _levelColor : null,
@@ -436,51 +436,37 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
             if (widget.totalCount > 1)
               Container(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    widget.totalCount > 10 ? 10 : widget.totalCount,
-                    (index) {
-                      if (widget.totalCount > 10 && index == 9) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          child: Text(
-                            '...',
-                            style: TextStyle(
-                              color:
-                                  _levelColor.withAlpha((255 * 0.5).round()),
-                              fontSize: 12,
-                            ),
-                          ),
-                        );
-                      }
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: double.infinity),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          widget.totalCount,
+                          (index) {
+                            final isActive = index == widget.currentIndex;
 
-                      final dotIndex =
-                          widget.totalCount > 10 && widget.currentIndex >= 9
-                              ? widget.currentIndex - 9 + index
-                              : index;
-
-                      if (dotIndex >= widget.totalCount) {
-                        return const SizedBox.shrink();
-                      }
-
-                      final isActive = dotIndex == widget.currentIndex;
-
-                      return GestureDetector(
-                        onTap: () => widget.onIndexChanged(dotIndex),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          width: isActive ? 8 : 6,
-                          height: isActive ? 8 : 6,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isActive
-                                ? _levelColor
-                                : _levelColor.withAlpha((255 * 0.3).round()),
-                          ),
+                            return GestureDetector(
+                              onTap: () => widget.onIndexChanged(index),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 2),
+                                width: isActive ? 8 : 6,
+                                height: isActive ? 8 : 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isActive
+                                      ? _levelColor
+                                      : _levelColor.withAlpha((255 * 0.3).round()),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
               ),
