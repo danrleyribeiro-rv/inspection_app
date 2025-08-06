@@ -27,7 +27,7 @@ class _ExampleInspectionListState extends State<ExampleInspectionList> {
           final inspectionId = progress.inspectionId;
           
           // Debug logs para verificar se o stream está funcionando
-          print('🔄 Sync Progress: ID=$inspectionId, Phase=${progress.phase}');
+          debugPrint('🔄 Sync Progress: ID=$inspectionId, Phase=${progress.phase}');
           
           switch (progress.phase) {
             case SyncPhase.starting:
@@ -37,21 +37,21 @@ class _ExampleInspectionListState extends State<ExampleInspectionList> {
               // AQUI definimos isSyncing = true
               syncingStatus[inspectionId] = true;
               verifiedStatus[inspectionId] = false;
-              print('✅ Set syncing=true for $inspectionId');
+              debugPrint('✅ Set syncing=true for $inspectionId');
               break;
               
             case SyncPhase.completed:
               // AQUI definimos isSyncing = false e verified = true
               syncingStatus[inspectionId] = false;
               verifiedStatus[inspectionId] = true;
-              print('✅ Set syncing=false, verified=true for $inspectionId');
+              debugPrint('✅ Set syncing=false, verified=true for $inspectionId');
               break;
               
             case SyncPhase.error:
               // AQUI definimos isSyncing = false em caso de erro
               syncingStatus[inspectionId] = false;
               verifiedStatus[inspectionId] = false;
-              print('❌ Set syncing=false, verified=false for $inspectionId');
+              debugPrint('❌ Set syncing=false, verified=false for $inspectionId');
               break;
           }
         });
@@ -75,15 +75,15 @@ class _ExampleInspectionListState extends State<ExampleInspectionList> {
           final isVerified = verifiedStatus[inspectionId] ?? false;
           
           // Debug log para ver os valores sendo passados
-          print('🎯 Building card for $inspectionId: syncing=$isSyncing, verified=$isVerified');
+          debugPrint('🎯 Building card for $inspectionId: syncing=$isSyncing, verified=$isVerified');
           
           return InspectionCard(
             inspection: inspection,
             onViewDetails: () {
-              print('Visualizar inspeção $inspectionId');
+              debugPrint('Visualizar inspeção $inspectionId');
             },
             onSync: () async {
-              print('🚀 Iniciando sincronização de $inspectionId');
+              debugPrint('🚀 Iniciando sincronização de $inspectionId');
               
               // IMPORTANTE: NÃO definir manualmente syncingStatus aqui
               // O stream listener vai cuidar disso automaticamente
@@ -91,7 +91,7 @@ class _ExampleInspectionListState extends State<ExampleInspectionList> {
               try {
                 await NativeSyncService.instance.startInspectionSync(inspectionId);
               } catch (e) {
-                print('❌ Erro na sincronização: $e');
+                debugPrint('❌ Erro na sincronização: $e');
                 // Em caso de erro, resetar o status manualmente
                 if (mounted) {
                   setState(() {

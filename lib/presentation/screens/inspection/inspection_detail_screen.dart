@@ -36,7 +36,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
   bool _isLoading = true;
   final bool _isSyncing = false;
-  bool _isApplyingTemplate = false;
+  final bool _isApplyingTemplate = false;
   bool _isAvailableOffline =
       false; // Track if inspection is fully available offline
   bool _canEdit =
@@ -51,6 +51,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Marca nova sessão apenas no initState (primeira vez que abre)
+    NavigationStateService.markNewSession();
     _listenToConnectivity();
     _loadInspection();
     // Limpa estados de navegação antigos em background
@@ -60,9 +62,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed && mounted) {
-      // Reload data when app resumes to ensure consistency
-      _loadInspection();
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        debugPrint('InspectionDetailScreen: App resumed - navigation state restoration controlled by session');
+        break;
+      case AppLifecycleState.paused:
+        debugPrint('InspectionDetailScreen: App paused - navigation state will be preserved');
+        break;
+      case AppLifecycleState.detached:
+        // App está sendo completamente fechado
+        debugPrint('InspectionDetailScreen: App detached - preparing for session reset');
+        NavigationStateService.markNewSession();
+        break;
+      case AppLifecycleState.inactive:
+        debugPrint('InspectionDetailScreen: App inactive (notification panel, etc.)');
+        break;
+      case AppLifecycleState.hidden:
+        debugPrint('InspectionDetailScreen: App hidden');
+        break;
     }
   }
 
@@ -151,6 +169,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       // Always load topics (especially after adding new ones)
       final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
       debugPrint('InspectionDetailScreen: Loaded ${topics.length} topics');
+      
+      // Debug: Log each topic's directDetails property
+      for (int i = 0; i < topics.length; i++) {
+        final topic = topics[i];
+        debugPrint('InspectionDetailScreen: Topic $i: ${topic.topicName} (id: ${topic.id}) - directDetails: ${topic.directDetails}');
+      }
 
       // Load items and details for all topics
       for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
@@ -162,7 +186,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
           _detailsCache['${topicId}_direct'] = directDetails;
           _itemsCache[topicId] = [];
-          debugPrint('InspectionDetailScreen: Loaded ${directDetails.length} direct details for topic $topicId');
+          debugPrint('InspectionDetailScreen: Loaded ${directDetails.length} direct details for topic $topicId (${topic.topicName}, directDetails=${topic.directDetails})');
         } else {
           final items = await _serviceFactory.dataService.getItems(topicId);
           _itemsCache[topicId] = items;
@@ -377,8 +401,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       
       if (hasDirectDetails) {
         // Para tópicos com direct_details, buscar detalhes diretos
-        final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId!);
-        debugPrint('InspectionDetailScreen: Found ${directDetails.length} direct details for topic $topicId');
+        final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
+        debugPrint('InspectionDetailScreen: Found ${directDetails.length} direct details for topic $topicId (${topic.topicName}, directDetails=${topic.directDetails})');
         
         final List<Map<String, dynamic>> detailsData = [];
         for (final detail in directDetails) {
@@ -667,9 +691,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
       // Gerar o arquivo ZIP
       final zipBytes = ZipEncoder().encode(archive);
-      if (zipBytes == null) {
-        throw Exception('Erro ao criar arquivo ZIP');
-      }
 
       // Obter diretório para salvar o arquivo
       Directory? directory;

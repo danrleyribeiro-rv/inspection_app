@@ -52,7 +52,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   List<Topic> _topics = [];
   bool _isLoading = true;
   bool _isAvailableOffline = false;
-  int _refreshVersion = 0; // Force rebuild counter
+  final int _refreshVersion = 0; // Force rebuild counter
 
   // Para forçar refreshes mais agressivos
   Timer? _refreshTimer;

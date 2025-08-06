@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
 
@@ -40,19 +39,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     super.dispose();
   }
 
-  String _formatDateTime(dynamic timestamp) {
-    try {
-      DateTime date;
-      if (timestamp is String) {
-        date = DateTime.parse(timestamp);
-      } else {
-        return 'Data desconhecida';
-      }
-      return DateFormat('dd/MM/yyyy HH:mm').format(date);
-    } catch (e) {
-      return 'Data inválida';
-    }
-  }
 
   Widget _buildMediaWidget(Map<String, dynamic> media, int index) {
     final bool isImage = media['type'] == 'image';

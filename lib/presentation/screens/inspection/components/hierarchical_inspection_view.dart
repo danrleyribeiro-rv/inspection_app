@@ -60,6 +60,12 @@ class _HierarchicalInspectionViewState
   
   /// Carrega o estado de navegação persistido
   Future<void> _loadNavigationState() async {
+    // Só restaura o estado se for permitido (primeira vez na sessão)
+    if (!NavigationStateService.shouldRestoreState()) {
+      debugPrint('HierarchicalInspectionView: Skipping navigation state restoration - already restored in this session');
+      return;
+    }
+    
     final savedState = await NavigationStateService.loadNavigationState(widget.inspectionId);
     if (savedState != null && mounted) {
       setState(() {
@@ -102,6 +108,10 @@ class _HierarchicalInspectionViewState
       });
       
       debugPrint('HierarchicalInspectionView: Restored navigation state: $savedState');
+      // Marca que o estado foi restaurado nesta sessão
+      NavigationStateService.markStateRestored();
+    } else {
+      debugPrint('HierarchicalInspectionView: No saved navigation state found or not mounted');
     }
   }
   
@@ -589,7 +599,7 @@ class _HierarchicalInspectionViewState
                                     (widget.detailsCache[directDetailsKey]?.isNotEmpty ?? false);
     final hasDirectDetailsProperty = topic.directDetails == true;
     
-    debugPrint('HierarchicalInspectionView: Topic ${topic.id} - directDetails property = $hasDirectDetailsProperty, cache has details = $hasDirectDetailsInCache');
+    debugPrint('HierarchicalInspectionView: Topic ${topic.id} (${topic.topicName}) - directDetails property = $hasDirectDetailsProperty, cache has details = $hasDirectDetailsInCache');
     
     // Use direct details if either condition is true
     return hasDirectDetailsProperty || hasDirectDetailsInCache;

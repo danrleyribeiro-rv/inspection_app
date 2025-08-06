@@ -4,6 +4,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 class NavigationStateService {
   static const String _keyPrefix = 'inspection_nav_';
   
+  /// Controla se deve restaurar o estado baseado na sessão do app
+  static bool _shouldRestoreState = true;
+  
+  /// Marca o início de uma nova sessão do app
+  static void markNewSession() {
+    _shouldRestoreState = true;
+  }
+  
+  /// Marca que o estado já foi restaurado nesta sessão
+  static void markStateRestored() {
+    _shouldRestoreState = false;
+  }
+  
+  /// Verifica se deve restaurar o estado (apenas na primeira vez da sessão)
+  static bool shouldRestoreState() {
+    return _shouldRestoreState;
+  }
+  
   /// Salva o estado de navegação de uma inspeção
   static Future<void> saveNavigationState({
     required String inspectionId,

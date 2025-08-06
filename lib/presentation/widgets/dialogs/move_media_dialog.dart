@@ -218,7 +218,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
               itemName = 'Item não encontrado';
             }
           } else if (topic.directDetails == true) {
-            itemName = 'Detalhe direto';
+            itemName = 'Detalhe';
           } else {
             itemName = 'Nível do tópico';
           }
@@ -833,7 +833,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       final severity = originInfo?['severity'] ?? 'unknown';
                       final createdAt = originInfo?['createdAt'] ?? 'Data não disponível';
                       
-                      final originPath = itemName == 'Detalhe direto' 
+                      final originPath = itemName == 'Detalhe' 
                           ? '$topicName > $detailName'
                           : '$topicName > $itemName > $detailName';
 

@@ -50,6 +50,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Track inspections sync status based on history
   final Map<String, bool> _inspectionSyncStatus = <String, bool>{};
 
+  // Track inspections currently syncing
+  final Map<String, bool> _syncingStatus = <String, bool>{};
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +73,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
             debugPrint('InspectionTab: Processing sync completion for ${progress.inspectionId}');
             // Download/Upload completed, remove from downloading set
             _downloadingInspections.remove(progress.inspectionId);
+            
+            // Remove syncing status
+            _syncingStatus[progress.inspectionId] = false;
 
             // Update sync status - mark as synced when completed
             // This will hide the sync button after successful upload
@@ -103,6 +109,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
           } else if (progress.phase == SyncPhase.error) {
             // Download/Upload failed, remove from downloading set
             _downloadingInspections.remove(progress.inspectionId);
+            
+            // Remove syncing status on error
+            _syncingStatus[progress.inspectionId] = false;
           }
         });
       }
@@ -381,6 +390,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   Future<void> _syncInspectionData(String inspectionId) async {
     try {
+      // Set syncing status to true immediately
+      setState(() {
+        _syncingStatus[inspectionId] = true;
+      });
+
       // Check for conflicts before syncing
       final hasConflicts = await _hasConflictsWithHistory(inspectionId);
 
@@ -410,7 +424,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
         );
 
         if (shouldProceed != true) {
-          return; // User cancelled, don't sync
+          // User cancelled, remove syncing status
+          setState(() {
+            _syncingStatus[inspectionId] = false;
+          });
+          return;
         }
       }
 
@@ -424,6 +442,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
       _loadInspections();
     } catch (e) {
       debugPrint('Error syncing inspection data: $e');
+
+      // Remove syncing status on error
+      setState(() {
+        _syncingStatus[inspectionId] = false;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -966,6 +989,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               needsSync: needsSync,
                               hasConflicts: _inspectionsWithConflicts
                                   .contains(inspectionId),
+                              isSyncing: _syncingStatus[inspectionId] ?? false,
                               onViewDetails: () {
                                 _navigateToInspectionDetail(inspectionId);
                               },
