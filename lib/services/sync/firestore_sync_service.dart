@@ -1401,18 +1401,21 @@ class FirestoreSyncService {
       
       debugPrint('FirestoreSyncService: Found ${mediaFiles.length} media files to upload');
       
-      for (final media in mediaFiles) {
-        try {
-          // Upload to Firebase Storage
-          final downloadUrl = await _uploadMediaToStorage(media);
-          
-          if (downloadUrl != null) {
-            // Update media with cloud URL
-            await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
-            debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
-          }
-        } catch (e) {
-          debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
+      // Process media files in parallel batches of 10
+      const int batchSize = 10;
+      for (int i = 0; i < mediaFiles.length; i += batchSize) {
+        final batch = mediaFiles.skip(i).take(batchSize).toList();
+        debugPrint('FirestoreSyncService: Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} files');
+        
+        // Upload batch in parallel
+        final futures = batch.map((media) => _uploadSingleMediaWithRetry(media));
+        await Future.wait(futures);
+        
+        debugPrint('FirestoreSyncService: Completed batch ${(i ~/ batchSize) + 1}');
+        
+        // Add small delay between batches to prevent Firebase overload
+        if (i + batchSize < mediaFiles.length) {
+          await Future.delayed(const Duration(milliseconds: 500));
         }
       }
       
@@ -1420,6 +1423,73 @@ class FirestoreSyncService {
     } catch (e) {
       debugPrint('FirestoreSyncService: Error uploading media files: $e');
     }
+  }
+  
+  Future<void> _uploadSingleMediaWithRetry(OfflineMedia media) async {
+    try {
+      // Upload to Firebase Storage
+      final downloadUrl = await _uploadMediaToStorage(media);
+      
+      if (downloadUrl != null) {
+        // Update media with cloud URL
+        await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
+        debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
+      }
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
+    }
+  }
+  
+  /// Generic concurrent queue processor that maintains N simultaneous operations
+  Future<void> _processConcurrentQueue<T>({
+    required List<T> items,
+    required Future<void> Function(T) processor,
+    required int maxConcurrency,
+    required String description,
+  }) async {
+    if (items.isEmpty) return;
+    
+    debugPrint('FirestoreSyncService: Starting concurrent queue for $description with ${items.length} items, max concurrency: $maxConcurrency');
+    
+    final queue = List<T>.from(items);
+    final activeTasks = <Future<void>>[];
+    int completedCount = 0;
+    
+    while (queue.isNotEmpty || activeTasks.isNotEmpty) {
+      // Fill up to maxConcurrency active tasks
+      while (queue.isNotEmpty && activeTasks.length < maxConcurrency) {
+        final item = queue.removeAt(0);
+        final completer = Completer<void>();
+        
+        processor(item).then((_) {
+          completedCount++;
+          debugPrint('FirestoreSyncService: Completed $description $completedCount/${items.length} (${queue.length} remaining)');
+          completer.complete();
+        }).catchError((error) {
+          completedCount++;
+          debugPrint('FirestoreSyncService: Failed $description $completedCount/${items.length}: $error');
+          completer.complete(); // Complete even on error to continue processing
+        });
+        
+        activeTasks.add(completer.future);
+        debugPrint('FirestoreSyncService: Started $description task $completedCount+${activeTasks.length}/${items.length} (${activeTasks.length} active)');
+      }
+      
+      if (activeTasks.isNotEmpty) {
+        // Wait for at least one task to complete
+        await Future.any(activeTasks);
+        
+        // Remove completed tasks
+        activeTasks.removeWhere((task) {
+          // Check if future is complete by trying to get its value without waiting
+          bool completed = false;
+          task.then((_) => completed = true).catchError((_) => completed = true);
+          return completed;
+        });
+      }
+    }
+    
+    debugPrint('FirestoreSyncService: Completed concurrent queue for $description - processed $items.length items');
   }
 
   Future<void> _uploadMediaFilesWithProgress(String inspectionId) async {
@@ -1433,31 +1503,59 @@ class FirestoreSyncService {
       debugPrint('FirestoreSyncService: Found ${inspectionMediaFiles.length} media files to upload');
       
       int uploadedCount = 0;
-      for (final media in inspectionMediaFiles) {
-        try {
-          // Emit progress for each media file
-          _syncProgressController.add(SyncProgress(
-            inspectionId: inspectionId,
-            phase: SyncPhase.uploading,
-            current: uploadedCount,
-            total: inspectionMediaFiles.length,
-            message: 'Enviando mídia ${uploadedCount + 1} de ${inspectionMediaFiles.length}...',
-            currentItem: media.filename,
-            itemType: 'Imagem',
-            mediaCount: inspectionMediaFiles.length,
-          ));
-
-          // Upload to Firebase Storage
-          final downloadUrl = await _uploadMediaToStorage(media);
-          
-          if (downloadUrl != null) {
-            // Update media with cloud URL
-            await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
-            debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
-            uploadedCount++;
+      const int batchSize = 10;
+      
+      // Process media files in parallel batches
+      for (int i = 0; i < inspectionMediaFiles.length; i += batchSize) {
+        final batch = inspectionMediaFiles.skip(i).take(batchSize).toList();
+        
+        // Emit progress for current batch
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.uploading,
+          current: uploadedCount,
+          total: inspectionMediaFiles.length,
+          message: 'Enviando lote ${(i ~/ batchSize) + 1} (${batch.length} mídias)...',
+          currentItem: 'Lote de ${batch.length} imagens',
+          itemType: 'Lote de Imagens',
+          mediaCount: inspectionMediaFiles.length,
+        ));
+        
+        // Upload batch in parallel with individual progress tracking
+        final futures = batch.map((media) async {
+          try {
+            final downloadUrl = await _uploadMediaToStorage(media);
+            
+            if (downloadUrl != null) {
+              await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
+              debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
+              return true;
+            }
+            return false;
+          } catch (e) {
+            debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
+            return false;
           }
-        } catch (e) {
-          debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
+        });
+        
+        final results = await Future.wait(futures);
+        uploadedCount += results.where((success) => success).length;
+        
+        // Update progress after batch completion
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.uploading,
+          current: uploadedCount,
+          total: inspectionMediaFiles.length,
+          message: 'Enviadas $uploadedCount de ${inspectionMediaFiles.length} mídias...',
+          currentItem: 'Progresso geral',
+          itemType: 'Mídia',
+          mediaCount: inspectionMediaFiles.length,
+        ));
+        
+        // Add delay between batches to prevent Firebase overload
+        if (i + batchSize < inspectionMediaFiles.length) {
+          await Future.delayed(const Duration(milliseconds: 500));
         }
       }
       
@@ -1465,6 +1563,141 @@ class FirestoreSyncService {
     } catch (e) {
       debugPrint('FirestoreSyncService: Error uploading media files with progress: $e');
     }
+  }
+  
+  Future<bool> _uploadSingleMediaWithProgressTracking(OfflineMedia media, String inspectionId, int totalCount) async {
+    try {
+      final downloadUrl = await _uploadMediaToStorage(media);
+      
+      if (downloadUrl != null) {
+        await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
+        debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
+      return false;
+    }
+  }
+  
+  /// Concurrent queue processor with progress reporting
+  Future<void> _processConcurrentQueueWithProgress<T>({
+    required List<T> items,
+    required Future<bool> Function(T) processor,
+    required int maxConcurrency,
+    required String description,
+    required String inspectionId,
+    required int totalItems,
+  }) async {
+    if (items.isEmpty) return;
+    
+    debugPrint('FirestoreSyncService: Starting concurrent queue with progress for $description with ${items.length} items, max concurrency: $maxConcurrency');
+    
+    final queue = List<T>.from(items);
+    final activeTasks = <Future<bool>>[];
+    int completedCount = 0;
+    int successCount = 0;
+    
+    // Initial progress
+    _syncProgressController.add(SyncProgress(
+      inspectionId: inspectionId,
+      phase: SyncPhase.uploading,
+      current: 0,
+      total: totalItems,
+      message: 'Iniciando upload de $totalItems mídias (até $maxConcurrency simultâneas)...',
+      currentItem: 'Preparando fila',
+      itemType: 'Mídia',
+      mediaCount: totalItems,
+    ));
+    
+    while (queue.isNotEmpty || activeTasks.isNotEmpty) {
+      // Fill up to maxConcurrency active tasks
+      while (queue.isNotEmpty && activeTasks.length < maxConcurrency) {
+        final item = queue.removeAt(0);
+        final completer = Completer<bool>();
+        
+        processor(item).then((success) {
+          completedCount++;
+          if (success) successCount++;
+          
+          // Update progress after each completion
+          _syncProgressController.add(SyncProgress(
+            inspectionId: inspectionId,
+            phase: SyncPhase.uploading,
+            current: completedCount,
+            total: totalItems,
+            message: 'Enviadas $completedCount de $totalItems mídias ($successCount com sucesso, ${activeTasks.length - 1} em processamento)...',
+            currentItem: 'Mídia $completedCount/$totalItems',
+            itemType: 'Mídia',
+            mediaCount: totalItems,
+          ));
+          
+          completer.complete(success);
+        }).catchError((error) {
+          completedCount++;
+          debugPrint('FirestoreSyncService: Error in $description: $error');
+          
+          _syncProgressController.add(SyncProgress(
+            inspectionId: inspectionId,
+            phase: SyncPhase.uploading,
+            current: completedCount,
+            total: totalItems,
+            message: 'Erro no upload $completedCount de $totalItems mídias...',
+            currentItem: 'Erro na mídia $completedCount',
+            itemType: 'Mídia',
+            mediaCount: totalItems,
+          ));
+          
+          completer.complete(false);
+        });
+        
+        activeTasks.add(completer.future);
+        
+        // Update progress when starting new uploads
+        _syncProgressController.add(SyncProgress(
+          inspectionId: inspectionId,
+          phase: SyncPhase.uploading,
+          current: completedCount,
+          total: totalItems,
+          message: 'Processando ${activeTasks.length} mídias simultaneamente ($completedCount/$totalItems concluídas)...',
+          currentItem: '${activeTasks.length} uploads ativos',
+          itemType: 'Mídia',
+          mediaCount: totalItems,
+        ));
+      }
+      
+      if (activeTasks.isNotEmpty) {
+        // Wait for at least one task to complete
+        await Future.any(activeTasks);
+        
+        // Remove completed tasks by creating a new list
+        final newActiveTasks = <Future<bool>>[];
+        for (final task in activeTasks) {
+          bool completed = false;
+          task.then((_) => completed = true).catchError((_) => completed = true);
+          if (!completed) {
+            newActiveTasks.add(task);
+          }
+        }
+        activeTasks.clear();
+        activeTasks.addAll(newActiveTasks);
+      }
+    }
+    
+    // Final progress update
+    _syncProgressController.add(SyncProgress(
+      inspectionId: inspectionId,
+      phase: SyncPhase.uploading,
+      current: totalItems,
+      total: totalItems,
+      message: 'Upload de mídias concluído! $successCount de $totalItems enviadas com sucesso.',
+      currentItem: 'Finalizado',
+      itemType: 'Mídia',
+      mediaCount: totalItems,
+    ));
+    
+    debugPrint('FirestoreSyncService: Completed concurrent queue with progress for $description - processed ${items.length} items, $successCount successful');
   }
 
   Future<String?> _uploadMediaToStorage(OfflineMedia media) async {
@@ -1501,17 +1734,39 @@ class FirestoreSyncService {
       // Upload file with metadata
       final uploadTask = mediaRef.putFile(file, metadata);
       
-      // Monitor upload progress
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        debugPrint('FirestoreSyncService: Upload progress for ${media.filename}: ${(progress * 100).toStringAsFixed(1)}%');
-        
-        // Update progress in database
-        _offlineService.updateMediaUploadProgress(media.id, progress * 100);
-      });
+      // Monitor upload progress with error handling
+      late StreamSubscription progressSubscription;
+      progressSubscription = uploadTask.snapshotEvents.listen(
+        (TaskSnapshot snapshot) {
+          if (snapshot.state == TaskState.running) {
+            final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+            debugPrint('FirestoreSyncService: Upload progress for ${media.filename}: ${(progress * 100).toStringAsFixed(1)}%');
+            
+            // Update progress in database
+            _offlineService.updateMediaUploadProgress(media.id, progress * 100).catchError((e) {
+              debugPrint('FirestoreSyncService: Error updating progress for ${media.filename}: $e');
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('FirestoreSyncService: Progress monitoring error for ${media.filename}: $error');
+          progressSubscription.cancel();
+        },
+        onDone: () {
+          progressSubscription.cancel();
+        },
+      );
       
-      // Wait for upload completion
-      final snapshot = await uploadTask;
+      // Wait for upload completion with timeout
+      final snapshot = await uploadTask.timeout(
+        const Duration(minutes: 5), // 5 minute timeout per file
+        onTimeout: () {
+          debugPrint('FirestoreSyncService: Upload timeout for ${media.filename}');
+          uploadTask.cancel();
+          progressSubscription.cancel();
+          throw TimeoutException('Upload timeout', const Duration(minutes: 5));
+        },
+      );
       
       // Get download URL
       final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -1529,8 +1784,9 @@ class FirestoreSyncService {
             debugPrint('FirestoreSyncService: Unauthorized access to Firebase Storage');
             break;
           case 'storage/canceled':
-            debugPrint('FirestoreSyncService: Upload was canceled');
-            break;
+            debugPrint('FirestoreSyncService: Upload was canceled - this can happen with concurrent uploads');
+            // Return null to indicate cancellation (not a hard error)
+            return null;
           case 'storage/unknown':
             debugPrint('FirestoreSyncService: Unknown storage error occurred');
             break;
@@ -1558,47 +1814,68 @@ class FirestoreSyncService {
   Future<void> _uploadInspectionsWithNestedStructure() async {
     try {
       final inspections = await _offlineService.getInspectionsNeedingSync();
+      debugPrint('FirestoreSyncService: Found ${inspections.length} inspections to upload');
 
-      for (final inspection in inspections) {
-        try {
-          // Build the complete nested structure for Firestore
-          final inspectionData = await _buildNestedInspectionData(inspection);
-
-          await _firebaseService.firestore
-              .collection('inspections')
-              .doc(inspection.id)
-              .set(inspectionData, SetOptions(merge: true));
-
-          // Mark all related entities as synced
-          await _markInspectionAndChildrenSynced(inspection.id);
-
-          // Registrar evento de upload no histórico
-          final currentUser = _firebaseService.currentUser;
-          if (currentUser != null) {
-            await _offlineService.addInspectionHistory(
-              inspectionId: inspection.id,
-              status: HistoryStatus.uploadedInspection,
-              inspectorId: currentUser.uid,
-              description: 'Inspeção enviada para nuvem com sucesso',
-              metadata: {
-                'source': 'local_sync',
-                'uploaded_at': DateTime.now().toIso8601String(),
-                'inspection_title': inspection.title,
-                'inspection_status': inspection.status,
-              },
-            );
-          }
-
-          debugPrint(
-              'FirestoreSyncService: Uploaded inspection with nested structure ${inspection.id}');
-        } catch (e) {
-          debugPrint(
-              'FirestoreSyncService: Error uploading inspection ${inspection.id}: $e');
+      // Process inspections in parallel batches of 5
+      const int batchSize = 5;
+      for (int i = 0; i < inspections.length; i += batchSize) {
+        final batch = inspections.skip(i).take(batchSize).toList();
+        debugPrint('FirestoreSyncService: Processing inspection batch ${(i ~/ batchSize) + 1}: ${batch.length} inspections');
+        
+        // Upload batch in parallel
+        final futures = batch.map((inspection) => _uploadSingleInspectionSafely(inspection));
+        await Future.wait(futures);
+        
+        debugPrint('FirestoreSyncService: Completed inspection batch ${(i ~/ batchSize) + 1}');
+        
+        // Add delay between batches to prevent resource conflicts
+        if (i + batchSize < inspections.length) {
+          await Future.delayed(const Duration(milliseconds: 1000));
         }
       }
+      
+      debugPrint('FirestoreSyncService: Finished uploading all inspections');
     } catch (e) {
       debugPrint(
           'FirestoreSyncService: Error uploading inspections with nested structure: $e');
+    }
+  }
+  
+  Future<void> _uploadSingleInspectionSafely(Inspection inspection) async {
+    try {
+      // Build the complete nested structure for Firestore
+      final inspectionData = await _buildNestedInspectionData(inspection);
+
+      await _firebaseService.firestore
+          .collection('inspections')
+          .doc(inspection.id)
+          .set(inspectionData, SetOptions(merge: true));
+
+      // Mark all related entities as synced
+      await _markInspectionAndChildrenSynced(inspection.id);
+
+      // Registrar evento de upload no histórico
+      final currentUser = _firebaseService.currentUser;
+      if (currentUser != null) {
+        await _offlineService.addInspectionHistory(
+          inspectionId: inspection.id,
+          status: HistoryStatus.uploadedInspection,
+          inspectorId: currentUser.uid,
+          description: 'Inspeção enviada para nuvem com sucesso',
+          metadata: {
+            'source': 'local_sync',
+            'uploaded_at': DateTime.now().toIso8601String(),
+            'inspection_title': inspection.title,
+            'inspection_status': inspection.status,
+          },
+        );
+      }
+
+      debugPrint(
+          'FirestoreSyncService: Uploaded inspection with nested structure ${inspection.id}');
+    } catch (e) {
+      debugPrint(
+          'FirestoreSyncService: Error uploading inspection ${inspection.id}: $e');
     }
   }
 
@@ -2267,32 +2544,64 @@ class FirestoreSyncService {
     }
 
     try {
-      debugPrint('FirestoreSyncService: Starting sync for ${inspectionIds.length} inspections');
+      debugPrint('FirestoreSyncService: Starting BATCH sync for ${inspectionIds.length} inspections');
       
       final results = <String, Map<String, dynamic>>{};
       int successCount = 0;
       int failureCount = 0;
       
-      for (int i = 0; i < inspectionIds.length; i++) {
-        final inspectionId = inspectionIds[i];
-        final inspection = await _offlineService.getInspection(inspectionId);
-        final inspectionTitle = inspection?.title ?? 'Inspeção $inspectionId';
+      // Process inspections in parallel batches of 3
+      const int batchSize = 3;
+      int processedCount = 0;
+      
+      for (int i = 0; i < inspectionIds.length; i += batchSize) {
+        final batch = inspectionIds.skip(i).take(batchSize).toList();
+        debugPrint('FirestoreSyncService: Processing parallel batch ${(i ~/ batchSize) + 1}: ${batch.length} inspections');
         
-        // Emit progress for multiple inspections
+        // Emit progress for current batch
         _syncProgressController.add(SyncProgress(
-          inspectionId: inspectionId,
+          inspectionId: 'multiple',
           phase: SyncPhase.starting,
-          current: i,
+          current: processedCount,
           total: inspectionIds.length,
-          message: 'Sincronizando inspeção ${i + 1} de ${inspectionIds.length}...',
-          currentItem: inspectionTitle,
-          itemType: 'Inspeção',
+          message: 'Sincronizando lote ${(i ~/ batchSize) + 1} (${batch.length} inspeções em paralelo)...',
+          currentItem: 'Lote ${(i ~/ batchSize) + 1}',
+          itemType: 'Lote de Inspeções',
           totalInspections: inspectionIds.length,
-          currentInspectionIndex: i + 1,
+          currentInspectionIndex: processedCount + 1,
         ));
         
-        try {
-          final result = await syncInspection(inspectionId);
+        // Create futures for parallel execution
+        final futures = batch.map((inspectionId) async {
+          try {
+            final inspection = await _offlineService.getInspection(inspectionId);
+            final inspectionTitle = inspection?.title ?? 'Inspeção $inspectionId';
+            
+            debugPrint('FirestoreSyncService: Starting parallel sync for: $inspectionTitle');
+            final result = await syncInspection(inspectionId);
+            
+            return {
+              'id': inspectionId,
+              'title': inspectionTitle,
+              'result': result,
+            };
+          } catch (e) {
+            debugPrint('FirestoreSyncService: Error in parallel sync for $inspectionId: $e');
+            return {
+              'id': inspectionId,
+              'title': 'Inspeção $inspectionId',
+              'result': {'success': false, 'error': e.toString()},
+            };
+          }
+        });
+        
+        // Wait for all inspections in batch to complete
+        final batchResults = await Future.wait(futures);
+        
+        // Process results
+        for (final batchResult in batchResults) {
+          final inspectionId = batchResult['id'] as String;
+          final result = batchResult['result'] as Map<String, dynamic>;
           results[inspectionId] = result;
           
           if (result['success'] == true) {
@@ -2302,10 +2611,32 @@ class FirestoreSyncService {
             failureCount++;
             debugPrint('FirestoreSyncService: ❌ Failed to sync inspection $inspectionId: ${result['error']}');
           }
-        } catch (e) {
-          failureCount++;
-          results[inspectionId] = {'success': false, 'error': e.toString()};
-          debugPrint('FirestoreSyncService: ❌ Exception syncing inspection $inspectionId: $e');
+          
+          processedCount++;
+        }
+        
+        // Update progress after batch completion
+        _syncProgressController.add(SyncProgress(
+          inspectionId: 'multiple',
+          phase: SyncPhase.uploading,
+          current: processedCount,
+          total: inspectionIds.length,
+          message: 'Processadas $processedCount de ${inspectionIds.length} inspeções...',
+          currentItem: 'Progresso geral',
+          itemType: 'Inspeção',
+          totalInspections: inspectionIds.length,
+          currentInspectionIndex: processedCount,
+        ));
+        
+        final successfulInBatch = batchResults.where((r) {
+          final result = r['result'] as Map<String, dynamic>?;
+          return result != null && result['success'] == true;
+        }).length;
+        debugPrint('FirestoreSyncService: Completed batch ${(i ~/ batchSize) + 1} - Success: $successfulInBatch/${batch.length}');
+        
+        // Add delay between batches to prevent resource conflicts
+        if (i + batchSize < inspectionIds.length) {
+          await Future.delayed(const Duration(milliseconds: 1000));
         }
       }
       
@@ -2325,7 +2656,7 @@ class FirestoreSyncService {
         currentInspectionIndex: inspectionIds.length,
       ));
       
-      debugPrint('FirestoreSyncService: Multiple sync completed - Success: $successCount, Failed: $failureCount');
+      debugPrint('FirestoreSyncService: BATCH multiple sync completed - Success: $successCount, Failed: $failureCount');
       
       return {
         'success': isFullSuccess,
@@ -2336,7 +2667,7 @@ class FirestoreSyncService {
         'results': results,
       };
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error in multiple inspections sync: $e');
+      debugPrint('FirestoreSyncService: Error in batch multiple inspections sync: $e');
       
       _syncProgressController.add(SyncProgress(
         inspectionId: 'multiple',
@@ -2354,6 +2685,84 @@ class FirestoreSyncService {
         'successCount': 0,
         'failureCount': inspectionIds.length,
       };
+    }
+  }
+  
+  Future<Map<String, dynamic>> _syncSingleInspectionWithResult(String inspectionId) async {
+    try {
+      final inspection = await _offlineService.getInspection(inspectionId);
+      final inspectionTitle = inspection?.title ?? 'Inspeção $inspectionId';
+      
+      debugPrint('FirestoreSyncService: Starting concurrent sync for: $inspectionTitle');
+      final result = await syncInspection(inspectionId);
+      
+      return {
+        'id': inspectionId,
+        'title': inspectionTitle,
+        'result': result,
+      };
+    } catch (e) {
+      debugPrint('FirestoreSyncService: Error in concurrent sync for $inspectionId: $e');
+      return {
+        'id': inspectionId,
+        'title': 'Inspeção $inspectionId',
+        'result': {'success': false, 'error': e.toString()},
+      };
+    }
+  }
+  
+  /// Concurrent queue processor for multiple inspections with progress callback
+  Future<void> _processConcurrentQueueWithProgressMultiple<T>({
+    required List<T> items,
+    required Future<Map<String, dynamic>> Function(T) processor,
+    required int maxConcurrency,
+    required Function(int completed, int total, Map<String, dynamic>? result) onProgress,
+  }) async {
+    if (items.isEmpty) return;
+    
+    final queue = List<T>.from(items);
+    final activeTasks = <Future<Map<String, dynamic>>>[];
+    int completedCount = 0;
+    
+    while (queue.isNotEmpty || activeTasks.isNotEmpty) {
+      // Fill up to maxConcurrency active tasks
+      while (queue.isNotEmpty && activeTasks.length < maxConcurrency) {
+        final item = queue.removeAt(0);
+        final completer = Completer<Map<String, dynamic>>();
+        
+        processor(item).then((result) {
+          completedCount++;
+          onProgress(completedCount, items.length, result);
+          completer.complete(result);
+        }).catchError((error) {
+          completedCount++;
+          final errorResult = {
+            'id': item.toString(),
+            'result': {'success': false, 'error': error.toString()},
+          };
+          onProgress(completedCount, items.length, errorResult);
+          completer.complete(errorResult);
+        });
+        
+        activeTasks.add(completer.future);
+      }
+      
+      if (activeTasks.isNotEmpty) {
+        // Wait for at least one task to complete
+        await Future.any(activeTasks);
+        
+        // Remove completed tasks
+        final newActiveTasks = <Future<Map<String, dynamic>>>[];
+        for (final task in activeTasks) {
+          bool completed = false;
+          task.then((_) => completed = true).catchError((_) => completed = true);
+          if (!completed) {
+            newActiveTasks.add(task);
+          }
+        }
+        activeTasks.clear();
+        activeTasks.addAll(newActiveTasks);
+      }
     }
   }
 

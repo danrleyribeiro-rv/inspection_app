@@ -220,6 +220,18 @@ class _InspectionsTabState extends State<InspectionsTab> {
           _inspections = cachedInspections;
           _filteredInspections = List.from(_inspections);
           _isLoading = false;
+          
+          // Clean up any orphaned syncing status from inspections that no longer exist
+          final currentInspectionIds = cachedInspections.map((i) => i['id'] as String).toSet();
+          _syncingStatus.removeWhere((key, value) => !currentInspectionIds.contains(key));
+          
+          // Reset any syncing status that might be stuck
+          for (final inspectionId in currentInspectionIds) {
+            if (_syncingStatus[inspectionId] == true) {
+              debugPrint('InspectionTab: Resetting stuck syncing status for $inspectionId');
+              _syncingStatus[inspectionId] = false;
+            }
+          }
         });
       }
 
@@ -600,8 +612,11 @@ class _InspectionsTabState extends State<InspectionsTab> {
     setState(() {
       // Remove da lista de sincronizados para mostrar botão novamente
       _inspectionSyncStatus[inspectionId] = false;
+      
+      // IMPORTANTE: Reset syncing status to prevent loading state
+      _syncingStatus[inspectionId] = false;
     });
-    debugPrint('InspectionTab: Set _inspectionSyncStatus[$inspectionId] = false - sync button will appear');
+    debugPrint('InspectionTab: Set _inspectionSyncStatus[$inspectionId] = false and _syncingStatus[$inspectionId] = false - sync button will appear in normal state');
   }
 
   // Escuta modificações em dados da inspeção
