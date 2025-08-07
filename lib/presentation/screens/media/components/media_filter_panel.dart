@@ -55,6 +55,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
 
   List<Item> _items = [];
   List<Detail> _details = [];
+  List<Detail> _directDetails = [];
+  bool _hasDirectDetails = false;
 
   bool _isLoadingItems = false;
   bool _isLoadingDetails = false;
@@ -77,8 +79,31 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
   Future<void> _loadItems(String topicId) async {
     setState(() => _isLoadingItems = true);
     try {
-      final items = await _serviceFactory.dataService.getItems(topicId);
-      if (mounted) setState(() => _items = items);
+      // Check if topic has direct_details
+      final topic = widget.topics.firstWhere((t) => t.id == topicId);
+      final hasDirectDetails = topic.directDetails == true;
+      
+      if (hasDirectDetails) {
+        // Load direct details instead of items
+        final directDetails = await _serviceFactory.dataService.getDetailsByTopic(topicId);
+        if (mounted) {
+          setState(() {
+            _hasDirectDetails = true;
+            _directDetails = directDetails;
+            _items = [];
+          });
+        }
+      } else {
+        // Load normal items
+        final items = await _serviceFactory.dataService.getItems(topicId);
+        if (mounted) {
+          setState(() {
+            _hasDirectDetails = false;
+            _items = items;
+            _directDetails = [];
+          });
+        }
+      }
     } finally {
       if (mounted) setState(() => _isLoadingItems = false);
     }
@@ -118,6 +143,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
       _itemOnly = false;
       _items = [];
       _details = [];
+      _directDetails = [];
+      _hasDirectDetails = false;
     });
     widget.onClearFilters();
     Navigator.of(context).pop();
@@ -186,6 +213,8 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                       _detailId = null;
                       _items = [];
                       _details = [];
+                      _directDetails = [];
+                      _hasDirectDetails = false;
                       _topicOnly = (value != null);
                       _itemOnly = false;
                     });
@@ -216,8 +245,41 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                   contentPadding: EdgeInsets.zero,
                 ),
 
+              // --- DIRECT DETAILS FILTER ---
+              if (!_topicOnly && _topicId != null && _hasDirectDetails) ...[
+                const SizedBox(height: 10),
+                const Text('Detalhe', style: TextStyle(color: Colors.white70)),
+                const SizedBox(height: 5),
+                _isLoadingItems
+                    ? const LinearProgressIndicator()
+                    : Container(
+                        decoration: BoxDecoration(
+                            color: Colors.grey[800],
+                            borderRadius: BorderRadius.circular(8)),
+                        child: DropdownButtonFormField<String>(
+                          value: _detailId,
+                          isExpanded: true,
+                          dropdownColor: Colors.grey[800],
+                          decoration: const InputDecoration(
+                              hintText: 'Todos os Detalhes',
+                              hintStyle: TextStyle(color: Colors.white70),
+                              contentPadding:
+                                  EdgeInsets.symmetric(horizontal: 16),
+                              border: InputBorder.none),
+                          items: _directDetails
+                              .map((detail) => DropdownMenuItem<String>(
+                                  value: detail.id,
+                                  child: Text(detail.detailName)))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() => _detailId = value);
+                          },
+                        ),
+                      ),
+              ],
+
               // --- ITEM FILTER ---
-              if (!_topicOnly && _topicId != null) ...[
+              if (!_topicOnly && _topicId != null && !_hasDirectDetails) ...[
                 const SizedBox(height: 10),
                 const Text('Item', style: TextStyle(color: Colors.white70)),
                 const SizedBox(height: 5),
