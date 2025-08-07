@@ -16,6 +16,7 @@ import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/native_sync_service.dart';
 import 'package:lince_inspecoes/services/simple_notification_service.dart';
+import 'package:lince_inspecoes/services/background_media_sync_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lince_inspecoes/firebase_options.dart';
 
@@ -41,6 +42,9 @@ Future<void> main() async {
   // 4. Inicializa serviços de notificação
   await SimpleNotificationService.instance.initialize();
   await NativeSyncService.instance.initialize();
+
+  // 5. Inicializa serviço de upload automático de imagens em background
+  BackgroundMediaSyncService.instance.startBackgroundSync();
 
   debugPrint('Main: All services initialized successfully');
 

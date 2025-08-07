@@ -1003,6 +1003,26 @@ class EnhancedOfflineMediaService {
     }
   }
 
+  /// Atualiza apenas a cloudUrl SEM marcar inspeção como modificada
+  /// Usado pelo BackgroundMediaSyncService
+  Future<void> updateMediaCloudUrlSilently(String mediaId, String cloudUrl) async {
+    try {
+      final media = await _mediaRepository.findById(mediaId);
+      if (media == null) {
+        debugPrint('EnhancedOfflineMediaService: Media not found for cloudUrl update: $mediaId');
+        return;
+      }
+      
+      final updatedMedia = media.copyWith(cloudUrl: cloudUrl);
+      await _mediaRepository.update(updatedMedia);
+      
+      debugPrint('EnhancedOfflineMediaService: CloudUrl updated silently for media $mediaId');
+      
+    } catch (e) {
+      debugPrint('EnhancedOfflineMediaService: Error updating cloudUrl silently: $e');
+    }
+  }
+
   Future<String?> duplicateMedia({
     required String mediaId,
     required String inspectionId,
