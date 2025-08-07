@@ -23,8 +23,8 @@ class BackgroundMediaSyncService {
   bool _isSyncing = false;
   
   // Configurações
-  static const Duration _syncInterval = Duration(minutes: 5); // Upload a cada 5 minutos
-  static const int _maxImagesPerBatch = 3; // Máximo 3 imagens por vez para não sobrecarregar
+  static const Duration _syncInterval = Duration(minutes: 3); // Upload a cada 3 minutos
+  static const int _maxImagesPerBatch = 5; // Máximo 5 imagens por vez para não sobrecarregar
   
   /// Inicia o serviço de background
   void startBackgroundSync() {
@@ -190,14 +190,28 @@ class BackgroundMediaSyncService {
         return null;
       }
       
-      // Gera caminho do arquivo no Storage
-      final fileExtension = file.path.split('.').last;
-      final fileName = '${media.id}.$fileExtension';
-      final storagePath = 'inspections/$inspectionId/media/$fileName';
+      // Gera caminho do arquivo no Storage seguindo padrão do FirestoreSyncService
+      final storagePath = 'inspections/${media.inspectionId}/media/${media.type}/${media.filename}';
       
-      // Upload para Firebase Storage
+      // Upload para Firebase Storage com metadados
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
-      final uploadTask = storageRef.putFile(file);
+      
+      // Define metadados como no FirestoreSyncService
+      final metadata = SettableMetadata(
+        contentType: media.mimeType,
+        customMetadata: {
+          'inspection_id': media.inspectionId,
+          'topic_id': media.topicId ?? '',
+          'item_id': media.itemId ?? '',
+          'detail_id': media.detailId ?? '',
+          'non_conformity_id': media.nonConformityId ?? '',
+          'type': media.type,
+          'original_filename': media.filename,
+          'created_at': media.createdAt.toIso8601String(),
+        },
+      );
+      
+      final uploadTask = storageRef.putFile(file, metadata);
       
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();

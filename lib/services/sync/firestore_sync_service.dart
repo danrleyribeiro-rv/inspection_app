@@ -1463,8 +1463,8 @@ class FirestoreSyncService {
           phase: SyncPhase.uploading,
           current: uploadedCount,
           total: inspectionMediaFiles.length,
-          message: 'Enviando em batches ${(i ~/ batchSize) + 1} (${batch.length} mídias)...',
-          currentItem: 'Lote de ${batch.length} imagens',
+          message: 'Enviando mídias ${(i ~/ batchSize) + 1} (${batch.length} mídias)...',
+          currentItem: '${batch.length} imagens',
           itemType: 'Lote de Imagens',
           mediaCount: inspectionMediaFiles.length,
         ));
@@ -1515,6 +1515,12 @@ class FirestoreSyncService {
 
   Future<String?> _uploadMediaToStorage(OfflineMedia media) async {
     try {
+      // Check if media already has cloudUrl (already uploaded by BackgroundMediaSyncService)
+      if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+        debugPrint('FirestoreSyncService: Media ${media.filename} already has cloudUrl, skipping upload');
+        return media.cloudUrl;
+      }
+      
       debugPrint('FirestoreSyncService: Uploading media ${media.filename} to Firebase Storage');
       
       // Check if file exists
@@ -2377,8 +2383,8 @@ class FirestoreSyncService {
           phase: SyncPhase.starting,
           current: processedCount,
           total: inspectionIds.length,
-          message: 'Sincronizando em batches ${(i ~/ batchSize) + 1} (${batch.length} inspeções em paralelo)...',
-          currentItem: 'Lote ${(i ~/ batchSize) + 1}',
+          message: 'Sincronizando em batches ${(i ~/ batchSize) + 1} (${batch.length} inspeções)...',
+          currentItem: '${(i ~/ batchSize) + 1}',
           itemType: 'Lote de Inspeções',
           totalInspections: inspectionIds.length,
           currentInspectionIndex: processedCount + 1,

@@ -1013,7 +1013,13 @@ class EnhancedOfflineMediaService {
         return;
       }
       
-      final updatedMedia = media.copyWith(cloudUrl: cloudUrl);
+      // Atualiza cloudUrl e marca como uploaded/synced APENAS para a mídia
+      // SEM tocar nos status da inspeção
+      final updatedMedia = media.copyWith(
+        cloudUrl: cloudUrl,
+        isUploaded: true,
+        needsSync: false, // Mídia não precisa mais de sync
+      );
       await _mediaRepository.update(updatedMedia);
       
       debugPrint('EnhancedOfflineMediaService: CloudUrl updated silently for media $mediaId');
