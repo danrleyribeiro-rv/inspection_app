@@ -356,12 +356,20 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
 
       for (final mediaId in mediaIds) {
         try {
+          // For direct_details topics, use selectedDirectDetail instead of selectedDetail
+          String? newDetailId;
+          if (_selectedTopic?.directDetails == true) {
+            newDetailId = _selectedDirectDetail?.id;
+          } else {
+            newDetailId = _selectedDetail?.id;
+          }
+          
           final success = await _serviceFactory.mediaService.moveMedia(
             mediaId: mediaId,
             inspectionId: widget.inspectionId,
             newTopicId: _selectedTopic?.id,
             newItemId: _selectedItem?.id,
-            newDetailId: _selectedDetail?.id,
+            newDetailId: newDetailId,
             newNonConformityId: null,
           );
 
