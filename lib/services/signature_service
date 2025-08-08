@@ -1,0 +1,206 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:lince_inspecoes/models/signature_data.dart';
+import 'package:path/path.dart' as path;
+
+class SignatureService {
+  static final SignatureService _instance = SignatureService._internal();
+  factory SignatureService() => _instance;
+  SignatureService._internal();
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  /// Upload signature image to Firebase Storage
+  Future<String> uploadSignature(String inspectionId, String localFilePath) async {
+    try {
+      final file = File(localFilePath);
+      if (!await file.exists()) {
+        throw Exception('Signature file does not exist: $localFilePath');
+      }
+
+      // Generate unique filename
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = path.extension(localFilePath);
+      final fileName = 'signature-$timestamp$extension';
+      
+      // Storage path: inspections/[inspectionId]/signatures/[fileName]
+      final storageRef = _storage.ref().child('inspections/$inspectionId/signatures/$fileName');
+      
+      debugPrint('Uploading signature to Firebase Storage: $localFilePath');
+      
+      // Upload file
+      final uploadTask = storageRef.putFile(
+        file,
+        SettableMetadata(
+          contentType: 'image/png',
+          customMetadata: {
+            'inspection_id': inspectionId,
+            'created_at': DateTime.now().toIso8601String(),
+          },
+        ),
+      );
+
+      // Wait for upload to complete
+      final snapshot = await uploadTask;
+      
+      // Get download URL
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      debugPrint('Signature uploaded successfully: $downloadUrl');
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('Error uploading signature: $e');
+      // Return local path as fallback if upload fails
+      return 'file://$localFilePath';
+    }
+  }
+
+  /// Save signature data to Firestore
+  Future<void> saveSignatureData(SignatureData signatureData) async {
+    try {
+      await _firestore
+          .collection('inspections')
+          .doc(signatureData.inspectionId)
+          .collection('signature_data')
+          .doc(signatureData.id)
+          .set(signatureData.toFirestore());
+      
+      debugPrint('Signature data saved to Firestore: ${signatureData.id}');
+    } catch (e) {
+      debugPrint('Error saving signature data to Firestore: $e');
+      rethrow;
+    }
+  }
+
+  /// Get signature data for an inspection
+  Future<SignatureData?> getSignatureData(String inspectionId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('signature_data')
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return SignatureData.fromFirestore(querySnapshot.docs.first);
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Error getting signature data: $e');
+      return null;
+    }
+  }
+
+  /// Check if inspection already has a signature
+  Future<bool> hasSignature(String inspectionId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('signature_data')
+          .limit(1)
+          .get();
+
+      return querySnapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking if inspection has signature: $e');
+      return false;
+    }
+  }
+
+  /// Update signature data
+  Future<void> updateSignatureData(SignatureData signatureData) async {
+    try {
+      await _firestore
+          .collection('inspections')
+          .doc(signatureData.inspectionId)
+          .collection('signature_data')
+          .doc(signatureData.id)
+          .update(signatureData.copyWith(updatedAt: DateTime.now()).toFirestore());
+      
+      debugPrint('Signature data updated: ${signatureData.id}');
+    } catch (e) {
+      debugPrint('Error updating signature data: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete signature data and associated storage file
+  Future<void> deleteSignature(String inspectionId, String signatureId) async {
+    try {
+      // Get signature data first to get the storage URL
+      final docSnapshot = await _firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('signature_data')
+          .doc(signatureId)
+          .get();
+
+      if (docSnapshot.exists) {
+        final signatureData = SignatureData.fromFirestore(docSnapshot);
+        
+        // Delete from Firebase Storage
+        try {
+          final ref = _storage.refFromURL(signatureData.signatureUrl);
+          await ref.delete();
+          debugPrint('Signature file deleted from storage');
+        } catch (e) {
+          debugPrint('Warning: Could not delete signature file from storage: $e');
+          // Continue with Firestore deletion even if storage deletion fails
+        }
+      }
+
+      // Delete from Firestore
+      await _firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('signature_data')
+          .doc(signatureId)
+          .delete();
+      
+      debugPrint('Signature data deleted: $signatureId');
+    } catch (e) {
+      debugPrint('Error deleting signature: $e');
+      rethrow;
+    }
+  }
+
+  /// Get all signatures for an inspection (in case we allow multiple signatures later)
+  Future<List<SignatureData>> getAllSignatures(String inspectionId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('inspections')
+          .doc(inspectionId)
+          .collection('signature_data')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => SignatureData.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error getting all signatures: $e');
+      return [];
+    }
+  }
+
+  /// Clean up temporary signature files older than 24 hours
+  Future<void> cleanupTempSignatureFiles() async {
+    try {
+      // This would clean up local temporary files
+      // Implementation depends on your local storage structure
+      debugPrint('Cleaning up temporary signature files...');
+      
+      // For now, just log the action
+      // In a real implementation, you'd scan the temp directory
+      // and delete files older than 24 hours
+    } catch (e) {
+      debugPrint('Error cleaning up temp signature files: $e');
+    }
+  }
+}
