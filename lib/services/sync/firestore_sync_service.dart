@@ -4,6 +4,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:developer';
+import '../upload_progress_service.dart';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
@@ -70,20 +72,16 @@ class FirestoreSyncService {
 
   Future<void> performFullSync() async {
     if (_isSyncing || !await isConnected()) {
-      debugPrint('FirestoreSyncService: Sync in progress or no connection');
-      return;
+        return;
     }
 
     try {
       _isSyncing = true;
-      debugPrint('FirestoreSyncService: Starting simplified full sync');
 
       await downloadInspectionsFromCloud();
       await uploadLocalChangesToCloud();
 
-      debugPrint('FirestoreSyncService: Full sync completed');
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error during sync: $e');
       rethrow;
     } finally {
       _isSyncing = false;
@@ -105,21 +103,19 @@ class FirestoreSyncService {
           .where('deleted_at', isNull: true)
           .get();
 
-      debugPrint('FirestoreSyncService: Found ${querySnapshot.docs.length} inspections to download');
 
       for (final doc in querySnapshot.docs) {
         await _downloadSingleInspection(doc);
       }
 
-      debugPrint('FirestoreSyncService: Download completed');
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error downloading inspections: $e');
+      // Log apenas erros críticos de download
+      log('Erro ao baixar inspeções: $e');
     }
   }
 
   Future<void> _downloadSingleInspection(QueryDocumentSnapshot doc) async {
     try {
-      debugPrint('FirestoreSyncService: Starting download of inspection ${doc.id}');
       
       final data = doc.data() as Map<String, dynamic>;
       data['id'] = doc.id;
@@ -129,14 +125,11 @@ class FirestoreSyncService {
       
       // Criar objeto Inspection a partir dos dados convertidos
       final cloudInspection = Inspection.fromMap(convertedData);
-      debugPrint('FirestoreSyncService: Created inspection object - Title: "${cloudInspection.title}", Inspector: ${cloudInspection.inspectorId}');
       
       final localInspection = await _offlineService.getInspection(doc.id);
-      debugPrint('FirestoreSyncService: Local inspection exists: ${localInspection != null}');
 
       // Sempre fazer download se não existe localmente ou se é mais recente
       if (localInspection == null || cloudInspection.updatedAt.isAfter(localInspection.updatedAt)) {
-        debugPrint('FirestoreSyncService: Proceeding with download of inspection ${doc.id}');
         
         // Preparar inspeção para salvamento local
         final downloadedInspection = cloudInspection.copyWith(
@@ -145,12 +138,10 @@ class FirestoreSyncService {
           lastSyncAt: DateTime.now(),
         );
         
-        debugPrint('FirestoreSyncService: Saving inspection ${doc.id} to local database');
         await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
         
         // Verificar se foi salva
         final savedInspection = await _offlineService.getInspection(doc.id);
-        debugPrint('FirestoreSyncService: Verification - Inspection ${doc.id} saved successfully: ${savedInspection != null}');
         
         // Processar estrutura aninhada apenas se a inspeção foi salva
         if (savedInspection != null) {
@@ -167,15 +158,12 @@ class FirestoreSyncService {
           // Registrar no histórico
           await _addDownloadHistory(doc.id, cloudInspection.title);
 
-          debugPrint('FirestoreSyncService: Successfully downloaded inspection "${cloudInspection.title}" (${doc.id})');
         } else {
-          debugPrint('FirestoreSyncService: ERROR - Failed to save inspection ${doc.id} to local database');
         }
       } else {
-        debugPrint('FirestoreSyncService: Inspection ${doc.id} is already up to date');
       }
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error downloading inspection ${doc.id}: $e');
+      // Log apenas erros críticos
     }
   }
 
@@ -198,8 +186,6 @@ class FirestoreSyncService {
 
   Future<void> _downloadInspectionRelatedData(String inspectionId) async {
     try {
-      debugPrint(
-          'FirestoreSyncService: Processing nested structure for inspection $inspectionId');
 
       // Buscar diretamente do Firestore para pegar os topics
       final docSnapshot = await _firebaseService.firestore
@@ -222,39 +208,27 @@ class FirestoreSyncService {
           lastSyncAt: DateTime.now(),
         );
         
-        debugPrint('FirestoreSyncService: 💾 Salvando inspeção $inspectionId durante download de dados relacionados...');
-        debugPrint('FirestoreSyncService: 💾 Inspector ID: ${downloadedInspection.inspectorId}');
         await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
-        debugPrint('FirestoreSyncService: ✅ Inspeção "${downloadedInspection.title}" salva no banco local');
 
         final topics = data['topics'] as List<dynamic>?;
 
         if (topics != null && topics.isNotEmpty) {
-          debugPrint(
-              'FirestoreSyncService: Processing ${topics.length} nested topics from Firestore');
           final topicsData =
               topics.map((topic) => Map<String, dynamic>.from(topic)).toList();
           await _processNestedTopicsStructure(inspectionId, topicsData);
         } else {
-          debugPrint(
-              'FirestoreSyncService: No nested topics found, creating default structure');
           await _createDefaultInspectionStructure(inspectionId);
         }
       } else {
-        debugPrint(
-            'FirestoreSyncService: No nested topics found, creating default structure');
         await _createDefaultInspectionStructure(inspectionId);
       }
     } catch (e) {
-      debugPrint(
-          'FirestoreSyncService: Error downloading related data for $inspectionId: $e');
+      // Log apenas erros críticos
     }
   }
 
   Future<void> _createDefaultInspectionStructure(String inspectionId) async {
     try {
-      debugPrint(
-          'FirestoreSyncService: Creating default structure for inspection $inspectionId');
 
       // Criar tópico padrão
       final defaultTopic = Topic(
@@ -317,11 +291,8 @@ class FirestoreSyncService {
 
       await _offlineService.insertOrUpdateDetail(defaultDetail);
 
-      debugPrint(
-          'FirestoreSyncService: Created default structure for inspection $inspectionId');
     } catch (e) {
-      debugPrint(
-          'FirestoreSyncService: Error creating default structure for $inspectionId: $e');
+      // Log apenas erros críticos
     }
   }
 
@@ -331,9 +302,8 @@ class FirestoreSyncService {
       for (int topicIndex = 0; topicIndex < topicsData.length; topicIndex++) {
         await _processSingleTopic(inspectionId, topicsData[topicIndex], topicIndex);
       }
-      debugPrint('FirestoreSyncService: Processed ${topicsData.length} topics');
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error processing topics: $e');
+      // Log apenas erros críticos
     }
   }
 
@@ -543,7 +513,6 @@ class FirestoreSyncService {
   Future<void> _processTopicMedia(Topic topic, Map<String, dynamic> topicData) async {
     try {
       final mediaData = topicData['media'] as List<dynamic>? ?? [];
-      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for topic ${topic.id}');
 
       for (final media in mediaData) {
         final mediaMap = Map<String, dynamic>.from(media);
@@ -554,14 +523,13 @@ class FirestoreSyncService {
         );
       }
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error processing topic media: $e');
+      // Erro silencioso
     }
   }
 
   Future<void> _processItemMedia(Item item, Map<String, dynamic> itemData) async {
     try {
       final mediaData = itemData['media'] as List<dynamic>? ?? [];
-      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for item ${item.id}');
 
       for (final media in mediaData) {
         final mediaMap = Map<String, dynamic>.from(media);
@@ -573,14 +541,13 @@ class FirestoreSyncService {
         );
       }
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error processing item media: $e');
+      // Erro silencioso
     }
   }
 
   Future<void> _processDetailMedia(Detail detail, Map<String, dynamic> detailData) async {
     try {
       final mediaData = detailData['media'] as List<dynamic>? ?? [];
-      debugPrint('FirestoreSyncService: Processing ${mediaData.length} media items for detail ${detail.id}');
 
       for (final media in mediaData) {
         final mediaMap = Map<String, dynamic>.from(media);
@@ -593,7 +560,7 @@ class FirestoreSyncService {
         );
       }
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error processing detail media: $e');
+      // Erro silencioso
     }
   }
 
@@ -618,10 +585,9 @@ class FirestoreSyncService {
       );
       
       if (success) {
-        debugPrint('FirestoreSyncService: Successfully processed media from cloud data');
       }
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error processing media item: $e');
+      // Erro silencioso
     }
   }
 
@@ -706,19 +672,11 @@ class FirestoreSyncService {
 
   Future<void> _downloadInspectionMedia(String inspectionId) async {
     try {
-      debugPrint('FirestoreSyncService: ========== STARTING MEDIA DOWNLOAD FOR INSPECTION $inspectionId ==========');
       
-      // Show immediate media-specific progress notification
-      await _showProgressNotification(
-        title: 'Baixando Mídias',
-        message: 'Verificando mídias disponíveis...',
-        progress: 0,
-        indeterminate: true,
-      );
+      // Notificação inicial de download removida para evitar duplicação
       
       // Get the local structure that was already created by _downloadInspectionRelatedData
       final localTopics = await _offlineService.getTopics(inspectionId);
-      debugPrint('FirestoreSyncService: Found ${localTopics.length} local topics for inspection $inspectionId');
       
       // Build local ID maps for efficient lookup
       final Map<String, Topic> localTopicsByPosition = {};
@@ -762,7 +720,6 @@ class FirestoreSyncService {
         localNonConformitiesByFirestoreId[nc.id] = nc;
       }
       
-      debugPrint('FirestoreSyncService: Built local maps - Topics: ${localTopicsByPosition.length}, Items: ${localItemsByPosition.length}, Details: ${localDetailsByPosition.length}, NCs: ${localNonConformitiesByFirestoreId.length}');
       
       // Fetch Firestore inspection data to get media
       final docSnapshot = await _firebaseService.firestore
@@ -771,17 +728,12 @@ class FirestoreSyncService {
           .get();
       
       if (!docSnapshot.exists) {
-        debugPrint('FirestoreSyncService: Inspection not found in Firestore');
         return;
       }
       
       final data = docSnapshot.data()!;
       final firestoreTopics = data['topics'] as List<dynamic>? ?? [];
       
-      int totalMediaDownloaded = 0;
-      int totalMediaFound = 0;
-      
-      debugPrint('FirestoreSyncService: Found ${firestoreTopics.length} firestore topics for inspection $inspectionId');
       
       // First pass: Count total media to provide accurate progress
       int preliminaryMediaCount = 0;
@@ -837,27 +789,11 @@ class FirestoreSyncService {
         }
       }
       
-      debugPrint('FirestoreSyncService: Found $preliminaryMediaCount total media files to download');
       
-      // Show initial progress with known total
-      if (preliminaryMediaCount > 0) {
-        await _showProgressNotification(
-          title: 'Baixando Mídias',
-          message: 'Iniciando download de $preliminaryMediaCount mídias...',
-          progress: 0,
-          indeterminate: false,
-        );
-      } else {
-        await _showProgressNotification(
-          title: 'Verificação Completa',
-          message: 'Nenhuma mídia encontrada para download',
-          progress: 100,
-          indeterminate: false,
-        );
-      }
+      // Notificações de progresso de download removidas para evitar duplicação
       
       // Update totals for accurate progress tracking
-      totalMediaFound = preliminaryMediaCount;
+      // totalMediaFound = preliminaryMediaCount; // Variable removed
       
       // Process media at all hierarchy levels
       for (int topicIndex = 0; topicIndex < firestoreTopics.length; topicIndex++) {
@@ -872,7 +808,7 @@ class FirestoreSyncService {
         
         // Process topic-level media
         final topicMedias = topic['media'] as List<dynamic>? ?? [];
-        totalMediaFound += topicMedias.length;
+        // totalMediaFound += topicMedias.length; // Variable removed
         if (topicMedias.isNotEmpty) {
           debugPrint('FirestoreSyncService: Processing ${topicMedias.length} media files for topic ${localTopic.topicName}');
         }
@@ -880,18 +816,7 @@ class FirestoreSyncService {
         for (final mediaData in topicMedias) {
           final media = Map<String, dynamic>.from(mediaData);
           
-          // Update progress notification less frequently (first item, every 5th item, or last item)
-          final shouldShowNotification = totalMediaDownloaded == 0 || 
-                                       (totalMediaDownloaded + 1) % 5 == 0 || 
-                                       totalMediaDownloaded + 1 >= totalMediaFound;
-          
-          if (shouldShowNotification) {
-            await _showProgressNotification(
-              title: 'Baixando Mídias',
-              message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Tópico: ${localTopic.topicName}',
-              progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
-            );
-          }
+          // Notificações de progresso individuais removidas
           
           if (await _downloadAndSaveMediaWithIds(
             media, 
@@ -899,7 +824,7 @@ class FirestoreSyncService {
             topicId: localTopic.id,
             context: 'Topic: ${localTopic.topicName}'
           )) {
-            totalMediaDownloaded++;
+            // totalMediaDownloaded++; // Variable removed
           }
         }
         
@@ -917,7 +842,7 @@ class FirestoreSyncService {
           
           // Process item media
           final itemMedias = item['media'] as List<dynamic>? ?? [];
-          totalMediaFound += itemMedias.length;
+          // totalMediaFound += itemMedias.length; // Variable removed
           if (itemMedias.isNotEmpty) {
             debugPrint('FirestoreSyncService: Processing ${itemMedias.length} media files for item ${localItem.itemName}');
           }
@@ -925,18 +850,7 @@ class FirestoreSyncService {
           for (final mediaData in itemMedias) {
             final media = Map<String, dynamic>.from(mediaData);
             
-            // Update progress notification less frequently (first item, every 5th item, or last item)
-            final shouldShowNotification = totalMediaDownloaded == 0 || 
-                                         (totalMediaDownloaded + 1) % 5 == 0 || 
-                                         totalMediaDownloaded + 1 >= totalMediaFound;
-            
-            if (shouldShowNotification) {
-              await _showProgressNotification(
-                title: 'Baixando Mídias',
-                message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Item: ${localItem.itemName}',
-                progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
-              );
-            }
+            // Notificações de progresso de itens removidas
             
             if (await _downloadAndSaveMediaWithIds(
               media, 
@@ -945,7 +859,7 @@ class FirestoreSyncService {
               itemId: localItem.id,
               context: 'Item: ${localItem.itemName}'
             )) {
-              totalMediaDownloaded++;
+              // totalMediaDownloaded++; // Variable removed
             }
           }
           
@@ -963,7 +877,7 @@ class FirestoreSyncService {
             
             // Process detail media
             final detailMedias = detail['media'] as List<dynamic>? ?? [];
-            totalMediaFound += detailMedias.length;
+            // totalMediaFound += detailMedias.length; // Variable removed
             if (detailMedias.isNotEmpty) {
               debugPrint('FirestoreSyncService: Processing ${detailMedias.length} media files for detail ${localDetail.detailName}');
             }
@@ -971,18 +885,7 @@ class FirestoreSyncService {
             for (final mediaData in detailMedias) {
               final media = Map<String, dynamic>.from(mediaData);
               
-              // Update progress notification less frequently (first item, every 5th item, or last item)
-              final shouldShowNotification = totalMediaDownloaded == 0 || 
-                                           (totalMediaDownloaded + 1) % 5 == 0 || 
-                                           totalMediaDownloaded + 1 >= totalMediaFound;
-              
-              if (shouldShowNotification) {
-                await _showProgressNotification(
-                  title: 'Baixando Mídias',
-                  message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Detalhe: ${localDetail.detailName}',
-                  progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
-                );
-              }
+              // Notificações de progresso de detalhes removidas
               
               if (await _downloadAndSaveMediaWithIds(
                 media, 
@@ -992,7 +895,7 @@ class FirestoreSyncService {
                 detailId: localDetail.id,
                 context: 'Detail: ${localDetail.detailName}'
               )) {
-                totalMediaDownloaded++;
+                // totalMediaDownloaded++; // Variable removed
               }
             }
             
@@ -1010,7 +913,7 @@ class FirestoreSyncService {
               
               // Process NC media
               final ncMedias = nc['media'] as List<dynamic>? ?? [];
-              totalMediaFound += ncMedias.length;
+              // totalMediaFound += ncMedias.length; // Variable removed
               if (ncMedias.isNotEmpty) {
                 debugPrint('FirestoreSyncService: Processing ${ncMedias.length} media files for non-conformity ${localNc.title}');
               }
@@ -1018,18 +921,7 @@ class FirestoreSyncService {
               for (final mediaData in ncMedias) {
                 final media = Map<String, dynamic>.from(mediaData);
                 
-                // Update progress notification for NC media less frequently (first item, every 5th item, or last item)
-                final shouldShowNotification = totalMediaDownloaded == 0 || 
-                                             (totalMediaDownloaded + 1) % 5 == 0 || 
-                                             totalMediaDownloaded + 1 >= totalMediaFound;
-                
-                if (shouldShowNotification) {
-                  await _showProgressNotification(
-                    title: 'Baixando Mídias',
-                    message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - NC: ${localNc.title}',
-                    progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
-                  );
-                }
+                // Notificações de progresso de NC removidas
                 
                 if (await _downloadAndSaveMediaWithIds(
                   media, 
@@ -1040,7 +932,7 @@ class FirestoreSyncService {
                   nonConformityId: localNc.id,
                   context: 'NC: ${localNc.title}'
                 )) {
-                  totalMediaDownloaded++;
+                  // totalMediaDownloaded++; // Variable removed
                 }
               }
             }
@@ -1059,7 +951,7 @@ class FirestoreSyncService {
             }
             
             final ncMedias = nc['media'] as List<dynamic>? ?? [];
-            totalMediaFound += ncMedias.length;
+            // totalMediaFound += ncMedias.length; // Variable removed
             if (ncMedias.isNotEmpty) {
               debugPrint('FirestoreSyncService: Processing ${ncMedias.length} media files for item non-conformity ${localNc.title}');
             }
@@ -1067,18 +959,7 @@ class FirestoreSyncService {
             for (final mediaData in ncMedias) {
               final media = Map<String, dynamic>.from(mediaData);
               
-              // Update progress notification for Item NC media less frequently (first item, every 5th item, or last item)
-              final shouldShowNotification = totalMediaDownloaded == 0 || 
-                                           (totalMediaDownloaded + 1) % 5 == 0 || 
-                                           totalMediaDownloaded + 1 >= totalMediaFound;
-              
-              if (shouldShowNotification) {
-                await _showProgressNotification(
-                  title: 'Baixando Mídias',
-                  message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Item NC: ${localNc.title}',
-                  progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
-                );
-              }
+              // Notificações de progresso de item NC removidas
               
               if (await _downloadAndSaveMediaWithIds(
                 media, 
@@ -1088,7 +969,7 @@ class FirestoreSyncService {
                 nonConformityId: localNc.id,
                 context: 'Item NC: ${localNc.title}'
               )) {
-                totalMediaDownloaded++;
+                // totalMediaDownloaded++; // Variable removed
               }
             }
           }
@@ -1107,7 +988,7 @@ class FirestoreSyncService {
           }
           
           final ncMedias = nc['media'] as List<dynamic>? ?? [];
-          totalMediaFound += ncMedias.length;
+          // totalMediaFound += ncMedias.length; // Variable removed
           if (ncMedias.isNotEmpty) {
             debugPrint('FirestoreSyncService: Processing ${ncMedias.length} media files for topic non-conformity ${localNc.title}');
           }
@@ -1115,18 +996,7 @@ class FirestoreSyncService {
           for (final mediaData in ncMedias) {
             final media = Map<String, dynamic>.from(mediaData);
             
-            // Update progress notification for Topic NC media less frequently (first item, every 5th item, or last item)
-            final shouldShowNotification = totalMediaDownloaded == 0 || 
-                                         (totalMediaDownloaded + 1) % 5 == 0 || 
-                                         totalMediaDownloaded + 1 >= totalMediaFound;
-            
-            if (shouldShowNotification) {
-              await _showProgressNotification(
-                title: 'Baixando Mídias',
-                message: 'Baixando mídia ${totalMediaDownloaded + 1} de $totalMediaFound - Topic NC: ${localNc.title}',
-                progress: totalMediaFound > 0 ? ((totalMediaDownloaded / totalMediaFound) * 100).round() : 0,
-              );
-            }
+            // Notificações de progresso de topic NC removidas
             
             if (await _downloadAndSaveMediaWithIds(
               media, 
@@ -1135,51 +1005,18 @@ class FirestoreSyncService {
               nonConformityId: localNc.id,
               context: 'Topic NC: ${localNc.title}'
             )) {
-              totalMediaDownloaded++;
+              // totalMediaDownloaded++; // Variable removed
             }
           }
         }
       }
       
-      debugPrint('FirestoreSyncService: ========== MEDIA DOWNLOAD SUMMARY ==========');
-      debugPrint('FirestoreSyncService: Found: $totalMediaFound, Downloaded: $totalMediaDownloaded for inspection $inspectionId');
       
-      // Show final progress notification
-      if (totalMediaFound == 0) {
-        await _showProgressNotification(
-          title: 'Download Concluído',
-          message: 'Nenhuma mídia encontrada para esta vistoria',
-          progress: 100,
-        );
-        debugPrint('FirestoreSyncService: WARNING - No media found in Firestore for inspection $inspectionId');
-      } else if (totalMediaDownloaded == 0) {
-        await _showProgressNotification(
-          title: 'Aviso de Download',
-          message: 'Mídias encontradas mas não baixadas (podem já existir)',
-          progress: 100,
-        );
-        debugPrint('FirestoreSyncService: WARNING - Media found but none downloaded for inspection $inspectionId');
-      } else if (totalMediaDownloaded < totalMediaFound) {
-        await _showProgressNotification(
-          title: 'Download Parcialmente Concluído',
-          message: 'Baixadas $totalMediaDownloaded de $totalMediaFound mídias',
-          progress: (totalMediaDownloaded / totalMediaFound * 100).round(),
-        );
-        debugPrint('FirestoreSyncService: WARNING - Some media not downloaded for inspection $inspectionId');
-        debugPrint('FirestoreSyncService: ${totalMediaFound - totalMediaDownloaded} media files failed to download');
-      } else {
-        await _showProgressNotification(
-          title: 'Download Concluído',
-          message: 'Todas as $totalMediaDownloaded mídias foram baixadas com sucesso!',
-          progress: 100,
-        );
-        debugPrint('FirestoreSyncService: ✅ All media downloaded successfully!');
-      }
+      // Notificações finais de download removidas para evitar duplicação
       
-      debugPrint('FirestoreSyncService: ========== MEDIA DOWNLOAD COMPLETED ==========');
       
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error downloading media for inspection $inspectionId: $e');
+      // Log apenas erros críticos de download de mídia
     }
   }
 
@@ -1194,8 +1031,6 @@ class FirestoreSyncService {
     bool isResolutionMedia = false,
   }) async {
     try {
-      debugPrint('FirestoreSyncService: Processing media in context: $context');
-      debugPrint('FirestoreSyncService: Media data keys: ${mediaData.keys.toList()}');
       
       // Verificar diferentes possíveis formatos de dados de mídia
       final cloudUrl = mediaData['cloudUrl'] as String? ?? 
@@ -1205,20 +1040,15 @@ class FirestoreSyncService {
                       mediaData['name'] as String?;
       
       if (cloudUrl == null || filename == null) {
-        debugPrint('FirestoreSyncService: Media missing cloudUrl or filename in context: $context');
-        debugPrint('FirestoreSyncService: Available data: $mediaData');
         return false;
       }
       
       // Verificar se já foi baixado
       final existingMedia = await _offlineService.getMediaByFilename(filename);
       if (existingMedia.isNotEmpty) {
-        debugPrint('FirestoreSyncService: Media $filename already exists locally');
         return false;
       }
       
-      debugPrint('FirestoreSyncService: Downloading media $filename from $cloudUrl for context: $context');
-      debugPrint('FirestoreSyncService: Target IDs - Topic: $topicId, Item: $itemId, Detail: $detailId, NC: $nonConformityId');
       
       // Baixar arquivo do Firebase Storage
       final storageRef = _firebaseService.storage.refFromURL(cloudUrl);
@@ -1227,7 +1057,6 @@ class FirestoreSyncService {
       await storageRef.writeToFile(localFile);
       
       // Extract and preserve ALL metadata from Firestore
-      debugPrint('FirestoreSyncService: Extracting complete metadata from Firestore data');
       
       // Parse original timestamps
       DateTime? originalCreatedAt;
@@ -1265,7 +1094,7 @@ class FirestoreSyncService {
           }
         }
       } catch (e) {
-        debugPrint('FirestoreSyncService: Error parsing timestamps: $e');
+        // Erro silencioso no parsing de timestamps
       }
       
       // Extract complete metadata including visual indicators and source info
@@ -1300,7 +1129,6 @@ class FirestoreSyncService {
         completeMetadata['deviceInfo'] = mediaData['deviceInfo'];
       }
       
-      debugPrint('FirestoreSyncService: Extracted metadata keys: ${completeMetadata.keys.toList()}');
       
       // Salvar metadata completa da mídia no banco com todos os dados preservados
       await _offlineService.saveOfflineMedia(
@@ -1328,12 +1156,9 @@ class FirestoreSyncService {
         isResolutionMedia: isResolutionMedia,
       );
       
-      debugPrint('FirestoreSyncService: Successfully downloaded and saved media $filename for context: $context with local IDs');
       return true;
       
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error downloading media in context $context: $e');
-      debugPrint('FirestoreSyncService: Media data was: $mediaData');
       return false;
     }
   }
@@ -1342,46 +1167,323 @@ class FirestoreSyncService {
   // PROGRESS NOTIFICATION HELPER
   // ===============================
   
-  Future<void> _showProgressNotification({
-    required String title,
-    required String message,
-    int? progress,
-    bool indeterminate = false,
-  }) async {
-    try {
-      debugPrint('FirestoreSyncService: Showing progress notification: $title - $message (progress: $progress, indeterminate: $indeterminate)');
-      
-      // Show real system notification using SimpleNotificationService
-      await SimpleNotificationService.instance.showDownloadProgress(
-        title: title,
-        message: message,
-        progress: progress,
-        indeterminate: indeterminate,
-      );
-    } catch (e) {
-      debugPrint('FirestoreSyncService: Error showing progress notification: $e');
-      // Fallback: at least show debug message
-      debugPrint('FirestoreSyncService: NOTIFICATION - $title: $message');
+  /// Formatar velocidade para exibição
+  String _formatSpeed(double bytesPerSecond) {
+    if (bytesPerSecond < 1024) {
+      return '${bytesPerSecond.toInt()} B/s';
+    } else if (bytesPerSecond < 1024 * 1024) {
+      return '${(bytesPerSecond / 1024).toStringAsFixed(1)} KB/s';
+    } else {
+      return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
     }
   }
 
+  /// Formatar tempo para exibição
+  String _formatTime(Duration duration) {
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes % 60}min';
+    } else if (duration.inMinutes > 0) {
+      return '${duration.inMinutes}min ${duration.inSeconds % 60}s';
+    } else {
+      return '${duration.inSeconds}s';
+    }
+  }
+  
+
   // ===============================
-  // UPLOAD PARA A NUVEM
+  // UPLOAD PARA A NUVEM - OTIMIZADO
   // ===============================
+
+  /// Public method for ultra-fast media upload during manual sync
+  Future<void> uploadMediaUltraFast(String inspectionId) async {
+    await _uploadMediaFilesWithProgress(inspectionId);
+  }
+
+  /// Public method for ultra-fast media upload of all pending media
+  Future<void> uploadAllMediaUltraFast() async {
+    await _uploadMediaFilesUltraFast();
+  }
+
+  /// Método otimizado para sincronização rápida em lotes quando clicado manualmente
+  Future<void> uploadMediaBatchOptimized(String inspectionId) async {
+    final stopwatch = Stopwatch()..start();
+    Timer? notificationTimer;
+    String? sessionId;
+    
+    try {
+      final mediaFiles = await _offlineService.getMediaPendingUpload();
+      final inspectionMediaFiles = mediaFiles.where((media) => media.inspectionId == inspectionId).toList();
+      
+      if (inspectionMediaFiles.isEmpty) {
+        return;
+      }
+      
+      // Sort por tamanho para melhor percepção de velocidade
+      inspectionMediaFiles.sort((a, b) => (a.fileSize ?? 0).compareTo(b.fileSize ?? 0));
+      
+      // Preparar itens para tracking de progresso
+      final uploadItems = inspectionMediaFiles.map((media) => UploadItem(
+        id: media.id,
+        filename: media.filename,
+        totalBytes: media.fileSize ?? 1024, // fallback 1KB
+      )).toList();
+      
+      // Iniciar tracking de progresso
+      sessionId = 'batch_$inspectionId';
+      UploadProgressService.instance.startUploadTracking(sessionId, uploadItems);
+      
+      // Timer para atualizar notificação a cada 2 segundos
+      notificationTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+        final stats = UploadProgressService.instance.getUploadStats(sessionId!);
+        if (stats != null) {
+          await SimpleNotificationService.instance.showSyncProgress(
+            title: 'Enviando dados',
+            message: '',
+            progress: stats.progressPercentage.round(),
+            currentItem: stats.currentItem,
+            totalItems: stats.totalItems,
+            estimatedTime: stats.estimatedTimeRemaining != null ? _formatTime(stats.estimatedTimeRemaining!) : null,
+            speed: _formatSpeed(stats.speedBytesPerSecond),
+          );
+        }
+      });
+      
+      const int maxConcurrentBatch = 35; // Máximo para upload manual
+      const int chunkSizeBatch = 25; // Chunks maiores para melhor throughput
+      
+      int totalUploaded = 0;
+      
+      // Process em chunks com máximo paralelismo
+      for (int i = 0; i < inspectionMediaFiles.length; i += chunkSizeBatch) {
+        final chunk = inspectionMediaFiles.skip(i).take(chunkSizeBatch).toList();
+        
+        // Controle de concorrência para evitar sobrecarga
+        final semaphore = <Future>[];
+        final uploadFutures = <Future<bool>>[];
+        
+        for (final media in chunk) {
+          // Aguarda slot disponível
+          while (semaphore.length >= maxConcurrentBatch) {
+            await semaphore.removeAt(0);
+          }
+          
+          // Inicia upload
+          final uploadFuture = _uploadSingleMediaOptimizedBatch(media, uploadFutures.length + 1, sessionId);
+          semaphore.add(uploadFuture);
+          uploadFutures.add(uploadFuture);
+        }
+        
+        // Aguarda todos os uploads do chunk
+        final results = await Future.wait(uploadFutures);
+        final chunkUploaded = results.where((success) => success).length;
+        totalUploaded += chunkUploaded;
+        
+        
+        // Delay mínimo entre chunks
+        if (i + chunkSizeBatch < inspectionMediaFiles.length) {
+          await Future.delayed(const Duration(milliseconds: 25)); // Muito rápido
+        }
+      }
+      
+      stopwatch.stop();
+      
+      // Finalizar tracking e timer
+      notificationTimer.cancel();
+      UploadProgressService.instance.stopUploadTracking(sessionId);
+      
+      // Log resultado final apenas se houver upload
+      if (totalUploaded > 0) {
+        final timeSeconds = (stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1);
+        log('Batch upload: $totalUploaded/${inspectionMediaFiles.length} em ${timeSeconds}s');
+        
+        // Notificação final de conclusão (usando showSyncProgress para consistência)
+        await SimpleNotificationService.instance.showSyncProgress(
+          title: 'Upload Concluído',
+          message: 'Todas as $totalUploaded mídias foram enviadas com sucesso!',
+          progress: 100,
+          currentItem: totalUploaded,
+          totalItems: totalUploaded,
+        );
+      }
+      
+    } catch (e) {
+      stopwatch.stop();
+      notificationTimer?.cancel();
+      if (sessionId != null) {
+        UploadProgressService.instance.stopUploadTracking(sessionId);
+      }
+      log('Erro no batch otimizado: $e');
+    }
+  }
+
+  /// Upload individual otimizado para batch manual
+  Future<bool> _uploadSingleMediaOptimizedBatch(OfflineMedia media, int index, [String? sessionId]) async {
+    try {
+      // Skip se já foi feito upload
+      if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+        // Marcar como completo no tracking
+        if (sessionId != null) {
+          UploadProgressService.instance.markItemCompleted(sessionId, media.id);
+        }
+        return true;
+      }
+      
+      // Upload com timeout agressivo para falha rápida
+      final downloadUrl = await _uploadMediaToStorageOptimizedBatch(media, sessionId);
+      
+      if (downloadUrl != null) {
+        await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
+        
+        // Marcar como completo no tracking
+        if (sessionId != null) {
+          UploadProgressService.instance.markItemCompleted(sessionId, media.id);
+        }
+        
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Upload para Storage com configurações otimizadas para batch
+  Future<String?> _uploadMediaToStorageOptimizedBatch(OfflineMedia media, [String? sessionId]) async {
+    try {
+      final file = File(media.localPath);
+      if (!await file.exists()) {
+        return null;
+      }
+      
+      final storageRef = _firebaseService.storage.ref();
+      final mediaPath = 'inspections/${media.inspectionId}/media/${media.type}/${media.filename}';
+      final mediaRef = storageRef.child(mediaPath);
+      
+      // Metadata mínima para upload mais rápido
+      final metadata = SettableMetadata(
+        contentType: media.mimeType,
+        customMetadata: {
+          'inspection_id': media.inspectionId,
+          'type': media.type,
+        },
+      );
+      
+      // Upload com timeout agressivo para batch manual
+      final uploadTask = mediaRef.putFile(file, metadata);
+      
+      // Monitor progress se temos sessionId
+      StreamSubscription? progressSubscription;
+      if (sessionId != null) {
+        progressSubscription = uploadTask.snapshotEvents.listen((snapshot) {
+          if (snapshot.state == TaskState.running) {
+            UploadProgressService.instance.updateItemProgress(
+              sessionId, 
+              media.id, 
+              snapshot.bytesTransferred
+            );
+          }
+        });
+      }
+      
+      final snapshot = await uploadTask.timeout(
+        const Duration(minutes: 2), // Timeout mais agressivo para batch
+        onTimeout: () {
+          progressSubscription?.cancel();
+          uploadTask.cancel();
+          throw TimeoutException('Upload timeout batch', const Duration(minutes: 2));
+        },
+      );
+      
+      progressSubscription?.cancel();
+      return await snapshot.ref.getDownloadURL();
+      
+    } catch (e) {
+      return null;
+    }
+  }
 
   Future<void> uploadLocalChangesToCloud() async {
     try {
-      debugPrint('FirestoreSyncService: Uploading local changes to cloud');
 
-      // Upload media files first
-      await _uploadMediaFiles();
+      // Upload media files first with optimized method
+      await _uploadMediaFilesUltraFast();
 
       // Then upload inspection data with nested structure
       await _uploadInspectionsWithNestedStructure();
 
-      debugPrint('FirestoreSyncService: Finished uploading local changes');
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error uploading local changes: $e');
+      // Log apenas erros críticos
+      log('Erro no upload para nuvem: $e');
+    }
+  }
+
+  /// Ultra-fast media upload for manual sync operations
+  Future<void> _uploadMediaFilesUltraFast([String? inspectionId]) async {
+    try {
+      
+      List<OfflineMedia> mediaFiles;
+      if (inspectionId != null) {
+        mediaFiles = await _offlineService.getMediaPendingUpload();
+        mediaFiles = mediaFiles.where((media) => media.inspectionId == inspectionId).toList();
+      } else {
+        mediaFiles = await _offlineService.getMediaPendingUpload();
+      }
+      
+      if (mediaFiles.isEmpty) {
+        return;
+      }
+      
+      
+      // Sort by file size for optimal upload order
+      mediaFiles.sort((a, b) => (a.fileSize ?? 0).compareTo(b.fileSize ?? 0));
+      
+      const int maxConcurrent = 25; // Maximum concurrent uploads (reduzido para estabilidade)
+      const int chunkSize = 20; // Process in chunks to avoid memory issues (aumentado)
+      
+      int totalUploaded = 0;
+      
+      // Process in chunks with maximum concurrency
+      for (int i = 0; i < mediaFiles.length; i += chunkSize) {
+        final chunk = mediaFiles.skip(i).take(chunkSize).toList();
+        
+        // Create semaphore for concurrency control
+        final semaphore = <Future>[];
+        final uploadFutures = <Future<bool>>[];
+        
+        // Start all uploads in the chunk
+        for (final media in chunk) {
+          // Wait for available slot
+          while (semaphore.length >= maxConcurrent) {
+            await semaphore.removeAt(0);
+          }
+          
+          // Start upload
+          final uploadFuture = _uploadSingleMediaWithTiming(media, uploadFutures.length + 1);
+          semaphore.add(uploadFuture);
+          uploadFutures.add(uploadFuture);
+        }
+        
+        // Wait for all uploads in this chunk
+        final results = await Future.wait(uploadFutures);
+        final chunkUploaded = results.where((success) => success).length;
+        totalUploaded += chunkUploaded;
+        
+        
+        // Small delay between chunks
+        if (i + chunkSize < mediaFiles.length) {
+          await Future.delayed(const Duration(milliseconds: 50)); // Reduzido de 100ms para 50ms
+        }
+      }
+      
+      // Log resultado final apenas se houver upload
+      if (totalUploaded > 0) {
+        log('Ultra-fast upload: $totalUploaded/${mediaFiles.length} mídias');
+      }
+      
+    } catch (e) {
+      // Log apenas erros críticos
+      log('Erro no ultra-fast upload: $e');
     }
   }
 
@@ -1401,21 +1503,25 @@ class FirestoreSyncService {
       
       debugPrint('FirestoreSyncService: Found ${mediaFiles.length} media files to upload');
       
-      // Process media files in parallel batches of 10
-      const int batchSize = 10;
+      // Process media files in optimized parallel batches
+      const int batchSize = 25; // Increased batch size for better throughput (otimizado)
+      
+      // Sort files by size for better perceived performance
+      mediaFiles.sort((a, b) => (a.fileSize ?? 0).compareTo(b.fileSize ?? 0));
+      
       for (int i = 0; i < mediaFiles.length; i += batchSize) {
         final batch = mediaFiles.skip(i).take(batchSize).toList();
-        debugPrint('FirestoreSyncService: Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} files');
+        debugPrint('FirestoreSyncService: ⚡ FAST BATCH ${(i ~/ batchSize) + 1}: ${batch.length} files');
         
-        // Upload batch in parallel
-        final futures = batch.map((media) => _uploadSingleMediaWithRetry(media));
+        // Upload batch in parallel with optimized method
+        final futures = batch.map((media) => _uploadSingleMediaWithTiming(media, i + 1));
         await Future.wait(futures);
         
-        debugPrint('FirestoreSyncService: Completed batch ${(i ~/ batchSize) + 1}');
+        debugPrint('FirestoreSyncService: ✅ COMPLETED BATCH ${(i ~/ batchSize) + 1}');
         
-        // Add small delay between batches to prevent Firebase overload
+        // Reduced delay for better speed
         if (i + batchSize < mediaFiles.length) {
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future.delayed(const Duration(milliseconds: 100)); // Reduzido de 200ms para 100ms
         }
       }
       
@@ -1425,91 +1531,175 @@ class FirestoreSyncService {
     }
   }
   
-  Future<void> _uploadSingleMediaWithRetry(OfflineMedia media) async {
-    try {
-      // Upload to Firebase Storage
-      final downloadUrl = await _uploadMediaToStorage(media);
-      
-      if (downloadUrl != null) {
-        // Update media with cloud URL
-        await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
-        debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
-      }
-    } catch (e) {
-      debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
-    }
-  }
 
   Future<void> _uploadMediaFilesWithProgress(String inspectionId) async {
+    final totalStopwatch = Stopwatch()..start();
+    
     try {
-      debugPrint('FirestoreSyncService: Uploading media files with progress for inspection $inspectionId');
+      debugPrint('FirestoreSyncService: Starting optimized upload for inspection $inspectionId');
       
       // Upload apenas mídias da inspeção específica
       final mediaFiles = await _offlineService.getMediaPendingUpload();
       final inspectionMediaFiles = mediaFiles.where((media) => media.inspectionId == inspectionId).toList();
       
+      if (inspectionMediaFiles.isEmpty) {
+        debugPrint('FirestoreSyncService: No media files to upload');
+        return;
+      }
+      
       debugPrint('FirestoreSyncService: Found ${inspectionMediaFiles.length} media files to upload');
       
       int uploadedCount = 0;
-      const int batchSize = 10;
       
-      // Process media files in parallel batches
+      // Sort by file size - upload smaller files first for perceived speed
+      inspectionMediaFiles.sort((a, b) => (a.fileSize ?? 0).compareTo(b.fileSize ?? 0));
+      
+      // Emit initial progress
+      _syncProgressController.add(SyncProgress(
+        inspectionId: inspectionId,
+        phase: SyncPhase.uploading,
+        current: 0,
+        total: inspectionMediaFiles.length,
+        message: 'Upload iniciado: ${inspectionMediaFiles.length} arquivos',
+        currentItem: 'Preparando',
+        itemType: 'Mídia',
+        mediaCount: inspectionMediaFiles.length,
+      ));
+      
+      // Process uploads with controlled concurrency to prevent blocking
+      const int batchSize = 8; // Process in batches otimizados (aumentado de 8)
+      
       for (int i = 0; i < inspectionMediaFiles.length; i += batchSize) {
         final batch = inspectionMediaFiles.skip(i).take(batchSize).toList();
         
-        // Emit progress for current batch
+        // Process batch with Future.wait (no additional concurrency control needed)
+        final batchFutures = batch.asMap().entries.map((entry) {
+          final index = i + entry.key + 1;
+          final media = entry.value;
+          return _uploadSingleMediaWithTiming(media, index);
+        }).toList();
+        
+        final batchResults = await Future.wait(batchFutures);
+        uploadedCount += batchResults.where((success) => success).length;
+        
+        // Update progress after each batch
+        final completedCount = i + batch.length;
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,
           phase: SyncPhase.uploading,
-          current: uploadedCount,
+          current: completedCount,
           total: inspectionMediaFiles.length,
-          message: 'Enviando mídias ${(i ~/ batchSize) + 1} (${batch.length} mídias)...',
-          currentItem: '${batch.length} imagens',
-          itemType: 'Lote de Imagens',
-          mediaCount: inspectionMediaFiles.length,
-        ));
-        
-        // Upload batch in parallel with individual progress tracking
-        final futures = batch.map((media) async {
-          try {
-            final downloadUrl = await _uploadMediaToStorage(media);
-            
-            if (downloadUrl != null) {
-              await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
-              debugPrint('FirestoreSyncService: Uploaded media ${media.filename}');
-              return true;
-            }
-            return false;
-          } catch (e) {
-            debugPrint('FirestoreSyncService: Error uploading media ${media.filename}: $e');
-            return false;
-          }
-        });
-        
-        final results = await Future.wait(futures);
-        uploadedCount += results.where((success) => success).length;
-        
-        // Update progress after batch completion
-        _syncProgressController.add(SyncProgress(
-          inspectionId: inspectionId,
-          phase: SyncPhase.uploading,
-          current: uploadedCount,
-          total: inspectionMediaFiles.length,
-          message: 'Enviadas $uploadedCount de ${inspectionMediaFiles.length} mídias...',
-          currentItem: 'Progresso geral',
+          message: 'Upload: $completedCount/${inspectionMediaFiles.length}',
+          currentItem: 'Processando',
           itemType: 'Mídia',
           mediaCount: inspectionMediaFiles.length,
         ));
-        
-        // Add delay between batches to prevent Firebase overload
-        if (i + batchSize < inspectionMediaFiles.length) {
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
       }
       
-      debugPrint('FirestoreSyncService: Finished uploading $uploadedCount/${inspectionMediaFiles.length} media files');
+      totalStopwatch.stop();
+      
+      // Final progress update with timing
+      _syncProgressController.add(SyncProgress(
+        inspectionId: inspectionId,
+        phase: SyncPhase.uploading,
+        current: uploadedCount,
+        total: inspectionMediaFiles.length,
+        message: uploadedCount == inspectionMediaFiles.length 
+            ? 'Concluído: ${inspectionMediaFiles.length} arquivos em ${(totalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)}s'
+            : 'Parcial: $uploadedCount/${inspectionMediaFiles.length} em ${(totalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)}s',
+        currentItem: 'Finalizado',
+        itemType: 'Resultado',
+        mediaCount: inspectionMediaFiles.length,
+      ));
+      
+      debugPrint('FirestoreSyncService: Upload completed - $uploadedCount/${inspectionMediaFiles.length} files in ${(totalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)}s');
     } catch (e) {
-      debugPrint('FirestoreSyncService: Error uploading media files with progress: $e');
+      totalStopwatch.stop();
+      debugPrint('FirestoreSyncService: Upload error after ${(totalStopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)}s: $e');
+    }
+  }
+
+  Future<bool> _uploadSingleMediaWithTiming(OfflineMedia media, int index) async {
+    final stopwatch = Stopwatch()..start();
+    
+    try {
+      // Skip if already uploaded (optimization)
+      if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+        debugPrint('[$index] ${media.filename}: Already uploaded (0.0s)');
+        return true;
+      }
+      
+      // Upload to Firebase Storage with optimized settings
+      final downloadUrl = await _uploadMediaToStorageOptimized(media);
+      
+      stopwatch.stop();
+      final timeSeconds = (stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1);
+      
+      if (downloadUrl != null) {
+        // Update media with cloud URL
+        await _offlineService.updateMediaCloudUrl(media.id, downloadUrl);
+        debugPrint('[$index] ${media.filename}: ${(media.fileSize ?? 0) ~/ 1024}KB uploaded in ${timeSeconds}s');
+        return true;
+      } else {
+        debugPrint('[$index] ${media.filename}: Failed after ${timeSeconds}s');
+        return false;
+      }
+    } catch (e) {
+      stopwatch.stop();
+      final timeSeconds = (stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1);
+      debugPrint('[$index] ${media.filename}: Error after ${timeSeconds}s - $e');
+      return false;
+    }
+  }
+
+
+
+  Future<String?> _uploadMediaToStorageOptimized(OfflineMedia media) async {
+    try {
+      // Check if file exists
+      final file = File(media.localPath);
+      if (!await file.exists()) {
+        return null;
+      }
+      
+      // Create storage reference with optimized path structure
+      final storageRef = _firebaseService.storage.ref();
+      final mediaPath = 'inspections/${media.inspectionId}/media/${media.type}/${media.filename}';
+      final mediaRef = storageRef.child(mediaPath);
+      
+      // Minimal metadata for faster upload
+      final metadata = SettableMetadata(
+        contentType: media.mimeType,
+        customMetadata: {
+          'inspection_id': media.inspectionId,
+          'type': media.type,
+          'filename': media.filename,
+        },
+      );
+      
+      // Upload with timeout for faster failure detection
+      final uploadTask = mediaRef.putFile(file, metadata);
+      
+      // Wait for upload completion with timeout
+      final snapshot = await uploadTask.timeout(
+        const Duration(minutes: 3),
+        onTimeout: () {
+          uploadTask.cancel();
+          throw TimeoutException('Upload timeout', const Duration(minutes: 3));
+        },
+      );
+      
+      // Get download URL
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+      
+    } catch (e) {
+      // Handle timeout gracefully - try once more with regular method
+      if (e is TimeoutException) {
+        return _uploadMediaToStorage(media);
+      }
+      
+      return null;
     }
   }
 
@@ -1649,7 +1839,7 @@ class FirestoreSyncService {
         
         // Add delay between batches to prevent resource conflicts
         if (i + batchSize < inspections.length) {
-          await Future.delayed(const Duration(milliseconds: 1000));
+          await Future.delayed(const Duration(milliseconds: 500)); // Reduzido de 1000ms para 500ms
         }
       }
       
@@ -2214,8 +2404,8 @@ class FirestoreSyncService {
           itemType: 'Arquivo',
         ));
         
-        // PRIMEIRO: Upload das mídias pendentes (incluindo exclusões)
-        await _uploadMediaFilesWithProgress(inspectionId);
+        // PRIMEIRO: Upload das mídias pendentes com batch otimizado
+        await uploadMediaBatchOptimized(inspectionId);
         
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,

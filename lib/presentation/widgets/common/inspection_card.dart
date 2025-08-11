@@ -10,6 +10,7 @@ class InspectionCard extends StatelessWidget {
   final Function()? onSync;
   final Function()? onDownload;
   final Function()? onSyncImages; // Callback para sincronizar imagens
+  final Function()? onRemove; // Callback para remover inspeção
   final int? pendingImagesCount; // Contador de imagens pendentes
   final String googleMapsApiKey;
   final bool isFullyDownloaded; // Status de download completo
@@ -27,6 +28,7 @@ class InspectionCard extends StatelessWidget {
     this.onSync,
     this.onDownload,
     this.onSyncImages,
+    this.onRemove,
     this.pendingImagesCount,
     required this.googleMapsApiKey, // <<< Make it required in the constructor
     this.isFullyDownloaded = false,
@@ -158,6 +160,24 @@ class InspectionCard extends StatelessWidget {
                         color: Colors.orange,
                       ),
                     ),
+                  // Remove button in top-right corner
+                  if (onRemove != null && isFullyDownloaded) ...[
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: IconButton(
+                        onPressed: () => _showRemoveDialog(context),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.red.withValues(alpha: 0.1),
+                          foregroundColor: Colors.red,
+                          padding: EdgeInsets.zero,
+                        ),
+                        icon: const Icon(Icons.delete_outline, size: 14),
+                        tooltip: 'Remover inspeção',
+                      ),
+                    ),
+                  ],
                 ],
               ),
 
@@ -322,8 +342,6 @@ class InspectionCard extends StatelessWidget {
                               style: TextStyle(fontSize: 12),
                             ),
                           ),
-
-                        // Botão "Completar" removido - apenas sincronização manual disponível
                       ],
                     ),
                   ),
@@ -559,6 +577,80 @@ class InspectionCard extends StatelessWidget {
           error: e, stackTrace: s);
       return 'Data inválida (Erro)';
     }
+  }
+
+  // --- Remove Dialog ---
+  Future<void> _showRemoveDialog(BuildContext context) async {
+    final title = inspection['title'] ?? 'Inspeção';
+    
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[850],
+          title: const Text(
+            'Remover Inspeção',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Tem certeza que deseja remover a inspeção "$title" do dispositivo?',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Esta ação não pode ser desfeita. Todos os dados locais desta inspeção serão perdidos.',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onRemove!();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Remover'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // --- End Helper Functions ---

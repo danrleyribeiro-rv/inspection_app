@@ -126,11 +126,30 @@ class SimpleNotificationService {
     int? progress,
     int? maxProgress,
     bool indeterminate = false,
+    int? currentItem,
+    int? totalItems,
+    String? estimatedTime,
+    String? speed,
   }) async {
+    // Formatar mensagem com progresso e tempo estimado
+    String formattedMessage = message;
+    
+    if (currentItem != null && totalItems != null) {
+      formattedMessage = 'Enviando $currentItem/$totalItems';
+      
+      if (estimatedTime != null) {
+        formattedMessage += ' • $estimatedTime';
+      }
+      
+      if (speed != null) {
+        formattedMessage += ' • $speed';
+      }
+    }
+    
     await _showProgressNotification(
       id: _syncProgressId,
       title: title,
-      message: message,
+      message: formattedMessage,
       progress: progress,
       maxProgress: maxProgress,
       indeterminate: indeterminate,

@@ -185,13 +185,29 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
         if (mounted) {
           setState(() {
-            // PROTEÇÃO: Não sobrescrever se foi recentemente marcado como sincronizado via stream
+            // CORREÇÃO: Verificar se há mudanças locais que invalidam o status de sincronização
             final currentStatus = _inspectionSyncStatus[inspectionId];
-            if (currentStatus != true) {
+            if (currentStatus == true) {
+              // Se estava marcado como sincronizado, verificar se há novas mudanças
+              final inspectionData = _inspections.firstWhere(
+                (insp) => insp['id'] == inspectionId,
+                orElse: () => <String, dynamic>{},
+              );
+              final hasNewChanges = inspectionData['has_local_changes'] == true ||
+                  inspectionData['_local_status'] == 'modified';
+              
+              if (hasNewChanges) {
+                // Há mudanças locais, remover o status de sincronizado
+                _inspectionSyncStatus[inspectionId] = false;
+                debugPrint('InspectionTab: Detected new changes for $inspectionId - clearing sync status');
+              } else {
+                // Sem mudanças, manter como sincronizado
+                debugPrint('InspectionTab: No new changes for $inspectionId - keeping sync status true');
+              }
+            } else {
+              // Não estava marcado como sincronizado, usar valor do histórico
               _inspectionSyncStatus[inspectionId] = isSynced;
               debugPrint('InspectionTab: Updated sync status from history for $inspectionId: $isSynced');
-            } else {
-              debugPrint('InspectionTab: Protecting recent sync status for $inspectionId (keeping true)');
             }
             
             if (hasConflicts) {
@@ -288,6 +304,14 @@ class _InspectionsTabState extends State<InspectionsTab> {
           // Check if there are actual local changes that need sync
           final hasRealChanges = await _checkForRealLocalChanges(inspection.id);
           inspectionMap['has_local_changes'] = hasRealChanges;
+          
+          // Log para debug
+          if (inspection.id == 'PgepInIdfFdw47YnRqO3') {
+            debugPrint('InspectionTab: Loading inspection ${inspection.id}:');
+            debugPrint('  - inspection.hasLocalChanges: ${inspection.hasLocalChanges}');
+            debugPrint('  - hasRealChanges (calculated): $hasRealChanges');
+            debugPrint('  - inspection.status: ${inspection.status}');
+          }
 
           cachedInspections.add(inspectionMap);
         } catch (e) {
@@ -508,36 +532,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  bool _hasUnsyncedData(String inspectionId) {
-    try {
-      // For offline-first mode, we'll check if the inspection has the _local_status indicating modifications
-      final inspectionInList = _inspections.firstWhere(
-        (inspection) => inspection['id'] == inspectionId,
-        orElse: () => <String, dynamic>{},
-      );
-
-      final localStatus = inspectionInList['_local_status'] ?? '';
-      final hasLocalChanges = inspectionInList['has_local_changes'] == true ||
-          inspectionInList['has_local_changes'] == 1;
-      
-      // CORREÇÃO: Se o status de sincronização na memória indica que foi sincronizada,
-      // não considerar flags antigos de local_status
-      final wasSyncedRecently = _inspectionSyncStatus[inspectionId] == true;
-      final hasUnsyncedData = (hasLocalChanges || localStatus == 'modified') && !wasSyncedRecently;
-      
-      // Debug adicional para troubleshooting
-      debugPrint('InspectionTab: _hasUnsyncedData for $inspectionId:');
-      debugPrint('  - localStatus: $localStatus');
-      debugPrint('  - hasLocalChanges: $hasLocalChanges');
-      debugPrint('  - _inspectionSyncStatus[$inspectionId]: ${_inspectionSyncStatus[inspectionId]}');
-      debugPrint('  - wasSyncedRecently: $wasSyncedRecently');
-      debugPrint('  - hasUnsyncedData (final): $hasUnsyncedData');
-      
-      return hasUnsyncedData;
-    } catch (e) {
-      return false;
-    }
-  }
 
   // Novo método que usa o sistema de histórico para verificar sincronização
   Future<bool> _isInspectionSyncedWithHistory(String inspectionId) async {
@@ -617,6 +611,45 @@ class _InspectionsTabState extends State<InspectionsTab> {
       _syncingStatus[inspectionId] = false;
     });
     debugPrint('InspectionTab: Set _inspectionSyncStatus[$inspectionId] = false and _syncingStatus[$inspectionId] = false - sync button will appear in normal state');
+  }
+
+  Future<void> _removeInspection(String inspectionId) async {
+    try {
+      // Remove from local database
+      await _serviceFactory.dataService.deleteInspection(inspectionId);
+      
+      // Remove from local state
+      setState(() {
+        _inspections.removeWhere((inspection) => inspection['id'] == inspectionId);
+        _filteredInspections.removeWhere((inspection) => inspection['id'] == inspectionId);
+        _downloadingInspections.remove(inspectionId);
+        _inspectionSyncStatus.remove(inspectionId);
+        _syncingStatus.remove(inspectionId);
+        _inspectionsWithConflicts.remove(inspectionId);
+        _inspectionsWithCloudUpdates.remove(inspectionId);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inspeção removida com sucesso!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error removing inspection: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao remover inspeção: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   // Escuta modificações em dados da inspeção
@@ -978,23 +1011,29 @@ class _InspectionsTabState extends State<InspectionsTab> {
                           itemBuilder: (context, index) {
                             final inspection = _filteredInspections[index];
                             final inspectionId = inspection['id'] as String;
-                            final hasLocalChanges =
-                                _hasUnsyncedData(inspectionId);
-                            final isSyncedByHistory =
-                                _inspectionSyncStatus[inspectionId] ?? false;
-                            // Only show needsSync if there are actual local changes
-                            // If successfully synced via the sync status tracker, don't show sync button
-                            final needsSync =
-                                hasLocalChanges && !isSyncedByHistory;
+                            
+                            // Verificar mudanças locais reais diretamente no banco
+                            final inspectionInList = _inspections.firstWhere(
+                              (insp) => insp['id'] == inspectionId,
+                              orElse: () => <String, dynamic>{},
+                            );
+                            
+                            final localStatus = inspectionInList['_local_status'] ?? '';
+                            final hasLocalChanges = inspectionInList['has_local_changes'] == true ||
+                                inspectionInList['has_local_changes'] == 1;
+                            final isSyncedByHistory = _inspectionSyncStatus[inspectionId] ?? false;
+                            
+                            // CORREÇÃO: Mostrar botão de sync se há mudanças locais E não foi sincronizado recentemente
+                            final needsSync = (hasLocalChanges || localStatus == 'modified') && !isSyncedByHistory;
                                 
                             // Debug info for sync state
-                            if (hasLocalChanges || isSyncedByHistory) {
-                              debugPrint('InspectionTab: Inspection $inspectionId sync state:');
-                              debugPrint('  - hasLocalChanges: $hasLocalChanges');
-                              debugPrint('  - isSyncedByHistory: $isSyncedByHistory');
-                              debugPrint('  - needsSync: $needsSync');
-                              debugPrint('  - Sync button visible: ${needsSync ? "YES" : "NO"}');
-                            }
+                            debugPrint('InspectionTab: Inspection $inspectionId sync state:');
+                            debugPrint('  - localStatus: $localStatus');
+                            debugPrint('  - hasLocalChanges: $hasLocalChanges');
+                            debugPrint('  - isSyncedByHistory: $isSyncedByHistory');
+                            debugPrint('  - hasLocalChanges || localStatus==modified: ${hasLocalChanges || localStatus == 'modified'}');
+                            debugPrint('  - needsSync: $needsSync');
+                            debugPrint('  - Sync button visible: ${needsSync ? "YES" : "NO"}');
 
                             return InspectionCard(
                               inspection: inspection,
@@ -1018,6 +1057,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                   ? () =>
                                       _syncInspectionImages(inspection['id'])
                                   : null,
+                              onRemove: () => _removeInspection(inspectionId),
                               pendingImagesCount:
                                   _getPendingImagesCount(inspection['id']),
                             );
@@ -1222,16 +1262,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
     log('[InspectionsTab] Returned from Detail Screen for $inspectionId. Result: $result');
     
     // Check if inspection was modified after returning from details
-    // IMPORTANTE: Só marcar como modificado se não foi sincronizado recentemente
-    final wasSyncedRecently = _inspectionSyncStatus[inspectionId] == true;
-    if (!wasSyncedRecently) {
-      final wasModified = await _checkIfInspectionWasModified(inspectionId);
-      if (wasModified) {
-        // Mark as modified to show sync button again
-        markInspectionAsModified(inspectionId);
-      }
+    final wasModified = await _checkIfInspectionWasModified(inspectionId);
+    if (wasModified) {
+      // Mark as modified to show sync button again, regardless of previous sync status
+      markInspectionAsModified(inspectionId);
+      debugPrint('InspectionTab: Detected modification for $inspectionId after returning from details');
     } else {
-      debugPrint('InspectionTab: Skipping modification check for $inspectionId - was synced recently');
+      debugPrint('InspectionTab: No modifications detected for $inspectionId after returning from details');
     }
     
     _loadInspections();
@@ -1611,6 +1648,7 @@ class _AvailableInspectionsDialogState
       ),
     );
   }
+
 
   String _formatDate(dynamic dateValue) {
     if (dateValue == null) return 'Data não definida';

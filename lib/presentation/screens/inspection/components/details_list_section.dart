@@ -490,67 +490,79 @@ class _DetailListItemState extends State<DetailListItem> {
   void didUpdateWidget(DetailListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    if (widget.detail.type == 'select' && _selectDebounce?.isActive == true) {
-      if (widget.detail.detailName != _currentDetailName) {
-        _initializeControllers();
-      }
+    // Sempre verificar se o nome mudou
+    if (widget.detail.detailName != _currentDetailName) {
+      debugPrint('Detail name changed from $_currentDetailName to ${widget.detail.detailName}');
+      _initializeControllers();
       return;
     }
     
-    if (widget.detail.type == 'boolean' && _booleanDebounce?.isActive == true) {
-      if (widget.detail.detailName != _currentDetailName) {
-        _initializeControllers();
-      }
+    // Só atualizar valores se não há debounce ativo (evita conflitos durante digitação)
+    final hasActiveDebounce = (_selectDebounce?.isActive == true) || 
+                              (_booleanDebounce?.isActive == true) || 
+                              (_debounce?.isActive == true);
+    
+    if (hasActiveDebounce) {
+      debugPrint('Debounce active for detail ${widget.detail.id}, skipping update');
       return;
     }
     
-    // Standard logic for other field types or when no debounce is active
-    if (widget.detail.type == 'measure') {
-      // For measure fields, only reinitialize on name change to avoid typing interference
-      if (widget.detail.detailName != _currentDetailName) {
-        _initializeControllers();
-      }
-    } else if (widget.detail.type == 'select') {
-      // For select fields, check if we need to update from external changes
-      if (widget.detail.detailName != _currentDetailName) {
-        _initializeControllers();
-      } else if (widget.detail.detailValue != _currentSelectValue && 
-                 oldWidget.detail.detailValue != widget.detail.detailValue) {
-        // Only update if this is a real external change, not our own update
-        setState(() {
-          _currentSelectValue = widget.detail.detailValue?.isEmpty == true ? null : widget.detail.detailValue;
-          _valueController.text = widget.detail.detailValue ?? '';
-        });
-      }
-    } else if (widget.detail.type == 'boolean') {
-      // For boolean fields, check if we need to update from external changes
-      if (widget.detail.detailName != _currentDetailName) {
-        _initializeControllers();
-      } else if (widget.detail.detailValue != _booleanValue && 
-                 oldWidget.detail.detailValue != widget.detail.detailValue) {
-        // Only update if this is a real external change, not our own update
-        setState(() {
-          if (widget.detail.detailValue?.toLowerCase() == 'true' ||
-              widget.detail.detailValue == '1' ||
-              widget.detail.detailValue?.toLowerCase() == 'sim') {
-            _booleanValue = 'sim';
-          } else if (widget.detail.detailValue?.toLowerCase() == 'false' ||
-              widget.detail.detailValue == '0' ||
-              widget.detail.detailValue?.toLowerCase() == 'não') {
-            _booleanValue = 'não';
-          } else {
-            _booleanValue = 'não_se_aplica';
-          }
-        });
-      }
-    } else {
-      String currentValue = _valueController.text;
+    // Verificar se houve mudança real no valor do banco de dados
+    final oldValue = oldWidget.detail.detailValue;
+    final newValue = widget.detail.detailValue;
+    
+    if (oldValue != newValue) {
+      debugPrint('Detail value changed in database: ${widget.detail.id} from "$oldValue" to "$newValue"');
       
-      if (widget.detail.detailName != _currentDetailName ||
-          widget.detail.detailValue != currentValue ||
-          widget.detail.observation != _observationController.text) {
-        _initializeControllers();
+      // Atualizar controladores apenas se o valor realmente mudou no banco
+      switch (widget.detail.type) {
+        case 'select':
+          if (_currentSelectValue != newValue) {
+            setState(() {
+              _currentSelectValue = newValue?.isEmpty == true ? null : newValue;
+              _valueController.text = newValue ?? '';
+            });
+          }
+          break;
+        case 'boolean':
+          String newBooleanValue;
+          if (newValue?.toLowerCase() == 'true' ||
+              newValue == '1' ||
+              newValue?.toLowerCase() == 'sim') {
+            newBooleanValue = 'sim';
+          } else if (newValue?.toLowerCase() == 'false' ||
+              newValue == '0' ||
+              newValue?.toLowerCase() == 'não') {
+            newBooleanValue = 'não';
+          } else {
+            newBooleanValue = 'não_se_aplica';
+          }
+          
+          if (_booleanValue != newBooleanValue) {
+            setState(() {
+              _booleanValue = newBooleanValue;
+            });
+          }
+          break;
+        case 'measure':
+          _initializeControllers(); // Para measure, sempre reinicializar
+          break;
+        default:
+          if (_valueController.text != (newValue ?? '')) {
+            setState(() {
+              _valueController.text = newValue ?? '';
+            });
+          }
+          break;
       }
+    }
+    
+    // Verificar mudanças na observação
+    if (widget.detail.observation != _observationController.text && 
+        _observationController.text.isNotEmpty) {
+      setState(() {
+        _observationController.text = widget.detail.observation ?? '';
+      });
     }
   }
 
@@ -585,6 +597,7 @@ class _DetailListItemState extends State<DetailListItem> {
 
   void _initializeControllers() {
     final detailValue = widget.detail.detailValue ?? '';
+    debugPrint('Initializing controllers for detail ${widget.detail.id} with value: "$detailValue"');
 
     if (widget.detail.type == 'measure') {
       // Parse measurements - support both JSON format and CSV format
@@ -661,6 +674,9 @@ class _DetailListItemState extends State<DetailListItem> {
 
   @override
   void dispose() {
+    // Certificar que valores pendentes sejam salvos antes do dispose
+    _savePendingChanges();
+    
     _valueController.dispose();
     _observationController.dispose();
     _heightController.dispose();
@@ -671,6 +687,66 @@ class _DetailListItemState extends State<DetailListItem> {
     _booleanDebounce?.cancel();
     MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
+  }
+
+  void _savePendingChanges() {
+    // Forçar salvamento de qualquer mudança pendente
+    if (_debounce?.isActive == true) {
+      _debounce?.cancel();
+      _updateDetailSync();
+    }
+    if (_selectDebounce?.isActive == true) {
+      _selectDebounce?.cancel();
+      _updateDetailSync();
+    }
+    if (_booleanDebounce?.isActive == true) {
+      _booleanDebounce?.cancel();
+      _updateDetailSync();
+    }
+  }
+
+  void _updateDetailSync() {
+    String value = '';
+
+    if (widget.detail.type == 'measure') {
+      value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
+      if (value == ',,') value = '';
+    } else if (widget.detail.type == 'boolean') {
+      value = _booleanValue;
+    } else if (widget.detail.type == 'select') {
+      value = _currentSelectValue ?? '';
+    } else {
+      value = _valueController.text;
+    }
+
+    final updatedDetail = Detail(
+      id: widget.detail.id,
+      inspectionId: widget.detail.inspectionId,
+      topicId: widget.detail.topicId,
+      itemId: widget.detail.itemId,
+      detailId: widget.detail.detailId,
+      position: widget.detail.position,
+      detailName: widget.detail.detailName,
+      detailValue: value.isEmpty ? null : value,
+      observation: _observationController.text.isEmpty ? null : _observationController.text,
+      isDamaged: _isDamaged,
+      tags: widget.detail.tags,
+      createdAt: widget.detail.createdAt,
+      updatedAt: DateTime.now(),
+      type: widget.detail.type,
+      options: widget.detail.options,
+      status: widget.detail.status,
+      isRequired: widget.detail.isRequired,
+    );
+    
+    widget.onDetailUpdated(updatedDetail);
+    
+    // Salvamento síncrono para garantir persistência
+    _serviceFactory.dataService.updateDetail(updatedDetail).then((_) {
+      debugPrint('Detail synchronized on dispose: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+    }).catchError((error) {
+      debugPrint('Error synchronizing detail on dispose: $error');
+    });
   }
 
   void _updateDetail() {
@@ -709,23 +785,40 @@ class _DetailListItemState extends State<DetailListItem> {
       status: widget.detail.status,
       isRequired: widget.detail.isRequired,
     );
+    // Atualizar imediatamente o estado visual
     widget.onDetailUpdated(updatedDetail);
 
+    // Salvar imediatamente no banco de dados local para evitar perda de dados
+    _saveDetailImmediately(updatedDetail);
+
+    // Manter debounce apenas para otimização, mas não para persistência crítica
     if (widget.detail.type == 'select') {
       _selectDebounce?.cancel();
-      _selectDebounce = Timer(const Duration(milliseconds: 300), () async {
+      _selectDebounce = Timer(const Duration(milliseconds: 100), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
+        debugPrint('Detail select updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
     } else if (widget.detail.type == 'boolean') {
       _booleanDebounce?.cancel();
-      _booleanDebounce = Timer(const Duration(milliseconds: 300), () async {
+      _booleanDebounce = Timer(const Duration(milliseconds: 100), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
+        debugPrint('Detail boolean updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
     } else {
       _debounce?.cancel();
-      _debounce = Timer(const Duration(milliseconds: 100), () async {
+      _debounce = Timer(const Duration(milliseconds: 50), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
+        debugPrint('Detail updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
+    }
+  }
+
+  Future<void> _saveDetailImmediately(Detail updatedDetail) async {
+    try {
+      await _serviceFactory.dataService.updateDetail(updatedDetail);
+      debugPrint('Detail saved immediately: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+    } catch (e) {
+      debugPrint('Error saving detail immediately: $e');
     }
   }
 
@@ -1318,14 +1411,14 @@ class _DetailListItemState extends State<DetailListItem> {
                 return allOptions.map((option) {
                   return DropdownMenuItem<String>(
                     value: option,
-                    child: Text(option, style: TextStyle(fontSize: 11)),
+                    child: Text(option, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   );
                 });
               }(),
               // Adicionar opção "Outro"
               const DropdownMenuItem<String>(
                 value: 'Outro',
-                child: Text('Outro', style: TextStyle(fontSize: 11)),
+                child: Text('Outro', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
             onChanged: (value) {
@@ -1472,6 +1565,7 @@ class _DetailListItemState extends State<DetailListItem> {
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
                 onChanged: (_) => _updateDetail(),
+                onEditingComplete: () => _updateDetail(),
               ),
             ),
             const SizedBox(width: 4),
@@ -1491,6 +1585,7 @@ class _DetailListItemState extends State<DetailListItem> {
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
                 onChanged: (_) => _updateDetail(),
+                onEditingComplete: () => _updateDetail(),
               ),
             ),
             const SizedBox(width: 4),
@@ -1510,6 +1605,7 @@ class _DetailListItemState extends State<DetailListItem> {
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
                 onChanged: (_) => _updateDetail(),
+                onEditingComplete: () => _updateDetail(),
               ),
             ),
           ],
@@ -1531,6 +1627,7 @@ class _DetailListItemState extends State<DetailListItem> {
           ),
           style: const TextStyle(color: Colors.white),
           onChanged: (_) => _updateDetail(),
+          onEditingComplete: () => _updateDetail(), // Garantir salvamento ao terminar edição
         );
     }
 
@@ -1548,6 +1645,7 @@ class _DetailListItemState extends State<DetailListItem> {
       ),
       style: const TextStyle(color: Colors.white, fontSize: 11),
       onChanged: (_) => _updateDetail(),
+      onEditingComplete: () => _updateDetail(), // Garantir salvamento ao terminar edição
     );
   }
 

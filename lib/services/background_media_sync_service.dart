@@ -22,24 +22,23 @@ class BackgroundMediaSyncService {
   bool _isRunning = false;
   bool _isSyncing = false;
   
-  // Configurações
-  static const Duration _syncInterval = Duration(minutes: 3); // Upload a cada 3 minutos
-  static const int _maxImagesPerBatch = 5; // Máximo 5 imagens por vez para não sobrecarregar
+  // Configurações melhoradas
+  static const Duration _syncInterval = Duration(minutes: 1); // Upload a cada 1 minuto
+  static const int _maxImagesPerBatch = 7; // Máximo 7 imagens por minuto
   
   /// Inicia o serviço de background
   void startBackgroundSync() {
     if (_isRunning) return;
     
     _isRunning = true;
-    log('BackgroundMediaSyncService: Iniciando serviço de upload automático de imagens');
     
     // Inicia timer periódico
     _periodicTimer = Timer.periodic(_syncInterval, (_) async {
       await _performBackgroundImageSync();
     });
     
-    // Executa primeira tentativa após 30 segundos
-    Timer(const Duration(seconds: 30), () async {
+    // Executa primeira tentativa após 10 segundos para início mais rápido
+    Timer(const Duration(seconds: 10), () async {
       await _performBackgroundImageSync();
     });
   }
@@ -49,7 +48,6 @@ class BackgroundMediaSyncService {
     _isRunning = false;
     _periodicTimer?.cancel();
     _periodicTimer = null;
-    log('BackgroundMediaSyncService: Serviço de upload automático parado');
   }
   
   /// Executa o upload de imagens em background
@@ -61,7 +59,6 @@ class BackgroundMediaSyncService {
       
       // Verifica conectividade
       if (!await _hasInternetConnection()) {
-        log('BackgroundMediaSyncService: Sem conexão com internet - pulando sync');
         return;
       }
       
@@ -70,11 +67,9 @@ class BackgroundMediaSyncService {
       final inspections = allInspections.where((i) => i.hasLocalChanges == true).toList();
       
       if (inspections.isEmpty) {
-        log('BackgroundMediaSyncService: Nenhuma inspeção com mudanças locais');
-        return;
+          return;
       }
       
-      log('BackgroundMediaSyncService: Encontradas ${inspections.length} inspeções com mudanças locais');
       
       // Processa cada inspeção
       for (final inspection in inspections) {
@@ -91,37 +86,46 @@ class BackgroundMediaSyncService {
   /// Sincroniza apenas as imagens de uma inspeção específica
   Future<void> _syncInspectionMedia(String inspectionId) async {
     try {
-      log('BackgroundMediaSyncService: Iniciando sync de imagens para inspeção $inspectionId');
       
       // Busca imagens que precisam de upload (sem cloudUrl)
       final allMedia = await _serviceFactory.mediaService.getMediaByInspection(inspectionId);
       final pendingMedia = allMedia.where((m) => m.cloudUrl == null || m.cloudUrl!.isEmpty).toList();
       
       if (pendingMedia.isEmpty) {
-        log('BackgroundMediaSyncService: Nenhuma imagem pendente para inspeção $inspectionId');
         return;
       }
       
-      log('BackgroundMediaSyncService: Encontradas ${pendingMedia.length} imagens pendentes para upload');
       
-      // Processa em lotes pequenos para não sobrecarregar
+      // Processa em lotes otimizados para performance
       final batch = pendingMedia.take(_maxImagesPerBatch).toList();
       
+      // Upload paralelo para melhor performance (máx 5 simultâneos)
+      const int maxConcurrent = 5;
       int successCount = 0;
-      for (final media in batch) {
-        try {
-          // IMPORTANTE: Usa método específico que NÃO altera status da inspeção
-          final success = await _uploadMediaOnly(media, inspectionId);
-          if (success) {
-            successCount++;
+      
+      // Processa em chunks paralelos
+      for (int i = 0; i < batch.length; i += maxConcurrent) {
+        final chunk = batch.skip(i).take(maxConcurrent).toList();
+        
+        // Upload paralelo do chunk
+        final futures = chunk.map((media) async {
+          try {
+            return await _uploadMediaOnly(media, inspectionId);
+          } catch (e) {
+            return false;
           }
-        } catch (e) {
-          log('BackgroundMediaSyncService: Erro ao fazer upload da imagem ${media.id}: $e');
+        });
+        
+        final results = await Future.wait(futures);
+        successCount += results.where((success) => success).length;
+        
+        // Pequena pausa entre chunks para não sobrecarregar
+        if (i + maxConcurrent < batch.length) {
+          await Future.delayed(const Duration(milliseconds: 200));
         }
       }
       
       if (successCount > 0) {
-        log('BackgroundMediaSyncService: Upload bem-sucedido de $successCount/${batch.length} imagens para inspeção $inspectionId');
       }
       
     } catch (e) {
@@ -139,17 +143,14 @@ class BackgroundMediaSyncService {
       
       // Verifica se arquivo existe localmente
       if (media.localPath.isEmpty) {
-        log('BackgroundMediaSyncService: Imagem ${media.id} sem caminho local');
         return false;
       }
       
       final file = File(media.localPath);
       if (!file.existsSync()) {
-        log('BackgroundMediaSyncService: Arquivo não encontrado: ${media.localPath}');
         return false;
       }
       
-      log('BackgroundMediaSyncService: Fazendo upload da imagem ${media.id}');
       
       // Upload direto para Firebase Storage
       final cloudUrl = await _uploadToFirebaseStorage(file, media, inspectionId);
@@ -159,14 +160,12 @@ class BackgroundMediaSyncService {
         // SEM tocar nos status da inspeção
         await _updateMediaCloudUrlDirectly(media.id, cloudUrl);
         
-        log('BackgroundMediaSyncService: Upload bem-sucedido - URL: $cloudUrl');
         return true;
       }
       
       return false;
       
     } catch (e) {
-      log('BackgroundMediaSyncService: Erro no upload da imagem ${media.id}: $e');
       return false;
     }
   }
@@ -175,9 +174,8 @@ class BackgroundMediaSyncService {
   Future<void> _updateMediaCloudUrlDirectly(String mediaId, String cloudUrl) async {
     try {
       await _serviceFactory.mediaService.updateMediaCloudUrlSilently(mediaId, cloudUrl);
-      log('BackgroundMediaSyncService: CloudUrl atualizada para $mediaId: $cloudUrl');
     } catch (e) {
-      log('BackgroundMediaSyncService: Erro ao atualizar cloudUrl: $e');
+      // Erro silencioso para cloudUrl
     }
   }
   
@@ -186,7 +184,6 @@ class BackgroundMediaSyncService {
     try {
       final firebaseService = FirebaseService();
       if (firebaseService.currentUser == null) {
-        log('BackgroundMediaSyncService: Usuário não logado');
         return null;
       }
       
@@ -216,11 +213,9 @@ class BackgroundMediaSyncService {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       
-      log('BackgroundMediaSyncService: Arquivo enviado para Storage: $downloadUrl');
       return downloadUrl;
       
     } catch (e) {
-      log('BackgroundMediaSyncService: Erro no upload para Storage: $e');
       return null;
     }
   }
@@ -236,7 +231,6 @@ class BackgroundMediaSyncService {
              result.contains(ConnectivityResult.ethernet);
              
     } catch (e) {
-      log('BackgroundMediaSyncService: Erro ao verificar conectividade: $e');
       return false;
     }
   }
@@ -254,7 +248,6 @@ class BackgroundMediaSyncService {
   /// Força uma execução imediata (para testes)
   Future<void> forceSyncNow() async {
     if (!_isRunning) {
-      log('BackgroundMediaSyncService: Serviço não está rodando - iniciando sync forçado');
     }
     await _performBackgroundImageSync();
   }
