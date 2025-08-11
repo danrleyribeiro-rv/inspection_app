@@ -735,59 +735,6 @@ class FirestoreSyncService {
       final firestoreTopics = data['topics'] as List<dynamic>? ?? [];
       
       
-      // First pass: Count total media to provide accurate progress
-      int preliminaryMediaCount = 0;
-      for (int topicIndex = 0; topicIndex < firestoreTopics.length; topicIndex++) {
-        final topicData = firestoreTopics[topicIndex];
-        final topic = Map<String, dynamic>.from(topicData);
-        
-        // Count topic media
-        final topicMedias = topic['media'] as List<dynamic>? ?? [];
-        preliminaryMediaCount += topicMedias.length;
-        
-        // Count item media
-        final items = topic['items'] as List<dynamic>? ?? [];
-        for (final itemData in items) {
-          final item = Map<String, dynamic>.from(itemData);
-          final itemMedias = item['media'] as List<dynamic>? ?? [];
-          preliminaryMediaCount += itemMedias.length;
-          
-          // Count detail media
-          final details = item['details'] as List<dynamic>? ?? [];
-          for (final detailData in details) {
-            final detail = Map<String, dynamic>.from(detailData);
-            final detailMedias = detail['media'] as List<dynamic>? ?? [];
-            preliminaryMediaCount += detailMedias.length;
-            
-            // Count NC media (both media and solved_media)
-            final nonConformities = detail['non_conformities'] as List<dynamic>? ?? [];
-            for (final ncData in nonConformities) {
-              final nc = Map<String, dynamic>.from(ncData);
-              final ncMedias = nc['media'] as List<dynamic>? ?? [];
-              final ncSolvedMedias = nc['solved_media'] as List<dynamic>? ?? [];
-              preliminaryMediaCount += ncMedias.length + ncSolvedMedias.length;
-            }
-          }
-          
-          // Count item-level NC media (both media and solved_media)
-          final itemNonConformities = item['non_conformities'] as List<dynamic>? ?? [];
-          for (final ncData in itemNonConformities) {
-            final nc = Map<String, dynamic>.from(ncData);
-            final ncMedias = nc['media'] as List<dynamic>? ?? [];
-            final ncSolvedMedias = nc['solved_media'] as List<dynamic>? ?? [];
-            preliminaryMediaCount += ncMedias.length + ncSolvedMedias.length;
-          }
-        }
-        
-        // Count topic-level NC media (both media and solved_media)
-        final topicNonConformities = topic['non_conformities'] as List<dynamic>? ?? [];
-        for (final ncData in topicNonConformities) {
-          final nc = Map<String, dynamic>.from(ncData);
-          final ncMedias = nc['media'] as List<dynamic>? ?? [];
-          final ncSolvedMedias = nc['solved_media'] as List<dynamic>? ?? [];
-          preliminaryMediaCount += ncMedias.length + ncSolvedMedias.length;
-        }
-      }
       
       
       // Notificações de progresso de download removidas para evitar duplicação

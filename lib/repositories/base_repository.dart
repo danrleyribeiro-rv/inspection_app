@@ -188,8 +188,9 @@ abstract class BaseRepository<T> {
     }
     
     // Preservar timestamps originais da nuvem
-    final existing = await findById(id);
-    if (existing != null) {
+    // Verificar existência sem filtro is_deleted para dados da nuvem
+    final existingCheck = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
+    if (existingCheck.isNotEmpty) {
       debugPrint('BaseRepository: 🔄 Atualizando registro existente em $tableName');
       map['needs_sync'] = 0; // Dados da nuvem não precisam sync
       
@@ -230,7 +231,23 @@ abstract class BaseRepository<T> {
         }
       } catch (e) {
         debugPrint('BaseRepository: ❌ ERRO ao inserir em $tableName: $e');
-        rethrow;
+        
+        // Se for erro de constraint UNIQUE, tentar INSERT OR REPLACE como fallback
+        if (e.toString().contains('UNIQUE constraint failed')) {
+          debugPrint('BaseRepository: 🔄 Tentando INSERT OR REPLACE como fallback...');
+          try {
+            await db.execute(
+              'INSERT OR REPLACE INTO $tableName (${map.keys.join(', ')}) VALUES (${map.keys.map((_) => '?').join(', ')})',
+              map.values.toList(),
+            );
+            debugPrint('BaseRepository: ✅ Fallback INSERT OR REPLACE executado com sucesso');
+          } catch (fallbackError) {
+            debugPrint('BaseRepository: ❌ Erro no fallback: $fallbackError');
+            rethrow;
+          }
+        } else {
+          rethrow;
+        }
       }
     }
   }
