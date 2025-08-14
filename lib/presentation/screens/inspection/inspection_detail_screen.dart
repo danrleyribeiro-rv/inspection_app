@@ -624,63 +624,200 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   }
 
 
+  Map<String, dynamic> _formatMediaForExport(dynamic media) {
+    return {
+      'filename': media.filename,
+      'url': media.cloudUrl ?? '',
+      'type': media.type ?? 'image',
+      'created_at': media.createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+    };
+  }
+
+  String _sanitizeFileName(String fileName) {
+    // Remove caracteres especiais e substitui por underscore
+    return fileName
+        .replaceAll(RegExp(r'[^\w\s-]'), '')
+        .replaceAll(RegExp(r'[-\s]+'), '_')
+        .trim();
+  }
+
   Future<void> _exportInspection() async {
     if (!mounted) return;
 
     try {
-      // Criar um backup completo da inspeção
-      final Map<String, dynamic> exportData = {
-        'inspection': _inspection?.toMap(),
-        'topics': _topics.map((topic) => topic.toMap()).toList(),
-        'items': <String, dynamic>{},
-        'details': <String, dynamic>{},
-        'media': <String, dynamic>{},
-        'non_conformities': <String, dynamic>{},
-      };
-
-      // Coletar todos os itens
-      final itemsMap = exportData['items'] as Map<String, dynamic>;
-      final detailsMap = exportData['details'] as Map<String, dynamic>;
+      // Create cloud-sync format inspection data
+      final Map<String, dynamic> inspectionData = _inspection?.toMap() ?? {};
       
-      for (final topic in _topics) {
-        final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
-        final items = _itemsCache[topicId] ?? [];
-        itemsMap[topicId] = items.map((item) => item.toMap()).toList();
-
-        // Coletar detalhes para cada item
-        for (final item in items) {
-          final itemId = item.id ?? 'item_${items.indexOf(item)}';
-          final details = _detailsCache['${topicId}_$itemId'] ?? [];
-          detailsMap['${topicId}_$itemId'] = details.map((detail) => detail.toMap()).toList();
+      // Remove ALL local-only fields to match cloud format exactly
+      final fieldsToRemove = [
+        'id', 'needs_sync', 'is_deleted', 'has_local_changes', 
+        'is_synced', 'last_sync_at', 'sync_history', 'local_id'
+      ];
+      for (final field in fieldsToRemove) {
+        inspectionData.remove(field);
+      }
+      
+      // Ensure timestamps are properly formatted for cloud sync
+      if (inspectionData['created_at'] != null) {
+        final createdAt = inspectionData['created_at'];
+        if (createdAt is DateTime) {
+          inspectionData['created_at'] = {
+            '_seconds': (createdAt.millisecondsSinceEpoch / 1000).floor(),
+            '_nanoseconds': (createdAt.millisecondsSinceEpoch % 1000) * 1000000,
+          };
         }
       }
+      
+      if (inspectionData['updated_at'] != null) {
+        final updatedAt = inspectionData['updated_at'];
+        if (updatedAt is DateTime) {
+          inspectionData['updated_at'] = {
+            '_seconds': (updatedAt.millisecondsSinceEpoch / 1000).floor(),
+            '_nanoseconds': (updatedAt.millisecondsSinceEpoch % 1000) * 1000000,
+          };
+        }
+      }
+      
+      // Build ordered and organized topics structure
+      final List<Map<String, dynamic>> orderedTopicsData = [];
+      
+      // Sort topics by position for proper ordering
+      final sortedTopics = List<Topic>.from(_topics);
+      sortedTopics.sort((a, b) => a.position.compareTo(b.position));
+      
+      for (final topic in sortedTopics) {
+        final topicId = topic.id ?? 'topic_${sortedTopics.indexOf(topic)}';
+        
+        Map<String, dynamic> topicData;
+        if (topic.directDetails == true) {
+          // Direct details topic
+          final directDetails = _detailsCache['${topicId}_direct'] ?? [];
+          final sortedDetails = List.from(directDetails);
+          sortedDetails.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+          
+          final List<Map<String, dynamic>> detailsData = [];
+          
+          for (final detail in sortedDetails) {
+            final detailMedia = await _serviceFactory.mediaService.getMediaByContext(detailId: detail.id);
+            final detailNCs = await _serviceFactory.dataService.getNonConformitiesByDetail(detail.id ?? '');
+            
+            detailsData.add({
+              'name': detail.detailName,
+              'type': detail.type ?? 'text',
+              'required': detail.isRequired ?? false,
+              'options': detail.options ?? [],
+              'value': detail.detailValue,
+              'observation': detail.observation,
+              'is_damaged': false,
+              'media': detailMedia.map((media) => _formatMediaForExport(media)).toList(),
+              'non_conformities': detailNCs.map((nc) => nc.toMap()).toList(),
+            });
+          }
+          
+          final topicMedia = await _serviceFactory.mediaService.getMediaByContext(topicId: topicId);
+          final topicNCs = await _serviceFactory.dataService.getNonConformitiesByTopic(topicId);
+          
+          topicData = {
+            'name': topic.topicName,
+            'description': topic.topicLabel,
+            'observation': topic.observation,
+            'direct_details': true,
+            'details': detailsData,
+            'media': topicMedia.map((media) => _formatMediaForExport(media)).toList(),
+            'non_conformities': topicNCs.map((nc) => nc.toMap()).toList(),
+          };
+        } else {
+          // Regular topic with items
+          final items = _itemsCache[topicId] ?? [];
+          final sortedItems = List.from(items);
+          sortedItems.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+          
+          final List<Map<String, dynamic>> itemsData = [];
+          
+          for (final item in sortedItems) {
+            final itemId = item.id ?? 'item_${sortedItems.indexOf(item)}';
+            final details = _detailsCache['${topicId}_$itemId'] ?? [];
+            final sortedDetails = List.from(details);
+            sortedDetails.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+            
+            final List<Map<String, dynamic>> detailsData = [];
+            
+            for (final detail in sortedDetails) {
+              final detailMedia = await _serviceFactory.mediaService.getMediaByContext(detailId: detail.id);
+              final detailNCs = await _serviceFactory.dataService.getNonConformitiesByDetail(detail.id ?? '');
+              
+              detailsData.add({
+                'name': detail.detailName,
+                'type': detail.type ?? 'text',
+                'required': detail.isRequired ?? false,
+                'options': detail.options ?? [],
+                'value': detail.detailValue,
+                'observation': detail.observation,
+                'is_damaged': false,
+                'media': detailMedia.map((media) => _formatMediaForExport(media)).toList(),
+                'non_conformities': detailNCs.map((nc) => nc.toMap()).toList(),
+              });
+            }
+            
+            final itemMedia = await _serviceFactory.mediaService.getMediaByContext(itemId: itemId);
+            final itemNCs = await _serviceFactory.dataService.getNonConformitiesByItem(itemId);
+            
+            itemsData.add({
+              'name': item.itemName,
+              'description': item.itemLabel,
+              'observation': item.observation,
+              'evaluable': item.evaluable ?? false,
+              'evaluation_options': item.evaluationOptions ?? [],
+              'evaluation_value': item.evaluationValue,
+              'details': detailsData,
+              'media': itemMedia.map((media) => _formatMediaForExport(media)).toList(),
+              'non_conformities': itemNCs.map((nc) => nc.toMap()).toList(),
+            });
+          }
+          
+          final topicMedia = await _serviceFactory.mediaService.getMediaByContext(topicId: topicId);
+          final topicNCs = await _serviceFactory.dataService.getNonConformitiesByTopic(topicId);
+          
+          topicData = {
+            'name': topic.topicName,
+            'description': topic.topicLabel,
+            'observation': topic.observation,
+            'direct_details': false,
+            'items': itemsData,
+            'media': topicMedia.map((media) => _formatMediaForExport(media)).toList(),
+            'non_conformities': topicNCs.map((nc) => nc.toMap()).toList(),
+          };
+        }
+        
+        orderedTopicsData.add(topicData);
+      }
+      
+      inspectionData['topics'] = orderedTopicsData;
 
-      // Coletar mídias
-      final allMedia = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
-      exportData['media'] = allMedia.map((media) => media.toMap()).toList();
-
-      // Coletar não conformidades
-      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
-      exportData['non_conformities'] = allNCs.map((nc) => nc.toMap()).toList();
-
-      // Criar arquivo ZIP
+      // Create ZIP archive
       final archive = Archive();
       
-      // Adicionar arquivo JSON ao ZIP
-      final jsonString = jsonEncode(exportData);
+      // Add inspection JSON file
+      final jsonString = jsonEncode(inspectionData);
       final jsonBytes = utf8.encode(jsonString);
-      final jsonFile = ArchiveFile('inspection_data.json', jsonBytes.length, jsonBytes);
+      final jsonFile = ArchiveFile('inspection.json', jsonBytes.length, jsonBytes);
       archive.addFile(jsonFile);
 
-      // Adicionar imagens ao ZIP
+      // Collect and organize all media files with proper structure
+      final allMedia = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
+      
+      // Build organized folder structure for media
       for (final media in allMedia) {
         try {
           if (media.localPath.isNotEmpty) {
             final imageFile = File(media.localPath);
             if (await imageFile.exists()) {
               final imageBytes = await imageFile.readAsBytes();
+              
+              String folderPath = _buildMediaFolderPath(media);
+              
               final fileName = media.filename;
-              final archiveImageFile = ArchiveFile('images/$fileName', imageBytes.length, imageBytes);
+              final archiveImageFile = ArchiveFile('$folderPath/$fileName', imageBytes.length, imageBytes);
               archive.addFile(archiveImageFile);
             }
           }
@@ -716,7 +853,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         // Fallback final para diretório interno
         directory = await getApplicationDocumentsDirectory();
       }
-
 
       // Criar pasta "Lince Inspeções" se não existir
       final linceDirectory = Directory('${directory.path}/Lince Inspeções');
@@ -756,7 +892,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       }
 
       debugPrint('Inspection exported successfully as ZIP: ${zipFile.path}');
-      debugPrint('ZIP contains JSON data and ${allMedia.length} images');
+      debugPrint('ZIP contains organized JSON data and ${allMedia.length} images');
 
     } catch (e) {
       debugPrint('Error exporting inspection: $e');
@@ -770,6 +906,64 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         );
       }
     }
+  }
+
+  String _buildMediaFolderPath(dynamic media) {
+    // Handle non-conformity media separately
+    if (media.nonConformityId != null) {
+      return 'media/nao_conformidades';
+    }
+    
+    // Find topic
+    final topic = _topics.firstWhere(
+      (t) => t.id == media.topicId, 
+      orElse: () => Topic(
+        topicName: 'topico_nao_encontrado',
+        inspectionId: widget.inspectionId,
+        position: 0,
+      )
+    );
+    final sanitizedTopicName = _sanitizeFileName(topic.topicName);
+    
+    // Topic-level media
+    if (media.itemId == null && media.detailId == null) {
+      return 'media/01_topicos/$sanitizedTopicName';
+    }
+    
+    // Detail-level media
+    if (media.detailId != null) {
+      if (topic.directDetails == true) {
+        // Direct details - no item folder
+        final detailsKey = '${media.topicId}_direct';
+        final details = _detailsCache[detailsKey] ?? [];
+        final detail = details.where((d) => d.id == media.detailId).firstOrNull;
+        final sanitizedDetailName = _sanitizeFileName(detail?.detailName ?? 'detalhe_nao_encontrado');
+        return 'media/01_topicos/$sanitizedTopicName/03_detalhes/$sanitizedDetailName';
+      } else {
+        // Regular details under items
+        final items = _itemsCache[media.topicId] ?? [];
+        final item = items.where((it) => it.id == media.itemId).firstOrNull;
+        final sanitizedItemName = _sanitizeFileName(item?.itemName ?? 'item_nao_encontrado');
+        
+        final detailsKey = '${media.topicId}_${media.itemId}';
+        final details = _detailsCache[detailsKey] ?? [];
+        final detail = details.where((d) => d.id == media.detailId).firstOrNull;
+        final sanitizedDetailName = _sanitizeFileName(detail?.detailName ?? 'detalhe_nao_encontrado');
+        
+        return 'media/01_topicos/$sanitizedTopicName/02_itens/$sanitizedItemName/03_detalhes/$sanitizedDetailName';
+      }
+    }
+    
+    // Item-level media
+    if (media.itemId != null) {
+      final items = _itemsCache[media.topicId] ?? [];
+      final item = items.where((it) => it.id == media.itemId).firstOrNull;
+      final sanitizedItemName = _sanitizeFileName(item?.itemName ?? 'item_nao_encontrado');
+      return 'media/01_topicos/$sanitizedTopicName/02_itens/$sanitizedItemName';
+    }
+    
+    // Fallback
+    return 'media/01_topicos/$sanitizedTopicName';
   }
 
   Future<void> _openExportedFile(String filePath) async {

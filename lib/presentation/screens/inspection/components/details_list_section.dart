@@ -544,6 +544,26 @@ class _DetailListItemState extends State<DetailListItem> {
             });
           }
           break;
+        case 'boolean02':
+          String newBooleanValue;
+          if (newValue?.toLowerCase() == 'true' ||
+              newValue == '1' ||
+              newValue?.toLowerCase() == 'Conforme') {
+            newBooleanValue = 'Conforme';
+          } else if (newValue?.toLowerCase() == 'false' ||
+              newValue == '0' ||
+              newValue?.toLowerCase() == 'Não Conforme') {
+            newBooleanValue = 'Não Conforme';
+          } else {
+            newBooleanValue = 'não_se_aplica';
+          }
+          
+          if (_booleanValue != newBooleanValue) {
+            setState(() {
+              _booleanValue = newBooleanValue;
+            });
+          }
+          break;
         case 'measure':
           _initializeControllers(); // Para measure, sempre reinicializar
           break;
@@ -658,6 +678,19 @@ class _DetailListItemState extends State<DetailListItem> {
       } else {
         _booleanValue = 'não_se_aplica';
       }
+    } else if (widget.detail.type == 'boolean02') {
+      // Suporte para três estados: Conforme, Não Conforme, não_se_aplica
+      if (detailValue.toLowerCase() == 'true' ||
+          detailValue == '1' ||
+          detailValue.toLowerCase() == 'conforme') {
+        _booleanValue = 'Conforme';
+      } else if (detailValue.toLowerCase() == 'false' ||
+          detailValue == '0' ||
+          detailValue.toLowerCase() == 'não conforme') {
+        _booleanValue = 'Não Conforme';
+      } else {
+        _booleanValue = 'não_se_aplica';
+      }
     } else {
       _valueController.text = detailValue;
       // For select types, also initialize _currentSelectValue
@@ -713,6 +746,8 @@ class _DetailListItemState extends State<DetailListItem> {
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue;
+    } else if (widget.detail.type == 'boolean02') {
+      value = _booleanValue;
     } else if (widget.detail.type == 'select') {
       value = _currentSelectValue ?? '';
     } else {
@@ -758,6 +793,8 @@ class _DetailListItemState extends State<DetailListItem> {
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue;
+    } else if (widget.detail.type == 'boolean02') {
+      value = _booleanValue;
     } else if (widget.detail.type == 'select') {
       value = _currentSelectValue ?? '';
     } else {
@@ -798,7 +835,7 @@ class _DetailListItemState extends State<DetailListItem> {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
         debugPrint('Detail select updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
-    } else if (widget.detail.type == 'boolean') {
+    } else if (widget.detail.type == 'boolean' || widget.detail.type == 'boolean02') {
       _booleanDebounce?.cancel();
       _booleanDebounce = Timer(const Duration(milliseconds: 100), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
@@ -1356,6 +1393,17 @@ class _DetailListItemState extends State<DetailListItem> {
           default:
             return 'Não se aplica';
         }
+      case 'boolean02':
+        switch (_booleanValue) {
+          case 'Conforme':
+            return 'Conforme';
+          case 'Não Conforme':
+            return 'Não Conforme';
+          case 'não_se_aplica':
+            return 'N/A';
+          default:
+            return 'N/A';
+        }
       case 'measure':
         final altura = _heightController.text.trim();
         final largura = _widthController.text.trim();
@@ -1508,6 +1556,120 @@ class _DetailListItemState extends State<DetailListItem> {
                 ),
                 const SizedBox(width: 6),
                 Expanded(
+                  child: GestureDetector(
+                    onTap: () => _updateBooleanValue('não_se_aplica'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'não_se_aplica'
+                            ? Colors.yellowAccent
+                            : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'não_se_aplica'
+                              ? Colors.yellowAccent
+                              : Colors.grey.shade500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'N/A',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'não_se_aplica'
+                              ? Colors.grey.shade500
+                              : Colors.grey.shade300,
+                          fontSize: 11,
+                          fontWeight: _booleanValue == 'não_se_aplica'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+
+      case 'boolean02':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => _updateBooleanValue('Conforme'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'Conforme'
+                            ? Colors.green
+                            : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'Conforme'
+                              ? Colors.green
+                              : Colors.grey.shade500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Conforme',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'Conforme'
+                              ? Colors.white
+                              : Colors.grey.shade300,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => _updateBooleanValue('Não Conforme'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'Não Conforme'
+                            ? Colors.red
+                            : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'Não Conforme'
+                              ? Colors.red
+                              : Colors.grey.shade500,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Não Conforme',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'Não Conforme'
+                              ? Colors.white
+                              : Colors.grey.shade300,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 1,
                   child: GestureDetector(
                     onTap: () => _updateBooleanValue('não_se_aplica'),
                     child: Container(
