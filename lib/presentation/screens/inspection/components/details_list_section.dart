@@ -1400,9 +1400,9 @@ class _DetailListItemState extends State<DetailListItem> {
           case 'Não Conforme':
             return 'Não Conforme';
           case 'não_se_aplica':
-            return 'N/A';
+            return 'Não se aplica';
           default:
-            return 'N/A';
+            return 'Não se aplica';
         }
       case 'measure':
         final altura = _heightController.text.trim();
