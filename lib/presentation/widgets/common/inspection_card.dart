@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lince_inspecoes/presentation/widgets/common/map_location_card.dart';
-import 'dart:developer'; // Import log for potential debugging
 
 class InspectionCard extends StatelessWidget {
   final Map<String, dynamic> inspection;
@@ -83,7 +82,6 @@ class InspectionCard extends StatelessWidget {
         ? (inspection['longitude'] as num).toDouble()
         : null;
 
-    log('[InspectionCard build] Title: $title, Address: "$address", Lat: $latitude, Lng: $longitude');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -357,8 +355,6 @@ class InspectionCard extends StatelessWidget {
   // --- Sync Button Builders ---
 
   Widget _buildSyncButton() {
-    // Debug: Log do estado atual do botão
-    log('[InspectionCard] _buildSyncButton: isSyncing=$isSyncing, needsSync=$needsSync, isVerified=$isVerified');
     
     return ElevatedButton(
       onPressed: isSyncing ? null : () async {
@@ -393,7 +389,6 @@ class InspectionCard extends StatelessWidget {
       child: isSyncing
           ? Builder(
               builder: (context) {
-                log('[InspectionCard] Building LOADING state - showing CircularProgressIndicator');
                 return const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -423,7 +418,6 @@ class InspectionCard extends StatelessWidget {
             )
           : Builder(
               builder: (context) {
-                log('[InspectionCard] Building NORMAL state - showing icon + text');
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -541,7 +535,6 @@ class InspectionCard extends StatelessWidget {
             seconds * 1000 + (nanoseconds / 1000000).round(),
           ).toLocal();
         } else {
-          log('[_formatDate] Invalid Timestamp map format: $dateValue');
           return 'Data inválida (Formato)';
         }
       } else if (dateValue is int) {
@@ -561,20 +554,15 @@ class InspectionCard extends StatelessWidget {
             throw Exception('Invalid Timestamp object: missing toDate method');
           }
         } catch (e) {
-          log('[_formatDate] Error calling toDate() on Timestamp: $dateValue',
-              error: e);
           return 'Data inválida (TS)';
         }
       } else {
-        log('[_formatDate] Unhandled date type: ${dateValue.runtimeType}');
         return 'Data inválida (Tipo)';
       }
 
       // Format to Brazilian standard without time
       return DateFormat('dd/MM/yyyy').format(date);
-    } catch (e, s) {
-      log('[_formatDate] Error formatting date: $dateValue',
-          error: e, stackTrace: s);
+    } catch (e) {
       return 'Data inválida (Erro)';
     }
   }

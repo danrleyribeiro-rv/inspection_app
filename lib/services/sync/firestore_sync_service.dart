@@ -299,11 +299,27 @@ class FirestoreSyncService {
   Future<void> _processNestedTopicsStructure(
       String inspectionId, List<Map<String, dynamic>> topicsData) async {
     try {
-      for (int topicIndex = 0; topicIndex < topicsData.length; topicIndex++) {
-        await _processSingleTopic(inspectionId, topicsData[topicIndex], topicIndex);
+      // Process topics in parallel batches for better performance
+      const batchSize = 3;
+      for (int i = 0; i < topicsData.length; i += batchSize) {
+        final batch = topicsData.skip(i).take(batchSize).toList();
+        final futures = <Future>[];
+        
+        for (int j = 0; j < batch.length; j++) {
+          final topicIndex = i + j;
+          futures.add(_processSingleTopic(inspectionId, batch[j], topicIndex));
+        }
+        
+        // Process batch in parallel
+        await Future.wait(futures);
+        
+        // Small delay to prevent database lock issues
+        if (i + batchSize < topicsData.length) {
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
       }
     } catch (e) {
-      // Log apenas erros críticos
+      debugPrint('FirestoreSyncService: Error processing nested topics: $e');
     }
   }
 
@@ -327,10 +343,17 @@ class FirestoreSyncService {
 
     await _offlineService.insertOrUpdateTopic(topic);
     
-    // Processar dados relacionados
-    await _processTopicNonConformities(topic, topicData);
-    await _processTopicMedia(topic, topicData);
-
+    // Process related data in parallel where possible
+    final futures = <Future>[];
+    
+    // Add non-conformities and media processing
+    futures.add(_processTopicNonConformities(topic, topicData));
+    futures.add(_processTopicMedia(topic, topicData));
+    
+    // Wait for these to complete first
+    await Future.wait(futures);
+    
+    // Then process details/items (these depend on topic being saved)
     if (hasDirectDetails) {
       await _processTopicDirectDetails(inspectionId, topic.id!, topicData);
     } else {
@@ -340,15 +363,47 @@ class FirestoreSyncService {
 
   Future<void> _processTopicDirectDetails(String inspectionId, String topicId, Map<String, dynamic> topicData) async {
     final detailsData = topicData['details'] as List<dynamic>? ?? [];
-    for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
-      await _processDetailFromJson(inspectionId, topicId, null, detailsData[detailIndex], detailIndex);
+    
+    // Process details in small batches to avoid overwhelming the database
+    const batchSize = 5;
+    for (int i = 0; i < detailsData.length; i += batchSize) {
+      final batch = detailsData.skip(i).take(batchSize).toList();
+      final futures = <Future>[];
+      
+      for (int j = 0; j < batch.length; j++) {
+        final detailIndex = i + j;
+        futures.add(_processDetailFromJson(inspectionId, topicId, null, batch[j], detailIndex));
+      }
+      
+      await Future.wait(futures);
+      
+      // Small delay between batches
+      if (i + batchSize < detailsData.length) {
+        await Future.delayed(const Duration(milliseconds: 25));
+      }
     }
   }
 
   Future<void> _processTopicItems(String inspectionId, String topicId, Map<String, dynamic> topicData, int topicIndex) async {
     final itemsData = topicData['items'] as List<dynamic>? ?? [];
-    for (int itemIndex = 0; itemIndex < itemsData.length; itemIndex++) {
-      await _processSingleItem(inspectionId, topicId, itemsData[itemIndex], topicIndex, itemIndex);
+    
+    // Process items in small batches
+    const batchSize = 3;
+    for (int i = 0; i < itemsData.length; i += batchSize) {
+      final batch = itemsData.skip(i).take(batchSize).toList();
+      final futures = <Future>[];
+      
+      for (int j = 0; j < batch.length; j++) {
+        final itemIndex = i + j;
+        futures.add(_processSingleItem(inspectionId, topicId, batch[j], topicIndex, itemIndex));
+      }
+      
+      await Future.wait(futures);
+      
+      // Small delay between batches
+      if (i + batchSize < itemsData.length) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
     }
   }
 
@@ -391,8 +446,6 @@ class FirestoreSyncService {
   Future<void> _processTopicNonConformities(Topic topic, Map<String, dynamic> topicData) async {
     try {
       final nonConformitiesData = topicData['non_conformities'] as List<dynamic>? ?? [];
-      debugPrint(
-          'FirestoreSyncService: Processing ${nonConformitiesData.length} non-conformities for topic ${topic.id}');
 
       for (final ncData in nonConformitiesData) {
         final ncMap = Map<String, dynamic>.from(ncData);
@@ -430,8 +483,6 @@ class FirestoreSyncService {
   Future<void> _processItemNonConformities(Item item, Map<String, dynamic> itemData) async {
     try {
       final nonConformitiesData = itemData['non_conformities'] as List<dynamic>? ?? [];
-      debugPrint(
-          'FirestoreSyncService: Processing ${nonConformitiesData.length} non-conformities for item ${item.id}');
 
       for (final ncData in nonConformitiesData) {
         final ncMap = Map<String, dynamic>.from(ncData);
@@ -469,7 +520,6 @@ class FirestoreSyncService {
   // Método centralizado para processar detalhes
   Future<String> _processDetailFromJson(String inspectionId, String topicId, String? itemId, Map<String, dynamic> detailData, int position) async {
     // DEBUG: Log dados do detalhe sendo baixados da nuvem
-    debugPrint('FirestoreSyncService: 🔍 DOWNLOAD - Detalhe "${detailData['name']}" - Value vinda da nuvem: "${detailData['value'] ?? "null"}", Observation: "${detailData['observation'] ?? "null"}"');
     
     // Criar detalhe
     final detail = Detail(
@@ -498,8 +548,6 @@ class FirestoreSyncService {
     );
 
     await _offlineService.insertOrUpdateDetail(detail);
-    debugPrint(
-        'FirestoreSyncService: Created detail ${detail.id}: ${detail.detailName}');
 
     // Processar não conformidades do detalhe
     await _processDetailNonConformities(detail, detailData);
@@ -634,8 +682,6 @@ class FirestoreSyncService {
   Future<void> _processDetailNonConformities(Detail detail, Map<String, dynamic> detailData) async {
     try {
       final nonConformitiesData = detailData['non_conformities'] as List<dynamic>? ?? [];
-      debugPrint(
-          'FirestoreSyncService: Processing ${nonConformitiesData.length} non-conformities for detail ${detail.id}');
 
       for (final ncData in nonConformitiesData) {
         final ncMap = Map<String, dynamic>.from(ncData);
@@ -1911,11 +1957,8 @@ class FirestoreSyncService {
 
   Future<Map<String, dynamic>> _buildNestedInspectionData(
       Inspection inspection) async {
-    debugPrint('FirestoreSyncService: 🔍 DIAGNÓSTICO: Construindo dados para upload da inspeção ${inspection.id}');
-    
     // Start with basic inspection data
     final data = inspection.toMap();
-    debugPrint('FirestoreSyncService: 🔍 DADOS BASE DA INSPEÇÃO - Title: "${data['title']}", Observation: "${data['observation'] ?? "null"}"');
     
     data.remove('id');
     data.remove('needs_sync');
@@ -1934,12 +1977,10 @@ class FirestoreSyncService {
 
     // Get all topics for this inspection
     final topics = await _offlineService.getTopics(inspection.id);
-    debugPrint('FirestoreSyncService: 🔍 DIAGNÓSTICO: Encontrados ${topics.length} tópicos para upload');
     final topicsData = <Map<String, dynamic>>[];
 
 
     for (final topic in topics) {
-      debugPrint('FirestoreSyncService: 🔍 PROCESSANDO TÓPICO "${topic.topicName}" - Observation: "${topic.observation ?? "null"}", DirectDetails: ${topic.directDetails}');
       
       // Get topic-level media
       final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');
@@ -1995,8 +2036,6 @@ class FirestoreSyncService {
         'non_conformities': topicNonConformitiesData,
       };
       
-      // DEBUG: Log topic data being uploaded
-      debugPrint('FirestoreSyncService: Uploading topic "${topic.topicName}" with observation: "${topic.observation ?? "null"}"');
 
       // Check if this is a direct_details topic
       if (topic.directDetails == true) {
@@ -2044,8 +2083,6 @@ class FirestoreSyncService {
             'non_conformities': nonConformitiesData,
           };
           
-          // DEBUG: Log detail data being uploaded
-          debugPrint('FirestoreSyncService: Uploading detail "${detail.detailName}" with value: "${detail.detailValue ?? "null"}", observation: "${detail.observation ?? "null"}"');
 
           detailsData.add(detailData);
         }
@@ -2094,9 +2131,6 @@ class FirestoreSyncService {
           'details': <Map<String, dynamic>>[],
         };
         
-        // DEBUG: Log item data being uploaded
-        debugPrint('FirestoreSyncService: Uploading item "${item.itemName}" with observation: "${item.observation ?? "null"}", evaluationValue: "${item.evaluationValue ?? "null"}"');
-        debugPrint('FirestoreSyncService: Item full data - ID: ${item.id}, evaluable: ${item.evaluable}');
 
         // Get all details for this item
         final details = await _offlineService.getDetails(item.id ?? '');
@@ -2139,8 +2173,6 @@ class FirestoreSyncService {
             'non_conformities': nonConformitiesData,
           };
           
-          // DEBUG: Log detail data being uploaded
-          debugPrint('FirestoreSyncService: Uploading detail "${detail.detailName}" with value: "${detail.detailValue ?? "null"}", observation: "${detail.observation ?? "null"}"');
 
           detailsData.add(detailData);
         }
@@ -2151,20 +2183,132 @@ class FirestoreSyncService {
 
         topicData['items'] = itemsData;
       }
-      debugPrint('FirestoreSyncService: 🔍 TÓPICO FINAL PARA UPLOAD "${topicData['name']}" - Observation: "${topicData['observation'] ?? "null"}"');
       topicsData.add(topicData);
     }
 
     // Add topics to the main data
     data['topics'] = topicsData;
-    debugPrint('FirestoreSyncService: 🔍 DADOS FINAIS CONSTRUÍDOS - ${topicsData.length} tópicos preparados para upload');
     
     // Add sync history
     if (inspection.syncHistory != null) {
       data['sync_history'] = inspection.syncHistory;
     }
 
-    return data;
+    // Validate data before returning to prevent Firestore invalid-argument errors
+    final validatedData = _validateDataForFirestore(data);
+    return validatedData;
+  }
+
+  /// Validates data before sending to Firestore to prevent invalid-argument errors
+  Map<String, dynamic> _validateDataForFirestore(Map<String, dynamic> data) {
+    final validatedData = <String, dynamic>{};
+    
+    for (final entry in data.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      // Skip null values except for allowed nullable fields
+      if (value == null) {
+        // Only include null for explicitly allowed fields
+        final allowedNullFields = {
+          'observation', 'description', 'template_id', 'template_name', 
+          'street', 'neighborhood', 'city', 'state', 'zip_code', 'address_string',
+          'address', 'finished_at', 'scheduled_date', 'area', 'deleted_at',
+          'evaluation_value', 'evaluation', 'custom_option_value', 'value'
+        };
+        if (allowedNullFields.contains(key)) {
+          validatedData[key] = null;
+        }
+        continue;
+      }
+      
+      // Skip empty string values that should be null
+      if (value is String && value.isEmpty) {
+        final shouldBeNullFields = {
+          'observation', 'description', 'evaluation_value', 'evaluation', 
+          'custom_option_value', 'value', 'tags', 'options'
+        };
+        if (shouldBeNullFields.contains(key)) {
+          validatedData[key] = null;
+          continue;
+        }
+      }
+      
+      // Validate field name - Firestore doesn't allow certain characters
+      if (key.isEmpty || key.length > 1500 || // Max field name length
+          key.contains('.') || key.contains('/') || key.contains('__') || 
+          key.startsWith('_') || key.endsWith('_') ||
+          key.contains('\$') || key.contains('#') || key.contains('[') || key.contains(']')) {
+        debugPrint('FirestoreSyncService: ⚠️ SKIPPING invalid field name: $key');
+        continue;
+      }
+      
+      // Validate string values
+      if (value is String) {
+        // Check for extremely long strings (Firestore has limits)
+        if (value.length > 1048487) { // ~1MB limit for strings in Firestore
+          debugPrint('FirestoreSyncService: ⚠️ TRUNCATING overly long string in field: $key');
+          validatedData[key] = value.substring(0, 1048487);
+          continue;
+        }
+        
+        // Remove any invalid control characters from strings
+        final cleanString = value.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+        validatedData[key] = cleanString;
+      } else if (value is num) {
+        // Validate numeric values (Firestore has limits)
+        if (value.isNaN || value.isInfinite) {
+          debugPrint('FirestoreSyncService: ⚠️ SKIPPING invalid numeric value in field: $key');
+          continue;
+        }
+        validatedData[key] = value;
+      } else if (value is bool) {
+        validatedData[key] = value;
+      } else if (value is Map<String, dynamic>) {
+        // Recursively validate nested objects
+        final validatedNested = _validateDataForFirestore(value);
+        if (validatedNested.isNotEmpty) {
+          validatedData[key] = validatedNested;
+        }
+      } else if (value is List) {
+        final validatedList = _validateListForFirestore(value);
+        if (validatedList.isNotEmpty) {
+          validatedData[key] = validatedList;
+        }
+      } else {
+        // Convert other types to string for safety
+        final stringValue = value.toString();
+        if (stringValue.isNotEmpty && stringValue != 'null') {
+          validatedData[key] = stringValue;
+        }
+      }
+    }
+    
+    return validatedData;
+  }
+  
+  /// Validates lists for Firestore compatibility
+  List _validateListForFirestore(List list) {
+    final validatedList = [];
+    
+    for (final item in list) {
+      if (item == null) {
+        // Skip null items in lists
+        continue;
+      } else if (item is Map<String, dynamic>) {
+        validatedList.add(_validateDataForFirestore(item));
+      } else if (item is List) {
+        validatedList.add(_validateListForFirestore(item));
+      } else if (item is String) {
+        // Remove any invalid characters from strings
+        final cleanString = item.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+        validatedList.add(cleanString);
+      } else {
+        validatedList.add(item);
+      }
+    }
+    
+    return validatedList;
   }
 
   // Helper method to build non-conformity data with hierarchical media structure (media vs solved_media)

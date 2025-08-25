@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'dart:math';
 import '../storage/database_helper.dart';
 
 abstract class BaseRepository<T> {
@@ -16,7 +17,7 @@ abstract class BaseRepository<T> {
     
     // Generate ID if null
     if (map['id'] == null) {
-      map['id'] = '${DateTime.now().millisecondsSinceEpoch}_$tableName';
+      map['id'] = _generateFirestoreSafeId();
     }
     
     map['created_at'] = DateTime.now().toIso8601String();
@@ -26,6 +27,14 @@ abstract class BaseRepository<T> {
     await db.insert(tableName, map);
     return map['id'] as String;
   }
+  
+  /// Generates a Firestore-safe ID
+  String _generateFirestoreSafeId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = Random().nextInt(999999);
+    // Use uppercase to avoid issues with Firestore field names
+    return '$timestamp${random.toString().padLeft(6, '0')}${tableName.toUpperCase()}';
+  }
 
   Future<void> update(T entity) async {
     final db = await database;
@@ -33,20 +42,12 @@ abstract class BaseRepository<T> {
     map['updated_at'] = DateTime.now().toIso8601String();
     map['needs_sync'] = 1;
     
-    debugPrint('BaseRepository: Updating entity in table $tableName with ID: ${map['id']}');
-    if (tableName == 'offline_media') {
-      debugPrint('BaseRepository: Media update - topicId: ${map['topic_id']}, itemId: ${map['item_id']}, detailId: ${map['detail_id']}');
-      debugPrint('BaseRepository: Media update full map keys: ${map.keys.toList()}');
-    }
-    
-    final result = await db.update(
+    await db.update(
       tableName,
       map,
       where: 'id = ?',
       whereArgs: [map['id']],
     );
-    
-    debugPrint('BaseRepository: Update completed for table $tableName, rows affected: $result');
   }
 
   Future<void> markForSync(String id) async {
@@ -60,7 +61,6 @@ abstract class BaseRepository<T> {
       where: 'id = ?',
       whereArgs: [id],
     );
-    debugPrint('BaseRepository: Marked entity $id in table $tableName for sync');
   }
 
 
@@ -180,69 +180,36 @@ abstract class BaseRepository<T> {
     final id = map['id'] as String;
     final db = await database;
     
-    debugPrint('BaseRepository: 💾 insertOrUpdateFromCloud para $tableName (ID: $id)');
-    if (tableName == 'inspections') {
-      debugPrint('BaseRepository: 💾 INSPECTION - Título: "${map['title']}"');
-      debugPrint('BaseRepository: 💾 INSPECTION - Inspector ID: ${map['inspector_id']}');
-      debugPrint('BaseRepository: 💾 INSPECTION - is_deleted: ${map['is_deleted']}');
-    }
     
     // Preservar timestamps originais da nuvem
     // Verificar existência sem filtro is_deleted para dados da nuvem
     final existingCheck = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
     if (existingCheck.isNotEmpty) {
-      debugPrint('BaseRepository: 🔄 Atualizando registro existente em $tableName');
       map['needs_sync'] = 0; // Dados da nuvem não precisam sync
       
-      final updateResult = await db.update(
+      await db.update(
         tableName,
         map,
         where: 'id = ?',
         whereArgs: [id],
       );
-      debugPrint('BaseRepository: ✅ Registro atualizado em $tableName (rowsAffected: $updateResult)');
     } else {
-      debugPrint('BaseRepository: ➕ Inserindo novo registro em $tableName');
       map['needs_sync'] = 0; // Dados da nuvem não precisam sync
       
       try {
         await db.insert(tableName, map);
-        debugPrint('BaseRepository: ✅ Novo registro inserido em $tableName');
         
-        // Verificar se realmente foi inserido
-        if (tableName == 'inspections') {
-          // Buscar sem filtro is_deleted primeiro para debug
-          final allRows = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
-          debugPrint('BaseRepository: 🔍 DEBUG - Registros encontrados sem filtro is_deleted: ${allRows.length}');
-          if (allRows.isNotEmpty) {
-            final row = allRows.first;
-            debugPrint('BaseRepository: 🔍 DEBUG - is_deleted value: ${row['is_deleted']}');
-            debugPrint('BaseRepository: 🔍 DEBUG - inspector_id value: ${row['inspector_id']}');
-            debugPrint('BaseRepository: 🔍 DEBUG - title value: ${row['title']}');
-          }
-          
-          // Agora verificar com filtro normal
-          final verification = await findById(id);
-          if (verification != null) {
-            debugPrint('BaseRepository: ✅ VERIFICATION - Inspeção $id confirmada no banco após inserção');
-          } else {
-            debugPrint('BaseRepository: ❌ VERIFICATION - Inspeção $id NÃO encontrada no banco após inserção com filtro is_deleted = 0!');
-          }
-        }
       } catch (e) {
-        debugPrint('BaseRepository: ❌ ERRO ao inserir em $tableName: $e');
         
         // Se for erro de constraint UNIQUE, tentar INSERT OR REPLACE como fallback
         if (e.toString().contains('UNIQUE constraint failed')) {
-          debugPrint('BaseRepository: 🔄 Tentando INSERT OR REPLACE como fallback...');
           try {
             await db.execute(
               'INSERT OR REPLACE INTO $tableName (${map.keys.join(', ')}) VALUES (${map.keys.map((_) => '?').join(', ')})',
               map.values.toList(),
             );
-            debugPrint('BaseRepository: ✅ Fallback INSERT OR REPLACE executado com sucesso');
           } catch (fallbackError) {
-            debugPrint('BaseRepository: ❌ Erro no fallback: $fallbackError');
+            debugPrint('BaseRepository: Error in fallback INSERT OR REPLACE: $fallbackError');
             rethrow;
           }
         } else {

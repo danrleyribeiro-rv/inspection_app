@@ -44,8 +44,6 @@ class _OfflineTemplateTopicSelectorDialogState
       final template =
           await _serviceFactory.storageService.getTemplate(templateId);
       if (template != null) {
-        debugPrint(
-            'OfflineTemplateTopicSelectorDialog._loadTopicsFromTemplate: Found template in SQLite storage');
         return _extractTopicsFromTemplate(template);
       }
 
@@ -157,8 +155,6 @@ class _OfflineTemplateTopicSelectorDialogState
         }
       }
 
-      debugPrint(
-          'OfflineTemplateTopicSelectorDialog._extractTopicsFromTemplate: Extracted ${topics.length} topics from template');
       return topics;
     } catch (e) {
       debugPrint(
@@ -180,8 +176,6 @@ class _OfflineTemplateTopicSelectorDialogState
       if (widget.templateId != null && widget.templateId!.isNotEmpty) {
         // Get topics from specific template
         topics = await _loadTopicsFromTemplate(widget.templateId!);
-        debugPrint(
-            'OfflineTemplateTopicSelectorDialog._loadTemplateTopics: Loaded ${topics.length} topics from template ${widget.templateId}');
       } else {
         // Fallback: try to get template from inspection
         final inspection = await _serviceFactory.dataService
@@ -196,19 +190,14 @@ class _OfflineTemplateTopicSelectorDialogState
         }
       }
 
-      // Log each topic for debugging
-      for (int i = 0; i < topics.length; i++) {
-        debugPrint(
-            'OfflineTemplateTopicSelectorDialog._loadTemplateTopics: Topic $i: ${topics[i]}');
-      }
+      // Log each topic for debugging (removed for performance)
+      // Topics are now processed silently
 
       if (mounted) {
         setState(() {
           _templateTopics = topics;
           _isLoading = false;
         });
-        debugPrint(
-            'OfflineTemplateTopicSelectorDialog._loadTemplateTopics: Updated state with ${_templateTopics.length} topics');
       }
     } catch (e, stackTrace) {
       debugPrint(
@@ -399,7 +388,6 @@ class _OfflineTemplateTopicSelectorDialogState
                 }
               }
 
-              debugPrint('Creating item: ${templateItem['name']}, evaluable: $isEvaluable, evaluationOptions: $evaluationOptions');
 
               final newItem = Item(
                 id: itemId,
@@ -417,7 +405,6 @@ class _OfflineTemplateTopicSelectorDialogState
               );
 
               await _serviceFactory.dataService.saveItem(newItem);
-              debugPrint('Created item $itemId from template with name: ${newItem.itemName}, evaluable: ${newItem.evaluable}');
 
               // Criar details do item se disponíveis
               if (templateItem['details'] != null) {
@@ -454,7 +441,6 @@ class _OfflineTemplateTopicSelectorDialogState
                   );
 
                   await _serviceFactory.dataService.saveDetail(newDetail);
-                  debugPrint('Created detail $detailId for item with name: ${newDetail.detailName}, type: ${newDetail.type}');
                 }
               }
             }

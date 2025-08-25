@@ -168,13 +168,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     try {
       // Always load topics (especially after adding new ones)
       final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
-      debugPrint('InspectionDetailScreen: Loaded ${topics.length} topics');
       
-      // Debug: Log each topic's directDetails property
-      for (int i = 0; i < topics.length; i++) {
-        final topic = topics[i];
-        debugPrint('InspectionDetailScreen: Topic $i: ${topic.topicName} (id: ${topic.id}) - directDetails: ${topic.directDetails}');
-      }
 
       // Load items and details for all topics
       for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
@@ -186,18 +180,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
           _detailsCache['${topicId}_direct'] = directDetails;
           _itemsCache[topicId] = [];
-          debugPrint('InspectionDetailScreen: Loaded ${directDetails.length} direct details for topic $topicId (${topic.topicName}, directDetails=${topic.directDetails})');
         } else {
           final items = await _serviceFactory.dataService.getItems(topicId);
           _itemsCache[topicId] = items;
-          debugPrint('InspectionDetailScreen: Loaded ${items.length} items for topic $topicId');
 
           for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
             final item = items[itemIndex];
             final itemId = item.id ?? 'item_$itemIndex';
             final details = await _serviceFactory.dataService.getDetails(itemId);
             _detailsCache['${topicId}_$itemId'] = details;
-            debugPrint('InspectionDetailScreen: Loaded ${details.length} details for item $itemId');
           }
         }
       }
@@ -206,7 +197,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         setState(() {
           _topics = topics;
         });
-        debugPrint('InspectionDetailScreen: Updated UI with ${_topics.length} topics');
       }
     } catch (e) {
       debugPrint('InspectionDetailScreen: Error loading data: $e');
@@ -391,7 +381,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       
       // Buscar itens criados para este tópico usando o topicId encontrado
       final items = await _serviceFactory.dataService.getItems(topicId!);
-      debugPrint('InspectionDetailScreen: Found ${items.length} items for topic $topicId');
       
       // Verificar se é um tópico com direct_details
       final bool hasDirectDetails = topic.directDetails == true;
@@ -402,7 +391,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       if (hasDirectDetails) {
         // Para tópicos com direct_details, buscar detalhes diretos
         final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
-        debugPrint('InspectionDetailScreen: Found ${directDetails.length} direct details for topic $topicId (${topic.topicName}, directDetails=${topic.directDetails})');
         
         final List<Map<String, dynamic>> detailsData = [];
         for (final detail in directDetails) {
@@ -441,7 +429,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           }
           
           final details = await _serviceFactory.dataService.getDetails(item.id!);
-          debugPrint('InspectionDetailScreen: Found ${details.length} details for item ${item.id}');
           
           final List<Map<String, dynamic>> detailsData = [];
           for (final detail in details) {
@@ -485,7 +472,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         };
       }
       
-      debugPrint('InspectionDetailScreen: Created topic data structure with direct_details: $hasDirectDetails');
 
       // Obter os topics atuais da inspeção
       final currentTopics =
@@ -500,7 +486,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       try {
         // Atualizar no banco local (não inserir novamente)
         await _serviceFactory.dataService.updateInspection(updatedInspection);
-        debugPrint('InspectionDetailScreen: Updated inspection in database');
       } catch (e) {
         debugPrint('InspectionDetailScreen: Error updating inspection: $e');
         rethrow;
@@ -508,7 +493,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
       // OFFLINE-FIRST: Don't auto-sync when adding topics
       // User must manually sync when they want to upload changes
-      debugPrint('InspectionDetailScreen: Topic added to nested structure - no auto-sync');
 
       // Atualizar o estado local
       _inspection = updatedInspection;

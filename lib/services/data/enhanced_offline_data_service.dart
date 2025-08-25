@@ -60,19 +60,12 @@ class EnhancedOfflineDataService {
   // ===============================
 
   Future<Inspection?> getInspection(String id) async {
-    debugPrint('DataService: Getting inspection $id');
     final result = await _inspectionRepository.findById(id);
-    debugPrint('DataService: Inspection $id found: ${result != null}');
     return result;
   }
 
   Future<List<Inspection>> getInspectionsByInspector(String inspectorId) async {
-    debugPrint('EnhancedOfflineDataService: 🔍 Buscando inspeções para inspector_id: $inspectorId');
     final result = await _inspectionRepository.findByInspectorId(inspectorId);
-    debugPrint('EnhancedOfflineDataService: 📋 Encontradas ${result.length} inspeções para inspector $inspectorId');
-    for (final inspection in result) {
-      debugPrint('EnhancedOfflineDataService: 📄 → "${inspection.title}" (ID: ${inspection.id}, Inspector: ${inspection.inspectorId})');
-    }
     return result;
   }
 
@@ -85,54 +78,39 @@ class EnhancedOfflineDataService {
   }
 
   Future<String> saveInspection(Inspection inspection) async {
-    debugPrint('DataService: Saving inspection ${inspection.id}');
     final result = await _inspectionRepository.insert(inspection);
     debugPrint('DataService: Inspection saved with ID: $result');
     return result;
   }
 
   Future<void> updateInspection(Inspection inspection) async {
-    debugPrint('DataService: Updating inspection ${inspection.id}');
     await _inspectionRepository.update(inspection);
     debugPrint('DataService: Inspection ${inspection.id} updated successfully');
   }
 
   Future<void> insertOrUpdateInspection(Inspection inspection) async {
-    debugPrint('DataService: Insert or update inspection ${inspection.id}');
     await _inspectionRepository.insertOrUpdate(inspection);
-    debugPrint('DataService: Inspection ${inspection.id} insert/update completed');
   }
 
   Future<void> insertOrUpdateInspectionFromCloud(Inspection inspection) async {
-    debugPrint('EnhancedOfflineDataService: 💾 Insert or update inspection from cloud ${inspection.id}');
-    debugPrint('EnhancedOfflineDataService: 💾 Título: "${inspection.title}"');
-    debugPrint('EnhancedOfflineDataService: 💾 Inspector ID: ${inspection.inspectorId}');
-    debugPrint('EnhancedOfflineDataService: 💾 Status: ${inspection.status}');
     
     await _inspectionRepository.insertOrUpdateFromCloud(inspection);
     
     // Verificar se foi salvo corretamente
     final savedInspection = await _inspectionRepository.findById(inspection.id);
     if (savedInspection != null) {
-      debugPrint('EnhancedOfflineDataService: ✅ Vistoria "${savedInspection.title}" CONFIRMADA no banco local');
-      debugPrint('EnhancedOfflineDataService: ✅ Inspector ID salvo: ${savedInspection.inspectorId}');
     } else {
       debugPrint('EnhancedOfflineDataService: ❌ ERRO: Vistoria ${inspection.id} NÃO foi encontrada após salvamento!');
     }
     
-    debugPrint('EnhancedOfflineDataService: Inspection from cloud ${inspection.id} insert/update completed');
   }
 
   Future<void> insertOrUpdateTopicFromCloud(Topic topic) async {
-    debugPrint('DataService: Insert or update topic from cloud ${topic.id}');
     await _topicRepository.insertOrUpdateFromCloud(topic);
-    debugPrint('DataService: Topic from cloud ${topic.id} insert/update completed');
   }
 
   Future<void> insertOrUpdateItemFromCloud(Item item) async {
-    debugPrint('DataService: Insert or update item from cloud ${item.id}');
     await _itemRepository.insertOrUpdateFromCloud(item);
-    debugPrint('DataService: Item from cloud ${item.id} insert/update completed');
   }
 
   // Método para forçar sincronização de uma inspeção e todos seus dados
@@ -271,9 +249,7 @@ class EnhancedOfflineDataService {
 
 
   Future<void> insertOrUpdateDetailFromCloud(Detail detail) async {
-    debugPrint('DataService: Insert or update detail from cloud ${detail.id}');
     await _detailRepository.insertOrUpdateFromCloud(detail);
-    debugPrint('DataService: Detail from cloud ${detail.id} insert/update completed');
   }
 
   Future<void> deleteInspection(String id) async {
@@ -308,7 +284,6 @@ class EnhancedOfflineDataService {
   // ===============================
 
   Future<List<Topic>> getTopics(String inspectionId) async {
-    debugPrint('DataService: Getting topics for inspection $inspectionId');
     final result =
         await _topicRepository.findByInspectionIdOrdered(inspectionId);
     debugPrint(
@@ -329,13 +304,10 @@ class EnhancedOfflineDataService {
   }
 
   Future<void> insertOrUpdateTopic(Topic topic) async {
-    debugPrint('DataService: Insert or update topic ${topic.topicName} for inspection ${topic.inspectionId}');
     await _topicRepository.insertOrUpdate(topic);
-    debugPrint('DataService: Topic ${topic.id} insert/update completed');
   }
 
   Future<void> updateTopic(Topic topic) async {
-    debugPrint('DataService: Updating topic ${topic.id} - ${topic.topicName}');
     await _topicRepository.update(topic);
     
     // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
@@ -374,10 +346,7 @@ class EnhancedOfflineDataService {
   // ===============================
 
   Future<List<Item>> getItems(String topicId) async {
-    debugPrint('DataService: Getting items for topic $topicId');
-    final result = await _itemRepository.findByTopicIdOrdered(topicId);
-    debugPrint('DataService: Found ${result.length} items for topic $topicId');
-    return result;
+    return await _itemRepository.findByTopicIdOrdered(topicId);
   }
 
   Future<List<Item>> getItemsByInspection(String inspectionId) async {
@@ -389,21 +358,15 @@ class EnhancedOfflineDataService {
   }
 
   Future<String> saveItem(Item item) async {
-    debugPrint(
-        'DataService: Saving item ${item.itemName} for topic ${item.topicId}');
     final result = await _itemRepository.insert(item);
-    debugPrint('DataService: Item saved with ID: $result');
     return result;
   }
 
   Future<void> insertOrUpdateItem(Item item) async {
-    debugPrint('DataService: Insert or update item ${item.itemName} for topic ${item.topicId}');
     await _itemRepository.insertOrUpdate(item);
-    debugPrint('DataService: Item ${item.id} insert/update completed');
   }
 
   Future<void> updateItem(Item item) async {
-    debugPrint('DataService: Updating item ${item.id} - ${item.itemName}');
     await _itemRepository.update(item);
     
     // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
@@ -450,18 +413,12 @@ class EnhancedOfflineDataService {
   // ===============================
 
   Future<List<Detail>> getDetails(String itemId) async {
-    debugPrint('DataService: Getting details for item $itemId');
-    final result = await _detailRepository.findByItemIdOrdered(itemId);
-    debugPrint('DataService: Found ${result.length} details for item $itemId');
-    return result;
+    return await _detailRepository.findByItemIdOrdered(itemId);
   }
 
   // Buscar detalhes diretos de tópico (hierarquia flexível)
   Future<List<Detail>> getDirectDetails(String topicId) async {
-    debugPrint('DataService: Getting direct details for topic $topicId');
-    final result = await _detailRepository.findDirectDetailsByTopicIdOrdered(topicId);
-    debugPrint('DataService: Found ${result.length} direct details for topic $topicId');
-    return result;
+    return await _detailRepository.findDirectDetailsByTopicIdOrdered(topicId);
   }
 
   Future<List<Detail>> getDetailsByTopic(String topicId) async {
@@ -477,17 +434,12 @@ class EnhancedOfflineDataService {
   }
 
   Future<String> saveDetail(Detail detail) async {
-    debugPrint(
-        'DataService: Saving detail ${detail.detailName} for item ${detail.itemId}');
     final result = await _detailRepository.insert(detail);
-    debugPrint('DataService: Detail saved with ID: $result');
     return result;
   }
 
   Future<void> insertOrUpdateDetail(Detail detail) async {
-    debugPrint('DataService: Insert or update detail ${detail.detailName} for item ${detail.itemId}');
     await _detailRepository.insertOrUpdate(detail);
-    debugPrint('DataService: Detail ${detail.id} insert/update completed');
   }
 
   Future<void> updateDetail(Detail detail) async {
@@ -738,7 +690,6 @@ class EnhancedOfflineDataService {
   }
 
   Future<void> updateMediaCloudUrl(String mediaId, String cloudUrl) async {
-    debugPrint('DataService: Updating media $mediaId cloud URL');
     await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
   }
 
@@ -1727,7 +1678,6 @@ class EnhancedOfflineDataService {
     // 3. Salvar detalhe duplicado
     final newDetailId = await saveDetail(duplicatedDetail);
     
-    debugPrint('EnhancedOfflineDataService: Successfully duplicated detail $detailId -> $newDetailId');
     
     // 4. Buscar e retornar o detalhe completo salvo
     final savedDetail = await getDetail(newDetailId);
@@ -1775,6 +1725,5 @@ class EnhancedOfflineDataService {
       await _detailRepository.update(updatedDetail);
     }
     
-    debugPrint('EnhancedOfflineDataService: Successfully reordered ${reorderedDetails.length} details');
   }
 }

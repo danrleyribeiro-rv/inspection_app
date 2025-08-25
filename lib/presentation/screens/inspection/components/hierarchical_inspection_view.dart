@@ -134,7 +134,6 @@ class _HierarchicalInspectionViewState
     
     // Verificar se a lista de tópicos mudou (ex: após deleção)
     if (oldWidget.topics.length != widget.topics.length) {
-      debugPrint('HierarchicalInspectionView: Topics list changed from ${oldWidget.topics.length} to ${widget.topics.length}');
       
       // Se o índice atual está fora dos limites, ajustar
       if (_currentTopicIndex >= widget.topics.length) {
@@ -599,7 +598,6 @@ class _HierarchicalInspectionViewState
                                     (widget.detailsCache[directDetailsKey]?.isNotEmpty ?? false);
     final hasDirectDetailsProperty = topic.directDetails == true;
     
-    debugPrint('HierarchicalInspectionView: Topic ${topic.id} (${topic.topicName}) - directDetails property = $hasDirectDetailsProperty, cache has details = $hasDirectDetailsInCache');
     
     // Use direct details if either condition is true
     return hasDirectDetailsProperty || hasDirectDetailsInCache;
