@@ -546,7 +546,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           if (evaluationOptions.isNotEmpty) ...[
             // Dropdown para opções de avaliação
             DropdownButtonFormField<String>(
-              value: _isValidEvaluationValue(_currentEvaluationValue) ? _currentEvaluationValue : null,
+              initialValue: _isValidEvaluationValue(_currentEvaluationValue) ? _currentEvaluationValue : null,
               decoration: InputDecoration(
                 hintText: 'Selecione uma avaliação',
                 hintStyle: TextStyle(color: Colors.orange.shade200, fontSize: 11),

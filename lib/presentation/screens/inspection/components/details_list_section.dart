@@ -1428,7 +1428,7 @@ class _DetailListItemState extends State<DetailListItem> {
         if (widget.detail.options != null &&
             widget.detail.options!.isNotEmpty) {
           return DropdownButtonFormField<String>(
-            value: _isValidSelectValue(_currentSelectValue) ? _currentSelectValue : null,
+            initialValue: _isValidSelectValue(_currentSelectValue) ? _currentSelectValue : null,
             decoration: InputDecoration(
               labelText: 'Resposta',
               labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),

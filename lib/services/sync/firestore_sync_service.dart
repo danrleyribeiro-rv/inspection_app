@@ -998,10 +998,39 @@ class FirestoreSyncService {
       
       
       // Baixar arquivo do Firebase Storage
+      debugPrint('FirestoreSyncService: Downloading media file $filename from $cloudUrl');
+      
       final storageRef = _firebaseService.storage.refFromURL(cloudUrl);
       final localFile = await _offlineService.createMediaFile(filename);
       
-      await storageRef.writeToFile(localFile);
+      try {
+        await storageRef.writeToFile(localFile);
+        
+        // Verificar se o arquivo foi realmente criado
+        if (!await localFile.exists()) {
+          debugPrint('FirestoreSyncService: ERROR - File $filename was not created after download');
+          return false;
+        }
+        
+        final fileSize = await localFile.length();
+        if (fileSize == 0) {
+          debugPrint('FirestoreSyncService: ERROR - File $filename is empty after download');
+          return false;
+        }
+        
+        debugPrint('FirestoreSyncService: Successfully downloaded $filename ($fileSize bytes)');
+      } catch (downloadError) {
+        debugPrint('FirestoreSyncService: ERROR downloading media $filename: $downloadError');
+        // Tentar limpar o arquivo parcial se existir
+        try {
+          if (await localFile.exists()) {
+            await localFile.delete();
+          }
+        } catch (e) {
+          debugPrint('FirestoreSyncService: Error cleaning up partial file: $e');
+        }
+        return false;
+      }
       
       // Extract and preserve ALL metadata from Firestore
       

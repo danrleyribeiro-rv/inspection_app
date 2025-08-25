@@ -703,7 +703,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildDropdownField() {
     return DropdownButtonFormField<String>(
-      value: _selectedProfession,
+      initialValue: _selectedProfession,
       decoration: InputDecoration(
         labelText: 'Profissão',
         prefixIcon: const Icon(Icons.work_outline, color: Color(0xFF6F4B99)),

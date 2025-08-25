@@ -308,24 +308,41 @@ class NativeSyncService {
         final mediaStatus = await MediaDownloadVerificationService.instance.checkInspectionMediaDownloadStatus(inspectionId);
         
         String completionMessage;
+        bool isSuccess = true;
+        
         if (mediaStatus.totalMedia == 0) {
           completionMessage = 'Inspeção baixada com sucesso!';
         } else if (mediaStatus.isComplete) {
           completionMessage = 'Inspeção baixada com sucesso! ${mediaStatus.downloadedMedia} imagens incluídas.';
         } else {
-          completionMessage = 'Inspeção baixada! ${mediaStatus.downloadedMedia}/${mediaStatus.totalMedia} imagens baixadas.';
+          // Se há mídias esperadas mas nenhuma foi baixada, isso é um erro
+          if (mediaStatus.downloadedMedia == 0) {
+            completionMessage = 'Erro no download das imagens! ${mediaStatus.totalMedia} imagens não puderam ser baixadas.';
+            isSuccess = false;
+          } else {
+            // Download parcial - ainda é um problema
+            completionMessage = 'Download incompleto! ${mediaStatus.downloadedMedia}/${mediaStatus.totalMedia} imagens baixadas.';
+            isSuccess = false;
+          }
         }
         
-        // Success notification
-        await SimpleNotificationService.instance.showCompletionNotification(
-          title: 'Download concluído',
-          message: completionMessage,
-          isSuccess: true,
-        );
+        // Notification with appropriate status
+        if (isSuccess) {
+          await SimpleNotificationService.instance.showCompletionNotification(
+            title: 'Download concluído',
+            message: completionMessage,
+            isSuccess: true,
+          );
+        } else {
+          await SimpleNotificationService.instance.showErrorNotification(
+            title: 'Problema no download',
+            message: completionMessage,
+          );
+        }
         
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,
-          phase: SyncPhase.completed,
+          phase: isSuccess ? SyncPhase.completed : SyncPhase.error,
           current: 1,
           total: 1,
           message: completionMessage,

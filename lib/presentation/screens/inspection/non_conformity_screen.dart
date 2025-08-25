@@ -564,7 +564,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                               const SizedBox(width: 8),
                               Expanded(
                                 child: DropdownButtonFormField<String>(
-                                  value: _levelFilter,
+                                  initialValue: _levelFilter,
                                   style: const TextStyle(color: Colors.white, fontSize: 12),
                                   decoration: InputDecoration(
                                     filled: true,

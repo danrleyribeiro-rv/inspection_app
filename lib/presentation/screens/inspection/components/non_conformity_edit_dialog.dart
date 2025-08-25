@@ -115,7 +115,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
               const Text('Severidade (opcional):'),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _severity,
+                initialValue: _severity,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding:

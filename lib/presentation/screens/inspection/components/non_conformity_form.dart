@@ -477,7 +477,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         border: const OutlineInputBorder(),
         prefixIcon: Icon(icon),
       ),
-      value: value,
+      initialValue: value,
       items: items.map((item) {
         return DropdownMenuItem<T>(
           value: item,
@@ -498,7 +498,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.priority_high),
       ),
-      value: _severity,
+      initialValue: _severity,
       menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
       items: const [
         DropdownMenuItem<String>(

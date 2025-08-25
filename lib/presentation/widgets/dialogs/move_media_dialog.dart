@@ -578,7 +578,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
             ),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              value: _selectedAction,
+              initialValue: _selectedAction,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 contentPadding:
@@ -632,7 +632,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                 ),
                 const SizedBox(height: 4),
                 DropdownButtonFormField<Topic>(
-                  value: _selectedTopic,
+                  initialValue: _selectedTopic,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding:
@@ -680,7 +680,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<Detail>(
-                    value: _selectedDirectDetail,
+                    initialValue: _selectedDirectDetail,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       contentPadding:
@@ -717,7 +717,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<Item>(
-                    value: _selectedItem,
+                    initialValue: _selectedItem,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       contentPadding:
@@ -761,7 +761,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<Detail>(
-                    value: _selectedDetail,
+                    initialValue: _selectedDetail,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       contentPadding:

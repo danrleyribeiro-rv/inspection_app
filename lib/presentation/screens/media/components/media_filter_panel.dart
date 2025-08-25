@@ -194,7 +194,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                     color: Colors.grey[800],
                     borderRadius: BorderRadius.circular(8)),
                 child: DropdownButtonFormField<String>(
-                  value: _topicId,
+                  initialValue: _topicId,
                   isExpanded: true,
                   dropdownColor: Colors.grey[800],
                   decoration: const InputDecoration(
@@ -257,7 +257,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                             color: Colors.grey[800],
                             borderRadius: BorderRadius.circular(8)),
                         child: DropdownButtonFormField<String>(
-                          value: _detailId,
+                          initialValue: _detailId,
                           isExpanded: true,
                           dropdownColor: Colors.grey[800],
                           decoration: const InputDecoration(
@@ -290,7 +290,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                             color: Colors.grey[800],
                             borderRadius: BorderRadius.circular(8)),
                         child: DropdownButtonFormField<String>(
-                          value: _itemId,
+                          initialValue: _itemId,
                           isExpanded: true,
                           dropdownColor: Colors.grey[800],
                           decoration: const InputDecoration(
@@ -347,7 +347,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                             color: Colors.grey[800],
                             borderRadius: BorderRadius.circular(8)),
                         child: DropdownButtonFormField<String>(
-                          value: _detailId,
+                          initialValue: _detailId,
                           isExpanded: true,
                           dropdownColor: Colors.grey[800],
                           decoration: const InputDecoration(
