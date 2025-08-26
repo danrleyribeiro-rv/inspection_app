@@ -1957,12 +1957,36 @@ class FirestoreSyncService {
 
   Future<Map<String, dynamic>> _buildNestedInspectionData(
       Inspection inspection) async {
+    
+    // Validate inspection data before processing
+    if (inspection.id.isEmpty) {
+      throw ArgumentError('Inspection ID cannot be empty');
+    }
+    
+    if (inspection.title.trim().isEmpty) {
+      throw ArgumentError('Inspection title cannot be empty');
+    }
+    
+    if (inspection.inspectorId?.isEmpty ?? true) {
+      throw ArgumentError('Inspector ID cannot be empty');
+    }
+    
     // Start with basic inspection data
     final data = inspection.toMap();
     
+    // Validate and clean data fields
     data.remove('id');
     data.remove('needs_sync');
     data.remove('is_deleted');
+    
+    // Ensure required fields are valid
+    if (data['title'] == null || (data['title'] as String).trim().isEmpty) {
+      throw ArgumentError('Inspection title is required and cannot be empty');
+    }
+    
+    if (data['inspector_id'] == null || (data['inspector_id'] as String).isEmpty) {
+      throw ArgumentError('Inspector ID is required and cannot be empty');
+    }
 
     // Convert integer booleans back to booleans for Firestore
     if (data['is_templated'] is int) {
@@ -1981,6 +2005,22 @@ class FirestoreSyncService {
 
 
     for (final topic in topics) {
+      
+      // Validate topic data before processing
+      if (topic.id?.isEmpty ?? true) {
+        debugPrint('FirestoreSyncService: Skipping topic with empty ID: ${topic.topicName}');
+        continue;
+      }
+      
+      if (topic.topicName.trim().isEmpty) {
+        debugPrint('FirestoreSyncService: Skipping topic with empty name: ID ${topic.id}');
+        continue;
+      }
+      
+      if (topic.inspectionId.isEmpty || topic.inspectionId != inspection.id) {
+        debugPrint('FirestoreSyncService: Skipping topic with invalid inspection ID: ${topic.id}');
+        continue;
+      }
       
       // Get topic-level media
       final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');

@@ -262,15 +262,26 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       debugPrint(
           'TopicDetailsSection: Duplicating topic ${widget.topic.id} with name ${widget.topic.topicName}');
 
-      if (widget.topic.id == null) {
+      if (widget.topic.id == null || widget.topic.id!.isEmpty) {
         throw Exception('Tópico sem ID válido');
+      }
+
+      // Validate topic data before duplication
+      if (widget.topic.topicName.isEmpty) {
+        throw Exception('Nome do tópico não pode estar vazio');
+      }
+
+      if (widget.topic.inspectionId.isEmpty) {
+        throw Exception('ID da inspeção não pode estar vazio');
       }
 
       // Use the new recursive duplication method
       await _serviceFactory.dataService
           .duplicateTopicWithChildren(widget.topic.id!);
 
-      await widget.onTopicAction();
+      // Force local database update and refresh UI
+      await _serviceFactory.dataService.markInspectionAsModifiedLocally(widget.topic.inspectionId);
+      widget.onTopicAction(); // Remove await to make it non-blocking
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -282,12 +293,20 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         );
       }
     } catch (e) {
+      debugPrint('TopicDetailsSection: Error duplicating topic: $e');
       if (mounted) {
+        String errorMessage = 'Erro ao duplicar tópico';
+        if (e.toString().contains('timeout')) {
+          errorMessage = 'Tempo limite excedido. Tente novamente.';
+        } else if (e.toString().contains('invalid-argument')) {
+          errorMessage = 'Dados inválidos detectados. Aguarde e tente novamente.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao duplicar tópico: $e'),
+            content: Text('$errorMessage: $e'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
+            duration: Duration(seconds: 4),
           ),
         );
       }

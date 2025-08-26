@@ -1466,22 +1466,37 @@ class EnhancedOfflineDataService {
   Future<Topic> duplicateTopicWithChildren(String topicId) async {
     await initialize();
 
+    if (topicId.isEmpty) {
+      throw ArgumentError('ID do tópico não pode estar vazio');
+    }
+
     // 1. Buscar o tópico original
     final originalTopic = await _topicRepository.findById(topicId);
     if (originalTopic == null) {
       throw Exception('Tópico não encontrado: $topicId');
     }
 
+    // Validar dados do tópico original
+    if (originalTopic.topicName.isEmpty) {
+      throw Exception('Nome do tópico original não pode estar vazio');
+    }
+    
+    if (originalTopic.inspectionId.isEmpty) {
+      throw Exception('ID da inspeção não pode estar vazio');
+    }
+
     // 2. Generate unique name for duplicated topic
     final uniqueName = await _generateUniqueTopicName(originalTopic.topicName, originalTopic.inspectionId);
 
-    // 3. Criar tópico duplicado
+    // 3. Criar tópico duplicado com validações
     final duplicatedTopic = Topic(
-      id: null, // Será gerado automaticamente
+      id: null, // Será gerado automaticamente usando UUID
       inspectionId: originalTopic.inspectionId,
       position: originalTopic.position,
+      orderIndex: originalTopic.orderIndex,
       topicName: uniqueName,
       topicLabel: originalTopic.topicLabel,
+      directDetails: originalTopic.directDetails, // Preservar estrutura
       observation: null, // Reset observation
       isDamaged: false, // Reset damage status
       tags: originalTopic.tags ?? [],
@@ -1491,21 +1506,62 @@ class EnhancedOfflineDataService {
 
     // 3. Salvar tópico duplicado
     final newTopicId = await saveTopic(duplicatedTopic);
-
-    // 4. Buscar todos os itens do tópico original
-    final originalItems = await getItems(topicId);
-
-    // 5. Duplicar cada item com seus detalhes
-    for (final originalItem in originalItems) {
-      await _duplicateItemWithDetails(originalItem, newTopicId);
+    
+    if (newTopicId.isEmpty) {
+      throw Exception('Falha ao gerar ID para tópico duplicado');
     }
 
-    debugPrint(
-        'EnhancedOfflineDataService: Successfully duplicated topic $topicId -> $newTopicId with ${originalItems.length} items');
+    try {
+      // 4. Buscar todos os itens e detalhes do tópico original em paralelo
+      final futures = <Future>[
+        getItems(topicId),
+        if (originalTopic.directDetails == true) getDetailsByTopic(topicId),
+      ];
+      
+      final results = await Future.wait(futures);
+      final originalItems = results[0] as List;
+      final originalDetails = originalTopic.directDetails == true && results.length > 1 
+          ? results[1] as List 
+          : <dynamic>[];
 
-    // 6. Buscar e retornar o tópico completo salvo
-    final savedTopic = await getTopic(newTopicId);
-    return savedTopic!;
+      // 5. Duplicar itens e detalhes em paralelo quando possível
+      final duplicationFutures = <Future>[];
+      
+      // Duplicar cada item com seus detalhes
+      for (final originalItem in originalItems) {
+        if (originalItem.id != null && originalItem.id!.isNotEmpty) {
+          duplicationFutures.add(_duplicateItemWithDetails(originalItem, newTopicId));
+        }
+      }
+
+      // Duplicar detalhes diretos se existirem
+      for (final originalDetail in originalDetails) {
+        if (originalDetail.id != null && originalDetail.id!.isNotEmpty) {
+          duplicationFutures.add(_duplicateDetailDirect(originalDetail, newTopicId));
+        }
+      }
+      
+      // Executar todas as duplicações em paralelo
+      if (duplicationFutures.isNotEmpty) {
+        await Future.wait(duplicationFutures);
+      }
+
+      debugPrint(
+          'EnhancedOfflineDataService: Successfully duplicated topic $topicId -> $newTopicId with ${originalItems.length} items and ${originalDetails.length} direct details');
+
+      // 6. Buscar e retornar o tópico salvo (sem verificação redundante)
+      final savedTopic = await getTopic(newTopicId);
+      return savedTopic!;
+    } catch (e) {
+      // Se algo falhar durante a duplicação dos filhos, limpar o tópico criado
+      debugPrint('EnhancedOfflineDataService: Error during duplication, cleaning up: $e');
+      try {
+        await deleteTopic(newTopicId);
+      } catch (cleanupError) {
+        debugPrint('EnhancedOfflineDataService: Error during cleanup: $cleanupError');
+      }
+      rethrow;
+    }
   }
 
   /// Duplica um item completo com todos os seus detalhes
@@ -1546,16 +1602,31 @@ class EnhancedOfflineDataService {
   /// Método auxiliar para duplicar um item e seus detalhes
   Future<Item> _duplicateItemWithDetails(
       Item originalItem, String newTopicId) async {
+    
+    // Validar dados do item original
+    if (originalItem.id?.isEmpty ?? true) {
+      throw ArgumentError('ID do item original não pode estar vazio');
+    }
+    
+    if (originalItem.itemName.trim().isEmpty) {
+      throw ArgumentError('Nome do item original não pode estar vazio');
+    }
+    
+    if (originalItem.inspectionId.isEmpty) {
+      throw ArgumentError('ID da inspeção não pode estar vazio');
+    }
+    
     // 1. Generate unique name for duplicated item
     final uniqueName = await _generateUniqueItemName(originalItem.itemName, newTopicId);
     
-    // 2. Criar item duplicado
+    // 2. Criar item duplicado com validações
     final duplicatedItem = Item(
-      id: null, // Será gerado automaticamente
+      id: null, // Será gerado automaticamente usando UUID
       inspectionId: originalItem.inspectionId,
       topicId: newTopicId,
       itemId: originalItem.itemId,
       position: originalItem.position,
+      orderIndex: originalItem.orderIndex,
       itemName: uniqueName, // Use unique name
       itemLabel: originalItem.itemLabel,
       observation: null, // Reset observation
@@ -1571,14 +1642,22 @@ class EnhancedOfflineDataService {
 
     // 2. Salvar item duplicado
     final newItemId = await saveItem(duplicatedItem);
+    
+    if (newItemId.isEmpty) {
+      throw Exception('Falha ao gerar ID para item duplicado');
+    }
 
-    // 3. Buscar todos os detalhes do item original
+    // Item foi salvo, continuar com duplicação dos detalhes
+
+    // 4. Buscar todos os detalhes do item original
     final originalDetails = await getDetails(originalItem.id!);
 
-    // 4. Duplicar cada detalhe
-    for (final originalDetail in originalDetails) {
+    // 5. Duplicar detalhes em paralelo para maior performance
+    final detailFutures = originalDetails
+        .where((detail) => detail.id?.isNotEmpty ?? false)
+        .map((originalDetail) async {
       final duplicatedDetail = Detail(
-        id: null, // Será gerado automaticamente
+        id: null, // Será gerado automaticamente usando UUID
         inspectionId: originalDetail.inspectionId,
         topicId: newTopicId,
         itemId: newItemId,
@@ -1598,15 +1677,76 @@ class EnhancedOfflineDataService {
         isRequired: originalDetail.isRequired,
       );
 
-      await saveDetail(duplicatedDetail);
+      return await saveDetail(duplicatedDetail);
+    }).toList();
+
+    if (detailFutures.isNotEmpty) {
+      await Future.wait(detailFutures);
     }
 
     debugPrint(
         'EnhancedOfflineDataService: Successfully duplicated item ${originalItem.id} -> $newItemId with ${originalDetails.length} details');
 
-    // 5. Buscar e retornar o item completo salvo
-    final savedItem = await getItem(newItemId);
-    return savedItem!;
+    // 5. Retornar o item duplicado (sem busca redundante)
+    return duplicatedItem.copyWith(id: newItemId);
+  }
+
+  /// Método auxiliar para duplicar um detalhe direto do tópico
+  Future<Detail> _duplicateDetailDirect(Detail originalDetail, String newTopicId) async {
+    
+    // Validar dados do detalhe original
+    if (originalDetail.id?.isEmpty ?? true) {
+      throw ArgumentError('ID do detalhe original não pode estar vazio');
+    }
+    
+    if (originalDetail.detailName.trim().isEmpty) {
+      throw ArgumentError('Nome do detalhe original não pode estar vazio');
+    }
+    
+    if (originalDetail.inspectionId.isEmpty) {
+      throw ArgumentError('ID da inspeção não pode estar vazio');
+    }
+    
+    if (newTopicId.isEmpty) {
+      throw ArgumentError('ID do novo tópico não pode estar vazio');
+    }
+    
+    // Gerar nome único para o detalhe duplicado
+    final uniqueName = await _generateUniqueDetailName(originalDetail.detailName, newTopicId, null);
+    
+    // Criar detalhe duplicado com validações
+    final duplicatedDetail = Detail(
+      id: null, // Será gerado automaticamente usando UUID
+      inspectionId: originalDetail.inspectionId,
+      topicId: newTopicId,
+      itemId: null, // Detalhe direto do tópico não tem itemId
+      detailId: originalDetail.detailId,
+      position: originalDetail.position,
+      orderIndex: originalDetail.orderIndex,
+      detailName: uniqueName, // Use unique name
+      detailValue: originalDetail.detailValue,
+      observation: null, // Reset observation
+      isDamaged: false, // Reset damage status
+      tags: originalDetail.tags ?? [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      type: originalDetail.type,
+      options: originalDetail.options,
+      status: originalDetail.status,
+      isRequired: originalDetail.isRequired,
+    );
+
+    // Salvar detalhe duplicado
+    final newDetailId = await saveDetail(duplicatedDetail);
+    
+    if (newDetailId.isEmpty) {
+      throw Exception('Falha ao gerar ID para detalhe duplicado');
+    }
+    
+    // Retornar o detalhe duplicado (sem verificações redundantes)
+    debugPrint('EnhancedOfflineDataService: Successfully duplicated direct detail ${originalDetail.id} -> $newDetailId');
+    
+    return duplicatedDetail.copyWith(id: newDetailId);
   }
 
   Future<String> _generateUniqueDetailName(String baseName, String? topicId, String? itemId) async {

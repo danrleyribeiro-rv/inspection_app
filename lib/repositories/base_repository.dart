@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
-import 'dart:math';
+import 'package:uuid/uuid.dart';
 import '../storage/database_helper.dart';
 
 abstract class BaseRepository<T> {
@@ -28,12 +28,10 @@ abstract class BaseRepository<T> {
     return map['id'] as String;
   }
   
-  /// Generates a Firestore-safe ID
+  /// Generates a Firestore-safe UUID-based ID
   String _generateFirestoreSafeId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(999999);
-    // Use uppercase to avoid issues with Firestore field names
-    return '$timestamp${random.toString().padLeft(6, '0')}${tableName.toUpperCase()}';
+    const uuid = Uuid();
+    return uuid.v4();
   }
 
   Future<void> update(T entity) async {
