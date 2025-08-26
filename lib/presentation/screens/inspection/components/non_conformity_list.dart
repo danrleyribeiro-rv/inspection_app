@@ -41,6 +41,7 @@ class _NonConformityListState extends State<NonConformityList> {
       EnhancedOfflineServiceFactory.instance;
   final Map<String, int> _mediaCountCache = {};
   final Map<String, ValueNotifier<int>> _mediaCountNotifiers = {};
+  final Set<String> _expandedLocationCards = {};
 
   @override
   void initState() {
@@ -122,6 +123,103 @@ class _NonConformityListState extends State<NonConformityList> {
       default:
         return Colors.grey;
     }
+  }
+
+  String _buildLocationText(String topicName, String? itemName, String? detailName) {
+    final List<String> locationParts = [topicName];
+    
+    debugPrint('NonConformityList: Building location - Topic: $topicName, Item: $itemName, Detail: $detailName');
+    
+    // Se tem item, adiciona à localização
+    if (itemName != null && itemName.isNotEmpty && itemName != 'Item não especificado') {
+      locationParts.add(itemName);
+      debugPrint('NonConformityList: Added item to location: $itemName');
+    }
+    
+    // Se tem detalhe, adiciona à localização
+    if (detailName != null && detailName.isNotEmpty && detailName != 'Detalhe não especificado') {
+      locationParts.add(detailName);
+      debugPrint('NonConformityList: Added detail to location: $detailName');
+    }
+    
+    final result = locationParts.join(' > ');
+    debugPrint('NonConformityList: Final location text: $result');
+    return result;
+  }
+
+  Widget _buildLocationWidget(Map<String, dynamic> item, String topicName, String? itemName, String? detailName) {
+    final locationText = _buildLocationText(topicName, itemName, detailName);
+    final nonConformityId = item['id'] ?? '';
+    final isExpanded = _expandedLocationCards.contains(nonConformityId);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white24, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            locationText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+            ),
+            maxLines: isExpanded ? null : 5,
+            overflow: isExpanded ? null : TextOverflow.ellipsis,
+          ),
+          // Mostrar botão de expansão apenas se o texto for muito longo
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // Usar uma estimativa simples baseada no comprimento do texto
+              // Em vez de TextPainter complexo
+              final estimatedLines = (locationText.length * 0.1).ceil();
+              final hasOverflow = estimatedLines > 5;
+              
+              if (hasOverflow) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedLocationCards.remove(nonConformityId);
+                        } else {
+                          _expandedLocationCards.add(nonConformityId);
+                        }
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        Icon(
+                          isExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: Colors.white54,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isExpanded ? 'Ver menos' : 'Ver mais',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 9,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   ValueNotifier<int> _getMediaCountNotifier(String nonConformityId) {
@@ -268,8 +366,8 @@ class _NonConformityListState extends State<NonConformityList> {
   Widget _buildCompactCard(BuildContext context, Map<String, dynamic> item) {
     // Extract names directly from the item data structure
     final topicName = item['topic_name'] ?? 'Tópico não especificado';
-    final itemName = item['item_name'] ?? 'Item não especificado';
-    final detailName = item['detail_name'] ?? 'Detalhe não especificado';
+    final itemName = item['item_name']; // Don't use ?? here, keep null values
+    final detailName = item['detail_name']; // Don't use ?? here, keep null values
 
     final severity = item['severity'];
     final status = item['status'] ?? 'pendente';
@@ -395,23 +493,7 @@ class _NonConformityListState extends State<NonConformityList> {
               ],
             ),
             // Localização compacta - mais visível
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.white24, width: 0.5),
-              ),
-              child: Text(
-                '$topicName > $itemName > $detailName',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            _buildLocationWidget(item, topicName, itemName, detailName),
             const SizedBox(height: 4),
 
             // Descrição

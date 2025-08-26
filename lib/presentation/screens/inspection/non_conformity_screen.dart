@@ -199,7 +199,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       final nonConformitiesObjects = await _serviceFactory.dataService
           .getNonConformities(widget.inspectionId);
 
-      final enrichedNonConformities = nonConformitiesObjects.map((nc) {
+      final enrichedNonConformities = <Map<String, dynamic>>[];
+      
+      for (final nc in nonConformitiesObjects) {
         final ncData = nc.toMap();
         
         ncData['id'] = nc.id;
@@ -218,6 +220,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         ncData['created_at'] = nc.createdAt.toIso8601String();
         ncData['updated_at'] = nc.updatedAt.toIso8601String();
 
+        // Carregar nome do tópico
         if (nc.topicId != null) {
           final topic = _topics.firstWhere((t) => t.id == nc.topicId,
               orElse: () => Topic(
@@ -226,13 +229,83 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                     topicName: 'Tópico não especificado',
                   ));
           ncData['topic_name'] = topic.topicName;
+          
+          // Carregar nome do item se existir
+          if (nc.itemId != null) {
+            try {
+              final items = await _serviceFactory.dataService.getItems(nc.topicId!);
+              final item = items.firstWhere((i) => i.id == nc.itemId, orElse: () => Item(
+                inspectionId: widget.inspectionId,
+                topicId: nc.topicId!,
+                position: 0,
+                itemName: 'Item não especificado',
+              ));
+              ncData['item_name'] = item.itemName;
+              debugPrint('NonConformityScreen: Loaded item name: ${item.itemName} for NC ${nc.id}');
+              
+              // Carregar nome do detalhe se existir
+              if (nc.detailId != null) {
+                try {
+                  List<Detail> details;
+                  if (topic.directDetails == true) {
+                    // Para tópicos com detalhes diretos
+                    details = await _serviceFactory.dataService.getDirectDetails(nc.topicId!);
+                  } else {
+                    // Para hierarquia normal (item -> detalhes)
+                    details = await _serviceFactory.dataService.getDetails(nc.itemId!);
+                  }
+                  
+                  final detail = details.firstWhere((d) => d.id == nc.detailId, orElse: () => Detail(
+                    inspectionId: widget.inspectionId,
+                    topicId: nc.topicId!,
+                    itemId: nc.itemId,
+                    position: 0,
+                    detailName: 'Detalhe não especificado',
+                  ));
+                  ncData['detail_name'] = detail.detailName;
+                  debugPrint('NonConformityScreen: Loaded detail name: ${detail.detailName} for NC ${nc.id}');
+                } catch (e) {
+                  debugPrint('Erro ao carregar detalhe ${nc.detailId}: $e');
+                  ncData['detail_name'] = 'Detalhe não especificado';
+                }
+              } else {
+                ncData['detail_name'] = null;
+              }
+            } catch (e) {
+              debugPrint('Erro ao carregar item ${nc.itemId}: $e');
+              ncData['item_name'] = 'Item não especificado';
+              ncData['detail_name'] = nc.detailId != null ? 'Detalhe não especificado' : null;
+            }
+          } else {
+            ncData['item_name'] = null;
+            
+            // Para tópicos com detalhes diretos (sem item)
+            if (nc.detailId != null) {
+              try {
+                final details = await _serviceFactory.dataService.getDirectDetails(nc.topicId!);
+                final detail = details.firstWhere((d) => d.id == nc.detailId, orElse: () => Detail(
+                  inspectionId: widget.inspectionId,
+                  topicId: nc.topicId!,
+                  position: 0,
+                  detailName: 'Detalhe não especificado',
+                ));
+                ncData['detail_name'] = detail.detailName;
+              } catch (e) {
+                debugPrint('Erro ao carregar detalhe direto ${nc.detailId}: $e');
+                ncData['detail_name'] = 'Detalhe não especificado';
+              }
+            } else {
+              ncData['detail_name'] = null;
+            }
+          }
+        } else {
+          ncData['topic_name'] = 'Tópico não especificado';
+          ncData['item_name'] = null;
+          ncData['detail_name'] = null;
         }
 
-        ncData['item_name'] = 'Item não especificado';
-        ncData['detail_name'] = 'Detalhe não especificado';
-
-        return ncData;
-      }).toList();
+        enrichedNonConformities.add(ncData);
+      }
 
       if (mounted) {
         setState(() {
