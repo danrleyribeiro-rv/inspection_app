@@ -203,9 +203,16 @@ class SimpleNotificationService {
         icon: '@mipmap/ic_launcher',
       );
       
+      // Para iOS, incluir o progresso no texto da mensagem
+      String iOSMessage = message;
+      if (Platform.isIOS && !indeterminate && progress != null && maxProgress != null) {
+        final percentage = ((progress / maxProgress) * 100).round();
+        iOSMessage = '$message ($percentage%)';
+      }
+      
       const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
-        presentAlert: false,
-        presentBadge: false,
+        presentAlert: true,
+        presentBadge: true,
         presentSound: false,
       );
       
@@ -217,11 +224,11 @@ class SimpleNotificationService {
       await _flutterLocalNotificationsPlugin.show(
         id,
         title,
-        message,
+        Platform.isIOS ? iOSMessage : message,
         platformChannelSpecifics,
       );
       
-      debugPrint('SimpleNotificationService: Progress notification shown: $title - $message');
+      debugPrint('SimpleNotificationService: Progress notification shown: $title - ${Platform.isIOS ? iOSMessage : message}');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing progress notification: $e');
     }
