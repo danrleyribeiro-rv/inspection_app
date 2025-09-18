@@ -8,6 +8,8 @@ import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/hierarchical_inspection_view.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
@@ -780,12 +782,48 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
       // Create ZIP archive
       final archive = Archive();
-      
+
       // Add inspection JSON file
       final jsonString = jsonEncode(inspectionData);
       final jsonBytes = utf8.encode(jsonString);
       final jsonFile = ArchiveFile('inspection.json', jsonBytes.length, jsonBytes);
       archive.addFile(jsonFile);
+
+      // NOVA FUNCIONALIDADE: Adicionar arquivo .db do SQLite
+      try {
+        final dbPath = path.join(await getDatabasesPath(), 'inspection_offline.db');
+        final dbFile = File(dbPath);
+
+        if (await dbFile.exists()) {
+          final dbBytes = await dbFile.readAsBytes();
+          final dbArchiveFile = ArchiveFile('database/inspection_offline.db', dbBytes.length, dbBytes);
+          archive.addFile(dbArchiveFile);
+          debugPrint('Database file added to export: ${dbBytes.length} bytes');
+        } else {
+          debugPrint('Database file not found at: $dbPath');
+          // Forçar criação de backup mesmo sem DB
+          final backupInfo = {
+            'message': 'Database backup not available - using JSON export only',
+            'timestamp': DateTime.now().toIso8601String(),
+            'inspection_id': widget.inspectionId,
+          };
+          final backupBytes = utf8.encode(jsonEncode(backupInfo));
+          final backupFile = ArchiveFile('database/backup_info.json', backupBytes.length, backupBytes);
+          archive.addFile(backupFile);
+        }
+      } catch (e) {
+        debugPrint('Error adding database to export: $e');
+        // Garantir que sempre tenha algo mesmo com erro
+        final errorInfo = {
+          'error': 'Failed to backup database: $e',
+          'timestamp': DateTime.now().toIso8601String(),
+          'inspection_id': widget.inspectionId,
+          'fallback': 'Using JSON export as primary backup'
+        };
+        final errorBytes = utf8.encode(jsonEncode(errorInfo));
+        final errorFile = ArchiveFile('database/error_log.json', errorBytes.length, errorBytes);
+        archive.addFile(errorFile);
+      }
 
       // Collect and organize all media files with proper structure
       final allMedia = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
@@ -813,29 +851,54 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       // Gerar o arquivo ZIP
       final zipBytes = ZipEncoder().encode(archive);
 
-      // Obter diretório para salvar o arquivo
+      // MODIFICADO: Forçar salvamento na pasta Downloads
       Directory? directory;
-      
+
       try {
         if (Platform.isAndroid) {
-          // Tentar usar Downloads primeiro
-          directory = Directory('/storage/emulated/0/Download');
-          if (!await directory.exists()) {
-            // Fallback para diretório externo da aplicação
-            directory = await getExternalStorageDirectory();
+          // FORÇAR Downloads - tentar múltiplos caminhos
+          final downloadPaths = [
+            '/storage/emulated/0/Download',
+            '/storage/emulated/0/Downloads',
+            '/sdcard/Download',
+            '/sdcard/Downloads',
+          ];
+
+          for (final path in downloadPaths) {
+            final testDir = Directory(path);
+            if (await testDir.exists()) {
+              directory = testDir;
+              debugPrint('Using Downloads directory: $path');
+              break;
+            }
           }
-          // Se ainda não conseguir, usar diretório interno da aplicação
+
+          // Se não conseguir Downloads, tentar criar na pasta externa
+          if (directory == null) {
+            final externalDir = await getExternalStorageDirectory();
+            if (externalDir != null) {
+              // Criar pasta Downloads na pasta da aplicação
+              directory = Directory('${externalDir.path}/Downloads');
+              await directory.create(recursive: true);
+              debugPrint('Created Downloads in external storage: ${directory.path}');
+            }
+          }
+
+          // Fallback final para diretório interno
           if (directory == null || !await directory.exists()) {
             directory = await getApplicationDocumentsDirectory();
+            debugPrint('Fallback to documents directory: ${directory.path}');
           }
         } else {
-          // Para iOS e outras plataformas
+          // Para iOS - usar diretório de documentos
           directory = await getApplicationDocumentsDirectory();
+          debugPrint('iOS documents directory: ${directory.path}');
         }
       } catch (e) {
-        debugPrint('Erro ao acessar diretório: $e');
-        // Fallback final para diretório interno
+        debugPrint('Erro ao acessar diretório Downloads: $e');
+        // GARANTIR que sempre funcione - usar diretório interno
         directory = await getApplicationDocumentsDirectory();
+        debugPrint('Emergency fallback directory: ${directory.path}');
       }
 
       // Criar pasta "Lince Inspeções" se não existir
@@ -844,10 +907,40 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         await linceDirectory.create(recursive: true);
       }
 
-      // Salvar o arquivo ZIP
+      // GARANTIR salvamento do arquivo ZIP
       final fileName = 'inspecao_${_inspection?.cod ?? 'export'}_${DateTime.now().millisecondsSinceEpoch}.zip';
-      final zipFile = File('${linceDirectory.path}/$fileName');
-      await zipFile.writeAsBytes(zipBytes);
+      File? zipFile;
+
+      try {
+        zipFile = File('${linceDirectory.path}/$fileName');
+        await zipFile.writeAsBytes(zipBytes);
+        debugPrint('ZIP saved successfully at: ${zipFile.path}');
+      } catch (e) {
+        debugPrint('Error saving to primary location: $e');
+        // FORÇAR salvamento em qualquer lugar possível
+        final fallbackPaths = [
+          '${directory.path}/$fileName',
+          '${(await getApplicationDocumentsDirectory()).path}/$fileName',
+          '${(await getTemporaryDirectory()).path}/$fileName',
+        ];
+
+        bool saved = false;
+        for (final fallbackPath in fallbackPaths) {
+          try {
+            zipFile = File(fallbackPath);
+            await zipFile.writeAsBytes(zipBytes);
+            debugPrint('ZIP saved to fallback location: $fallbackPath');
+            saved = true;
+            break;
+          } catch (fallbackError) {
+            debugPrint('Fallback path failed: $fallbackPath - $fallbackError');
+          }
+        }
+
+        if (!saved || zipFile == null) {
+          throw Exception('Failed to save ZIP to any location');
+        }
+      }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -859,7 +952,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                 Text('Inspeção exportada como ZIP!'),
                 const SizedBox(height: 4),
                 Text(
-                  'Local: ${zipFile.path}',
+                  'Local: ${zipFile?.path ?? 'Erro ao obter caminho'}',
                   style: const TextStyle(fontSize: 12),
                 ),
               ],
@@ -869,14 +962,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
             action: SnackBarAction(
               label: 'ABRIR',
               textColor: Colors.white,
-              onPressed: () => _openExportedFile(zipFile.path),
+              onPressed: () => _openExportedFile(zipFile?.path ?? ''),
             ),
           ),
         );
       }
 
-      debugPrint('Inspection exported successfully as ZIP: ${zipFile.path}');
-      debugPrint('ZIP contains organized JSON data and ${allMedia.length} images');
+      debugPrint('Inspection exported successfully as ZIP: ${zipFile?.path ?? 'unknown path'}');
+      debugPrint('ZIP contains organized JSON data, database backup, and ${allMedia.length} images');
 
     } catch (e) {
       debugPrint('Error exporting inspection: $e');
