@@ -147,6 +147,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
           const SnackBar(
             content: Text('Mídia excluída com sucesso'),
             backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 800),
           ),
         );
       }
@@ -403,7 +404,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                                 _isNonConformity = value;
                               });
                             },
-                            activeColor: Colors.red,
+                            activeThumbColor: Colors.red,
                           ),
 
                           // Observation field

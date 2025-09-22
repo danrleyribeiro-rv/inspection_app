@@ -1,25 +1,43 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
-import 'package:lince_inspecoes/repositories/base_repository.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
-class InspectionRepository extends BaseRepository<Inspection> {
+class InspectionRepository {
   final FirebaseService _firebaseService;
 
   InspectionRepository({
     FirebaseService? firebaseService,
   }) : _firebaseService = firebaseService ?? FirebaseService();
 
-  @override
-  String get tableName => 'inspections';
+  // Métodos básicos CRUD usando DatabaseHelper
+  Future<String> insert(Inspection inspection) async {
+    await DatabaseHelper.insertInspection(inspection);
+    return inspection.id;
+  }
 
-  @override
+  Future<void> update(Inspection inspection) async {
+    await DatabaseHelper.updateInspection(inspection);
+  }
+
+  Future<void> delete(String id) async {
+    await DatabaseHelper.deleteInspection(id);
+  }
+
+  Future<Inspection?> findById(String id) async {
+    return await DatabaseHelper.getInspection(id);
+  }
+
+  Future<List<Inspection>> findAll() async {
+    return await DatabaseHelper.getAllInspections();
+  }
+
   Inspection fromMap(Map<String, dynamic> map) {
     return Inspection.fromMap(map);
   }
 
-  @override
   Map<String, dynamic> toMap(Inspection entity) {
     return entity.toMap();
   }
@@ -27,8 +45,8 @@ class InspectionRepository extends BaseRepository<Inspection> {
   // Métodos específicos da Inspection
   Future<List<Inspection>> findByInspectorId(String inspectorId) async {
     debugPrint('InspectionRepository: 🔍 Executando query para inspector_id: $inspectorId');
-    debugPrint('InspectionRepository: 🔍 Query SQL: SELECT * FROM inspections WHERE inspector_id = ? AND is_deleted = 0');
-    final result = await findWhere('inspector_id = ?', [inspectorId]);
+    final allInspections = DatabaseHelper.inspections.values.toList();
+    final result = allInspections.where((inspection) => inspection.inspectorId == inspectorId).toList();
     debugPrint('InspectionRepository: 📋 Query retornou ${result.length} inspeções');
     for (final inspection in result) {
       debugPrint('InspectionRepository: 📄 → "${inspection.title}" (ID: ${inspection.id}, Inspector: ${inspection.inspectorId})');
@@ -37,151 +55,135 @@ class InspectionRepository extends BaseRepository<Inspection> {
   }
 
   Future<List<Inspection>> findByStatus(String status) async {
-    return await findWhere('status = ?', [status]);
+    final allInspections = DatabaseHelper.inspections.values.toList();
+    return allInspections.where((inspection) => inspection.status == status).toList();
   }
 
   Future<List<Inspection>> findByTemplateId(String templateId) async {
-    return await findWhere('template_id = ?', [templateId]);
+    final allInspections = DatabaseHelper.inspections.values.toList();
+    return allInspections.where((inspection) => inspection.templateId == templateId).toList();
   }
 
   Future<List<Inspection>> getInspectionsNeedingSync() async {
-    return await findWhere('needs_sync = ?', [1]);
+    final allInspections = DatabaseHelper.inspections.values.toList();
+    return allInspections.where((inspection) => inspection.needsSync == true).toList();
   }
+
+  // Aliases for cloud sync compatibility
+  Future<List<Inspection>> findPendingSync() async {
+    return await getInspectionsNeedingSync();
+  }
+
+  Future<void> insertOrUpdate(Inspection inspection) async {
+    final existing = await findById(inspection.id);
+    if (existing != null) {
+      await update(inspection);
+    } else {
+      await insert(inspection);
+    }
+  }
+
+  Future<void> insertOrUpdateFromCloud(Inspection inspection) async {
+    final existing = await findById(inspection.id);
+    final inspectionToSave = inspection.copyWith(
+      updatedAt: DateTime.now(),
+    );
+
+    if (existing != null) {
+      await update(inspectionToSave);
+    } else {
+      await insert(inspectionToSave);
+    }
+  }
+
+  // REMOVED: markSynced - Always sync all data on demand
 
   Future<void> updateProgress(String inspectionId, double progressPercentage,
       int completedItems, int totalItems) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'progress_percentage': progressPercentage,
-        'completed_items': completedItems,
-        'total_items': totalItems,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [inspectionId],
-    );
+    final inspection = await findById(inspectionId);
+    if (inspection != null) {
+      final updatedInspection = inspection.copyWith(
+        updatedAt: DateFormatter.now(),
+        needsSync: true,
+      );
+      await update(updatedInspection);
+    }
   }
 
   Future<void> updateStatus(String inspectionId, String status) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'status': status,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [inspectionId],
-    );
+    final inspection = await findById(inspectionId);
+    if (inspection != null) {
+      final updatedInspection = inspection.copyWith(
+        status: status,
+        updatedAt: DateFormatter.now(),
+        needsSync: true,
+      );
+      await update(updatedInspection);
+    }
   }
 
   Future<void> updateFirestoreData(
       String inspectionId, Map<String, dynamic> firestoreData) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'firestore_data': firestoreData.toString(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [inspectionId],
-    );
-  }
-
-  Future<void> markAsModified(String inspectionId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'has_local_changes': 1,
-        'needs_sync': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      where: 'id = ?',
-      whereArgs: [inspectionId],
-    );
-    debugPrint('InspectionRepository: Marked inspection $inspectionId as modified with hasLocalChanges=true');
+    final inspection = await findById(inspectionId);
+    if (inspection != null) {
+      final updatedInspection = inspection.copyWith(
+        updatedAt: DateFormatter.now(),
+        needsSync: true,
+      );
+      await update(updatedInspection);
+    }
   }
 
   Future<void> markAsSynced(String inspectionId, {String? status}) async {
-    final db = await database;
-    final updateData = <String, dynamic>{
-      'has_local_changes': 0,
-      'needs_sync': 0,
-      'is_synced': 1,
-      'last_sync_at': DateTime.now().toIso8601String(),
-      'updated_at': DateTime.now().toIso8601String(),
-    };
-    
-    if (status != null) {
-      updateData['status'] = status;
+    final inspection = await findById(inspectionId);
+    if (inspection != null) {
+      final updatedInspection = inspection.copyWith(
+        hasLocalChanges: false,
+        needsSync: false,
+        isSynced: true,
+        lastSyncAt: DateTime.now(),
+        updatedAt: DateFormatter.now(),
+        status: status ?? inspection.status,
+      );
+      await update(updatedInspection);
     }
-    
-    await db.update(
-      tableName,
-      updateData,
-      where: 'id = ?',
-      whereArgs: [inspectionId],
-    );
     debugPrint('InspectionRepository: Marked inspection $inspectionId as synced');
   }
 
   Future<int> countByStatus(String status) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
-      [status],
-    );
-    return result.first['count'] as int;
+    final inspectionsByStatus = await findByStatus(status);
+    return inspectionsByStatus.length;
   }
 
   Future<int> countByInspectorId(String inspectorId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE inspector_id = ? AND is_deleted = 0',
-      [inspectorId],
-    );
-    return result.first['count'] as int;
+    final inspectionsByInspector = await findByInspectorId(inspectorId);
+    return inspectionsByInspector.length;
   }
 
   Future<double> getAverageProgress() async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT AVG(progress_percentage) as avg_progress FROM $tableName WHERE is_deleted = 0',
-    );
-    return (result.first['avg_progress'] as num?)?.toDouble() ?? 0.0;
+    final allInspections = await findAll();
+    if (allInspections.isEmpty) return 0.0;
+
+    // Since we don't have a progress field in the model, return 0.0
+    // This method can be updated when progress tracking is implemented
+    return 0.0;
   }
 
   Future<Map<String, int>> getInspectionStats() async {
-    final db = await database;
-    final results = await Future.wait([
-      db.rawQuery(
-          'SELECT COUNT(*) as count FROM $tableName WHERE is_deleted = 0'),
-      db.rawQuery(
-          'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
-          ['pending']),
-      db.rawQuery(
-          'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
-          ['in_progress']),
-      db.rawQuery(
-          'SELECT COUNT(*) as count FROM $tableName WHERE status = ? AND is_deleted = 0',
-          ['completed']),
-      db.rawQuery(
-          'SELECT COUNT(*) as count FROM $tableName WHERE needs_sync = 1 AND is_deleted = 0'),
-    ]);
+    final allInspections = await findAll();
+
+    final total = allInspections.length;
+    final pending = allInspections.where((i) => i.status == 'pending').length;
+    final inProgress = allInspections.where((i) => i.status == 'in_progress').length;
+    final completed = allInspections.where((i) => i.status == 'completed').length;
+    final needsSync = allInspections.where((i) => i.needsSync == true).length;
 
     return {
-      'total': results[0].first['count'] as int,
-      'pending': results[1].first['count'] as int,
-      'in_progress': results[2].first['count'] as int,
-      'completed': results[3].first['count'] as int,
-      'needs_sync': results[4].first['count'] as int,
+      'total': total,
+      'pending': pending,
+      'in_progress': inProgress,
+      'completed': completed,
+      'needs_sync': needsSync,
     };
   }
 
@@ -211,7 +213,7 @@ class InspectionRepository extends BaseRepository<Inspection> {
         if (existingInspection == null) {
           // New inspection from cloud, save it
           await insertOrUpdate(cloudInspection);
-          await markSynced(inspectionId);
+          // REMOVED: markSynced - Always sync all data on demand
           debugPrint(
               'InspectionRepository: Downloaded new inspection $inspectionId');
         } else {
@@ -225,7 +227,7 @@ class InspectionRepository extends BaseRepository<Inspection> {
           // Only update if merge produced changes
           if (mergedInspection != existingInspection) {
             await insertOrUpdate(mergedInspection);
-            await markSynced(inspectionId);
+            // REMOVED: markSynced - Always sync all data on demand
             debugPrint(
                 'InspectionRepository: Applied intelligent merge for inspection $inspectionId');
           } else {
@@ -256,8 +258,7 @@ class InspectionRepository extends BaseRepository<Inspection> {
               .doc(inspection.id)
               .set(dataToUpload, SetOptions(merge: true));
 
-          // Mark as synced in local storage
-          await markSynced(inspection.id);
+          // REMOVED: markSynced - Always sync all data on demand
           debugPrint(
               'InspectionRepository: Uploaded inspection ${inspection.id} to cloud');
         } catch (e) {
@@ -347,4 +348,10 @@ class InspectionRepository extends BaseRepository<Inspection> {
     // Both empty/null - return null
     return null;
   }
+
+  // ===============================
+  // MÉTODOS DE SINCRONIZAÇÃO ADICIONAIS
+  // ===============================
+
+  // REMOVED: markAllSynced - Always sync all data on demand
 }

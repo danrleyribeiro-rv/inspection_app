@@ -40,13 +40,13 @@ class _HierarchicalInspectionViewState
 
   bool _isTopicExpanded = false;
   bool _isItemExpanded = false;
-  bool _isDetailsExpanded = false;
-  
+  // Details are always expanded now
+
   String? _expandedDetailId;
 
   PageController? _topicPageController;
   PageController? _itemPageController;
-  
+
   final Map<String, double> _progressCache = {};
   final Map<String, List<double>> _itemProgressCache = {};
 
@@ -57,36 +57,41 @@ class _HierarchicalInspectionViewState
     _itemPageController = PageController();
     _loadNavigationState();
   }
-  
+
   /// Carrega o estado de navegação persistido
   Future<void> _loadNavigationState() async {
     // Só restaura o estado se for permitido (primeira vez na sessão)
     if (!NavigationStateService.shouldRestoreState()) {
-      debugPrint('HierarchicalInspectionView: Skipping navigation state restoration - already restored in this session');
+      debugPrint(
+          'HierarchicalInspectionView: Skipping navigation state restoration - already restored in this session');
       return;
     }
-    
-    final savedState = await NavigationStateService.loadNavigationState(widget.inspectionId);
+
+    final savedState =
+        await NavigationStateService.loadNavigationState(widget.inspectionId);
     if (savedState != null && mounted) {
       setState(() {
         // Valida os índices para evitar IndexOutOfBounds
-        _currentTopicIndex = savedState.currentTopicIndex.clamp(0, widget.topics.length - 1);
-        
+        _currentTopicIndex =
+            savedState.currentTopicIndex.clamp(0, widget.topics.length - 1);
+
         // Valida o item index baseado no tópico atual
         if (_currentTopicIndex < widget.topics.length) {
           final topicId = widget.topics[_currentTopicIndex].id;
-          final items = topicId != null ? (widget.itemsCache[topicId] ?? []) : [];
-          _currentItemIndex = savedState.currentItemIndex.clamp(0, (items.length - 1).clamp(0, items.length));
+          final items =
+              topicId != null ? (widget.itemsCache[topicId] ?? []) : [];
+          _currentItemIndex = savedState.currentItemIndex
+              .clamp(0, (items.length - 1).clamp(0, items.length));
         } else {
           _currentItemIndex = 0;
         }
-        
+
         _isTopicExpanded = savedState.isTopicExpanded;
         _isItemExpanded = savedState.isItemExpanded;
-        _isDetailsExpanded = savedState.isDetailsExpanded;
+        // Details always expanded now
         _expandedDetailId = savedState.expandedDetailId;
       });
-      
+
       // Anima para a posição salva
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _topicPageController?.hasClients == true) {
@@ -96,9 +101,11 @@ class _HierarchicalInspectionViewState
             curve: Curves.easeInOut,
           );
         }
-        
+
         // Também anima para o item correto se necessário
-        if (mounted && _itemPageController?.hasClients == true && _currentItemIndex > 0) {
+        if (mounted &&
+            _itemPageController?.hasClients == true &&
+            _currentItemIndex > 0) {
           _itemPageController?.animateToPage(
             _currentItemIndex,
             duration: const Duration(milliseconds: 500),
@@ -106,15 +113,17 @@ class _HierarchicalInspectionViewState
           );
         }
       });
-      
-      debugPrint('HierarchicalInspectionView: Restored navigation state: $savedState');
+
+      debugPrint(
+          'HierarchicalInspectionView: Restored navigation state: $savedState');
       // Marca que o estado foi restaurado nesta sessão
       NavigationStateService.markStateRestored();
     } else {
-      debugPrint('HierarchicalInspectionView: No saved navigation state found or not mounted');
+      debugPrint(
+          'HierarchicalInspectionView: No saved navigation state found or not mounted');
     }
   }
-  
+
   /// Salva o estado atual de navegação
   Future<void> _saveNavigationState() async {
     await NavigationStateService.saveNavigationState(
@@ -123,7 +132,7 @@ class _HierarchicalInspectionViewState
       currentItemIndex: _currentItemIndex,
       isTopicExpanded: _isTopicExpanded,
       isItemExpanded: _isItemExpanded,
-      isDetailsExpanded: _isDetailsExpanded,
+      isDetailsExpanded: true, // Always expanded now
       expandedDetailId: _expandedDetailId,
     );
   }
@@ -131,28 +140,31 @@ class _HierarchicalInspectionViewState
   @override
   void didUpdateWidget(HierarchicalInspectionView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Verificar se a lista de tópicos mudou (ex: após deleção)
     if (oldWidget.topics.length != widget.topics.length) {
-      
       // Se o índice atual está fora dos limites, ajustar
       if (_currentTopicIndex >= widget.topics.length) {
-        final newIndex = (widget.topics.length - 1).clamp(0, widget.topics.length - 1);
-        debugPrint('HierarchicalInspectionView: Adjusting topic index from $_currentTopicIndex to $newIndex');
-        
+        final newIndex =
+            (widget.topics.length - 1).clamp(0, widget.topics.length - 1);
+        debugPrint(
+            'HierarchicalInspectionView: Adjusting topic index from $_currentTopicIndex to $newIndex');
+
         setState(() {
           _currentTopicIndex = newIndex;
           _currentItemIndex = 0;
           // Reset expansion states to ensure the new topic can be expanded
           _isTopicExpanded = false;
           _isItemExpanded = false;
-          _isDetailsExpanded = false;
+          // Details always expanded now
           _expandedDetailId = null;
         });
-        
+
         // Animar para o novo índice
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _topicPageController?.hasClients == true && widget.topics.isNotEmpty) {
+          if (mounted &&
+              _topicPageController?.hasClients == true &&
+              widget.topics.isNotEmpty) {
             _topicPageController?.animateToPage(
               _currentTopicIndex,
               duration: const Duration(milliseconds: 300),
@@ -160,7 +172,7 @@ class _HierarchicalInspectionViewState
             );
           }
         });
-        
+
         // Salvar o novo estado
         _saveNavigationState();
       }
@@ -176,7 +188,6 @@ class _HierarchicalInspectionViewState
     super.dispose();
   }
 
-
   void _onTopicChanged(int index) {
     setState(() {
       _currentTopicIndex = index;
@@ -184,7 +195,7 @@ class _HierarchicalInspectionViewState
       // Reset expansion states when changing topics
       _isTopicExpanded = false;
       _isItemExpanded = false;
-      _isDetailsExpanded = false;
+      // Details always expanded now
       _expandedDetailId = null;
     });
 
@@ -192,7 +203,7 @@ class _HierarchicalInspectionViewState
       _itemPageController?.animateToPage(0,
           duration: const Duration(milliseconds: 200), curve: Curves.easeInOut);
     }
-    
+
     // Salva o estado quando o tópico muda
     _saveNavigationState();
   }
@@ -244,18 +255,21 @@ class _HierarchicalInspectionViewState
     if (mounted) setState(() {});
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (widget.topics.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('Nenhum tópico encontrado',
-            style: TextStyle(color: Colors.white70, fontSize: 12)),
+            style: TextStyle(
+                color: theme.textTheme.bodySmall?.color
+                    ?.withAlpha((0.7 * 255).round()),
+                fontSize: 12)),
       );
     }
 
     return Container(
-      color: const Color(0xFF312456),
+      color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
           Expanded(
@@ -278,7 +292,9 @@ class _HierarchicalInspectionViewState
                       totalCount: widget.topics.length,
                       progress: _calculateTopicProgress(topic),
                       items: widget.topics.map((t) => t.topicName).toList(),
-                      itemProgresses: widget.topics.map((t) => _calculateTopicProgress(t)).toList(),
+                      itemProgresses: widget.topics
+                          .map((t) => _calculateTopicProgress(t))
+                          .toList(),
                       hasObservation: topic.observation != null &&
                           topic.observation!.isNotEmpty,
                       onIndexChanged: (index) {
@@ -292,7 +308,6 @@ class _HierarchicalInspectionViewState
                           _isTopicExpanded = !_isTopicExpanded;
                           if (_isTopicExpanded) {
                             _isItemExpanded = false;
-                            _isDetailsExpanded = false;
                             // Para tópicos com detalhes diretos, colapsar detalhes expandidos
                             if (_shouldUseDirectDetails(topic, topicIndex)) {
                               _expandedDetailId = null;
@@ -318,14 +333,20 @@ class _HierarchicalInspectionViewState
                                 .indexWhere((t) => t.id == updatedTopic.id);
                             if (index >= 0) {
                               widget.topics[index] = updatedTopic;
-                              debugPrint('HierarchicalInspectionView: Topic ${updatedTopic.id} updated locally, triggering setState');
-                              setState(() {}); // Atualização instantânea local
+                              debugPrint(
+                                  'HierarchicalInspectionView: Topic ${updatedTopic.id} updated locally, triggering setState');
+                              // Defer setState to avoid calling during build
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) {
+                                  setState(() {}); // Atualização instantânea local
+                                }
+                              });
                             }
                           },
                           onTopicAction: () async {
                             _invalidateProgressCache();
                             await widget.onUpdateCache();
-                            // Force UI update after cache reload  
+                            // Force UI update after cache reload
                             if (mounted) {
                               setState(() {});
                             }
@@ -341,7 +362,7 @@ class _HierarchicalInspectionViewState
                         child: _buildDirectDetailsView(topic, topicIndex),
                       )
                     else if (topicItems.isNotEmpty)
-                      // Hierarquia normal: Tópico → Item → Detalhe  
+                      // Hierarquia normal: Tópico → Item → Detalhe
                       Expanded(
                         child: PageView.builder(
                           controller: topicIndex == _currentTopicIndex
@@ -375,10 +396,10 @@ class _HierarchicalInspectionViewState
                                     items: topicItems
                                         .map((i) => i.itemName)
                                         .toList(),
-                                    itemProgresses: _getCachedItemProgresses(topicItems),
-                                    hasObservation:
-                                        item.observation != null &&
-                                            item.observation!.isNotEmpty,
+                                    itemProgresses:
+                                        _getCachedItemProgresses(topicItems),
+                                    hasObservation: item.observation != null &&
+                                        item.observation!.isNotEmpty,
                                     onIndexChanged: (index) {
                                       if (topicIndex == _currentTopicIndex) {
                                         _itemPageController?.animateToPage(
@@ -395,7 +416,6 @@ class _HierarchicalInspectionViewState
                                         _isItemExpanded = !_isItemExpanded;
                                         if (_isItemExpanded) {
                                           _isTopicExpanded = false;
-                                          _isDetailsExpanded = false;
                                         }
                                       });
                                       _saveNavigationState();
@@ -406,7 +426,6 @@ class _HierarchicalInspectionViewState
                                     level: 2,
                                     icon: Icons.list_alt,
                                   ),
-
                                   if (_isItemExpanded &&
                                       topicIndex == _currentTopicIndex &&
                                       itemIndex == _currentItemIndex)
@@ -422,8 +441,12 @@ class _HierarchicalInspectionViewState
                                         if (index >= 0) {
                                           items[index] = updatedItem;
                                           widget.itemsCache[topicId] = items;
-                                          setState(
-                                              () {}); // Atualização instantânea local
+                                          // Defer setState to avoid calling during build
+                                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                                            if (mounted) {
+                                              setState(() {}); // Atualização instantânea local
+                                            }
+                                          });
                                         }
                                       },
                                       onItemAction: () async {
@@ -435,80 +458,8 @@ class _HierarchicalInspectionViewState
                                         }
                                       },
                                     ),
-
                                   if (itemDetails.isNotEmpty)
-                                    Column(
-                                      children: [
-                                        Container(
-                                          margin: const EdgeInsets.symmetric(
-                                              horizontal: 4, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green
-                                                .withAlpha((255 * 0.1).round()),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            border: Border.all(
-                                                color: Colors.green.withAlpha(
-                                                    (255 * 0.3).round())),
-                                          ),
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: InkWell(
-                                              onTap: () {
-                                                setState(() {
-                                                  _isDetailsExpanded =
-                                                      !_isDetailsExpanded;
-                                                  if (_isDetailsExpanded) {
-                                                    _isTopicExpanded = false;
-                                                    _isItemExpanded = false;
-                                                  }
-                                                });
-                                                // Salva o estado quando a expansão dos detalhes muda
-                                                _saveNavigationState();
-                                              },
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.all(6),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(Icons.details,
-                                                        color: Colors.green,
-                                                        size: 16),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Text(
-                                                        'Detalhes (${itemDetails.length})',
-                                                        style: const TextStyle(
-                                                            fontSize: 12,
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            color:
-                                                                Colors.green),
-                                                      ),
-                                                    ),
-                                                    Icon(
-                                                      _isDetailsExpanded &&
-                                                              topicIndex ==
-                                                                  _currentTopicIndex &&
-                                                              itemIndex ==
-                                                                  _currentItemIndex
-                                                          ? Icons.expand_less
-                                                          : Icons.expand_more,
-                                                      color: Colors.green,
-                                                      size: 24,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        if (_isDetailsExpanded &&
-                                            topicIndex == _currentTopicIndex &&
-                                            itemIndex == _currentItemIndex)
-                                          DetailsListSection(
+                                    DetailsListSection(
                                             key: ValueKey(
                                                 '${topic.id}_${item.id}_details'),
                                             details: itemDetails,
@@ -517,7 +468,8 @@ class _HierarchicalInspectionViewState
                                             inspectionId: widget.inspectionId,
                                             topicIndex: topicIndex,
                                             itemIndex: itemIndex,
-                                            expandedDetailId: _expandedDetailId, // Passa o ID do detalhe expandido
+                                            expandedDetailId:
+                                                _expandedDetailId, // Passa o ID do detalhe expandido
                                             onDetailUpdated: (updatedDetail) {
                                               final cacheKey =
                                                   '${topicId}_$itemId';
@@ -532,7 +484,12 @@ class _HierarchicalInspectionViewState
                                                 widget.detailsCache[cacheKey] =
                                                     details;
                                               }
-                                              setState(() {});
+                                              // Defer setState to avoid calling during build
+                                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                                if (mounted) {
+                                                  setState(() {});
+                                                }
+                                              });
                                             },
                                             onDetailAction: () async {
                                               _invalidateProgressCache();
@@ -550,13 +507,9 @@ class _HierarchicalInspectionViewState
                                               _saveNavigationState();
                                             },
                                           ),
-                                      ],
-                                    ),
-
-                                  if (!_isDetailsExpanded &&
-                                      itemDetails.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.all(32.0),
+                                  if (itemDetails.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.all(32.0),
                                       child: Center(
                                         child: Column(
                                           mainAxisAlignment:
@@ -564,11 +517,17 @@ class _HierarchicalInspectionViewState
                                           children: [
                                             Icon(Icons.details,
                                                 size: 48,
-                                                color: Colors.white30),
-                                            SizedBox(height: 4),
+                                                color: theme
+                                                    .textTheme.bodySmall?.color
+                                                    ?.withAlpha(
+                                                        (0.3 * 255).round())),
+                                            const SizedBox(height: 4),
                                             Text('Nenhum detalhe encontrado',
                                                 style: TextStyle(
-                                                    color: Colors.white70,
+                                                    color: theme.textTheme
+                                                        .bodySmall?.color
+                                                        ?.withAlpha((0.7 * 255)
+                                                            .round()),
                                                     fontSize: 12)),
                                           ],
                                         ),
@@ -594,11 +553,11 @@ class _HierarchicalInspectionViewState
   bool _shouldUseDirectDetails(Topic topic, int topicIndex) {
     final topicId = topic.id ?? 'topic_$topicIndex';
     final directDetailsKey = '${topicId}_direct';
-    final hasDirectDetailsInCache = widget.detailsCache.containsKey(directDetailsKey) && 
-                                    (widget.detailsCache[directDetailsKey]?.isNotEmpty ?? false);
+    final hasDirectDetailsInCache =
+        widget.detailsCache.containsKey(directDetailsKey) &&
+            (widget.detailsCache[directDetailsKey]?.isNotEmpty ?? false);
     final hasDirectDetailsProperty = topic.directDetails == true;
-    
-    
+
     // Use direct details if either condition is true
     return hasDirectDetailsProperty || hasDirectDetailsInCache;
   }
@@ -615,8 +574,9 @@ class _HierarchicalInspectionViewState
       if (details.isEmpty) return 0.0;
 
       int totalDetails = details.length;
-      int completedDetails = details.where((d) => 
-          d.detailValue != null && d.detailValue!.isNotEmpty).length;
+      int completedDetails = details
+          .where((d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+          .length;
 
       return totalDetails > 0 ? (completedDetails / totalDetails) : 0.0;
     }
@@ -636,15 +596,19 @@ class _HierarchicalInspectionViewState
               details.where((d) => d.isRequired == true).toList();
           if (requiredDetails.isNotEmpty) {
             // Se tem detalhes obrigatórios, todos devem estar completos
-            final completedRequired = requiredDetails.where((d) => 
-                d.detailValue != null && d.detailValue!.isNotEmpty).toList();
+            final completedRequired = requiredDetails
+                .where(
+                    (d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+                .toList();
             if (completedRequired.length == requiredDetails.length) {
               completedItems++;
             }
           } else {
             // Se não tem detalhes obrigatórios, considera completo se tem pelo menos um detalhe preenchido
-            final completedDetails = details.where((d) => 
-                d.detailValue != null && d.detailValue!.isNotEmpty).toList();
+            final completedDetails = details
+                .where(
+                    (d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+                .toList();
             if (completedDetails.isNotEmpty) {
               completedItems++;
             }
@@ -658,7 +622,7 @@ class _HierarchicalInspectionViewState
 
   double _calculateItemProgressSync(Item item) {
     if (item.id == null || item.topicId == null) return 0.0;
-    
+
     final cacheKey = '${item.topicId}_${item.id}';
     if (_progressCache.containsKey(cacheKey)) {
       return _progressCache[cacheKey]!;
@@ -666,26 +630,30 @@ class _HierarchicalInspectionViewState
 
     final details = widget.detailsCache[cacheKey] ?? [];
     double progress = 0.0;
-    
+
     if (details.isEmpty) {
       if (item.evaluable == true) {
-        progress = (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) ? 1.0 : 0.0;
+        progress =
+            (item.evaluationValue != null && item.evaluationValue!.isNotEmpty)
+                ? 1.0
+                : 0.0;
       }
     } else {
       int totalUnits = details.length;
-      int completedUnits = details.where((d) => 
-          d.detailValue != null && d.detailValue!.isNotEmpty).length;
-      
+      int completedUnits = details
+          .where((d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+          .length;
+
       if (item.evaluable == true) {
         totalUnits++;
         if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
           completedUnits++;
         }
       }
-      
+
       progress = totalUnits > 0 ? (completedUnits / totalUnits) : 0.0;
     }
-    
+
     _progressCache[cacheKey] = progress;
     return progress;
   }
@@ -695,8 +663,9 @@ class _HierarchicalInspectionViewState
     if (_itemProgressCache.containsKey(itemsKey)) {
       return _itemProgressCache[itemsKey]!;
     }
-    
-    final progresses = items.map((item) => _calculateItemProgressSync(item)).toList();
+
+    final progresses =
+        items.map((item) => _calculateItemProgressSync(item)).toList();
     _itemProgressCache[itemsKey] = progresses;
     return progresses;
   }
@@ -708,16 +677,22 @@ class _HierarchicalInspectionViewState
 
   /// Constrói a view para tópicos com detalhes diretos (sem itens intermediários)
   Widget _buildDirectDetailsView(Topic topic, int topicIndex) {
+    final theme = Theme.of(context);
     final topicId = topic.id ?? 'topic_$topicIndex';
     // Usar chave especial para detalhes diretos
     final directDetailsKey = '${topicId}_direct';
     final topicDetails = widget.detailsCache[directDetailsKey] ?? <Detail>[];
-    
-    debugPrint('HierarchicalInspectionView: _buildDirectDetailsView for topic ${topic.id}');
-    debugPrint('HierarchicalInspectionView: directDetailsKey = $directDetailsKey');
-    debugPrint('HierarchicalInspectionView: topicDetails.length = ${topicDetails.length}');
-    debugPrint('HierarchicalInspectionView: available cache keys = ${widget.detailsCache.keys.toList()}');
-    debugPrint('HierarchicalInspectionView: topic.directDetails = ${topic.directDetails}');
+
+    debugPrint(
+        'HierarchicalInspectionView: _buildDirectDetailsView for topic ${topic.id}');
+    debugPrint(
+        'HierarchicalInspectionView: directDetailsKey = $directDetailsKey');
+    debugPrint(
+        'HierarchicalInspectionView: topicDetails.length = ${topicDetails.length}');
+    debugPrint(
+        'HierarchicalInspectionView: available cache keys = ${widget.detailsCache.keys.toList()}');
+    debugPrint(
+        'HierarchicalInspectionView: topic.directDetails = ${topic.directDetails}');
 
     return SingleChildScrollView(
       child: Column(
@@ -728,15 +703,16 @@ class _HierarchicalInspectionViewState
           // Lista de detalhes diretos - mostrar sempre, não dependente de _isDetailsExpanded
           if (topicDetails.isNotEmpty) ...[
             // Debug antes de criar DetailsListSection
-            Builder(
-              builder: (context) {
-                debugPrint('HierarchicalInspectionView: About to create DetailsListSection with ${topicDetails.length} details');
-                debugPrint('HierarchicalInspectionView: Topic ID = ${topic.id}, hashCode = ${topic.hashCode}');
-                return const SizedBox.shrink();
-              }
-            ),
+            Builder(builder: (context) {
+              debugPrint(
+                  'HierarchicalInspectionView: About to create DetailsListSection with ${topicDetails.length} details');
+              debugPrint(
+                  'HierarchicalInspectionView: Topic ID = ${topic.id}, hashCode = ${topic.hashCode}');
+              return const SizedBox.shrink();
+            }),
             DetailsListSection(
-              key: ValueKey('details_${topic.id}_${topicDetails.length}'), // Stable key
+              key: ValueKey(
+                  'details_${topic.id}_${topicDetails.length}'), // Stable key
               details: topicDetails,
               item: null, // null para detalhes diretos
               topic: topic,
@@ -760,12 +736,14 @@ class _HierarchicalInspectionViewState
               onDetailExpanded: (detailId) {
                 // Para tópicos com detalhes diretos, colapsar o tópico quando um detalhe é expandido
                 final currentTopic = widget.topics[topicIndex];
-                final isDirectDetails = _shouldUseDirectDetails(currentTopic, topicIndex);
-                
+                final isDirectDetails =
+                    _shouldUseDirectDetails(currentTopic, topicIndex);
+
                 setState(() {
                   _expandedDetailId = detailId;
                   if (isDirectDetails && detailId != null) {
-                    _isTopicExpanded = false; // Colapsar tópico quando detalhe é expandido
+                    _isTopicExpanded =
+                        false; // Colapsar tópico quando detalhe é expandido
                   } else if (detailId == null && isDirectDetails) {
                     // Se nenhum detalhe está expandido, permitir que o tópico seja expandido
                   }
@@ -777,16 +755,22 @@ class _HierarchicalInspectionViewState
 
           // Mensagem quando não há detalhes
           if (topicDetails.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32.0),
+            Padding(
+              padding: const EdgeInsets.all(32.0),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.details, size: 48, color: Colors.white30),
-                    SizedBox(height: 4),
+                    Icon(Icons.details,
+                        size: 48,
+                        color: theme.textTheme.bodySmall?.color
+                            ?.withAlpha((0.3 * 255).round())),
+                    const SizedBox(height: 4),
                     Text('Nenhum detalhe encontrado',
-                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        style: TextStyle(
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withAlpha((0.7 * 255).round()),
+                            fontSize: 12)),
                   ],
                 ),
               ),

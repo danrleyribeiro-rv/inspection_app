@@ -71,33 +71,60 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     });
   }
 
+  bool _isCapturing = false;
+
   Future<void> takePhoto() async {
-    if (cameraController?.value.isInitialized != true || cameraController!.value.isTakingPicture) return;
+    // Evitar múltiplas capturas simultâneas
+    if (_isCapturing ||
+        cameraController?.value.isInitialized != true ||
+        cameraController!.value.isTakingPicture) {
+      debugPrint('Camera: Photo capture blocked - capturing: $_isCapturing, initialized: ${cameraController?.value.isInitialized}, taking: ${cameraController?.value.isTakingPicture}');
+      return;
+    }
+
+    _isCapturing = true;
 
     try {
-      final image = await cameraController!.takePicture();
+      // Verificar se o controller ainda está válido antes de usar
+      final controller = cameraController;
+      if (controller == null || !controller.value.isInitialized) {
+        throw Exception('Camera controller não está disponível');
+      }
+
+      debugPrint('Camera: Taking photo...');
+      final image = await controller.takePicture();
       final imageBytes = await image.readAsBytes();
-      
+
       // Decodificar a imagem
       img.Image? originalImage = img.decodeImage(imageBytes);
       if (originalImage == null) {
         throw Exception('Erro ao decodificar imagem');
       }
-      
+
       // Aplicar rotação baseada na orientação do dispositivo
       img.Image rotatedImage = _rotateImageBasedOnDeviceOrientation(originalImage);
-      
+
       // Salvar a imagem corrigida
       final path = await getMediaPath("jpg");
       final file = File(path);
       await file.writeAsBytes(img.encodeJpg(rotatedImage));
-      
+
       // Salvar automaticamente na vistoria
       await _saveMediaToInspection(path, 'image');
-      
-      setState(() => capturedFiles.add(path));
+
+      if (mounted) {
+        setState(() => capturedFiles.add(path));
+        _showCaptureSuccess('Foto capturada!');
+      }
+
+      debugPrint('Camera: Photo captured successfully: $path');
     } catch (e) {
-      _showCaptureError('Erro ao capturar foto: $e');
+      debugPrint('Camera: Error capturing photo: $e');
+      if (mounted) {
+        _showCaptureError('Erro ao capturar foto: $e');
+      }
+    } finally {
+      _isCapturing = false;
     }
   }
 
@@ -175,14 +202,29 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     );
   }
 
+  bool _isInitializing = false;
+
   void startCamera() async {
+    if (_isDisposed || _isInitializing) {
+      debugPrint('Camera: Initialization blocked - disposed: $_isDisposed, initializing: $_isInitializing');
+      return;
+    }
+
+    // Check if camera is already initialized
+    if (cameraController?.value.isInitialized == true) {
+      debugPrint('Camera: Camera already initialized');
+      return;
+    }
+
+    _isInitializing = true;
+
     try {
       debugPrint('Camera: Starting camera initialization...');
-      
+
       // Check camera permission first
       final cameraPermission = await Permission.camera.status;
       debugPrint('Camera: Permission status: $cameraPermission');
-      
+
       if (cameraPermission.isDenied) {
         debugPrint('Camera: Requesting camera permission...');
         final result = await Permission.camera.request();
@@ -191,12 +233,12 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
           return;
         }
       }
-      
+
       if (cameraPermission.isPermanentlyDenied) {
         _showCaptureError('Permissão de câmera permanentemente negada. Vá para as configurações do app.');
         return;
       }
-      
+
       final cameras = await availableCameras();
       debugPrint('Camera: Found ${cameras.length} cameras');
       
@@ -239,16 +281,20 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       }
     } catch (e) {
       debugPrint('Camera: Error initializing camera: $e');
-      _showCaptureError('Erro ao inicializar câmera: $e');
-      
+      if (mounted) {
+        _showCaptureError('Erro ao inicializar câmera: $e');
+      }
+
       // Try to dispose controller if it was created
       cameraController?.dispose();
       cameraController = null;
       cameraValue = null;
-      
+
       if (mounted) {
         setState(() {});
       }
+    } finally {
+      _isInitializing = false;
     }
   }
 
@@ -342,34 +388,47 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
+  bool _isDisposed = false;
+
   @override
   void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+
+    debugPrint('Camera: Disposing camera screen...');
     WidgetsBinding.instance.removeObserver(this);
     recordingTimer?.cancel();
     accelerometerSubscription?.cancel();
-    cameraController?.dispose();
+
+    // Dispose camera controller safely
+    final controller = cameraController;
+    if (controller != null) {
+      debugPrint('Camera: Disposing camera controller...');
+      controller.dispose();
+      cameraController = null;
+      cameraValue = null;
+    }
+
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_isDisposed) return;
+
     final CameraController? controller = cameraController;
-    if (controller == null || !controller.value.isInitialized) {
-      return;
-    }
 
     if (state == AppLifecycleState.inactive) {
       debugPrint('Camera: App inactive, disposing controller');
-      controller.dispose();
-      cameraController = null;
-      cameraValue = null;
+      if (controller != null && controller.value.isInitialized) {
+        controller.dispose();
+        cameraController = null;
+        cameraValue = null;
+      }
     } else if (state == AppLifecycleState.resumed) {
-      debugPrint('Camera: App resumed, restarting camera');
-      if (mounted) {
-        setState(() {
-          cameraController = null;
-          cameraValue = null;
-        });
+      debugPrint('Camera: App resumed, checking if camera needs restart');
+      if (mounted && cameraController == null) {
+        debugPrint('Camera: Restarting camera after resume');
         startCamera();
       }
     }

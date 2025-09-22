@@ -45,11 +45,18 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   @override
   void initState() {
     super.initState();
-    _observationController.text = widget.item.observation ?? '';
+
+    // Set initial values WITHOUT triggering listener
     _currentItemName = widget.item.itemName;
-    _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
+    _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true
+        ? null
+        : widget.item.evaluationValue;
+
+    // Set observation text BEFORE adding listener to avoid accidental triggers
+    _observationController.text = widget.item.observation ?? '';
+
+    // Add listener AFTER setting initial values
     _observationController.addListener(_updateItemObservation);
-    
 
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -58,40 +65,78 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   @override
   void didUpdateWidget(ItemDetailsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
-    if (_evaluationDebounce?.isActive == true && 
+
+    if (_evaluationDebounce?.isActive == true &&
         widget.item.evaluationValue != _currentEvaluationValue) {
       if (widget.item.itemName != _currentItemName) {
         _currentItemName = widget.item.itemName;
-        _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
+        _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true
+            ? null
+            : widget.item.evaluationValue;
       }
       return;
     }
-    
+
     if (widget.item.itemName != _currentItemName) {
       _currentItemName = widget.item.itemName;
     }
-    if (widget.item.observation != _observationController.text) {
-      _observationController.text = widget.item.observation ?? '';
+    // Only update observation controller if there's a real external change
+    // Avoid overwriting when user just cleared the field or during debounce
+    if (_debounce?.isActive != true) {
+      final currentObservation = widget.item.observation ?? '';
+      final controllerText = _observationController.text;
+      if (currentObservation != controllerText &&
+          !(currentObservation.isEmpty && controllerText.isEmpty)) {
+        // Temporarily remove listener to avoid triggering updates
+        _observationController.removeListener(_updateItemObservation);
+        _observationController.text = currentObservation;
+        _observationController.addListener(_updateItemObservation);
+      }
     }
-    
+
     // For evaluation field, check if we need to update from external changes
-    if (widget.item.evaluationValue != _currentEvaluationValue && 
+    if (widget.item.evaluationValue != _currentEvaluationValue &&
         oldWidget.item.evaluationValue != widget.item.evaluationValue) {
       // Only update if this is a real external change, not our own update
       setState(() {
-        _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true ? null : widget.item.evaluationValue;
+        _currentEvaluationValue = widget.item.evaluationValue?.isEmpty == true
+            ? null
+            : widget.item.evaluationValue;
       });
     }
   }
 
   @override
   void dispose() {
+    // Force save any pending changes before disposing
+    _savePendingChanges();
+
     _observationController.dispose();
     _debounce?.cancel();
     _evaluationDebounce?.cancel();
     MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
+  }
+
+  void _savePendingChanges() {
+    // If there's a pending debounced save, execute it immediately
+    if (_debounce?.isActive == true) {
+      _debounce?.cancel();
+      // Save current state immediately
+      final updatedItem = widget.item.copyWith(
+        observation: _observationController.text.isEmpty
+            ? null
+            : _observationController.text,
+        updatedAt: DateTime.now(),
+      );
+      // Synchronous save to ensure it completes before dispose
+      _serviceFactory.dataService.updateItem(updatedItem).then((_) {
+        debugPrint(
+            'ItemDetailsSection: Forced save on dispose for item ${updatedItem.id} with observation: ${updatedItem.observation}');
+      }).catchError((error) {
+        debugPrint('ItemDetailsSection: Error in forced save on dispose: $error');
+      });
+    }
   }
 
   void _onCounterChanged() {
@@ -109,13 +154,20 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   void _updateItemObservation() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
 
+    final observationText = _observationController.text;
+    debugPrint('ItemDetailsSection: _updateItemObservation called with text: "$observationText"');
+    debugPrint('ItemDetailsSection: Original widget.item.observation: "${widget.item.observation}"');
+
+    final newObservation = observationText.isEmpty ? null : observationText;
+    debugPrint('ItemDetailsSection: newObservation calculated as: $newObservation');
+
     // Update UI immediately
     final updatedItem = widget.item.copyWith(
-      observation: _observationController.text.isEmpty
-          ? null
-          : _observationController.text,
+      observation: newObservation,
       updatedAt: DateTime.now(),
     );
+
+    debugPrint('ItemDetailsSection: After copyWith - updatedItem.observation: ${updatedItem.observation}');
     widget.onItemUpdated(updatedItem);
 
     // Debounce the actual save operation
@@ -226,37 +278,91 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     }
   }
 
-
   Future<void> _editObservationDialog() async {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final theme = Theme.of(context);
         final controller =
             TextEditingController(text: _observationController.text);
-        return AlertDialog(
-          title: const Text('Observações do Item',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          content: TextFormField(
-              controller: controller,
-              maxLines: 3,
-              autofocus: true,
-              decoration: const InputDecoration(
-                  hintText: 'Digite suas observações...',
-                  hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
-                  border: OutlineInputBorder())),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar')),
-            TextButton(
-                onPressed: () => Navigator.of(context).pop(controller.text),
-                child: const Text('Salvar')),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Observações do Item',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: controller,
+                    maxLines: 3,
+                    autofocus: true,
+                    onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
+                    decoration: InputDecoration(
+                      hintText: 'Digite suas observações...',
+                      hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                controller.clear();
+                                setDialogState(() {}); // Atualiza apenas o dialog
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Deixe vazio para remover a observação',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.hintColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(''), // Return empty string for clear
+                  child: const Text('Limpar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(controller.text),
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
+
+    // Handle the result properly - including empty string for clearing
     if (result != null) {
-      setState(() => _observationController.text = result);
+      debugPrint('ItemDetailsSection: Dialog returned result: "$result"');
+
+      // Temporarily remove the listener to avoid triggering updates during manual changes
+      _observationController.removeListener(_updateItemObservation);
+
+      // Update the controller text
+      setState(() {
+        _observationController.text = result;
+      });
+
+      debugPrint('ItemDetailsSection: Controller text set to: "${_observationController.text}"');
+
+      // Re-add the listener
+      _observationController.addListener(_updateItemObservation);
+
+      // Manually trigger the update
       _updateItemObservation();
     }
   }
@@ -379,7 +485,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Item excluído com sucesso'),
-              backgroundColor: Colors.green));
+              backgroundColor: Colors.green,
+              duration: Duration(milliseconds: 800)));
         }
       }
     } catch (e) {
@@ -393,10 +500,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
   bool _isValidEvaluationValue(String? value) {
     if (value == null) return true;
-    
+
     final evaluationOptions = widget.item.evaluationOptions ?? [];
     // Always consider the current evaluation value as valid, even if not in options yet
-    return evaluationOptions.contains(value) || value == 'Outro' || value == _currentEvaluationValue;
+    return evaluationOptions.contains(value) ||
+        value == 'Outro' ||
+        value == _currentEvaluationValue;
   }
 
   void _updateItemEvaluation(String? value) {
@@ -427,7 +536,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       createdAt: widget.item.createdAt,
       updatedAt: DateTime.now(),
     );
-    
+
     widget.onItemUpdated(updatedItem);
 
     _evaluationDebounce?.cancel();
@@ -440,6 +549,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final theme = Theme.of(context);
         final controller = TextEditingController();
         return AlertDialog(
           title: const Text('Avaliação Personalizada',
@@ -448,10 +558,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             controller: controller,
             maxLines: 1,
             autofocus: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Digite uma avaliação personalizada...',
-              hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
-              border: OutlineInputBorder(),
+              hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+              border: const OutlineInputBorder(),
             ),
           ),
           actions: [
@@ -470,15 +580,16 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
     if (result != null && result.isNotEmpty) {
       // Adicionar a nova opção à lista de opções (se não for vazia)
-      final currentOptions = List<String>.from(widget.item.evaluationOptions ?? []);
+      final currentOptions =
+          List<String>.from(widget.item.evaluationOptions ?? []);
       if (!currentOptions.contains(result)) {
         currentOptions.add(result);
-        
+
         // Primeiro atualizar o estado local para evitar erro no dropdown
         setState(() {
           _currentEvaluationValue = result;
         });
-        
+
         // Depois atualizar o item com as novas opções - create manually to force values
         final updatedItem = Item(
           id: widget.item.id,
@@ -501,7 +612,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           updatedAt: DateTime.now(),
         );
         widget.onItemUpdated(updatedItem);
-        
+
         // Salvar no banco de dados
         if (_debounce?.isActive ?? false) _debounce?.cancel();
         _debounce = Timer(const Duration(milliseconds: 500), () async {
@@ -515,29 +626,33 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   }
 
   Widget _buildItemEvaluationSection() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final evaluationOptions = widget.item.evaluationOptions ?? [];
-    
+    final itemColor = isDark ? const Color(0xFFFFB74D) : Colors.orange;
+    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.orange.withAlpha(75)),
+        border: Border.all(color: itemColor.withAlpha((0.3 * 255).round())),
         borderRadius: BorderRadius.circular(8),
-        color: Colors.orange.withAlpha(15),
+        color: itemColor.withAlpha((0.1 * 255).round()),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.assessment, size: 16, color: Colors.orange.shade300),
+              Icon(Icons.assessment, size: 16, color: textColor),
               const SizedBox(width: 8),
               Text(
                 'Avaliação do Item',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade300,
+                  color: textColor,
                 ),
               ),
             ],
@@ -546,40 +661,54 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           if (evaluationOptions.isNotEmpty) ...[
             // Dropdown para opções de avaliação
             DropdownButtonFormField<String>(
-              initialValue: _isValidEvaluationValue(_currentEvaluationValue) ? _currentEvaluationValue : null,
+              initialValue: _isValidEvaluationValue(_currentEvaluationValue)
+                  ? _currentEvaluationValue
+                  : null,
               decoration: InputDecoration(
                 hintText: 'Selecione uma avaliação',
-                hintStyle: TextStyle(color: Colors.orange.shade200, fontSize: 11),
+                hintStyle:
+                    TextStyle(color: theme.hintColor, fontSize: 11),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                  borderSide: BorderSide(
+                      color: itemColor.withAlpha((0.4 * 255).round())),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                  borderSide: BorderSide(
+                      color: itemColor.withAlpha((0.4 * 255).round())),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                  borderSide: BorderSide(color: itemColor, width: 2),
                 ),
-                fillColor: Colors.orange.withAlpha(25),
+                fillColor: itemColor.withAlpha((0.15 * 255).round()),
                 filled: true,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              dropdownColor: const Color.fromARGB(255, 48, 48, 48).withAlpha(250),
-              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              dropdownColor: theme.cardColor,
+              style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold),
               menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
               items: [
-                const DropdownMenuItem<String>(
+                DropdownMenuItem<String>(
                   value: null,
-                  child: Text('(Sem avaliação)', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
+                  child: Text('(Sem avaliação)',
+                      style: TextStyle(
+                          color: theme.hintColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          fontStyle: FontStyle.italic)),
                 ),
                 ...() {
                   final allOptions = List<String>.from(evaluationOptions);
                   // Ensure current value is in the options list
-                  if (_currentEvaluationValue != null && 
-                      _currentEvaluationValue!.isNotEmpty && 
+                  if (_currentEvaluationValue != null &&
+                      _currentEvaluationValue!.isNotEmpty &&
                       _currentEvaluationValue != 'Outro' &&
                       !allOptions.contains(_currentEvaluationValue!)) {
                     allOptions.add(_currentEvaluationValue!);
@@ -587,14 +716,18 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   return allOptions.map((option) {
                     return DropdownMenuItem<String>(
                       value: option,
-                      child: Text(option, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text(option,
+                          style: const TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.bold)),
                     );
                   });
                 }(),
                 // Adicionar opção "Outro"
                 const DropdownMenuItem<String>(
                   value: 'Outro',
-                  child: Text('Outro', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  child: Text('Outro',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
               onChanged: (value) {
@@ -611,25 +744,30 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
               initialValue: _currentEvaluationValue ?? '',
               decoration: InputDecoration(
                 hintText: 'Digite a avaliação do item',
-                hintStyle: TextStyle(color: Colors.orange.shade200, fontSize: 11),
+                hintStyle:
+                    TextStyle(color: theme.hintColor, fontSize: 11),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                  borderSide: BorderSide(
+                      color: itemColor.withAlpha((0.4 * 255).round())),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange.withAlpha(100)),
+                  borderSide: BorderSide(
+                      color: itemColor.withAlpha((0.4 * 255).round())),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                  borderSide: BorderSide(color: itemColor, width: 2),
                 ),
-                fillColor: Colors.orange.withAlpha(25),
+                fillColor: itemColor.withAlpha((0.15 * 255).round()),
                 filled: true,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              style: const TextStyle(color: Colors.white, fontSize: 11),
+              style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color, fontSize: 11),
               onChanged: _updateItemEvaluation,
             ),
           ],
@@ -640,13 +778,26 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Adaptive colors for light/dark theme
+    final itemColor = isDark ? const Color(0xFFFFB74D) : Colors.orange;
+    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
+    final containerColor = isDark
+        ? theme.colorScheme.surface.withAlpha((0.8 * 255).round())
+        : itemColor.withAlpha((0.05 * 255).round());
+    final borderColor = isDark
+        ? theme.colorScheme.outline.withAlpha((0.3 * 255).round())
+        : itemColor.withAlpha((0.2 * 255).round());
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-          color: Colors.orange.withAlpha(15),
+          color: containerColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.orange.withAlpha(50))),
+          border: Border.all(color: borderColor)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -659,18 +810,21 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   label: 'Capturar',
                   onPressed: _captureItemMedia,
                   color: Colors.purple),
-              FutureBuilder<int>(
-                key: ValueKey(
-                    'item_media_${widget.item.id}_$_mediaCountVersion'),
-                future: _getMediaCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return _buildActionButton(
-                    icon: Icons.photo_library,
-                    label: 'Galeria',
-                    onPressed: _openItemGallery,
-                    color: Colors.purple,
-                    count: count,
+              ValueListenableBuilder<int>(
+                valueListenable: ValueNotifier(_mediaCountVersion),
+                builder: (context, version, child) {
+                  return FutureBuilder<int>(
+                    future: _getMediaCount(),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return _buildActionButton(
+                        icon: Icons.photo_library,
+                        label: 'Galeria',
+                        onPressed: _openItemGallery,
+                        color: Colors.purple,
+                        count: count,
+                      );
+                    },
                   );
                 },
               ),
@@ -693,35 +847,36 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // AVALIAÇÃO DO ITEM (se for avaliável)
           if (widget.item.evaluable == true) ...[
             _buildItemEvaluationSection(),
             const SizedBox(height: 8),
           ],
-          
+
           GestureDetector(
             onTap: _editObservationDialog,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                  border: Border.all(color: Colors.orange.withAlpha(75)),
+                  border: Border.all(
+                      color: itemColor.withAlpha((0.3 * 255).round())),
                   borderRadius: BorderRadius.circular(8)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
                     Icon(Icons.note_alt,
-                        size: 16, color: Colors.orange.shade300),
+                        size: 16, color: itemColor),
                     const SizedBox(width: 8),
                     Text('Observações',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade300)),
+                            color: textColor)),
                     const Spacer(),
-                    Icon(Icons.edit, size: 16, color: Colors.orange.shade300),
+                    Icon(Icons.edit, size: 16, color: itemColor),
                   ]),
                   const SizedBox(height: 2),
                   Text(
@@ -730,8 +885,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                         : _observationController.text,
                     style: TextStyle(
                         color: _observationController.text.isEmpty
-                            ? Colors.orange.shade200
-                            : Colors.white,
+                            ? theme.hintColor
+                            : theme.textTheme.bodyLarge?.color,
                         fontStyle: _observationController.text.isEmpty
                             ? FontStyle.italic
                             : FontStyle.normal),
@@ -752,6 +907,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     Color? color,
     int? count,
   }) {
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -763,7 +919,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
               ElevatedButton(
                 onPressed: onPressed,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: color ?? Colors.orange,
+                  backgroundColor: color ?? theme.colorScheme.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
@@ -778,8 +934,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   right: -2,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF6F4B99),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(
@@ -800,7 +956,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             ],
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         // Text(label,
         //     style: const TextStyle(fontSize: 12, color: Colors.white70)),
       ],

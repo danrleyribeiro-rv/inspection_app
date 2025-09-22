@@ -318,7 +318,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   ? '$count mídias excluídas com sucesso!'
                   : 'Mídia excluída com sucesso!'),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
+              duration: const Duration(milliseconds: 800),
             ),
           );
         } else {

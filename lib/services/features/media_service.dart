@@ -6,7 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:lince_inspecoes/services/data/offline_data_service.dart';
+import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 
 class MediaService {
   static MediaService? _instance;
@@ -68,7 +68,6 @@ class MediaService {
     String? topicId,
     String? itemId,
     String? detailId,
-    Map<String, dynamic>? metadata,
   }) async {
     try {
       final mediaId = _uuid.v4();
@@ -106,9 +105,7 @@ class MediaService {
         'is_processed': true,
         'is_uploaded': false,
         'created_at': DateTime.now().toIso8601String(),
-        'metadata': {
-          ...?metadata,
-        },
+        // metadata removido
       };
 
       // Salvar no banco de dados
@@ -128,19 +125,23 @@ class MediaService {
             'is_processed': true,
             'is_uploaded': false,
             'created_at': DateTime.now().toIso8601String(),
-            'metadata': mediaData['metadata'], // Pass along the metadata
+            // metadata removido
           },
         );
       } else {
         // Otherwise, just save the media file metadata
-        await _dataService.saveMediaFile(
-          inspectionId,
-          fileName,
-          await processedFile.readAsBytes(),
+        final fileBytes = await processedFile.readAsBytes();
+        await _dataService.saveOfflineMedia(
+          inspectionId: inspectionId,
+          filename: fileName,
+          localPath: processedFile.path,
+          cloudUrl: '',
+          type: type,
+          fileSize: fileBytes.length,
+          // mimeType removido - usar 'image/jpeg' como padrão
           topicId: topicId,
           itemId: itemId,
           detailId: detailId,
-          fileType: type,
         );
       }
 
@@ -235,7 +236,7 @@ class MediaService {
       topicId: topicId,
       itemId: itemId,
       detailId: detailId,
-      metadata: metadata,
+      // metadata removido
     );
   }
 

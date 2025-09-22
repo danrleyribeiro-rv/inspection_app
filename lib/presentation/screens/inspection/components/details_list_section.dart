@@ -29,7 +29,8 @@ class DetailsListSection extends StatefulWidget {
   final int? topicIndex; // Tornado opcional
   final int? itemIndex; // Tornado opcional
   final bool isDirectDetails; // Nova propriedade para indicar hierarquia direta
-  final Function(List<Detail>)? onDetailsUpdated; // Nova propriedade para callback de atualização
+  final Function(List<Detail>)?
+      onDetailsUpdated; // Nova propriedade para callback de atualização
 
   const DetailsListSection({
     super.key,
@@ -60,7 +61,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
     super.initState();
     _localDetails = List.from(widget.details);
     _setInitialExpandedDetail();
-    debugPrint('DetailsListSection: initState - Created with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
+    debugPrint(
+        'DetailsListSection: initState - Created with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
   }
 
   void _setInitialExpandedDetail() {
@@ -85,22 +87,26 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       final double itemHeight = 60.0; // Approximate collapsed item height
       final double expandedHeight = 400.0; // Approximate expanded item height
       final double position = index * itemHeight;
-      
+
       // Find the scrollable ancestor
       final ScrollableState scrollableState = Scrollable.of(context);
       final ScrollController? controller = scrollableState.widget.controller;
-      if (controller != null && controller.hasClients && controller.positions.length == 1) {
+      if (controller != null &&
+          controller.hasClients &&
+          controller.positions.length == 1) {
         // Get current scroll position
         final double currentOffset = controller.offset;
-        final double viewportHeight = scrollableState.context.size?.height ?? 600;
-        
+        final double viewportHeight =
+            scrollableState.context.size?.height ?? 600;
+
         // Calculate if we need to scroll
         final double itemBottom = position + expandedHeight;
         final double viewportBottom = currentOffset + viewportHeight;
-        
+
         if (itemBottom > viewportBottom) {
           // Need to scroll down to show the full expanded content
-          final double targetOffset = itemBottom - viewportHeight + 50; // 50px padding
+          final double targetOffset =
+              itemBottom - viewportHeight + 50; // 50px padding
           controller.animateTo(
             targetOffset.clamp(0, controller.position.maxScrollExtent),
             duration: const Duration(milliseconds: 300),
@@ -114,22 +120,26 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   @override
   void didUpdateWidget(DetailsListSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.details != oldWidget.details || widget.details.length != oldWidget.details.length) {
-      debugPrint('DetailsListSection: didUpdateWidget - Details changed from ${oldWidget.details.length} to ${widget.details.length} for topic ${widget.topic.id}');
-      
+    if (widget.details != oldWidget.details ||
+        widget.details.length != oldWidget.details.length) {
+      debugPrint(
+          'DetailsListSection: didUpdateWidget - Details changed from ${oldWidget.details.length} to ${widget.details.length} for topic ${widget.topic.id}');
+
       // Force state update to show new details immediately
       setState(() {
         _localDetails = List.from(widget.details);
       });
-      
+
       _setInitialExpandedDetail(); // Reaplica a expansão se os detalhes mudaram
-      debugPrint('DetailsListSection: didUpdateWidget - Updated with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
+      debugPrint(
+          'DetailsListSection: didUpdateWidget - Updated with ${widget.details.length} details for topic ${widget.topic.id} (hashCode: $hashCode)');
     }
   }
 
   @override
   void dispose() {
-    debugPrint('DetailsListSection: dispose() called for topic ${widget.topic.id} (hashCode: $hashCode)');
+    debugPrint(
+        'DetailsListSection: dispose() called for topic ${widget.topic.id} (hashCode: $hashCode)');
     super.dispose();
   }
 
@@ -208,13 +218,25 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('DetailsListSection: build() called with ${_localDetails.length} details for topic ${widget.topic.id}');
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Adaptive colors for light/dark theme
+    final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
+    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
+    final containerColor = isDark
+        ? theme.colorScheme.surface.withAlpha((0.8 * 255).round())
+        : detailColor.withAlpha((0.05 * 255).round());
+    final borderColor = isDark
+        ? theme.colorScheme.outline.withAlpha((0.3 * 255).round())
+        : detailColor.withAlpha((0.2 * 255).round());
+
     return Container(
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.green.withAlpha((255 * 0.05).round()),
+        color: containerColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.withAlpha((255 * 0.2).round())),
+        border: Border.all(color: borderColor),
       ),
       child: ReorderableListView.builder(
         shrinkWrap: true,
@@ -226,7 +248,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           final isExpanded = index == _expandedDetailIndex;
 
           return DetailListItem(
-            key: ValueKey('${widget.topic.id}_${widget.item?.id ?? 'direct'}_${detail.id}_$index'),
+            key: ValueKey(
+                '${widget.topic.id}_${widget.item?.id ?? 'direct'}_${detail.id}_$index'),
             index: index,
             detail: detail,
             item: widget.item,
@@ -310,7 +333,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           const SnackBar(
             content: Text('Detalhe excluído com sucesso'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: Duration(milliseconds: 800),
           ),
         );
       }
@@ -361,7 +384,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
                 SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
                 ),
                 SizedBox(width: 12),
                 Text('Duplicando detalhe...'),
@@ -374,10 +398,12 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       }
 
       // Use the new enhanced service method for duplication
-      final duplicatedDetail = await EnhancedOfflineServiceFactory.instance.dataService
+      final duplicatedDetail = await EnhancedOfflineServiceFactory
+          .instance.dataService
           .duplicateDetailWithChildren(detail.id!);
 
-      debugPrint('DetailsListSection: Detail duplicated successfully with ID: ${duplicatedDetail.id}');
+      debugPrint(
+          'DetailsListSection: Detail duplicated successfully with ID: ${duplicatedDetail.id}');
 
       // Single refresh after duplication
       await widget.onDetailAction();
@@ -385,7 +411,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Detalhe "${duplicatedDetail.detailName}" criado com sucesso'),
+            content: Text(
+                'Detalhe "${duplicatedDetail.detailName}" criado com sucesso'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -458,7 +485,6 @@ class _DetailListItemState extends State<DetailListItem> {
   String _booleanValue = 'não_se_aplica';
   String _currentDetailName = '';
   final Map<String, int> _mediaCountCache = {};
-  int _mediaCountVersion = 0;
   String? _currentSelectValue;
 
   @override
@@ -466,7 +492,9 @@ class _DetailListItemState extends State<DetailListItem> {
     super.initState();
     _initializeControllers();
     _observationController.addListener(_updateDetail);
-    _currentSelectValue = widget.detail.detailValue?.isEmpty == true ? null : widget.detail.detailValue;
+    _currentSelectValue = widget.detail.detailValue?.isEmpty == true
+        ? null
+        : widget.detail.detailValue;
 
     // Escutar mudanças nos contadores de mídia
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -475,45 +503,46 @@ class _DetailListItemState extends State<DetailListItem> {
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
     final cacheKey = '${widget.detail.id}';
-    debugPrint('DetailListItem: Media counter changed for detail ${widget.detail.id}, clearing cache key: $cacheKey');
     _mediaCountCache.remove(cacheKey);
 
-    if (mounted) {
-      setState(() {
-        _mediaCountVersion++; // Força rebuild do FutureBuilder
-      });
-      debugPrint('DetailListItem: State updated, media count version incremented to $_mediaCountVersion');
+    // Only setState if widget is expanded (visible) to avoid unnecessary rebuilds
+    if (mounted && widget.isExpanded) {
+      // Load new count and only rebuild if it changed
+      _loadMediaCountOnce();
     }
   }
 
   @override
   void didUpdateWidget(DetailListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Sempre verificar se o nome mudou
     if (widget.detail.detailName != _currentDetailName) {
-      debugPrint('Detail name changed from $_currentDetailName to ${widget.detail.detailName}');
+      debugPrint(
+          'Detail name changed from $_currentDetailName to ${widget.detail.detailName}');
       _initializeControllers();
       return;
     }
-    
+
     // Só atualizar valores se não há debounce ativo (evita conflitos durante digitação)
-    final hasActiveDebounce = (_selectDebounce?.isActive == true) || 
-                              (_booleanDebounce?.isActive == true) || 
-                              (_debounce?.isActive == true);
-    
+    final hasActiveDebounce = (_selectDebounce?.isActive == true) ||
+        (_booleanDebounce?.isActive == true) ||
+        (_debounce?.isActive == true);
+
     if (hasActiveDebounce) {
-      debugPrint('Debounce active for detail ${widget.detail.id}, skipping update');
+      debugPrint(
+          'Debounce active for detail ${widget.detail.id}, skipping update');
       return;
     }
-    
+
     // Verificar se houve mudança real no valor do banco de dados
     final oldValue = oldWidget.detail.detailValue;
     final newValue = widget.detail.detailValue;
-    
+
     if (oldValue != newValue) {
-      debugPrint('Detail value changed in database: ${widget.detail.id} from "$oldValue" to "$newValue"');
-      
+      debugPrint(
+          'Detail value changed in database: ${widget.detail.id} from "$oldValue" to "$newValue"');
+
       // Atualizar controladores apenas se o valor realmente mudou no banco
       switch (widget.detail.type) {
         case 'select':
@@ -537,7 +566,7 @@ class _DetailListItemState extends State<DetailListItem> {
           } else {
             newBooleanValue = 'não_se_aplica';
           }
-          
+
           if (_booleanValue != newBooleanValue) {
             setState(() {
               _booleanValue = newBooleanValue;
@@ -557,7 +586,7 @@ class _DetailListItemState extends State<DetailListItem> {
           } else {
             newBooleanValue = 'não_se_aplica';
           }
-          
+
           if (_booleanValue != newBooleanValue) {
             setState(() {
               _booleanValue = newBooleanValue;
@@ -576,9 +605,9 @@ class _DetailListItemState extends State<DetailListItem> {
           break;
       }
     }
-    
+
     // Verificar mudanças na observação
-    if (widget.detail.observation != _observationController.text && 
+    if (widget.detail.observation != _observationController.text &&
         _observationController.text.isNotEmpty) {
       setState(() {
         _observationController.text = widget.detail.observation ?? '';
@@ -588,10 +617,12 @@ class _DetailListItemState extends State<DetailListItem> {
 
   bool _isValidSelectValue(String? value) {
     if (value == null) return true;
-    
+
     final options = widget.detail.options ?? [];
     // Always consider the current select value as valid, even if not in options yet
-    return options.contains(value) || value == 'Outro' || value == _currentSelectValue;
+    return options.contains(value) ||
+        value == 'Outro' ||
+        value == _currentSelectValue;
   }
 
   void _updateSelectValue(String? value) {
@@ -617,7 +648,8 @@ class _DetailListItemState extends State<DetailListItem> {
 
   void _initializeControllers() {
     final detailValue = widget.detail.detailValue ?? '';
-    debugPrint('Initializing controllers for detail ${widget.detail.id} with value: "$detailValue"');
+    debugPrint(
+        'Initializing controllers for detail ${widget.detail.id} with value: "$detailValue"');
 
     if (widget.detail.type == 'measure') {
       // Parse measurements - support both JSON format and CSV format
@@ -709,7 +741,7 @@ class _DetailListItemState extends State<DetailListItem> {
   void dispose() {
     // Certificar que valores pendentes sejam salvos antes do dispose
     _savePendingChanges();
-    
+
     _valueController.dispose();
     _observationController.dispose();
     _heightController.dispose();
@@ -742,7 +774,8 @@ class _DetailListItemState extends State<DetailListItem> {
     String value = '';
 
     if (widget.detail.type == 'measure') {
-      value = '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
+      value =
+          '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue;
@@ -763,7 +796,9 @@ class _DetailListItemState extends State<DetailListItem> {
       position: widget.detail.position,
       detailName: widget.detail.detailName,
       detailValue: value.isEmpty ? null : value,
-      observation: _observationController.text.isEmpty ? null : _observationController.text,
+      observation: _observationController.text.isEmpty
+          ? null
+          : _observationController.text,
       isDamaged: _isDamaged,
       tags: widget.detail.tags,
       createdAt: widget.detail.createdAt,
@@ -773,12 +808,13 @@ class _DetailListItemState extends State<DetailListItem> {
       status: widget.detail.status,
       isRequired: widget.detail.isRequired,
     );
-    
+
     widget.onDetailUpdated(updatedDetail);
-    
+
     // Salvamento síncrono para garantir persistência
     _serviceFactory.dataService.updateDetail(updatedDetail).then((_) {
-      debugPrint('Detail synchronized on dispose: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+      debugPrint(
+          'Detail synchronized on dispose: ${updatedDetail.id} = ${updatedDetail.detailValue}');
     }).catchError((error) {
       debugPrint('Error synchronizing detail on dispose: $error');
     });
@@ -833,19 +869,23 @@ class _DetailListItemState extends State<DetailListItem> {
       _selectDebounce?.cancel();
       _selectDebounce = Timer(const Duration(milliseconds: 100), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
-        debugPrint('Detail select updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+        debugPrint(
+            'Detail select updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
-    } else if (widget.detail.type == 'boolean' || widget.detail.type == 'boolean02') {
+    } else if (widget.detail.type == 'boolean' ||
+        widget.detail.type == 'boolean02') {
       _booleanDebounce?.cancel();
       _booleanDebounce = Timer(const Duration(milliseconds: 100), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
-        debugPrint('Detail boolean updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+        debugPrint(
+            'Detail boolean updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
     } else {
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 50), () async {
         await _serviceFactory.dataService.updateDetail(updatedDetail);
-        debugPrint('Detail updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+        debugPrint(
+            'Detail updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
     }
   }
@@ -853,7 +893,8 @@ class _DetailListItemState extends State<DetailListItem> {
   Future<void> _saveDetailImmediately(Detail updatedDetail) async {
     try {
       await _serviceFactory.dataService.updateDetail(updatedDetail);
-      debugPrint('Detail saved immediately: ${updatedDetail.id} = ${updatedDetail.detailValue}');
+      debugPrint(
+          'Detail saved immediately: ${updatedDetail.id} = ${updatedDetail.detailValue}');
     } catch (e) {
       debugPrint('Error saving detail immediately: $e');
     }
@@ -863,6 +904,7 @@ class _DetailListItemState extends State<DetailListItem> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final theme = Theme.of(context);
         final controller =
             TextEditingController(text: _observationController.text);
         return AlertDialog(
@@ -874,10 +916,10 @@ class _DetailListItemState extends State<DetailListItem> {
               controller: controller,
               maxLines: 3,
               autofocus: false,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
-                border: OutlineInputBorder(),
+                hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                border: const OutlineInputBorder(),
               ),
             ),
           ),
@@ -977,7 +1019,8 @@ class _DetailListItemState extends State<DetailListItem> {
             source: 'camera',
             onMediaCaptured: (capturedFiles) async {
               try {
-                debugPrint('DetailsListSection: ${capturedFiles.length} media files captured for detail ${widget.detail.id}');
+                debugPrint(
+                    'DetailsListSection: ${capturedFiles.length} media files captured for detail ${widget.detail.id}');
 
                 // O contador será atualizado automaticamente via MediaCounterNotifier
 
@@ -1022,32 +1065,6 @@ class _DetailListItemState extends State<DetailListItem> {
     }
   }
 
-  Future<int> _getDetailMediaCount() async {
-    final cacheKey = '${widget.detail.id}';
-    if (_mediaCountCache.containsKey(cacheKey)) {
-      final cachedCount = _mediaCountCache[cacheKey]!;
-      debugPrint('DetailListItem: Using cached media count for detail ${widget.detail.id}: $cachedCount');
-      return cachedCount;
-    }
-
-    try {
-      debugPrint('DetailListItem: Fetching fresh media count for detail ${widget.detail.id}');
-      final medias = await _serviceFactory.mediaService.getMediaByContext(
-        inspectionId: widget.inspectionId,
-        topicId: widget.detail.topicId,
-        itemId: widget.detail.itemId,
-        detailId: widget.detail.id,
-      );
-      final count = medias.length;
-      _mediaCountCache[cacheKey] = count;
-      debugPrint('DetailListItem: Fresh media count for detail ${widget.detail.id}: $count');
-      return count;
-    } catch (e) {
-      debugPrint(
-          'Error getting media count for detail ${widget.detail.id}: $e');
-      return 0;
-    }
-  }
 
   void _openDetailGallery() {
     try {
@@ -1071,6 +1088,58 @@ class _DetailListItemState extends State<DetailListItem> {
           ),
         );
       }
+    }
+  }
+
+  Widget _buildMediaCountButton() {
+    final cacheKey = '${widget.detail.id}';
+
+    // Check cache first and use it directly
+    if (_mediaCountCache.containsKey(cacheKey)) {
+      final count = _mediaCountCache[cacheKey]!;
+      return _buildDetailActionButton(
+        icon: Icons.photo_library,
+        label: 'Galeria',
+        color: Colors.purple,
+        onPressed: () => _openDetailGallery(),
+        count: count,
+      );
+    }
+
+    // If not in cache, load once and cache the result
+    _loadMediaCountOnce();
+
+    // Return button with 0 count while loading
+    return _buildDetailActionButton(
+      icon: Icons.photo_library,
+      label: 'Galeria',
+      color: Colors.purple,
+      onPressed: () => _openDetailGallery(),
+      count: 0,
+    );
+  }
+
+  void _loadMediaCountOnce() async {
+    final cacheKey = '${widget.detail.id}';
+    if (_mediaCountCache.containsKey(cacheKey)) return;
+
+    try {
+      final medias = await _serviceFactory.mediaService.getMediaByContext(
+        inspectionId: widget.inspectionId,
+        topicId: widget.detail.topicId,
+        itemId: widget.detail.itemId,
+        detailId: widget.detail.id,
+      );
+      final count = medias.length;
+      _mediaCountCache[cacheKey] = count;
+
+      // Only setState if mounted and count > 0 to show the badge
+      if (mounted && count > 0) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error getting media count for detail ${widget.detail.id}: $e');
+      _mediaCountCache[cacheKey] = 0;
     }
   }
 
@@ -1107,8 +1176,8 @@ class _DetailListItemState extends State<DetailListItem> {
                   right: -2,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF6F4B99),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(
@@ -1146,7 +1215,11 @@ class _DetailListItemState extends State<DetailListItem> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final displayValue = _getDisplayValue();
+    final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
+    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
@@ -1156,7 +1229,7 @@ class _DetailListItemState extends State<DetailListItem> {
         side: BorderSide(
           color: _isDamaged
               ? Colors.red
-              : Colors.green.withAlpha((255 * 0.3).round()),
+              : detailColor.withAlpha((0.3 * 255).round()),
           width: _isDamaged ? 2 : 1,
         ),
       ),
@@ -1169,7 +1242,7 @@ class _DetailListItemState extends State<DetailListItem> {
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: _isDamaged
-                    ? Colors.red.withAlpha((255 * 0.1).round())
+                    ? Colors.red.withAlpha((0.1 * 255).round())
                     : null,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(8)),
@@ -1190,15 +1263,13 @@ class _DetailListItemState extends State<DetailListItem> {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: _isDamaged
-                                      ? Colors.red
-                                      : Colors.green.shade300,
+                                  color: _isDamaged ? Colors.red : textColor,
                                 ),
                               ),
                             ),
                             if (_observationController.text.isNotEmpty) ...[
                               const SizedBox(width: 4),
-                              Icon(
+                              const Icon(
                                 Icons.note_alt,
                                 color: Colors.amber,
                                 size: 14,
@@ -1212,7 +1283,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4.0),
                           child: Icon(Icons.drag_handle,
-                              size: 20, color: Colors.grey.shade400),
+                              size: 20, color: theme.disabledColor),
                         ),
                       ),
                       IconButton(
@@ -1244,7 +1315,7 @@ class _DetailListItemState extends State<DetailListItem> {
                           widget.isExpanded
                               ? Icons.expand_less
                               : Icons.expand_more,
-                          color: Colors.green.shade300,
+                          color: textColor,
                           size: 20),
                     ],
                   ),
@@ -1257,13 +1328,14 @@ class _DetailListItemState extends State<DetailListItem> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 4, vertical: 2),
                             decoration: BoxDecoration(
-                                color: Colors.green.shade100,
+                                color:
+                                    detailColor.withAlpha((0.1 * 255).round()),
                                 borderRadius: BorderRadius.circular(4)),
                             child: Text(
                               displayValue,
                               style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.green.shade800,
+                                  color: isDark ? theme.colorScheme.onSurface : Colors.green.shade700,
                                   fontWeight: FontWeight.w500),
                             ),
                           ),
@@ -1276,7 +1348,7 @@ class _DetailListItemState extends State<DetailListItem> {
             ),
           ),
           if (widget.isExpanded) ...[
-            Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+            Divider(height: 1, thickness: 1, color: theme.dividerColor),
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
@@ -1298,21 +1370,7 @@ class _DetailListItemState extends State<DetailListItem> {
                           onPressed: () => _captureDetailMedia(),
                         ),
                         // Botão Galeria com contador de mídia
-                        FutureBuilder<int>(
-                          key: ValueKey(
-                              'detail_media_${widget.detail.id}_$_mediaCountVersion'),
-                          future: _getDetailMediaCount(),
-                          builder: (context, snapshot) {
-                            final count = snapshot.data ?? 0;
-                            return _buildDetailActionButton(
-                              icon: Icons.photo_library,
-                              label: 'Galeria',
-                              color: Colors.purple,
-                              onPressed: () => _openDetailGallery(),
-                              count: count,
-                            );
-                          },
-                        ),
+                        _buildMediaCountButton(),
                         // Botão Não Conformidade
                         _buildDetailActionButton(
                           icon: Icons.warning_amber_rounded,
@@ -1331,7 +1389,7 @@ class _DetailListItemState extends State<DetailListItem> {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         border: Border.all(
-                            color: Colors.green.withAlpha((255 * 0.3).round())),
+                            color: detailColor.withAlpha((0.3 * 255).round())),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -1339,17 +1397,15 @@ class _DetailListItemState extends State<DetailListItem> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.note_alt,
-                                  size: 14, color: Colors.green.shade300),
+                              Icon(Icons.note_alt, size: 14, color: textColor),
                               const SizedBox(width: 8),
                               Text('Observações',
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green.shade300,
+                                      color: textColor,
                                       fontSize: 11)),
                               const Spacer(),
-                              Icon(Icons.edit,
-                                  size: 16, color: Colors.green.shade300),
+                              Icon(Icons.edit, size: 16, color: textColor),
                             ],
                           ),
                           const SizedBox(height: 2),
@@ -1359,8 +1415,8 @@ class _DetailListItemState extends State<DetailListItem> {
                                 : _observationController.text,
                             style: TextStyle(
                               color: _observationController.text.isEmpty
-                                  ? Colors.green.shade200
-                                  : Colors.white,
+                                  ? theme.hintColor
+                                  : theme.textTheme.bodyLarge?.color,
                               fontStyle: _observationController.text.isEmpty
                                   ? FontStyle.italic
                                   : FontStyle.normal,
@@ -1423,35 +1479,46 @@ class _DetailListItemState extends State<DetailListItem> {
   }
 
   Widget _buildValueInput() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
+    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
     switch (widget.detail.type) {
       case 'select':
         if (widget.detail.options != null &&
             widget.detail.options!.isNotEmpty) {
           return DropdownButtonFormField<String>(
-            initialValue: _isValidSelectValue(_currentSelectValue) ? _currentSelectValue : null,
+            initialValue: _isValidSelectValue(_currentSelectValue)
+                ? _currentSelectValue
+                : null,
             decoration: InputDecoration(
               labelText: 'Resposta',
-              labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),
+              labelStyle: TextStyle(color: textColor, fontSize: 12),
               border: const OutlineInputBorder(),
               hintText: 'Selecione um valor',
               focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.green.shade300),
+                borderSide: BorderSide(color: detailColor),
               ),
               isDense: true,
             ),
-            dropdownColor: const Color(0xFF4A3B6B),
-            style: const TextStyle(color: Colors.white, fontSize: 11),
+            dropdownColor: theme.cardColor,
+            style: TextStyle(
+                color: theme.textTheme.bodyLarge?.color, fontSize: 11),
             menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
             items: [
-              const DropdownMenuItem<String>(
+              DropdownMenuItem<String>(
                 value: null,
-                child: Text('(Sem resposta)', style: TextStyle(color: Colors.grey, fontSize: 11, fontStyle: FontStyle.italic)),
+                child: Text('(Sem resposta)',
+                    style: TextStyle(
+                        color: theme.hintColor,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic)),
               ),
               ...() {
                 final allOptions = List<String>.from(widget.detail.options!);
                 // Ensure current value is in the options list
-                if (_currentSelectValue != null && 
-                    _currentSelectValue!.isNotEmpty && 
+                if (_currentSelectValue != null &&
+                    _currentSelectValue!.isNotEmpty &&
                     _currentSelectValue != 'Outro' &&
                     !allOptions.contains(_currentSelectValue!)) {
                   allOptions.add(_currentSelectValue!);
@@ -1459,14 +1526,18 @@ class _DetailListItemState extends State<DetailListItem> {
                 return allOptions.map((option) {
                   return DropdownMenuItem<String>(
                     value: option,
-                    child: Text(option, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: Text(option,
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
                   );
                 });
               }(),
               // Adicionar opção "Outro"
               const DropdownMenuItem<String>(
                 value: 'Outro',
-                child: Text('Outro', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                child: Text('Outro',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
             onChanged: (value) {
@@ -1494,12 +1565,12 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'sim'
                             ? Colors.green
-                            : Colors.grey.shade700,
+                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'sim'
                               ? Colors.green
-                              : Colors.grey.shade500,
+                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1509,7 +1580,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         style: TextStyle(
                           color: _booleanValue == 'sim'
                               ? Colors.white
-                              : Colors.grey.shade300,
+                              : theme.textTheme.bodyLarge?.color,
                           fontSize: 11,
                           fontWeight: _booleanValue == 'sim'
                               ? FontWeight.bold
@@ -1529,12 +1600,12 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'não'
                             ? Colors.red
-                            : Colors.grey.shade700,
+                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'não'
                               ? Colors.red
-                              : Colors.grey.shade500,
+                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1544,7 +1615,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         style: TextStyle(
                           color: _booleanValue == 'não'
                               ? Colors.white
-                              : Colors.grey.shade300,
+                              : theme.textTheme.bodyLarge?.color,
                           fontSize: 11,
                           fontWeight: _booleanValue == 'não'
                               ? FontWeight.bold
@@ -1564,12 +1635,12 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'não_se_aplica'
                             ? Colors.yellowAccent
-                            : Colors.grey.shade700,
+                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'não_se_aplica'
                               ? Colors.yellowAccent
-                              : Colors.grey.shade500,
+                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1578,8 +1649,8 @@ class _DetailListItemState extends State<DetailListItem> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: _booleanValue == 'não_se_aplica'
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade300,
+                              ? Colors.black
+                              : theme.textTheme.bodyLarge?.color,
                           fontSize: 11,
                           fontWeight: _booleanValue == 'não_se_aplica'
                               ? FontWeight.bold
@@ -1610,12 +1681,12 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'Conforme'
                             ? Colors.green
-                            : Colors.grey.shade700,
+                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'Conforme'
                               ? Colors.green
-                              : Colors.grey.shade500,
+                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1625,7 +1696,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         style: TextStyle(
                           color: _booleanValue == 'Conforme'
                               ? Colors.white
-                              : Colors.grey.shade300,
+                              : theme.textTheme.bodyLarge?.color,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1644,12 +1715,12 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'Não Conforme'
                             ? Colors.red
-                            : Colors.grey.shade700,
+                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'Não Conforme'
                               ? Colors.red
-                              : Colors.grey.shade500,
+                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1659,7 +1730,7 @@ class _DetailListItemState extends State<DetailListItem> {
                         style: TextStyle(
                           color: _booleanValue == 'Não Conforme'
                               ? Colors.white
-                              : Colors.grey.shade300,
+                              : theme.textTheme.bodyLarge?.color,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1678,12 +1749,12 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'não_se_aplica'
                             ? Colors.yellowAccent
-                            : Colors.grey.shade700,
+                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'não_se_aplica'
                               ? Colors.yellowAccent
-                              : Colors.grey.shade500,
+                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1692,8 +1763,8 @@ class _DetailListItemState extends State<DetailListItem> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: _booleanValue == 'não_se_aplica'
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade300,
+                              ? Colors.black
+                              : theme.textTheme.bodyLarge?.color,
                           fontSize: 11,
                           fontWeight: _booleanValue == 'não_se_aplica'
                               ? FontWeight.bold
@@ -1714,15 +1785,16 @@ class _DetailListItemState extends State<DetailListItem> {
             Expanded(
               child: TextFormField(
                 controller: _heightController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Altura',
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
-                  border: OutlineInputBorder(),
+                  hintStyle: TextStyle(color: theme.hintColor, fontSize: 11),
+                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color, fontSize: 11),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
@@ -1734,15 +1806,16 @@ class _DetailListItemState extends State<DetailListItem> {
             Expanded(
               child: TextFormField(
                 controller: _widthController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Largura',
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
-                  border: OutlineInputBorder(),
+                  hintStyle: TextStyle(color: theme.hintColor, fontSize: 11),
+                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color, fontSize: 11),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
@@ -1754,15 +1827,16 @@ class _DetailListItemState extends State<DetailListItem> {
             Expanded(
               child: TextFormField(
                 controller: _depthController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Profundidade',
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
-                  border: OutlineInputBorder(),
+                  hintStyle: TextStyle(color: theme.hintColor, fontSize: 11),
+                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color, fontSize: 11),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                 ],
@@ -1781,15 +1855,16 @@ class _DetailListItemState extends State<DetailListItem> {
             labelText: 'Resposta',
             border: const OutlineInputBorder(),
             hintText: 'Digite um valor',
-            labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),
+            labelStyle: TextStyle(color: textColor, fontSize: 12),
             focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.green.shade300),
+              borderSide: BorderSide(color: detailColor),
             ),
             isDense: true,
           ),
-          style: const TextStyle(color: Colors.white),
+          style: theme.textTheme.bodyLarge,
           onChanged: (_) => _updateDetail(),
-          onEditingComplete: () => _updateDetail(), // Garantir salvamento ao terminar edição
+          onEditingComplete: () =>
+              _updateDetail(), // Garantir salvamento ao terminar edição
         );
     }
 
@@ -1797,17 +1872,18 @@ class _DetailListItemState extends State<DetailListItem> {
       controller: _valueController,
       decoration: InputDecoration(
         labelText: 'Resposta',
-        labelStyle: TextStyle(color: Colors.green.shade300, fontSize: 12),
+        labelStyle: TextStyle(color: textColor, fontSize: 12),
         border: const OutlineInputBorder(),
         hintText: 'Digite um valor',
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.green.shade300),
+          borderSide: BorderSide(color: detailColor),
         ),
         isDense: true,
       ),
-      style: const TextStyle(color: Colors.white, fontSize: 11),
+      style: TextStyle(color: theme.textTheme.bodyLarge?.color, fontSize: 11),
       onChanged: (_) => _updateDetail(),
-      onEditingComplete: () => _updateDetail(), // Garantir salvamento ao terminar edição
+      onEditingComplete: () =>
+          _updateDetail(), // Garantir salvamento ao terminar edição
     );
   }
 
@@ -1815,6 +1891,7 @@ class _DetailListItemState extends State<DetailListItem> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final theme = Theme.of(context);
         final controller = TextEditingController();
         return AlertDialog(
           title: const Text('Opção Personalizada',
@@ -1823,10 +1900,10 @@ class _DetailListItemState extends State<DetailListItem> {
             controller: controller,
             maxLines: 1,
             autofocus: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Digite uma opção personalizada...',
-              hintStyle: TextStyle(fontSize: 11, color: Colors.grey),
-              border: OutlineInputBorder(),
+              hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+              border: const OutlineInputBorder(),
             ),
           ),
           actions: [
@@ -1848,13 +1925,13 @@ class _DetailListItemState extends State<DetailListItem> {
       final currentOptions = List<String>.from(widget.detail.options ?? []);
       if (!currentOptions.contains(result)) {
         currentOptions.add(result);
-        
+
         // Primeiro atualizar o estado local para evitar erro no dropdown
         setState(() {
           _currentSelectValue = result;
           _valueController.text = result;
         });
-        
+
         // Depois atualizar o detalhe com as novas opções
         final updatedDetail = Detail(
           id: widget.detail.id,
@@ -1877,11 +1954,12 @@ class _DetailListItemState extends State<DetailListItem> {
           isRequired: widget.detail.isRequired,
         );
         widget.onDetailUpdated(updatedDetail);
-        
+
         // Salvar no banco de dados
         if (_debounce?.isActive ?? false) _debounce?.cancel();
         _debounce = Timer(const Duration(milliseconds: 100), () async {
-          debugPrint('DetailsListSection: Saving detail with custom option: $result');
+          debugPrint(
+              'DetailsListSection: Saving detail with custom option: $result');
           await _serviceFactory.dataService.updateDetail(updatedDetail);
           debugPrint('DetailsListSection: Detail saved successfully');
         });

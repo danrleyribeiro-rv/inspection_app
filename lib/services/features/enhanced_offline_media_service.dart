@@ -38,26 +38,6 @@ class EnhancedOfflineMediaService {
   }
 
   // ===============================
-  // MÉTODO AUXILIAR PARA MARCAR MUDANÇAS
-  // ===============================
-
-  Future<void> _markInspectionAsModified(String inspectionId) async {
-    try {
-      final inspection = await _inspectionRepository.findById(inspectionId);
-      if (inspection != null) {
-        final modifiedInspection = inspection.copyWith(
-          hasLocalChanges: true,
-          updatedAt: DateTime.now(),
-        );
-        await _inspectionRepository.update(modifiedInspection);
-        debugPrint('EnhancedOfflineMediaService: Marked inspection $inspectionId as modified');
-      }
-    } catch (e) {
-      debugPrint('EnhancedOfflineMediaService: Error marking inspection as modified: $e');
-    }
-  }
-
-  // ===============================
   // DIRETÓRIOS E ARMAZENAMENTO
   // ===============================
 
@@ -98,12 +78,7 @@ class EnhancedOfflineMediaService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      debugPrint('EnhancedOfflineMediaService: capturePhoto called with:');
-      debugPrint('  inspectionId: $inspectionId');
-      debugPrint('  topicId: $topicId');
-      debugPrint('  itemId: $itemId');
-      debugPrint('  detailId: $detailId');
-      debugPrint('  nonConformityId: $nonConformityId');
+      // Capture photo initiated
       
       final mediaDir = await _mediaDirectory;
       final filename = '${const Uuid().v4()}.jpg';
@@ -118,18 +93,13 @@ class EnhancedOfflineMediaService {
       final imageBytes = await file.readAsBytes();
       final image = img.decodeImage(imageBytes);
 
-      // Preparar metadata
-      final processedMetadata = <String, dynamic>{
-        'source': metadata?['source'] ?? 'camera',
-        'captured_at': DateTime.now().toIso8601String(),
-        ...?metadata,
-      };
+      // Metadata removido
 
       // Gerar thumbnail de forma assíncrona para não bloquear o salvamento
       String? thumbnailPath;
       
       // Salvar mídia primeiro, criar thumbnail depois
-      debugPrint('EnhancedOfflineMediaService: Skipping thumbnail creation for immediate save');
+      // Thumbnail creation skipped for performance
 
       // Determinar source e isResolutionMedia
       final sourceValue = metadata?['source'] as String? ?? 'camera';
@@ -148,33 +118,27 @@ class EnhancedOfflineMediaService {
         localPath: localPath,
         filename: filename,
         fileSize: fileSize,
-        mimeType: 'image/jpeg',
         width: image?.width,
         height: image?.height,
         thumbnailPath: thumbnailPath,
-        isProcessed: true,
         isUploaded: false,
         needsSync: true,
         createdAt: now,
         updatedAt: now,
-        capturedAt: now, // Set capturedAt for proper date/time display
         source: sourceValue,
         isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
-        metadata: processedMetadata,
       );
 
       // Salvar no banco de dados IMEDIATAMENTE
       await _mediaRepository.insert(media);
-      debugPrint('EnhancedOfflineMediaService: Media saved to database immediately');
+      // Media saved to database
 
-      // Marcar inspeção como modificada
-      await _markInspectionAsModified(inspectionId);
 
       // Criar thumbnail de forma assíncrona (não bloqueia o retorno)
       Future.microtask(() async {
         try {
           // Thumbnail assíncrono
-          debugPrint('EnhancedOfflineMediaService: Starting async thumbnail creation');
+          // Starting async thumbnail creation
           final asyncThumbnailPath = await _createImageThumbnail(localPath);
           
           // Atualizar mídia com thumbnail
@@ -208,7 +172,7 @@ class EnhancedOfflineMediaService {
         );
       });
 
-      debugPrint('EnhancedOfflineMediaService: Captured photo ${media.id} successfully - thumbnail will be created async');
+      // Photo captured successfully
 
       return media;
     } catch (e) {
@@ -249,18 +213,11 @@ class EnhancedOfflineMediaService {
         localPath: localPath,
         filename: filename,
         fileSize: fileSize,
-        mimeType: 'video/mp4',
         source: metadata?['source'] as String? ?? 'camera',
-        metadata: metadata,
       );
 
       // Salvar no banco de dados
       await _mediaRepository.insert(media);
-
-      // Marcar inspeção como modificada para sincronização
-      await _markInspectionAsModified(inspectionId);
-
-      debugPrint('EnhancedOfflineMediaService: Captured video ${media.id}');
 
       return media;
     } catch (e) {
@@ -294,7 +251,6 @@ class EnhancedOfflineMediaService {
         itemId: itemId,
         detailId: detailId,
         nonConformityId: nonConformityId,
-        metadata: metadata,
       );
     } else {
       return await captureVideo(
@@ -304,7 +260,6 @@ class EnhancedOfflineMediaService {
         itemId: itemId,
         detailId: detailId,
         nonConformityId: nonConformityId,
-        metadata: metadata,
       );
     }
   }
@@ -321,9 +276,7 @@ class EnhancedOfflineMediaService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      debugPrint('EnhancedOfflineMediaService: importMedia called with:');
-      debugPrint('  inspectionId: $inspectionId');
-      debugPrint('  topicId: $topicId');
+      // Media import initiated
       debugPrint('  itemId: $itemId');
       debugPrint('  detailId: $detailId');
       debugPrint('  nonConformityId: $nonConformityId');
@@ -341,20 +294,13 @@ class EnhancedOfflineMediaService {
 
       // Obter informações do arquivo
       final fileSize = await originalFile.length();
-      String mimeType = 'application/octet-stream';
       int? width, height, duration;
 
-      // Preparar metadata
-      final processedMetadata = <String, dynamic>{
-        'source': source,
-        'imported_at': DateTime.now().toIso8601String(),
-        ...?metadata,
-      };
+      // Metadata removido
 
       String? thumbnailPath;
       
       if (type == 'image') {
-        mimeType = 'image/jpeg';
         try {
           final imageBytes = await originalFile.readAsBytes();
           final image = img.decodeImage(imageBytes);
@@ -368,7 +314,6 @@ class EnhancedOfflineMediaService {
           debugPrint('Error decoding image: $e');
         }
       } else if (type == 'video') {
-        mimeType = 'video/mp4';
         // Duration will be set later by processing
       }
 
@@ -385,26 +330,19 @@ class EnhancedOfflineMediaService {
         localPath: localPath,
         filename: filename,
         fileSize: fileSize,
-        mimeType: mimeType,
         width: width,
         height: height,
         duration: duration,
         thumbnailPath: thumbnailPath,
-        isProcessed: true,
         isUploaded: false,
         needsSync: true,
         createdAt: now,
         updatedAt: now,
-        capturedAt: now, // Set capturedAt for proper date/time display
         source: source,
-        metadata: processedMetadata,
       );
 
       // Salvar no banco de dados
       await _mediaRepository.insert(media);
-
-      // Marcar inspeção como modificada para sincronização
-      await _markInspectionAsModified(inspectionId);
 
       // Notificar contadores sobre nova mídia IMEDIATAMENTE
       MediaCounterNotifier.instance.notifyMediaAdded(
@@ -447,14 +385,7 @@ class EnhancedOfflineMediaService {
     try {
       await initialize();
       
-      debugPrint('EnhancedOfflineMediaService: ========== STARTING MEDIA CAPTURE ==========');
-      debugPrint('EnhancedOfflineMediaService: Input path: $inputPath');
-      debugPrint('EnhancedOfflineMediaService: Type: $type');
-      debugPrint('EnhancedOfflineMediaService: Source RECEIVED: $source');
-      debugPrint('EnhancedOfflineMediaService: TopicId: $topicId');
-      debugPrint('EnhancedOfflineMediaService: ItemId: $itemId');
-      debugPrint('EnhancedOfflineMediaService: DetailId: $detailId');
-      debugPrint('EnhancedOfflineMediaService: NonConformityId: $nonConformityId');
+      // Media capture started (debug logging disabled)
       
       final inputFile = File(inputPath);
       if (!await inputFile.exists()) {
@@ -467,7 +398,7 @@ class EnhancedOfflineMediaService {
       final filename = '$mediaId$extension';
       final localPath = path.join(mediaDir.path, filename);
 
-      debugPrint('EnhancedOfflineMediaService: Copying file to: $localPath');
+      // Copying file (debug logging disabled)
       
       // Copiar arquivo para o diretório de mídia
       await inputFile.copy(localPath);
@@ -483,22 +414,22 @@ class EnhancedOfflineMediaService {
       int? width, height;
       String? thumbnailPath;
       
-      debugPrint('EnhancedOfflineMediaService: File copied successfully, size: $fileSize bytes');
+      // File copied successfully (debug logging disabled)
 
       // Processar imagem para obter dimensões e gerar thumbnail
       if (type == 'image') {
         try {
-          debugPrint('EnhancedOfflineMediaService: Processing image for dimensions and thumbnail');
+          // Processing image for dimensions (debug logging disabled)
           final imageBytes = await copiedFile.readAsBytes();
           final image = img.decodeImage(imageBytes);
-          
+
           if (image != null) {
             width = image.width;
             height = image.height;
-            debugPrint('EnhancedOfflineMediaService: Image dimensions extracted: ${width}x$height');
-            
+            // Image dimensions extracted (debug logging disabled)
+
             // Pular criação de thumbnail para salvamento rápido
-            debugPrint('EnhancedOfflineMediaService: Skipping thumbnail for fast save');
+            // Skipping thumbnail for fast save (debug logging disabled)
           } else {
             debugPrint('EnhancedOfflineMediaService: Warning: Could not decode image');
           }
@@ -508,20 +439,12 @@ class EnhancedOfflineMediaService {
         }
       }
 
-      Map<String, dynamic> processedMetadata = {
-        'source': source,
-        'captured_at': DateTime.now().toIso8601String(),
-        'processed_at': DateTime.now().toIso8601String(),
-      };
+      // Metadata removido
 
       // Determinar automaticamente se é mídia de resolução baseado no source
       final isResolutionMedia = source.contains('resolution');
       
-      debugPrint('EnhancedOfflineMediaService: ========== SOURCE ANALYSIS ==========');
-      debugPrint('EnhancedOfflineMediaService: Original source: $source');
-      debugPrint('EnhancedOfflineMediaService: Contains "resolution": ${source.contains('resolution')}');
-      debugPrint('EnhancedOfflineMediaService: isResolutionMedia will be: $isResolutionMedia');
-      debugPrint('EnhancedOfflineMediaService: Source being saved to metadata: ${processedMetadata['source']}');
+      // Source analysis completed (debug logging disabled)
       
       // Criar registro de mídia com dados completos
       final now = DateTime.now();
@@ -536,35 +459,20 @@ class EnhancedOfflineMediaService {
         localPath: localPath,
         filename: filename,
         fileSize: fileSize,
-        mimeType: type == 'image' ? 'image/jpeg' : 'video/mp4',
         width: width,
         height: height,
         thumbnailPath: thumbnailPath,
-        isProcessed: true,
         isUploaded: false,
         needsSync: true,
         createdAt: now,
         updatedAt: now,
-        capturedAt: now, // Set capturedAt for proper date/time display
         source: source,
         isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
-        metadata: processedMetadata,
       );
 
       // Salvar no repositório IMEDIATAMENTE
       await _mediaRepository.insert(media);
 
-      // Marcar inspeção como modificada para sincronização
-      await _markInspectionAsModified(inspectionId);
-
-      debugPrint('EnhancedOfflineMediaService: ========== MEDIA SAVED TO DATABASE ==========');
-      debugPrint('EnhancedOfflineMediaService: Media ID: ${media.id}');
-      debugPrint('EnhancedOfflineMediaService: Source saved: ${media.source}');
-      debugPrint('EnhancedOfflineMediaService: isResolutionMedia saved: ${media.isResolutionMedia}');
-      debugPrint('EnhancedOfflineMediaService: Type: ${media.type}');
-      debugPrint('EnhancedOfflineMediaService: Filename: ${media.filename}');
-      debugPrint('EnhancedOfflineMediaService: ========== SAVE COMPLETE ==========');
-      
       // Criar thumbnail de forma assíncrona (não bloqueia o retorno)
       Future.microtask(() async {
         try {
@@ -605,15 +513,7 @@ class EnhancedOfflineMediaService {
         );
       });
       
-      debugPrint('EnhancedOfflineMediaService: ===== MEDIA SAVED SUCCESSFULLY =====');
-      debugPrint('  MediaId: $mediaId');
-      debugPrint('  LocalPath: $localPath');
-      debugPrint('  FileSize: $fileSize bytes');
-      debugPrint('  Dimensions: ${width ?? 'null'}x${height ?? 'null'}');
-      debugPrint('  ThumbnailPath: ${thumbnailPath ?? 'null'}');
-      debugPrint('  Source: $source');
-      debugPrint('  Metadata keys: ${processedMetadata.keys.join(', ')}');
-      debugPrint('==================================================');
+      // Media saved successfully (debug logging disabled)
 
       return media;
     } catch (e) {
@@ -705,9 +605,6 @@ class EnhancedOfflineMediaService {
         detailId: media.detailId,
       );
 
-      // Marcar inspeção como modificada
-      await _markInspectionAsModified(media.inspectionId);
-
       // Verify deletion
       final deletedMedia = await _mediaRepository.findById(mediaId);
       if (deletedMedia == null) {
@@ -744,13 +641,8 @@ class EnhancedOfflineMediaService {
     return null;
   }
 
-  Future<List<OfflineMedia>> getProcessedMedia() async {
-    return await _mediaRepository.findProcessed();
-  }
-
-  Future<List<OfflineMedia>> getUnprocessedMedia() async {
-    return await _mediaRepository.findUnprocessed();
-  }
+  // Métodos removidos: getProcessedMedia e getUnprocessedMedia
+  // Toda mídia agora é considerada processada por padrão
 
   Future<List<OfflineMedia>> getMediaPendingUpload() async {
     return await _mediaRepository.findPendingUpload();
@@ -853,10 +745,10 @@ class EnhancedOfflineMediaService {
         final pendingSync = mediaList.where((m) => m.needsSync).toList();
 
         for (final media in pendingSync) {
-          if (media.isProcessed && !media.isUploaded) {
+          if (!media.isUploaded) {
             // Fazer upload da mídia
             // Este processo seria integrado com o FirestoreSyncService
-            await _mediaRepository.markSynced(media.id);
+            // REMOVED: markSynced - Always sync all data on demand
           }
         }
 
@@ -948,12 +840,10 @@ class EnhancedOfflineMediaService {
         cloudUrl: media.cloudUrl,
         filename: media.filename,
         fileSize: media.fileSize,
-        mimeType: media.mimeType,
         thumbnailPath: media.thumbnailPath,
         duration: media.duration,
         width: media.width,
         height: media.height,
-        isProcessed: media.isProcessed,
         isUploaded: media.isUploaded,
         uploadProgress: media.uploadProgress,
         createdAt: media.createdAt,
@@ -962,10 +852,6 @@ class EnhancedOfflineMediaService {
         isDeleted: media.isDeleted,
         source: media.source,
         isResolutionMedia: shouldKeepResolutionStatus,
-        metadata: media.metadata,
-        capturedAt: media.capturedAt,
-        latitude: media.latitude,
-        longitude: media.longitude,
       );
 
       // Debug: Log the final media object
@@ -990,9 +876,6 @@ class EnhancedOfflineMediaService {
         itemId: newItemId,
         detailId: newDetailId,
       );
-
-      // Marcar inspeção como modificada
-      await _markInspectionAsModified(inspectionId);
 
       debugPrint(
           'EnhancedOfflineMediaService: Media moved successfully: $mediaId');
@@ -1098,24 +981,18 @@ class EnhancedOfflineMediaService {
         cloudUrl: null, // New media needs to be uploaded
         filename: newFilename,
         fileSize: media.fileSize,
-        mimeType: media.mimeType,
         thumbnailPath: newThumbnailPath,
         duration: media.duration,
         width: media.width,
         height: media.height,
-        isProcessed: true,
         isUploaded: false, // New media needs to be uploaded
         uploadProgress: 0,
         createdAt: now,
         updatedAt: now,
-        capturedAt: media.capturedAt, // Keep original capture time
         needsSync: true,
         isDeleted: false,
         source: media.source,
         isResolutionMedia: media.isResolutionMedia,
-        metadata: media.metadata, // Copy original metadata
-        latitude: media.latitude,
-        longitude: media.longitude,
       );
 
       // Save duplicated media to database
@@ -1128,9 +1005,6 @@ class EnhancedOfflineMediaService {
         itemId: newItemId,
         detailId: newDetailId,
       );
-
-      // Marcar inspeção como modificada
-      await _markInspectionAsModified(inspectionId);
 
       debugPrint('EnhancedOfflineMediaService: Media duplicated successfully: $mediaId -> $newMediaId');
       return newMediaId;

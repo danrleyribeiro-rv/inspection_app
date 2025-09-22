@@ -255,10 +255,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text('Editar Perfil'),
-        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         actions: [
           IconButton(
@@ -291,11 +289,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: const Color(0xFF6F4B99), width: 2),
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF6F4B99)
-                                  .withAlpha((255 * 0.3).round()),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withAlpha((0.3 * 255).round()),
                               blurRadius: 8,
                               spreadRadius: 2,
                             ),
@@ -305,7 +306,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           children: [
                             CircleAvatar(
                               radius: 60,
-                              backgroundColor: Colors.grey[800],
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.surface,
                               child: _profileImage != null
                                   ? ClipRRect(
                                       borderRadius: BorderRadius.circular(60),
@@ -329,20 +331,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                                 (context, error, stackTrace) =>
                                                     Text(
                                               _getInitials(),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 32,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.white,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface,
                                               ),
                                             ),
                                           ),
                                         )
                                       : Text(
                                           _getInitials(),
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 32,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface,
                                           ),
                                         ),
                             ),
@@ -351,12 +357,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               bottom: 0,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF6F4B99),
+                                  color: Theme.of(context).colorScheme.primary,
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black
-                                          .withAlpha((255 * 0.3).round()),
+                                          .withAlpha((0.3 * 255).round()),
                                       blurRadius: 4,
                                       offset: const Offset(0, 2),
                                     ),
@@ -533,11 +539,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _saveProfile,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6F4B99),
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
                           foregroundColor: Colors.white,
                           elevation: 4,
-                          shadowColor: const Color(0xFF6F4B99)
-                              .withAlpha((255 * 0.3).round()),
+                          shadowColor: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withAlpha((0.3 * 255).round()),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -580,21 +589,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),
+        color: Theme.of(context)
+            .colorScheme
+            .primary
+            .withAlpha((0.1 * 255).round()),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-            color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
+            color: Theme.of(context)
+                .colorScheme
+                .primary
+                .withAlpha((0.3 * 255).round())),
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF6F4B99), size: 20),
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
           const SizedBox(width: 8),
           Text(
             title,
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF6F4B99),
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ],
@@ -615,31 +630,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     TextCapitalization textCapitalization = TextCapitalization.none,
     void Function(String)? onChanged,
   }) {
+    final theme = Theme.of(context);
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        prefixIcon: Icon(icon, color: const Color(0xFF6F4B99)),
+        prefixIcon: Icon(icon, color: theme.colorScheme.primary),
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: theme.disabledColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Color(0xFF6F4B99), width: 2),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: theme.disabledColor),
         ),
         filled: true,
-        fillColor: readOnly ? Colors.grey[800] : Colors.grey[850],
-        labelStyle: TextStyle(color: Colors.grey[400]),
-        hintStyle: TextStyle(color: Colors.grey),
+        fillColor: readOnly
+            ? theme.disabledColor.withAlpha((0.2 * 255).round())
+            : theme.inputDecorationTheme.fillColor,
+        labelStyle: theme.inputDecorationTheme.labelStyle,
+        hintStyle: theme.inputDecorationTheme.hintStyle,
       ),
-      style: const TextStyle(color: Colors.white),
+      style: theme.textTheme.bodyLarge,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       validator: validator,
@@ -650,33 +668,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildDropdownField() {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<String>(
       initialValue: _selectedProfession,
       decoration: InputDecoration(
         labelText: 'Profissão',
-        prefixIcon: Icon(Icons.work_outline, color: Color(0xFF6F4B99)),
+        prefixIcon: Icon(Icons.work_outline, color: theme.colorScheme.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: theme.disabledColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Color(0xFF6F4B99), width: 2),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: theme.disabledColor),
         ),
         filled: true,
-        fillColor: Colors.grey[850],
-        labelStyle: TextStyle(color: Colors.grey[400]),
+        fillColor: theme.inputDecorationTheme.fillColor,
+        labelStyle: theme.inputDecorationTheme.labelStyle,
       ),
-      style: const TextStyle(color: Colors.white),
-      dropdownColor: Colors.grey[800],
+      style: theme.textTheme.bodyLarge,
+      dropdownColor: theme.cardColor,
       items: Constants.professions.map((String value) {
         return DropdownMenuItem<String>(
           value: value,
-          child: Text(value, style: const TextStyle(color: Colors.white)),
+          child: Text(value),
         );
       }).toList(),
       onChanged: (String? newValue) {

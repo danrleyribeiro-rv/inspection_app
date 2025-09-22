@@ -6,7 +6,6 @@ import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/services/utils/settings_service.dart';
-import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 
 class EnhancedOfflineServiceFactory {
@@ -17,19 +16,19 @@ class EnhancedOfflineServiceFactory {
   EnhancedOfflineServiceFactory._();
 
   // Core services
-  EnhancedOfflineDataService? _dataService;
+  OfflineDataService? _dataService;
   EnhancedOfflineMediaService? _mediaService;
   TemplateService? _templateService;
   FirestoreSyncService? _syncService;
   AuthService? _authService;
   FirebaseService? _firebaseService;
   SettingsService? _settingsService;
-  SQLiteStorageService? _storageService;
+  // SQLiteStorageService removed - now using Hive via DatabaseHelper
 
   bool _isInitialized = false;
 
   // Getters para os serviços
-  EnhancedOfflineDataService get dataService {
+  OfflineDataService get dataService {
     _checkInitialization();
     return _dataService!;
   }
@@ -59,10 +58,7 @@ class EnhancedOfflineServiceFactory {
     return _settingsService!;
   }
 
-  SQLiteStorageService get storageService {
-    _checkInitialization();
-    return _storageService!;
-  }
+  // StorageService removed - using DatabaseHelper directly
 
   TemplateService get templateService {
     _checkInitialization();
@@ -87,8 +83,8 @@ class EnhancedOfflineServiceFactory {
       debugPrint(
           'EnhancedOfflineServiceFactory: Initializing enhanced offline services...');
 
-      // 1. Inicializar o banco de dados SQLite
-      await DatabaseHelper.database;
+      // 1. Inicializar o banco de dados Hive
+      await DatabaseHelper.init();
       debugPrint('EnhancedOfflineServiceFactory: Database initialized');
 
       // 2. Inicializar Firebase Service
@@ -100,7 +96,7 @@ class EnhancedOfflineServiceFactory {
       debugPrint('EnhancedOfflineServiceFactory: Auth service initialized');
 
       // 4. Inicializar Enhanced Data Service
-      _dataService = EnhancedOfflineDataService.instance;
+      _dataService = OfflineDataService.instance;
       await _dataService!.initialize();
       debugPrint(
           'EnhancedOfflineServiceFactory: Enhanced data service initialized');
@@ -123,11 +119,9 @@ class EnhancedOfflineServiceFactory {
       _settingsService = SettingsService();
       debugPrint('EnhancedOfflineServiceFactory: Settings service initialized');
 
-      // 8. Inicializar SQLite Storage Service
-      _storageService = SQLiteStorageService.instance;
-      await _storageService!.initialize();
+      // 8. Storage Service removed - using Hive via DatabaseHelper directly
       debugPrint(
-          'EnhancedOfflineServiceFactory: SQLite storage service initialized');
+          'EnhancedOfflineServiceFactory: Using Hive storage via DatabaseHelper');
 
       // 9. Inicializar Template Service
       _templateService = TemplateService();
@@ -153,7 +147,7 @@ class EnhancedOfflineServiceFactory {
     _authService = null;
     _firebaseService = null;
     _settingsService = null;
-    _storageService = null;
+    // _storageService removed
 
     await initialize();
   }
@@ -171,10 +165,7 @@ class EnhancedOfflineServiceFactory {
       // Limpar arquivos de mídia - implementar método clearAllMedia no futuro
       // await _mediaService!.clearAllMedia();
 
-      // Limpar SQLite storage
-      await _storageService!.clearAllData();
-
-      // Limpar cache do database helper
+      // Limpar Hive storage via DatabaseHelper
       await DatabaseHelper.clearAllData();
 
       debugPrint('EnhancedOfflineServiceFactory: All data cleared');
@@ -191,13 +182,11 @@ class EnhancedOfflineServiceFactory {
 
       final dataStats = await _dataService!.getGlobalStats();
       final mediaStats = await _mediaService!.getGlobalMediaStats();
-      final syncStatus = await _syncService!.getSyncStatus();
-      final storageStats = await _storageService!.getStats();
+      final storageStats = await DatabaseHelper.getStatistics();
 
       return {
         'data': dataStats,
         'media': mediaStats,
-        'sync': syncStatus,
         'storage': storageStats,
         'timestamp': DateTime.now().toIso8601String(),
       };
@@ -247,14 +236,10 @@ class EnhancedOfflineServiceFactory {
 
       final isConnected = await _syncService!.isConnected();
       final isSyncing = _syncService!.isSyncing;
-      final hasUnsyncedData = await _syncService!.hasUnsyncedData();
-      final syncStatus = await _syncService!.getSyncStatus();
 
       return {
         'is_connected': isConnected,
         'is_syncing': isSyncing,
-        'has_unsynced_data': hasUnsyncedData,
-        'sync_status': syncStatus,
         'timestamp': DateTime.now().toIso8601String(),
       };
     } catch (e) {
@@ -370,7 +355,7 @@ class EnhancedOfflineServiceFactory {
         'auth_service': _authService != null,
         'firebase_service': _firebaseService != null,
         'settings_service': _settingsService != null,
-        'storage_service': _storageService != null,
+        'storage_service': true, // Using Hive via DatabaseHelper
       },
       'timestamp': DateTime.now().toIso8601String(),
     };
@@ -391,7 +376,7 @@ class EnhancedOfflineServiceFactory {
       _authService = null;
       _firebaseService = null;
       _settingsService = null;
-      _storageService = null;
+      // _storageService removed - using Hive via DatabaseHelper
 
       _isInitialized = false;
 

@@ -216,9 +216,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       debugPrint(
           'MediaGalleryScreen._loadOfflineMedia: Found ${offlineMediaList.length} media files (fresh from DB)');
 
-      // Debug: log IDs of media found
-      final mediaIds = offlineMediaList.map((m) => m.id).toList();
-      debugPrint('MediaGalleryScreen._loadOfflineMedia: Media IDs: $mediaIds');
+      // Media IDs loaded (debug logging disabled)
 
       // Convert OfflineMedia objects to Map<String, dynamic> with additional fields
       final List<Map<String, dynamic>> enrichedMedia = [];
@@ -228,7 +226,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
         // Debug: Log source values for camera issue debugging
         debugPrint(
-            'MediaGalleryScreen: Media ${media.id} - source: ${media.source}, metadata: ${media.metadata}');
+            'MediaGalleryScreen: Media ${media.id} - source: ${media.source}');
 
         // Add missing fields that the gallery expects
         mediaData['url'] = media.cloudUrl; // For backward compatibility
@@ -313,15 +311,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     debugPrint(
         'MediaGalleryScreen: Filter options - TopicOnly: $_topicOnly, ItemOnly: $_itemOnly');
 
-    // Log sample of media data for debugging
-    if (_allMedia.isNotEmpty) {
-      final sample = _allMedia.first;
-      debugPrint('MediaGalleryScreen: Sample media data: ${sample.toString()}');
-      debugPrint(
-          'MediaGalleryScreen: Sample media localPath: ${sample['localPath'] ?? sample['local_path']}');
-      debugPrint(
-          'MediaGalleryScreen: Sample media thumbnailPath: ${sample['thumbnailPath'] ?? sample['thumbnail_path']}');
-    }
+    // Sample media data logging removed for performance
 
     List<Map<String, dynamic>> filteredMedia = _allMedia;
 
@@ -332,8 +322,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final topicId = media['topicId'] ?? media['topic_id'];
         return topicId == _selectedTopicId;
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After topic filter: ${filteredMedia.length} items');
+      // Debug: After topic filter
 
       // If topicOnly is true, show only media at topic level (no item or detail)
       if (_topicOnly) {
@@ -353,8 +342,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final itemId = media['itemId'] ?? media['item_id'];
         return itemId == _selectedItemId;
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After item filter: ${filteredMedia.length} items');
+      // Debug: After item filter
 
       // If itemOnly is true, show only media at item level (no detail)
       if (_itemOnly) {
@@ -362,8 +350,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           final detailId = media['detailId'] ?? media['detail_id'];
           return detailId == null;
         }).toList();
-        debugPrint(
-            'MediaGalleryScreen: After item-only filter: ${filteredMedia.length} items');
+        // Debug: After item-only filter
       }
     }
 
@@ -417,22 +404,10 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final source = media['source'];
         return source != 'resolution_camera' && source != 'resolution_gallery';
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After excluding resolution media: ${filteredMedia.length} items');
+      // Debug: After excluding resolution media
     }
 
-    debugPrint(
-        'MediaGalleryScreen: Final filtered media count: ${filteredMedia.length}');
-
-    final previousFilteredCount = _filteredMedia.length;
-    final previousFilteredIds = _filteredMedia.map((m) => m['id']).toSet();
-    final newFilteredIds = filteredMedia.map((m) => m['id']).toSet();
-
-    debugPrint(
-        'MediaGalleryScreen: Previous filtered count: $previousFilteredCount, New count: ${filteredMedia.length}');
-    debugPrint(
-        'MediaGalleryScreen: Previous filtered IDs: $previousFilteredIds');
-    debugPrint('MediaGalleryScreen: New filtered IDs: $newFilteredIds');
+    // Removed excessive debug logs for filtering
 
     // Data change tracking removed after optimization
 
@@ -440,8 +415,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       _filteredMedia = filteredMedia;
       _updateActiveFiltersCount();
     });
-    debugPrint(
-        'MediaGalleryScreen: State updated with ${_filteredMedia.length} filtered media items');
+    // State updated (debug logging disabled)
   }
 
   void _clearFilters() {
@@ -551,7 +525,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
             source: effectiveSource,
             onMediaCaptured: (capturedFiles) async {
               try {
-                debugPrint('MediaGalleryScreen: ${capturedFiles.length} media files captured');
+                // Media files captured (debug logging disabled)
 
                 // Reload controlled after media capture
                 await Future.delayed(const Duration(milliseconds: 300));
@@ -570,7 +544,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
                   );
                 }
 
-                debugPrint('MediaGalleryScreen: Final gallery state: ${_filteredMedia.length} items');
+                // Final gallery state (debug logging disabled)
               } catch (e) {
                 debugPrint('Error processing media in gallery: $e');
                 if (mounted && context.mounted) {
@@ -916,6 +890,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           SnackBar(
             content: Text('$deletedCount mídia(s) excluída(s) com sucesso'),
             backgroundColor: Colors.green,
+            duration: const Duration(milliseconds: 800),
           ),
         );
       }

@@ -1,154 +1,158 @@
 import 'package:lince_inspecoes/models/item.dart';
-import 'package:lince_inspecoes/repositories/base_repository.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
-class ItemRepository extends BaseRepository<Item> {
-  @override
-  String get tableName => 'items';
+class ItemRepository {
+  // Métodos básicos CRUD usando DatabaseHelper
+  Future<String> insert(Item item) async {
+    await DatabaseHelper.insertItem(item);
+    return item.id!;
+  }
 
-  @override
+  Future<void> update(Item item) async {
+    await DatabaseHelper.updateItem(item);
+  }
+
+  Future<void> delete(String id) async {
+    await DatabaseHelper.deleteItem(id);
+  }
+
+  Future<Item?> findById(String id) async {
+    return await DatabaseHelper.getItem(id);
+  }
+
   Item fromMap(Map<String, dynamic> map) {
     return Item.fromMap(map);
   }
 
-  @override
   Map<String, dynamic> toMap(Item entity) {
     return entity.toMap();
   }
 
   // Métodos específicos do Item
   Future<List<Item>> findByTopicId(String topicId) async {
-    return await findWhere('topic_id = ?', [topicId]);
+    return await DatabaseHelper.getItemsByTopic(topicId);
   }
 
   Future<List<Item>> findByTopicIdOrdered(String topicId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'topic_id = ? AND is_deleted = 0',
-      whereArgs: [topicId],
-      orderBy: 'order_index ASC',
-    );
-
-    return maps.map((map) => fromMap(map)).toList();
+    final items = await DatabaseHelper.getItemsByTopic(topicId);
+    items.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return items;
   }
 
   Future<List<Item>> findByInspectionId(String inspectionId) async {
-    return await findWhere('inspection_id = ?', [inspectionId]);
+    final allItems = DatabaseHelper.items.values.toList();
+    return allItems.where((item) => item.inspectionId == inspectionId).toList();
   }
 
   Future<List<Item>> findByInspectionIdOrdered(String inspectionId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'inspection_id = ? AND is_deleted = 0',
-      whereArgs: [inspectionId],
-      orderBy: 'order_index ASC',
-    );
-
-    return maps.map((map) => fromMap(map)).toList();
+    final items = await findByInspectionId(inspectionId);
+    items.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return items;
   }
 
   Future<Item?> findByTopicIdAndIndex(String topicId, int orderIndex) async {
-    final results = await findWhere(
-        'topic_id = ? AND order_index = ?', [topicId, orderIndex]);
-    return results.isNotEmpty ? results.first : null;
+    final items = await findByTopicId(topicId);
+    try {
+      return items.firstWhere((item) => item.orderIndex == orderIndex);
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<int> getMaxOrderIndex(String topicId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT MAX(order_index) as max_index FROM $tableName WHERE topic_id = ? AND is_deleted = 0',
-      [topicId],
-    );
-    return (result.first['max_index'] as int?) ?? 0;
+    final items = await findByTopicId(topicId);
+    if (items.isEmpty) return 0;
+    return items.map((i) => i.orderIndex).reduce((a, b) => a > b ? a : b);
   }
 
   Future<void> updateProgress(String itemId, double progressPercentage,
       int completedDetails, int totalDetails) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'progress_percentage': progressPercentage,
-        'completed_details': completedDetails,
-        'total_details': totalDetails,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [itemId],
-    );
+    final item = await findById(itemId);
+    if (item != null) {
+      final updatedItem = item.copyWith(
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedItem);
+    }
   }
 
   Future<void> reorderItems(String topicId, List<String> itemIds) async {
-    final db = await database;
-    await db.transaction((txn) async {
-      for (int i = 0; i < itemIds.length; i++) {
-        await txn.update(
-          tableName,
-          {
-            'order_index': i,
-            'updated_at': DateTime.now().toIso8601String(),
-            'needs_sync': 1,
-          },
-          where: 'id = ? AND topic_id = ?',
-          whereArgs: [itemIds[i], topicId],
+    for (int i = 0; i < itemIds.length; i++) {
+      final item = await findById(itemIds[i]);
+      if (item != null && item.topicId == topicId) {
+        final updatedItem = item.copyWith(
+          orderIndex: i,
+          updatedAt: DateFormatter.now(),
         );
+        await update(updatedItem);
       }
-    });
+    }
   }
 
   Future<void> deleteByTopicId(String topicId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'is_deleted': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'topic_id = ?',
-      whereArgs: [topicId],
-    );
+    final items = await findByTopicId(topicId);
+    for (final item in items) {
+      await delete(item.id!);
+    }
   }
 
   Future<void> deleteByInspectionId(String inspectionId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'is_deleted': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'inspection_id = ?',
-      whereArgs: [inspectionId],
-    );
+    final items = await findByInspectionId(inspectionId);
+    for (final item in items) {
+      await delete(item.id!);
+    }
   }
 
-  Future<List<Item>> findByStatus(String status) async {
-    return await findWhere('status = ?', [status]);
+  Future<List<Item>> findByEvaluation(String evaluation) async {
+    final allItems = DatabaseHelper.items.values.toList();
+    return allItems.where((item) => item.evaluation == evaluation).toList();
   }
 
-  Future<List<Item>> findByType(String type) async {
-    return await findWhere('type = ?', [type]);
+  Future<List<Item>> findByEvaluationValue(String evaluationValue) async {
+    final allItems = DatabaseHelper.items.values.toList();
+    return allItems.where((item) => item.evaluationValue == evaluationValue).toList();
   }
 
   Future<int> countByTopicId(String topicId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE topic_id = ? AND is_deleted = 0',
-      [topicId],
-    );
-    return result.first['count'] as int;
+    final items = await findByTopicId(topicId);
+    return items.length;
+  }
+
+  Future<int> countEvaluatedByTopicId(String topicId) async {
+    final items = await findByTopicId(topicId);
+    return items.where((item) => item.evaluation != null && item.evaluation!.isNotEmpty).length;
   }
 
   Future<int> countCompletedByTopicId(String topicId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE topic_id = ? AND is_deleted = 0 AND status = ?',
-      [topicId, 'completed'],
+    return await countEvaluatedByTopicId(topicId);
+  }
+
+  /// Inserir ou atualizar item vindo da nuvem
+  Future<void> insertOrUpdateFromCloud(Item item) async {
+    final existing = await findById(item.id!);
+    final itemToSave = item.copyWith(
+      updatedAt: DateTime.now(),
     );
-    return result.first['count'] as int;
+
+    if (existing != null) {
+      await update(itemToSave);
+    } else {
+      await insert(itemToSave);
+    }
+  }
+
+  /// Inserir ou atualizar item local
+  Future<void> insertOrUpdate(Item item) async {
+    final existing = await findById(item.id!);
+    final itemToSave = item.copyWith(
+      updatedAt: DateTime.now(),
+    );
+
+    if (existing != null) {
+      await update(itemToSave);
+    } else {
+      await insert(itemToSave);
+    }
   }
 }

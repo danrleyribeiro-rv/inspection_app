@@ -9,7 +9,6 @@ import 'package:lince_inspecoes/presentation/screens/inspection/inspection_detai
 import 'package:lince_inspecoes/presentation/widgets/common/inspection_card.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/native_sync_service.dart';
-import 'package:lince_inspecoes/services/manual_sync_service.dart';
 import 'package:lince_inspecoes/models/sync_progress.dart';
 
 // Função auxiliar para formatação de data em pt-BR
@@ -47,8 +46,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Track inspections currently downloading
   final Set<String> _downloadingInspections = <String>{};
 
-  // Track inspections sync status based on history
-  final Map<String, bool> _inspectionSyncStatus = <String, bool>{};
+  // REMOVED: _inspectionSyncStatus - Always sync all data on demand
 
   // Track inspections currently syncing
   final Map<String, bool> _syncingStatus = <String, bool>{};
@@ -66,21 +64,20 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   void _setupSyncProgressListener() {
     NativeSyncService.instance.syncProgressStream.listen((progress) {
-      debugPrint('InspectionTab: Sync progress received - ID: ${progress.inspectionId}, Phase: ${progress.phase}');
+      debugPrint(
+          'InspectionTab: Sync progress received - ID: ${progress.inspectionId}, Phase: ${progress.phase}');
       if (mounted) {
         setState(() {
           if (progress.phase == SyncPhase.completed) {
-            debugPrint('InspectionTab: Processing sync completion for ${progress.inspectionId}');
+            debugPrint(
+                'InspectionTab: Processing sync completion for ${progress.inspectionId}');
             // Download/Upload completed, remove from downloading set
             _downloadingInspections.remove(progress.inspectionId);
-            
+
             // Remove syncing status
             _syncingStatus[progress.inspectionId] = false;
 
-            // Update sync status - mark as synced when completed
-            // This will hide the sync button after successful upload
-            _inspectionSyncStatus[progress.inspectionId] = true;
-            debugPrint('InspectionTab: Set _inspectionSyncStatus[${progress.inspectionId}] = true');
+            // REMOVED: _inspectionSyncStatus - Always sync all data on demand
             // Remove from conflicts if it was resolved
             _inspectionsWithConflicts.remove(progress.inspectionId);
 
@@ -93,7 +90,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Inspeção ${progress.inspectionId} sincronizada com sucesso!'),
+                  content: Text(
+                      'Inspeção ${progress.inspectionId} sincronizada com sucesso!'),
                   backgroundColor: Colors.green,
                   duration: const Duration(seconds: 2),
                 ),
@@ -109,7 +107,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           } else if (progress.phase == SyncPhase.error) {
             // Download/Upload failed, remove from downloading set
             _downloadingInspections.remove(progress.inspectionId);
-            
+
             // Remove syncing status on error
             _syncingStatus[progress.inspectionId] = false;
           }
@@ -180,35 +178,12 @@ class _InspectionsTabState extends State<InspectionsTab> {
           _inspections.map((inspection) => inspection['id'] as String).toList();
 
       for (final inspectionId in inspectionIds) {
-        final isSynced = await _isInspectionSyncedWithHistory(inspectionId);
         final hasConflicts = await _hasConflictsWithHistory(inspectionId);
 
         if (mounted) {
           setState(() {
-            // CORREÇÃO: Verificar se há mudanças locais que invalidam o status de sincronização
-            final currentStatus = _inspectionSyncStatus[inspectionId];
-            
-            // Verificar se há novas mudanças na inspeção atual
-            final inspectionData = _inspections.firstWhere(
-              (insp) => insp['id'] == inspectionId,
-              orElse: () => <String, dynamic>{},
-            );
-            final hasNewChanges = inspectionData['has_local_changes'] == true ||
-                inspectionData['_local_status'] == 'modified';
-            
-            if (hasNewChanges) {
-              // Há mudanças locais, sempre marcar como não sincronizado
-              _inspectionSyncStatus[inspectionId] = false;
-              debugPrint('InspectionTab: Detected changes for $inspectionId - setting sync status to false');
-            } else if (currentStatus != true) {
-              // Se não há mudanças e não estava marcado como sincronizado, usar valor do histórico
-              _inspectionSyncStatus[inspectionId] = isSynced;
-              debugPrint('InspectionTab: Updated sync status from history for $inspectionId: $isSynced');
-            } else {
-              // Se estava marcado como sincronizado e não há mudanças, manter como sincronizado
-              debugPrint('InspectionTab: No new changes for $inspectionId - keeping sync status true');
-            }
-            
+            // REMOVED: _inspectionSyncStatus checking - Always sync all data on demand
+
             if (hasConflicts) {
               _inspectionsWithConflicts.add(inspectionId);
             } else {
@@ -236,31 +211,32 @@ class _InspectionsTabState extends State<InspectionsTab> {
           try {
             final aUpdatedAt = a['updated_at'];
             final bUpdatedAt = b['updated_at'];
-            
+
             // Se ambos têm updated_at, comparar
             if (aUpdatedAt != null && bUpdatedAt != null) {
               DateTime aDate;
               DateTime bDate;
-              
+
               if (aUpdatedAt is String) {
                 aDate = DateTime.parse(aUpdatedAt);
               } else {
                 aDate = DateTime.now(); // fallback
               }
-              
+
               if (bUpdatedAt is String) {
                 bDate = DateTime.parse(bUpdatedAt);
               } else {
                 bDate = DateTime.now(); // fallback
               }
-              
-              return bDate.compareTo(aDate); // Ordem decrescente (mais recente primeiro)
+
+              return bDate.compareTo(
+                  aDate); // Ordem decrescente (mais recente primeiro)
             }
-            
+
             // Se apenas um tem updated_at, priorizar o que tem
             if (aUpdatedAt != null) return -1;
             if (bUpdatedAt != null) return 1;
-            
+
             // Se nenhum tem updated_at, manter ordem original
             return 0;
           } catch (e) {
@@ -268,20 +244,23 @@ class _InspectionsTabState extends State<InspectionsTab> {
             return 0;
           }
         });
-        
+
         setState(() {
           _inspections = cachedInspections;
           _filteredInspections = List.from(_inspections);
           _isLoading = false;
-          
+
           // Clean up any orphaned syncing status from inspections that no longer exist
-          final currentInspectionIds = cachedInspections.map((i) => i['id'] as String).toSet();
-          _syncingStatus.removeWhere((key, value) => !currentInspectionIds.contains(key));
-          
+          final currentInspectionIds =
+              cachedInspections.map((i) => i['id'] as String).toSet();
+          _syncingStatus
+              .removeWhere((key, value) => !currentInspectionIds.contains(key));
+
           // Reset any syncing status that might be stuck
           for (final inspectionId in currentInspectionIds) {
             if (_syncingStatus[inspectionId] == true) {
-              debugPrint('InspectionTab: Resetting stuck syncing status for $inspectionId');
+              debugPrint(
+                  'InspectionTab: Resetting stuck syncing status for $inspectionId');
               _syncingStatus[inspectionId] = false;
             }
           }
@@ -317,9 +296,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // (since downloaded inspections might have missing inspectorId)
       final userInspections = allInspections
           .where((inspection) =>
-              (inspection.inspectorId == userId || 
-               inspection.inspectorId == null || 
-               inspection.inspectorId!.isEmpty) && 
+              (inspection.inspectorId == userId ||
+                  inspection.inspectorId == null ||
+                  inspection.inspectorId!.isEmpty) &&
               inspection.deletedAt == null)
           .toList();
 
@@ -331,21 +310,24 @@ class _InspectionsTabState extends State<InspectionsTab> {
           final inspectionMap = inspection.toMap();
           inspectionMap['_is_cached'] = true;
           inspectionMap['_local_status'] = inspection.status;
-          
+
           // Debug: Log status para troubleshooting
           if (inspection.id == 'ggamoZ2ezDpuAo4xmH9H') {
-            debugPrint('InspectionTab: Loading inspection ${inspection.id} with status: "${inspection.status}"');
-            debugPrint('InspectionTab: _local_status set to: "${inspectionMap['_local_status']}"');
+            debugPrint(
+                'InspectionTab: Loading inspection ${inspection.id} with status: "${inspection.status}"');
+            debugPrint(
+                'InspectionTab: _local_status set to: "${inspectionMap['_local_status']}"');
           }
 
           // Check if there are actual local changes that need sync
           final hasRealChanges = await _checkForRealLocalChanges(inspection.id);
           inspectionMap['has_local_changes'] = hasRealChanges;
-          
+
           // Log para debug
           if (inspection.id == 'PgepInIdfFdw47YnRqO3') {
             debugPrint('InspectionTab: Loading inspection ${inspection.id}:');
-            debugPrint('  - inspection.hasLocalChanges: ${inspection.hasLocalChanges}');
+            debugPrint(
+                '  - inspection.hasLocalChanges: ${inspection.hasLocalChanges}');
             debugPrint('  - hasRealChanges (calculated): $hasRealChanges');
             debugPrint('  - inspection.status: ${inspection.status}');
           }
@@ -407,32 +389,32 @@ class _InspectionsTabState extends State<InspectionsTab> {
         }
         return matchesSearchText;
       }).toList();
-      
+
       // Manter a mesma ordenação por updated_at na lista filtrada
       _filteredInspections.sort((a, b) {
         try {
           final aUpdatedAt = a['updated_at'];
           final bUpdatedAt = b['updated_at'];
-          
+
           if (aUpdatedAt != null && bUpdatedAt != null) {
             DateTime aDate;
             DateTime bDate;
-            
+
             if (aUpdatedAt is String) {
               aDate = DateTime.parse(aUpdatedAt);
             } else {
               aDate = DateTime.now();
             }
-            
+
             if (bUpdatedAt is String) {
               bDate = DateTime.parse(bUpdatedAt);
             } else {
               bDate = DateTime.now();
             }
-            
+
             return bDate.compareTo(aDate); // Ordem decrescente
           }
-          
+
           if (aUpdatedAt != null) return -1;
           if (bUpdatedAt != null) return 1;
           return 0;
@@ -569,51 +551,22 @@ class _InspectionsTabState extends State<InspectionsTab> {
   Future<bool> _checkForRealLocalChanges(String inspectionId) async {
     try {
       // Check ONLY if this specific inspection and its related entities need sync
-      final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
+      final inspection =
+          await _serviceFactory.dataService.getInspection(inspectionId);
       if (inspection == null) return false;
 
-      // Check if inspection itself needs sync
-      if (inspection.hasLocalChanges) {
-        debugPrint('InspectionTab: Inspection $inspectionId has local changes: true');
-        return true;
-      }
-
-      // Check if any topics/items/details for this specific inspection need sync
-      final hasRelatedChanges = await _checkInspectionRelatedEntitiesNeedSync(inspectionId);
-      debugPrint('InspectionTab: Inspection $inspectionId related entities need sync: $hasRelatedChanges');
-      
-      return hasRelatedChanges;
+      // REMOVED: needsSync checking - Always sync all data on demand
+      // Since we removed markSynced system, always return true to enable sync
+      return true;
     } catch (e) {
       debugPrint('Error checking for real local changes: $e');
       return false;
     }
   }
 
-  Future<bool> _checkInspectionRelatedEntitiesNeedSync(String inspectionId) async {
-    try {
-      // Use the ManualSyncService to check if this specific inspection has pending changes
-      final manualSyncService = ManualSyncService();
-      final pendingInspections = await manualSyncService.getPendingInspectionIds();
-      
-      return pendingInspections.contains(inspectionId);
-    } catch (e) {
-      debugPrint('Error checking related entities for $inspectionId: $e');
-      return false;
-    }
-  }
+  // REMOVED: _checkInspectionRelatedEntitiesNeedSync - Always sync all data on demand
 
-
-  // Novo método que usa o sistema de histórico para verificar sincronização
-  Future<bool> _isInspectionSyncedWithHistory(String inspectionId) async {
-    try {
-      final isSynced =
-          await _serviceFactory.dataService.isInspectionSynced(inspectionId);
-      return isSynced;
-    } catch (e) {
-      debugPrint('Error checking sync status: $e');
-      return false;
-    }
-  }
+  // REMOVED: _isInspectionSyncedWithHistory - Always sync all data on demand
 
   // Detecta conflitos baseado no histórico
   Future<bool> _hasConflictsWithHistory(String inspectionId) async {
@@ -630,28 +583,28 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Marca a inspeção como sincronizada, removendo flags de mudanças locais
   Future<void> _markInspectionAsSynced(String inspectionId) async {
     try {
-      // PRIMEIRO: Definir o status de sincronização na memória
-      _inspectionSyncStatus[inspectionId] = true;
-      debugPrint('InspectionTab: Set _inspectionSyncStatus[$inspectionId] = true');
-      
+      // REMOVED: _inspectionSyncStatus - Always sync all data on demand
+
       // Encontrar a inspeção na lista e limpar flags locais
       final inspectionIndex = _inspections.indexWhere(
         (inspection) => inspection['id'] == inspectionId,
       );
-      
+
       if (inspectionIndex >= 0) {
         _inspections[inspectionIndex]['has_local_changes'] = false;
         _inspections[inspectionIndex]['_local_status'] = null;
-        debugPrint('InspectionTab: Marked inspection $inspectionId as synced - local flags cleared in memory');
+        debugPrint(
+            'InspectionTab: Marked inspection $inspectionId as synced - local flags cleared in memory');
       }
 
       // IMPORTANTE: Também limpar no banco de dados para persistir o estado
       try {
-        final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
+        final inspection =
+            await _serviceFactory.dataService.getInspection(inspectionId);
         if (inspection != null) {
-          // Usar o método do serviço para marcar como sincronizado no banco
-          await _serviceFactory.dataService.markInspectionSynced(inspectionId);
-          debugPrint('InspectionTab: Marked inspection $inspectionId as synced in database');
+          // REMOVED: markInspectionSynced - Always sync all data on demand
+          debugPrint(
+              'InspectionTab: Skipping markSynced - Always sync all data on demand');
         }
       } catch (dbError) {
         debugPrint('Error marking inspection as synced in database: $dbError');
@@ -664,50 +617,27 @@ class _InspectionsTabState extends State<InspectionsTab> {
         });
         // Recarrega a lista do banco para garantir consistência
         await _loadCachedInspections();
-        debugPrint('InspectionTab: Reloaded inspections after marking $inspectionId as synced');
+        debugPrint(
+            'InspectionTab: Reloaded inspections after marking $inspectionId as synced');
       }
     } catch (e) {
       debugPrint('Error marking inspection as synced: $e');
     }
   }
 
-  // Método para detectar quando uma inspeção foi modificada e deve mostrar botão de sync
-  void markInspectionAsModified(String inspectionId) {
-    setState(() {
-      // Remove da lista de sincronizados para mostrar botão novamente
-      _inspectionSyncStatus[inspectionId] = false;
-      
-      // IMPORTANTE: Reset syncing status to prevent loading state
-      _syncingStatus[inspectionId] = false;
-      
-      // Atualizar updated_at da inspeção na lista local para reordenação
-      final inspectionIndex = _inspections.indexWhere(
-        (inspection) => inspection['id'] == inspectionId,
-      );
-      
-      if (inspectionIndex >= 0) {
-        _inspections[inspectionIndex]['updated_at'] = DateTime.now().toIso8601String();
-        debugPrint('InspectionTab: Updated updated_at for $inspectionId to move it to top of list');
-      }
-    });
-    
-    // Reordenar a lista para mover a inspeção modificada para o topo
-    _applyFilters();
-    
-    debugPrint('InspectionTab: Set _inspectionSyncStatus[$inspectionId] = false and _syncingStatus[$inspectionId] = false - sync button will appear in normal state');
-  }
-
   Future<void> _removeInspection(String inspectionId) async {
     try {
       // Remove from local database
       await _serviceFactory.dataService.deleteInspection(inspectionId);
-      
+
       // Remove from local state
       setState(() {
-        _inspections.removeWhere((inspection) => inspection['id'] == inspectionId);
-        _filteredInspections.removeWhere((inspection) => inspection['id'] == inspectionId);
+        _inspections
+            .removeWhere((inspection) => inspection['id'] == inspectionId);
+        _filteredInspections
+            .removeWhere((inspection) => inspection['id'] == inspectionId);
         _downloadingInspections.remove(inspectionId);
-        _inspectionSyncStatus.remove(inspectionId);
+        // REMOVED: _inspectionSyncStatus - Always sync all data on demand
         _syncingStatus.remove(inspectionId);
         _inspectionsWithConflicts.remove(inspectionId);
         _inspectionsWithCloudUpdates.remove(inspectionId);
@@ -718,7 +648,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           const SnackBar(
             content: Text('Inspeção removida com sucesso!'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: Duration(milliseconds: 800),
           ),
         );
       }
@@ -754,7 +684,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
   //   try {
   //     for (final inspection in _inspections) {
   //       final inspectionId = inspection['id'] as String;
-  //       
+  //
   //       // Se esta inspeção foi marcada como recentemente sincronizada, verifica se houve modificação
   //       if (_inspectionSyncStatus[inspectionId] == true) {
   //         // Verifica se há entidades não sincronizadas para esta inspeção
@@ -818,7 +748,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
   //     return false;
   //   }
   // }
-
 
   bool _isInspectionFullyDownloaded(String inspectionId) {
     try {
@@ -899,10 +828,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
         return;
       }
 
-      // OFFLINE-FIRST: Don't sync automatically to check conflicts
-      // Instead, just mark that there are local changes that need manual sync
-      debugPrint('InspectionTab: Inspection $inspectionId has local changes - manual sync required');
-      
+      // REMOVED: needsSync debug messages - Always sync all data on demand
+
       // Remove from conflicts list since we're not checking cloud conflicts automatically
       setState(() {
         _inspectionsWithConflicts.remove(inspectionId);
@@ -997,35 +924,35 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   @override
   Widget build(BuildContext context) {
-    // API key validation happens silently
+    final theme = Theme.of(context);
+
 
     return Scaffold(
-      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white),
+                style: theme.appBarTheme.titleTextStyle,
                 decoration: InputDecoration(
                   hintText: 'Pesquisar...',
-                  hintStyle: const TextStyle(color: Colors.white70),
+                  hintStyle: theme.appBarTheme.titleTextStyle
+                      ?.copyWith(color: Colors.white70),
                   border: InputBorder.none,
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.white70),
+                    icon: Icon(Icons.clear,
+                        color: theme.appBarTheme.iconTheme?.color),
                     onPressed: _clearSearch,
                   ),
                 ),
               )
             : const Text('Inspeções'),
-        backgroundColor: const Color(0xFF312456),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           // Search Icon
           if (!_isSearching)
             IconButton(
-              icon: const Icon(Icons.search, color: Colors.white),
+              icon: const Icon(Icons.search),
               tooltip: 'Pesquisar',
               onPressed: () {
                 setState(() {
@@ -1035,13 +962,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
             ),
           // Download Button
           IconButton(
-            icon: const Icon(Icons.cloud_download, color: Colors.white),
+            icon: const Icon(Icons.cloud_download),
             tooltip: 'Baixar Vistorias',
             onPressed: _isLoading ? null : _showDownloadDialog,
           ),
           // Refresh Button
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh),
             tooltip: 'Atualizar Vistorias',
             onPressed: _isLoading ? null : _loadInspections,
           ),
@@ -1051,44 +978,35 @@ class _InspectionsTabState extends State<InspectionsTab> {
         children: [
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.white))
+                ? const Center(child: CircularProgressIndicator())
                 : _filteredInspections.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: _loadInspections,
-                        color: Colors.white,
-                        backgroundColor: const Color(0xFF312456),
+                        color: theme.colorScheme.primary,
+                        backgroundColor: theme.scaffoldBackgroundColor,
                         child: ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: _filteredInspections.length,
                           itemBuilder: (context, index) {
                             final inspection = _filteredInspections[index];
                             final inspectionId = inspection['id'] as String;
-                            
-                            // Verificar mudanças locais reais diretamente no banco
-                            final inspectionInList = _inspections.firstWhere(
-                              (insp) => insp['id'] == inspectionId,
-                              orElse: () => <String, dynamic>{},
-                            );
-                            
-                            final localStatus = inspectionInList['_local_status'] ?? '';
-                            final hasLocalChanges = inspectionInList['has_local_changes'] == true ||
-                                inspectionInList['has_local_changes'] == 1;
-                            final isSyncedByHistory = _inspectionSyncStatus[inspectionId] ?? false;
-                            
-                            // CORREÇÃO: Sempre mostrar botão de sync se há mudanças locais, independente do histórico
-                            // Isso garante que mudanças recentes sempre mostrem o botão
-                            final needsSync = hasLocalChanges || localStatus == 'modified';
-                                
-                            // Debug info for sync state
-                            debugPrint('InspectionTab: Inspection $inspectionId sync state:');
-                            debugPrint('  - localStatus: $localStatus');
-                            debugPrint('  - hasLocalChanges: $hasLocalChanges');
-                            debugPrint('  - isSyncedByHistory: $isSyncedByHistory');
-                            debugPrint('  - hasLocalChanges || localStatus==modified: ${hasLocalChanges || localStatus == 'modified'}');
-                            debugPrint('  - needsSync: $needsSync');
-                            debugPrint('  - Sync button visible: ${needsSync ? "YES" : "NO"}');
+
+                            // REMOVED: Checking hasLocalChanges, isSyncedByHistory - Always sync all data
+                            final needsSync = true; // Always show sync button
+
+                            // Get last sync date from inspection data
+                            DateTime? lastSyncDate;
+                            try {
+                              final lastSyncStr =
+                                  inspection['last_sync_at'] as String?;
+                              if (lastSyncStr != null &&
+                                  lastSyncStr.isNotEmpty) {
+                                lastSyncDate = DateTime.parse(lastSyncStr);
+                              }
+                            } catch (e) {
+                              debugPrint('Error parsing lastSyncAt: $e');
+                            }
 
                             return InspectionCard(
                               inspection: inspection,
@@ -1099,13 +1017,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               hasConflicts: _inspectionsWithConflicts
                                   .contains(inspectionId),
                               isSyncing: _syncingStatus[inspectionId] ?? false,
+                              lastSyncDate: lastSyncDate,
                               onViewDetails: () {
                                 _navigateToInspectionDetail(inspectionId);
                               },
                               // onComplete removido - apenas sincronização manual
-                              onSync: needsSync
-                                  ? () => _syncInspectionData(inspectionId)
-                                  : null,
+                              onSync: () => _syncInspectionData(
+                                  inspectionId), // Always allow sync
                               onDownload: () =>
                                   _downloadInspectionData(inspection['id']),
                               onSyncImages: _hasPendingImages(inspection['id'])
@@ -1126,7 +1044,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
   }
 
   Widget _buildEmptyState() {
-    // Determine which empty state to show based on search or no inspections
+    final theme = Theme.of(context);
     final bool isEmptySearch =
         _searchController.text.isNotEmpty && _filteredInspections.isEmpty;
 
@@ -1137,14 +1055,15 @@ class _InspectionsTabState extends State<InspectionsTab> {
           Icon(
             isEmptySearch ? Icons.search_off : Icons.list_alt_outlined,
             size: 64,
-            color: Colors.blueGrey.shade300,
+            color: theme.textTheme.bodySmall?.color
+                ?.withAlpha((0.5 * 255).round()),
           ),
           const SizedBox(height: 16),
           Text(
             isEmptySearch
                 ? 'Nenhuma vistoria encontrada para "${_searchController.text}"'
                 : 'Nenhuma vistoria encontrada',
-            style: const TextStyle(fontSize: 10, color: Colors.white70),
+            style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -1152,13 +1071,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
             isEmptySearch
                 ? 'Tente outro termo de pesquisa'
                 : 'Novas vistorias aparecerão aqui.',
-            style: const TextStyle(fontSize: 10, color: Colors.white60),
+            style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: const Color(0xFF6F4B99)),
+                foregroundColor: theme.colorScheme.onPrimary,
+                backgroundColor: theme.colorScheme.primary),
             onPressed: isEmptySearch
                 ? _clearSearch
                 : (_isLoading ? null : _loadInspections),
@@ -1315,15 +1234,10 @@ class _InspectionsTabState extends State<InspectionsTab> {
     );
 
     log('[InspectionsTab] Returned from Detail Screen for $inspectionId. Result: $result');
-    
-    // Always mark as potentially modified when returning from details
-    // This ensures the sync button appears if there were any changes
-    markInspectionAsModified(inspectionId);
-    debugPrint('InspectionTab: Marked $inspectionId as potentially modified after returning from details');
-    
+
     // Add a small delay to ensure database changes are committed
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     _loadInspections();
   }
 }
@@ -1377,6 +1291,7 @@ class _AvailableInspectionsDialogState
   }
 
   Widget _buildInspectionCard(Map<String, dynamic> inspection) {
+    final theme = Theme.of(context);
     final title = inspection['title'] ?? 'Vistoria sem título';
     final cod = inspection['cod'] ?? '';
     final date = _formatDate(inspection['scheduled_date']);
@@ -1401,10 +1316,7 @@ class _AvailableInspectionsDialogState
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontFamily: 'BricolageGrotesque',
                       ),
                       maxLines: 3,
@@ -1423,15 +1335,12 @@ class _AvailableInspectionsDialogState
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      const Icon(Icons.qr_code, size: 11, color: Colors.grey),
+                      Icon(Icons.qr_code,
+                          size: 11, color: theme.textTheme.bodySmall?.color),
                       const SizedBox(width: 4),
                       Text(
                         cod,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey,
-                        ),
+                        style: theme.textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -1440,12 +1349,12 @@ class _AvailableInspectionsDialogState
               // Data programada
               Row(
                 children: [
-                  const Icon(Icons.calendar_today,
-                      size: 11, color: Colors.grey),
+                  Icon(Icons.calendar_today,
+                      size: 11, color: theme.textTheme.bodySmall?.color),
                   const SizedBox(width: 4),
                   Text(
                     'Data: $date',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
               ),
@@ -1455,12 +1364,13 @@ class _AvailableInspectionsDialogState
               // Endereço
               Row(
                 children: [
-                  const Icon(Icons.location_on, size: 11, color: Colors.grey),
+                  Icon(Icons.location_on,
+                      size: 11, color: theme.textTheme.bodySmall?.color),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       address,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: theme.textTheme.bodySmall,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1479,13 +1389,15 @@ class _AvailableInspectionsDialogState
                           horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: isDownloaded
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : const Color(0xFF312456).withValues(alpha: 0.1),
+                            ? Colors.green.withAlpha((0.1 * 255).round())
+                            : theme.colorScheme.surface
+                                .withAlpha((0.1 * 255).round()),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isDownloaded
-                              ? Colors.green.withValues(alpha: 0.3)
-                              : const Color(0xFF312456).withValues(alpha: 0.3),
+                              ? Colors.green.withAlpha((0.3 * 255).round())
+                              : theme.colorScheme.surface
+                                  .withAlpha((0.3 * 255).round()),
                         ),
                       ),
                       child: Row(
@@ -1495,7 +1407,9 @@ class _AvailableInspectionsDialogState
                                 ? Icons.check_circle
                                 : Icons.cloud_download,
                             size: 16,
-                            color: isDownloaded ? Colors.green : Colors.white,
+                            color: isDownloaded
+                                ? Colors.green
+                                : theme.colorScheme.onSurface,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -1503,10 +1417,8 @@ class _AvailableInspectionsDialogState
                               isDownloaded
                                   ? 'Já baixada - Toque para abrir'
                                   : 'Toque para baixar',
-                              style: TextStyle(
-                                fontSize: 11,
+                              style: theme.textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -1525,6 +1437,7 @@ class _AvailableInspectionsDialogState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final filteredInspections = _filteredInspections;
 
     return Dialog(
@@ -1533,29 +1446,27 @@ class _AvailableInspectionsDialogState
         width: MediaQuery.of(context).size.width * 0.95,
         height: MediaQuery.of(context).size.height * 0.8,
         padding: const EdgeInsets.all(16),
+        color: theme.cardColor,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Row(
               children: [
-                const Icon(Icons.cloud_download,
-                    color: Color(0xFFFFFFFF), size: 20),
+                Icon(Icons.cloud_download,
+                    color: theme.colorScheme.onSurface, size: 20),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Vistorias Disponíveis',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    style: theme.textTheme.titleLarge?.copyWith(
                       fontFamily: 'BricolageGrotesque',
                     ),
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, color: Colors.grey),
+                  icon: Icon(Icons.close, color: theme.iconTheme.color),
                 ),
               ],
             ),
@@ -1565,29 +1476,35 @@ class _AvailableInspectionsDialogState
             // Barra de busca
             TextField(
               controller: _searchController,
+              style: theme.textTheme.bodyLarge,
               decoration: InputDecoration(
                 hintText: 'Buscar por título, endereço ou código...',
-                hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                hintStyle: theme.inputDecorationTheme.hintStyle
+                    ?.copyWith(fontSize: 12),
+                prefixIcon: Icon(Icons.search,
+                    color: theme.inputDecorationTheme.hintStyle?.color),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _searchQuery = '');
                         },
-                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        icon: Icon(Icons.clear,
+                            color: theme.inputDecorationTheme.hintStyle?.color),
                       )
                     : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                  borderSide: BorderSide(
+                      color:
+                          theme.disabledColor.withAlpha((0.3 * 255).round())),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF312456)),
+                  borderSide: BorderSide(color: theme.colorScheme.primary),
                 ),
                 filled: true,
-                fillColor: Colors.grey.withValues(alpha: 0.05),
+                fillColor: theme.inputDecorationTheme.fillColor,
               ),
               onChanged: (value) => setState(() => _searchQuery = value),
             ),
@@ -1615,15 +1532,15 @@ class _AvailableInspectionsDialogState
                             value: _hideDownloaded,
                             onChanged: (value) => setState(
                                 () => _hideDownloaded = value ?? false),
-                            activeColor: Colors.blue,
+                            activeColor: theme.colorScheme.primary,
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Text(
+                        Text(
                           'Ocultar já baixadas',
-                          style: TextStyle(fontSize: 11, color: Colors.white),
+                          style: theme.textTheme.bodySmall,
                         ),
                       ],
                     ),
@@ -1632,9 +1549,9 @@ class _AvailableInspectionsDialogState
                 // Counter on the right
                 Text(
                   '${filteredInspections.length} de ${widget.inspections.length} vistorias',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color
+                        ?.withAlpha((0.6 * 255).round()),
                   ),
                 ),
               ],
@@ -1656,7 +1573,8 @@ class _AvailableInspectionsDialogState
                                   ? Icons.visibility_off
                                   : Icons.search_off,
                               size: 48,
-                              color: Colors.grey[400],
+                              color: theme.textTheme.bodySmall?.color
+                                  ?.withAlpha((0.4 * 255).round()),
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -1666,10 +1584,9 @@ class _AvailableInspectionsDialogState
                                       ? 'Nenhuma vistoria encontrada\npara "$_searchQuery"'
                                       : 'Nenhuma vistoria disponível',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.textTheme.bodyLarge?.color
+                                    ?.withAlpha((0.6 * 255).round()),
                               ),
                             ),
                             if (_searchQuery.isNotEmpty) ...[
@@ -1701,7 +1618,6 @@ class _AvailableInspectionsDialogState
       ),
     );
   }
-
 
   String _formatDate(dynamic dateValue) {
     if (dateValue == null) return 'Data não definida';

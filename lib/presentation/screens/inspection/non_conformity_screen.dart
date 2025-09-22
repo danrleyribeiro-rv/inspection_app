@@ -511,6 +511,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
           const SnackBar(
             content: Text('Não conformidade excluída com sucesso!'),
             backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 800),
           ),
         );
       }
@@ -547,14 +548,14 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text(
           'Não Conformidades',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         leading: Navigator.of(context).canPop()
             ? IconButton(
@@ -588,21 +589,21 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                     // Search and Filter Section
                     Container(
                       padding: const EdgeInsets.all(12),
-                      color: const Color(0xFF312456),
+                      color: theme.scaffoldBackgroundColor,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Search Bar
                           TextField(
                             controller: _searchController,
-                            style: const TextStyle(color: Colors.white),
+                            style: theme.textTheme.bodyLarge,
                             decoration: InputDecoration(
                               hintText: 'Pesquisar não conformidades...',
-                              hintStyle: const TextStyle(color: Colors.white54, fontSize: 12),
-                              prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                              hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith(fontSize: 12),
+                              prefixIcon: Icon(Icons.search, color: theme.inputDecorationTheme.hintStyle?.color),
                               suffixIcon: _searchQuery.isNotEmpty
                                   ? IconButton(
-                                      icon: const Icon(Icons.clear, color: Colors.white54),
+                                      icon: Icon(Icons.clear, color: theme.inputDecorationTheme.hintStyle?.color),
                                       onPressed: () {
                                         _searchController.clear();
                                         setState(() => _searchQuery = '');
@@ -610,7 +611,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                                     )
                                   : null,
                               filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.1),
+                              fillColor: theme.inputDecorationTheme.fillColor,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
@@ -626,10 +627,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                           // Level Filter
                           Row(
                             children: [
-                              const Text(
+                              Text(
                                 'Nível:',
-                                style: TextStyle(
-                                  color: Colors.white,
+                                style: theme.textTheme.bodyLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
@@ -638,10 +638,10 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                               Expanded(
                                 child: DropdownButtonFormField<String>(
                                   initialValue: _levelFilter,
-                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  style: theme.textTheme.bodyLarge?.copyWith(fontSize: 12),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: Colors.white.withValues(alpha: 0.1),
+                                    fillColor: theme.inputDecorationTheme.fillColor,
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(6),
                                       borderSide: BorderSide.none,
@@ -649,29 +649,29 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     isDense: true,
                                   ),
-                                  dropdownColor: const Color(0xFF312456),
+                                  dropdownColor: theme.cardColor,
                                   items: const [
                                     DropdownMenuItem<String>(
                                       value: null,
-                                      child: Text('Todos os níveis', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                      child: Text('Todos os níveis', style: TextStyle(fontSize: 12)),
                                     ),
                                     DropdownMenuItem<String>(
                                       value: 'topic',
-                                      child: Text('Apenas Tópicos', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                      child: Text('Apenas Tópicos', style: TextStyle(fontSize: 12)),
                                     ),
                                     DropdownMenuItem<String>(
                                       value: 'item',
-                                      child: Text('Apenas Itens', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                      child: Text('Apenas Itens', style: TextStyle(fontSize: 12)),
                                     ),
                                     DropdownMenuItem<String>(
                                       value: 'detail',
-                                      child: Text('Apenas Detalhes', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                      child: Text('Apenas Detalhes', style: TextStyle(fontSize: 12)),
                                     ),
                                   ],
                                   onChanged: (value) {
                                     setState(() => _levelFilter = value);
                                   },
-                                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white54),
+                                  icon: Icon(Icons.arrow_drop_down, color: theme.inputDecorationTheme.hintStyle?.color),
                                 ),
                               ),
                             ],
@@ -699,11 +699,18 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF312456),
+          color: theme.colorScheme.surface,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha((0.1 * 255).round()),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -720,20 +727,40 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            selectedItemColor: const Color(0xFFBB8FEB),
-            unselectedItemColor: Colors.grey[400],
-            selectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+            selectedItemColor: theme.colorScheme.primary,
+            unselectedItemColor: theme.unselectedWidgetColor,
+            selectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             unselectedLabelStyle:
                 const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
             showUnselectedLabels: true,
-            items: const [
+            items: [
               BottomNavigationBarItem(
-                icon: Icon(Icons.add_box_outlined),
+                icon: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: _tabController.index == 0
+                      ? BoxDecoration(
+                          color: theme.colorScheme.primary
+                              .withAlpha((0.12 * 255).round()),
+                          borderRadius: BorderRadius.circular(12),
+                        )
+                      : null,
+                  child: const Icon(Icons.add_box_outlined),
+                ),
                 label: 'Nova NC',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.list_alt_outlined),
+                icon: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: _tabController.index == 1
+                      ? BoxDecoration(
+                          color: theme.colorScheme.primary
+                              .withAlpha((0.12 * 255).round()),
+                          borderRadius: BorderRadius.circular(12),
+                        )
+                      : null,
+                  child: const Icon(Icons.list_alt_outlined),
+                ),
                 label: 'Listagem',
               ),
             ],
@@ -743,4 +770,3 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     );
   }
 }
-

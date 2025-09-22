@@ -18,30 +18,30 @@ class MediaCounterNotifier extends ChangeNotifier {
     String? itemId,
     String? detailId,
   }) {
-    debugPrint('MediaCounterNotifier: Media added to context: topic=$topicId, item=$itemId, detail=$detailId');
+    // Media added to context (debug logging disabled)
     
     // Invalidar contadores relevantes apenas
     if (topicId != null) {
       final topicKey = '${topicId}_topic_only';
       _counters.remove(topicKey);
-      debugPrint('MediaCounterNotifier: Invalidated topic counter: $topicKey');
+      // Invalidated topic counter (debug logging disabled)
     }
     
     if (itemId != null) {
       final itemKey = '${itemId}_item_only';
       _counters.remove(itemKey);
-      debugPrint('MediaCounterNotifier: Invalidated item counter: $itemKey');
+      // Invalidated item counter (debug logging disabled)
     }
     
     if (detailId != null) {
       final detailKey = '${detailId}_detail';
       _counters.remove(detailKey);
-      debugPrint('MediaCounterNotifier: Invalidated detail counter: $detailKey');
+      // Detail counter invalidated
     }
     
     // Single targeted notification 
     notifyListeners();
-    debugPrint('MediaCounterNotifier: Single notification sent for media addition');
+    // Notification sent
   }
   
   /// Notifica que uma mídia foi removida
@@ -51,7 +51,7 @@ class MediaCounterNotifier extends ChangeNotifier {
     String? itemId,
     String? detailId,
   }) {
-    debugPrint('MediaCounterNotifier: Media removed from context: topic=$topicId, item=$itemId, detail=$detailId');
+    // Media removed from context
     
     // Invalidar contadores relevantes apenas
     if (topicId != null) {
@@ -71,19 +71,19 @@ class MediaCounterNotifier extends ChangeNotifier {
     
     // Single targeted notification
     notifyListeners();
-    debugPrint('MediaCounterNotifier: Single notification sent for media removal');
+    // Notification sent for removal
   }
   
   /// Invalida todos os contadores
   void invalidateAll() {
-    debugPrint('MediaCounterNotifier: Invalidating all counters');
+    // All counters invalidated
     _counters.clear();
     notifyListeners();
   }
   
   /// Invalida contadores para uma inspeção específica
   void invalidateForInspection(String inspectionId) {
-    debugPrint('MediaCounterNotifier: Invalidating counters for inspection $inspectionId');
+    // Counters invalidated for inspection
     // Remover todos os contadores que possam estar relacionados à inspeção
     _counters.clear();
     notifyListeners();

@@ -1,24 +1,49 @@
 // lib/models/detail.dart (modificado)
+import 'package:hive/hive.dart';
+
+part 'detail.g.dart';
+
+@HiveType(typeId: 3)
 class Detail {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String inspectionId;
+  @HiveField(2)
   final String? topicId;
+  @HiveField(3)
   final String? itemId;
+  @HiveField(4)
   final String? detailId;
+  @HiveField(5)
   final int? position;
+  @HiveField(6)
   final int orderIndex;
+  @HiveField(7)
   final String detailName;
+  @HiveField(8)
   final String? detailValue;
+  @HiveField(9)
   final String? observation;
+  @HiveField(10)
   final bool? isDamaged;
+  @HiveField(11)
   final List<String>? tags;
+  @HiveField(12)
   final DateTime? createdAt;
+  @HiveField(13)
   final DateTime? updatedAt;
+  @HiveField(14)
   final String? type; // Tipo do detalhe (text, select, number, boolean)
+  @HiveField(15)
   final List<String>? options; // Opções para o tipo select
+  @HiveField(16)
   final bool? allowCustomOption; // Se permite opção customizada (somente para select)
-  final String? customOptionValue; // Valor da opção customizada 
+  @HiveField(17)
+  final String? customOptionValue; // Valor da opção customizada
+  @HiveField(18)
   final String? status; // Status do detalhe (pending, completed, etc)
+  @HiveField(19)
   final bool? isRequired; // Se o detalhe é obrigatório
 
   Detail(

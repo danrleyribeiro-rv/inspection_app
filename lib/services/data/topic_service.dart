@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/services/data/item_service.dart';
-import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/repositories/inspection_repository.dart';
 import 'package:lince_inspecoes/services/features/template_service.dart'; // Import TemplateService directly
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TopicService {
   ItemService get _itemService => ItemService();
-  final SQLiteStorageService _localStorage =
-      SQLiteStorageService.instance; // Use SQLiteStorageService
+  final InspectionRepository _inspectionRepository = InspectionRepository();
   final TemplateService _templateService =
       TemplateService(); // Use TemplateService directly
 
   Future<List<Topic>> getTopics(String inspectionId) async {
     try {
       final inspection =
-          await _localStorage.getInspection(inspectionId); // Get from SQLite
+          await _inspectionRepository.findById(inspectionId);
       if (inspection != null) {
         return _extractTopics(inspectionId, inspection.topics);
       }
@@ -46,7 +45,7 @@ class TopicService {
   Future<Topic> addTopic(String inspectionId, String topicName,
       {String? label, int? position, String? observation}) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection == null) {
       throw Exception('Inspection not found: $inspectionId');
     }
@@ -70,7 +69,7 @@ class TopicService {
       updatedAt: DateTime.now(),
       hasLocalChanges: true,
     );
-    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+    await _inspectionRepository.update(updatedInspection);
 
     return Topic(
       id: 'topic_$newPosition',
@@ -89,7 +88,7 @@ class TopicService {
     Map<String, dynamic> templateData,
   ) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection == null) {
       throw Exception('Inspection not found: $inspectionId');
     }
@@ -146,7 +145,7 @@ class TopicService {
       updatedAt: DateTime.now(),
       hasLocalChanges: true,
     );
-    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+    await _inspectionRepository.update(updatedInspection);
 
     return Topic(
       id: 'topic_$newPosition',
@@ -162,8 +161,8 @@ class TopicService {
 
   Future<void> updateTopic(Topic updatedTopic) async {
     try {
-      final inspection = await _localStorage
-          .getInspection(updatedTopic.inspectionId); // Get from SQLite
+      final inspection = await _inspectionRepository
+          .findById(updatedTopic.inspectionId);
       if (inspection?.topics != null) {
         final topicIndex =
             int.tryParse(updatedTopic.id?.replaceFirst('topic_', '') ?? '');
@@ -185,8 +184,8 @@ class TopicService {
             hasLocalChanges: true,
           );
 
-          await _localStorage
-              .saveInspection(updatedInspection); // Save to SQLite
+          await _inspectionRepository
+              .update(updatedInspection);
 
           debugPrint(
               'TopicService.updateTopic: Topic ${updatedTopic.id} updated offline');
@@ -201,7 +200,7 @@ class TopicService {
 
   Future<Topic> duplicateTopic(String inspectionId, Topic sourceTopic) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection == null) {
       throw Exception('Inspection not found');
     }
@@ -250,7 +249,7 @@ class TopicService {
       updatedAt: DateTime.now(),
       hasLocalChanges: true,
     );
-    await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+    await _inspectionRepository.update(updatedInspection);
 
     return Topic(
       id: 'topic_${inspection.topics!.length}',
@@ -273,7 +272,7 @@ class TopicService {
 
   Future<void> reorderTopics(String inspectionId, List<String> topicIds) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection!.topics!);
       final reorderedTopics = <Map<String, dynamic>>[];
@@ -289,7 +288,7 @@ class TopicService {
         updatedAt: DateTime.now(),
         hasLocalChanges: true,
       );
-      await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+      await _inspectionRepository.update(updatedInspection);
     }
   }
 
@@ -439,7 +438,7 @@ class TopicService {
 
   Future<void> _deleteTopicAtIndex(String inspectionId, int topicIndex) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -449,7 +448,7 @@ class TopicService {
           updatedAt: DateTime.now(),
           hasLocalChanges: true,
         );
-        await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+        await _inspectionRepository.update(updatedInspection);
       }
     }
   }
@@ -527,7 +526,7 @@ class TopicService {
       String inspectionId, Map<String, dynamic> topicTemplate) async {
     try {
       final inspection =
-          await _localStorage.getInspection(inspectionId); // Get from SQLite
+          await _inspectionRepository.findById(inspectionId);
       if (inspection == null) {
         throw Exception('Inspection not found in cache');
       }
@@ -578,7 +577,7 @@ class TopicService {
         hasLocalChanges: true,
       );
 
-      await _localStorage.saveInspection(updatedInspection); // Save to SQLite
+      await _inspectionRepository.update(updatedInspection);
 
       debugPrint(
           'TopicService.addTopicFromTemplateOffline: Added topic "$finalTopicName" from template offline');

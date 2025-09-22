@@ -15,14 +15,16 @@ import 'package:lince_inspecoes/repositories/media_repository.dart';
 import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
 import 'package:lince_inspecoes/repositories/inspection_history_repository.dart';
 import 'package:lince_inspecoes/models/inspection_history.dart';
+import 'package:lince_inspecoes/models/template.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class EnhancedOfflineDataService {
-  static EnhancedOfflineDataService? _instance;
-  static EnhancedOfflineDataService get instance =>
-      _instance ??= EnhancedOfflineDataService._();
+class OfflineDataService {
+  static OfflineDataService? _instance;
+  static OfflineDataService get instance =>
+      _instance ??= OfflineDataService._();
 
-  EnhancedOfflineDataService._();
+  OfflineDataService._();
 
   // Repositórios
   late final InspectionRepository _inspectionRepository;
@@ -38,8 +40,8 @@ class EnhancedOfflineDataService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Inicializar o banco de dados
-    await DatabaseHelper.database;
+    // Inicializar o Hive
+    await DatabaseHelper.init();
 
     // Inicializar repositórios
     _inspectionRepository = InspectionRepository();
@@ -52,7 +54,7 @@ class EnhancedOfflineDataService {
 
     _isInitialized = true;
     debugPrint(
-        'EnhancedOfflineDataService: Initialized with repository pattern');
+        'OfflineDataService: Initialized with repository pattern');
   }
 
   // ===============================
@@ -100,7 +102,7 @@ class EnhancedOfflineDataService {
     final savedInspection = await _inspectionRepository.findById(inspection.id);
     if (savedInspection != null) {
     } else {
-      debugPrint('EnhancedOfflineDataService: ❌ ERRO: Vistoria ${inspection.id} NÃO foi encontrada após salvamento!');
+      debugPrint('OfflineDataService: ❌ ERRO: Vistoria ${inspection.id} NÃO foi encontrada após salvamento!');
     }
     
   }
@@ -113,108 +115,7 @@ class EnhancedOfflineDataService {
     await _itemRepository.insertOrUpdateFromCloud(item);
   }
 
-  // Método para forçar sincronização de uma inspeção e todos seus dados
-  Future<void> markInspectionForSync(String inspectionId, {bool force = false}) async {
-    debugPrint('DataService: Marking inspection $inspectionId for sync (force: $force)');
-    
-    // Marcar inspeção como modificada (hasLocalChanges=true + needs_sync=1)
-    await _inspectionRepository.markAsModified(inspectionId);
-    
-    // Marcar todos os tópicos para sincronização
-    final topics = await getTopics(inspectionId);
-    for (final topic in topics) {
-      await _topicRepository.markForSync(topic.id!);
-      
-      // Marcar itens do tópico
-      final items = await getItems(topic.id!);
-      for (final item in items) {
-        await _itemRepository.markForSync(item.id!);
-        
-        // Marcar detalhes do item
-        final details = await getDetails(item.id!);
-        for (final detail in details) {
-          await _detailRepository.markForSync(detail.id!);
-        }
-      }
-      
-      // Marcar detalhes diretos do tópico
-      final directDetails = await getDetailsByTopic(topic.id!);
-      for (final detail in directDetails) {
-        await _detailRepository.markForSync(detail.id!);
-      }
-    }
-    
-    // Marcar todas as não conformidades
-    final nonConformities = await getNonConformities(inspectionId);
-    for (final nc in nonConformities) {
-      await _nonConformityRepository.markForSync(nc.id);
-    }
-    
-    // Marcar todas as mídias
-    final mediaFiles = await getMediaByInspection(inspectionId);
-    for (final media in mediaFiles) {
-      await _mediaRepository.markForSync(media.id);
-    }
-    
-    debugPrint('DataService: Marked inspection $inspectionId and all related data for sync');
-  }
-
-  // OFFLINE-FIRST: Método para marcar apenas que há mudanças locais (sem triggear sync automático)
-  Future<void> markInspectionAsModifiedLocally(String inspectionId) async {
-    debugPrint('DataService: Marking inspection $inspectionId as locally modified (offline-first)');
-    
-    // Marcar apenas a inspeção como modificada (hasLocalChanges=true)
-    // NÃO marcar entidades filhas para sync automático
-    await _inspectionRepository.markAsModified(inspectionId);
-    
-    debugPrint('DataService: Inspection $inspectionId marked as locally modified');
-  }
-
-  // Método para marcar inspeção como sincronizada (limpar flag has_local_changes)
-  Future<void> markInspectionSynced(String inspectionId) async {
-    debugPrint('DataService: Marking inspection $inspectionId as synced');
-    
-    final inspection = await getInspection(inspectionId);
-    if (inspection == null) return;
-    
-    debugPrint('DataService: Original inspection status: "${inspection.status}"');
-    
-    // OFFLINE-FIRST: Use specific markAsSynced method to avoid triggering needs_sync
-    await _inspectionRepository.markAsSynced(inspectionId, status: 'completed');
-    
-    // Marcar todos os dados relacionados como sincronizados também
-    final topics = await getTopics(inspectionId);
-    for (final topic in topics) {
-      await _topicRepository.markSynced(topic.id!);
-      
-      final items = await getItems(topic.id!);
-      for (final item in items) {
-        await _itemRepository.markSynced(item.id!);
-        
-        final details = await getDetails(item.id!);
-        for (final detail in details) {
-          await _detailRepository.markSynced(detail.id!);
-        }
-      }
-      
-      final topicDetails = await getDetailsByTopic(topic.id!);
-      for (final detail in topicDetails) {
-        await _detailRepository.markSynced(detail.id!);
-      }
-    }
-    
-    final nonConformities = await getNonConformities(inspectionId);
-    for (final nc in nonConformities) {
-      await _nonConformityRepository.markSynced(nc.id);
-    }
-    
-    final mediaFiles = await getMediaByInspection(inspectionId);
-    for (final media in mediaFiles) {
-      await _mediaRepository.markSynced(media.id);
-    }
-    
-    debugPrint('DataService: Marked inspection $inspectionId and all related data as synced');
-  }
+  // REMOVED: markInspectionSynced - Always sync all data on demand
 
   // Método para adicionar entrada no histórico de sincronização
   Future<void> addSyncHistoryEntry(String inspectionId, String inspectorId, String action, {Map<String, dynamic>? metadata}) async {
@@ -268,9 +169,6 @@ class EnhancedOfflineDataService {
         'DataService: Updating inspection $inspectionId status to $status');
     await _inspectionRepository.updateStatus(inspectionId, status);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(inspectionId);
-    
     debugPrint(
         'DataService: Inspection $inspectionId status updated to $status');
   }
@@ -304,14 +202,16 @@ class EnhancedOfflineDataService {
   }
 
   Future<void> insertOrUpdateTopic(Topic topic) async {
-    await _topicRepository.insertOrUpdate(topic);
+    final existing = await _topicRepository.findById(topic.id!);
+    if (existing != null) {
+      await _topicRepository.update(topic);
+    } else {
+      await _topicRepository.insert(topic);
+    }
   }
 
   Future<void> updateTopic(Topic topic) async {
     await _topicRepository.update(topic);
-    
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(topic.inspectionId);
     
     debugPrint('DataService: Topic ${topic.id} updated successfully');
   }
@@ -323,11 +223,6 @@ class EnhancedOfflineDataService {
     final topic = await _topicRepository.findById(topicId);
     
     await _topicRepository.delete(topicId);
-    
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (topic != null) {
-      await markInspectionAsModifiedLocally(topic.inspectionId);
-    }
     
     debugPrint('DataService: Topic $topicId deleted successfully');
   }
@@ -369,9 +264,6 @@ class EnhancedOfflineDataService {
   Future<void> updateItem(Item item) async {
     await _itemRepository.update(item);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(item.inspectionId);
-    
     debugPrint('DataService: Item ${item.id} updated successfully');
   }
 
@@ -382,11 +274,6 @@ class EnhancedOfflineDataService {
     final item = await _itemRepository.findById(itemId);
     
     await _itemRepository.delete(itemId);
-    
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (item != null) {
-      await markInspectionAsModifiedLocally(item.inspectionId);
-    }
     
     debugPrint('DataService: Item $itemId deleted successfully');
   }
@@ -447,9 +334,6 @@ class EnhancedOfflineDataService {
         'DataService: Updating detail ${detail.id} - ${detail.detailName} with value: ${detail.detailValue}');
     await _detailRepository.update(detail);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(detail.inspectionId);
-    
     debugPrint('DataService: Detail ${detail.id} updated successfully');
   }
 
@@ -460,12 +344,7 @@ class EnhancedOfflineDataService {
     final detail = await _detailRepository.findById(detailId);
     
     await _detailRepository.delete(detailId);
-    
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (detail != null) {
-      await markInspectionAsModifiedLocally(detail.inspectionId);
-    }
-    
+
     debugPrint('DataService: Detail $detailId deleted successfully');
   }
 
@@ -476,10 +355,6 @@ class EnhancedOfflineDataService {
     
     await _detailRepository.updateValue(detailId, value, observations);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (detail != null) {
-      await markInspectionAsModifiedLocally(detail.inspectionId);
-    }
   }
 
   Future<void> markDetailCompleted(String detailId) async {
@@ -488,10 +363,6 @@ class EnhancedOfflineDataService {
     
     await _detailRepository.markAsCompleted(detailId);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (detail != null) {
-      await markInspectionAsModifiedLocally(detail.inspectionId);
-    }
   }
 
   Future<void> markDetailIncomplete(String detailId) async {
@@ -500,10 +371,6 @@ class EnhancedOfflineDataService {
     
     await _detailRepository.markAsIncomplete(detailId);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (detail != null) {
-      await markInspectionAsModifiedLocally(detail.inspectionId);
-    }
   }
 
   Future<void> setDetailNonConformity(
@@ -513,10 +380,6 @@ class EnhancedOfflineDataService {
     
     await _detailRepository.setNonConformity(detailId, hasNonConformity);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (detail != null) {
-      await markInspectionAsModifiedLocally(detail.inspectionId);
-    }
   }
 
   Future<void> reorderDetails(String itemId, List<String> detailIds) async {
@@ -576,24 +439,22 @@ class EnhancedOfflineDataService {
   Future<String> saveNonConformity(NonConformity nonConformity) async {
     final result = await _nonConformityRepository.insert(nonConformity);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(nonConformity.inspectionId);
-    
     return result;
   }
 
   Future<void> updateNonConformity(NonConformity nonConformity) async {
     await _nonConformityRepository.update(nonConformity);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(nonConformity.inspectionId);
   }
 
   Future<void> insertOrUpdateNonConformity(NonConformity nonConformity) async {
-    await _nonConformityRepository.insertOrUpdate(nonConformity);
-    
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    await markInspectionAsModifiedLocally(nonConformity.inspectionId);
+    final existing = await _nonConformityRepository.findById(nonConformity.id);
+    if (existing != null) {
+      await _nonConformityRepository.update(nonConformity);
+    } else {
+      await _nonConformityRepository.insert(nonConformity);
+    }
+
   }
 
   Future<void> deleteNonConformity(String nonConformityId) async {
@@ -602,10 +463,6 @@ class EnhancedOfflineDataService {
     
     await _nonConformityRepository.delete(nonConformityId);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (nc != null) {
-      await markInspectionAsModifiedLocally(nc.inspectionId);
-    }
   }
 
   Future<void> updateNonConformityStatus(
@@ -615,10 +472,6 @@ class EnhancedOfflineDataService {
     
     await _nonConformityRepository.updateStatus(nonConformityId, status);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (nc != null) {
-      await markInspectionAsModifiedLocally(nc.inspectionId);
-    }
   }
 
   Future<void> updateNonConformitySeverity(
@@ -628,10 +481,6 @@ class EnhancedOfflineDataService {
     
     await _nonConformityRepository.updateSeverity(nonConformityId, severity);
     
-    // OFFLINE-FIRST: Mark as locally modified so sync button appears, but don't trigger auto-sync
-    if (nc != null) {
-      await markInspectionAsModifiedLocally(nc.inspectionId);
-    }
   }
 
   Future<Map<String, int>> getNonConformityStats(String inspectionId) async {
@@ -689,13 +538,7 @@ class EnhancedOfflineDataService {
     await _mediaRepository.delete(mediaId);
   }
 
-  Future<void> updateMediaCloudUrl(String mediaId, String cloudUrl) async {
-    await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
-  }
-
-  Future<void> markMediaSynced(String mediaId) async {
-    await _mediaRepository.markSynced(mediaId);
-  }
+  // REMOVED: markMediaSynced - Always sync all data on demand
 
   Future<List<OfflineMedia>> getMediaByFilename(String filename) async {
     return await _mediaRepository.findByFilename(filename);
@@ -712,15 +555,12 @@ class EnhancedOfflineDataService {
     required String cloudUrl,
     required String type,
     required int fileSize,
-    required String mimeType,
     String? topicId,
     String? itemId,
     String? detailId,
     String? nonConformityId,
     bool isUploaded = false,
-    // EXPANDED: Add support for complete media metadata preservation
     String? source,
-    Map<String, dynamic>? metadata,
     int? width,
     int? height,
     int? duration,
@@ -742,14 +582,11 @@ class EnhancedOfflineDataService {
       cloudUrl: cloudUrl,
       type: type,
       fileSize: fileSize,
-      mimeType: mimeType,
       source: source,
       isResolutionMedia: isResolutionMedia,
-      metadata: metadata,
       width: width,
       height: height,
       duration: duration,
-      isProcessed: true,
       isUploaded: isUploaded,
       createdAt: originalCreatedAt ?? now,
       updatedAt: originalUpdatedAt ?? now,
@@ -775,51 +612,12 @@ class EnhancedOfflineDataService {
   }
 
   Future<List<OfflineMedia>> getMediaPendingUpload() async {
-    // Buscar mídias que precisam de upload (não foram enviadas para nuvem ainda ou needs_sync = 1)
-    return await _mediaRepository.findWhere(
-      '(is_uploaded = 0 OR cloud_url IS NULL OR cloud_url = \'\') AND needs_sync = 1',
-      []
-    );
+    // Always return all media for upload
+    return await _mediaRepository.findAll();
   }
 
   Future<List<OfflineMedia>> getDeletedMediaPendingSync() async {
     return await _mediaRepository.findDeletedPendingSync();
-  }
-
-  Future<String> saveMediaFile(
-    String inspectionId,
-    String fileName,
-    List<int> fileBytes, {
-    String? topicId,
-    String? itemId,
-    String? detailId,
-    String fileType = 'image',
-  }) async {
-    // Implementar salvamento de arquivo de mídia usando SQLiteStorageService
-    // Esta é uma funcionalidade que deveria estar no StorageService
-    // Por enquanto, vamos implementar uma versão simplificada
-
-    // Criar metadata da mídia
-    final mediaId = DateTime.now().millisecondsSinceEpoch.toString();
-    final media = OfflineMedia(
-      id: mediaId,
-      inspectionId: inspectionId,
-      topicId: topicId,
-      itemId: itemId,
-      detailId: detailId,
-      type: fileType,
-      localPath:
-          '/temp/$fileName', // Caminho temporário, seria melhor usar StorageService
-      filename: fileName,
-      fileSize: fileBytes.length,
-      isProcessed: true,
-      needsSync: true,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-
-    await _mediaRepository.insert(media);
-    return mediaId;
   }
 
   Future<void> markMediaAsProcessed(
@@ -832,9 +630,10 @@ class EnhancedOfflineDataService {
     await _mediaRepository.updateUploadProgress(mediaId, progress);
   }
 
-  Future<void> markMediaAsUploaded(String mediaId, String cloudUrl) async {
+  Future<void> updateMediaCloudUrl(String mediaId, String cloudUrl) async {
     await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
   }
+
 
   Future<void> setMediaThumbnail(String mediaId, String thumbnailPath) async {
     await _mediaRepository.setThumbnail(mediaId, thumbnailPath);
@@ -868,73 +667,127 @@ class EnhancedOfflineDataService {
   }
 
   // ===============================
+  // MÉTODOS DE COMPATIBILIDADE LEGACY
+  // ===============================
+
+  /// Buscar arquivo de mídia por ID (compatibilidade com OfflineDataService antigo)
+  Future<File?> getMediaFile(String mediaId) async {
+    final media = await _mediaRepository.findById(mediaId);
+    if (media != null && media.localPath.isNotEmpty) {
+      final file = File(media.localPath);
+      if (await file.exists()) {
+        return file;
+      }
+    }
+    return null;
+  }
+
+  /// Buscar mídias por inspeção como mapas (compatibilidade)
+  Future<List<Map<String, dynamic>>> getMediaFilesByInspection(String inspectionId) async {
+    final mediaList = await _mediaRepository.findByInspectionId(inspectionId);
+    return mediaList.map((media) => media.toMap()).toList();
+  }
+
+  /// Deletar arquivo de mídia físico e registro (compatibilidade)
+  Future<void> deleteMediaFile(String mediaId) async {
+    final media = await _mediaRepository.findById(mediaId);
+    if (media != null && media.localPath.isNotEmpty) {
+      final file = File(media.localPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    await _mediaRepository.delete(mediaId);
+  }
+
+  /// Buscar mídias que precisam de upload como mapas (compatibilidade)
+  Future<List<Map<String, dynamic>>> getMediaFilesNeedingUpload() async {
+    final mediaList = await _mediaRepository.findPendingUpload();
+    return mediaList.map((media) => media.toMap()).toList();
+  }
+
+  /// Marcar mídia como enviada para nuvem (compatibilidade)
+  Future<void> markMediaUploaded(String mediaId, String cloudUrl) async {
+    await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
+  }
+
+  /// Atualizar mídia de detalhe (compatibilidade com estrutura JSON legacy)
+  Future<void> updateDetailMedia(String inspectionId, String topicId, String itemId, String detailId, Map<String, dynamic> mediaData) async {
+    // Para compatibilidade, vamos apenas salvar a mídia associada ao detalhe
+    // Esta funcionalidade era específica da estrutura JSON embedded antiga
+    debugPrint('OfflineDataService: updateDetailMedia called but not implemented in new architecture');
+    debugPrint('OfflineDataService: Use saveOfflineMedia with detailId parameter instead');
+  }
+
+  /// Buscar estatísticas gerais (compatibilidade)
+  Future<Map<String, int>> getStats() async {
+    final dbStats = await DatabaseHelper.getStatistics();
+    return dbStats;
+  }
+
+  // ===============================
   // OPERAÇÕES DE SINCRONIZAÇÃO
   // ===============================
 
   Future<List<Inspection>> getInspectionsNeedingSync() async {
-    return await _inspectionRepository.findPendingSync();
+    return await getAllInspections(); // Always return all inspections for sync
   }
 
   Future<List<Topic>> getTopicsNeedingSync() async {
-    return await _topicRepository.findPendingSync();
+    // Get all topics from all inspections
+    final allInspections = await getAllInspections();
+    final List<Topic> allTopics = [];
+    for (final inspection in allInspections) {
+      final topics = await getTopics(inspection.id);
+      allTopics.addAll(topics);
+    }
+    return allTopics; // Always return all topics for sync
   }
 
   Future<List<Item>> getItemsNeedingSync() async {
-    return await _itemRepository.findPendingSync();
+    // Get all items from all topics
+    final allTopics = await getTopicsNeedingSync();
+    final List<Item> allItems = [];
+    for (final topic in allTopics) {
+      if (topic.id != null) {
+        final items = await getItems(topic.id!);
+        allItems.addAll(items);
+      }
+    }
+    return allItems; // Always return all items for sync
   }
 
   Future<List<Detail>> getDetailsNeedingSync() async {
-    return await _detailRepository.findPendingSync();
+    // Get all details from all items
+    final allItems = await getItemsNeedingSync();
+    final List<Detail> allDetails = [];
+    for (final item in allItems) {
+      if (item.id != null) {
+        final details = await getDetails(item.id!);
+        allDetails.addAll(details);
+      }
+    }
+    return allDetails; // Always return all details for sync
   }
 
   Future<List<NonConformity>> getNonConformitiesNeedingSync() async {
-    return await _nonConformityRepository.findPendingSync();
+    // Get all non-conformities from all inspections
+    final allInspections = await getAllInspections();
+    final List<NonConformity> allNonConformities = [];
+    for (final inspection in allInspections) {
+      final ncs = await getNonConformities(inspection.id);
+      allNonConformities.addAll(ncs);
+    }
+    return allNonConformities; // Always return all non-conformities for sync
   }
 
   Future<List<OfflineMedia>> getMediaNeedingSync() async {
-    return await _mediaRepository.findPendingSync();
+    return await _mediaRepository.findAll(); // Always return all media for sync
   }
 
+  // REMOVED: All markSynced methods - Always sync all data on demand
 
-  Future<void> markTopicSynced(String topicId) async {
-    await _topicRepository.markSynced(topicId);
-  }
-
-  Future<void> markItemSynced(String itemId) async {
-    await _itemRepository.markSynced(itemId);
-  }
-
-  Future<void> markDetailSynced(String detailId) async {
-    await _detailRepository.markSynced(detailId);
-  }
-
-  Future<void> markNonConformitySynced(String nonConformityId) async {
-    await _nonConformityRepository.markSynced(nonConformityId);
-  }
-
-  Future<void> markAllInspectionsSynced() async {
-    await _inspectionRepository.markAllSynced();
-  }
-
-  Future<void> markAllTopicsSynced() async {
-    await _topicRepository.markAllSynced();
-  }
-
-  Future<void> markAllItemsSynced() async {
-    await _itemRepository.markAllSynced();
-  }
-
-  Future<void> markAllDetailsSynced() async {
-    await _detailRepository.markAllSynced();
-  }
-
-  Future<void> markAllNonConformitiesSynced() async {
-    await _nonConformityRepository.markAllSynced();
-  }
-
-  Future<void> markAllMediaSynced() async {
-    await _mediaRepository.markAllSynced();
-  }
+  // REMOVED: All markAllSynced methods - Always sync all data on demand
 
   // ===============================
   // OPERAÇÕES DE HISTÓRICO DE INSPEÇÃO
@@ -997,10 +850,7 @@ class EnhancedOfflineDataService {
     return await _historyRepository.findPendingSync();
   }
 
-  /// Marca histórico como sincronizado
-  Future<void> markHistorySynced(String historyId) async {
-    await _historyRepository.markSynced(historyId);
-  }
+  // REMOVED: markHistorySynced - Always sync all data on demand
 
   // ===============================
   // HIERARQUIAS FLEXÍVEIS - OPERAÇÕES ESPECIALIZADAS
@@ -1072,7 +922,7 @@ class EnhancedOfflineDataService {
 
   // Criar inspeção completa a partir do formato JSON
   Future<String> createInspectionFromJson(Map<String, dynamic> jsonData) async {
-    return await DatabaseHelper.transaction((txn) async {
+    return await DatabaseHelper.transaction(() async {
       // 1. Criar inspeção principal
       final inspection = _createInspectionFromJsonData(jsonData);
       final inspectionId = await _inspectionRepository.insert(inspection);
@@ -1256,7 +1106,7 @@ class EnhancedOfflineDataService {
 
   Future<void> saveCompleteInspection(Inspection inspection, List<Topic> topics,
       List<Item> items, List<Detail> details) async {
-    await DatabaseHelper.transaction((txn) async {
+    await DatabaseHelper.transaction(() async {
       // Salvar inspeção
       await _inspectionRepository.insert(inspection);
 
@@ -1278,7 +1128,7 @@ class EnhancedOfflineDataService {
   }
 
   Future<void> deleteCompleteInspection(String inspectionId) async {
-    await DatabaseHelper.transaction((txn) async {
+    await DatabaseHelper.transaction(() async {
       // Deletar todas as entidades relacionadas
       await _mediaRepository.deleteByInspectionId(inspectionId);
       await _nonConformityRepository.deleteByInspectionId(inspectionId);
@@ -1422,6 +1272,139 @@ class EnhancedOfflineDataService {
   }
 
   // ===============================
+  // OPERAÇÕES DE DOWNLOAD DA NUVEM
+  // ===============================
+
+  /// Download completo de inspeção do Firestore
+  Future<void> downloadInspectionFromCloud(String inspectionId) async {
+    try {
+      debugPrint('OfflineDataService: Downloading inspection $inspectionId from cloud');
+
+      // Buscar inspeção no Firestore
+      final inspectionDoc = await FirebaseFirestore.instance
+          .collection('inspections')
+          .doc(inspectionId)
+          .get();
+
+      if (!inspectionDoc.exists) {
+        throw Exception('Inspection not found in cloud');
+      }
+
+      final inspectionData = inspectionDoc.data()!;
+
+      // Converter timestamps do Firestore
+      final convertedData = _convertFirestoreTimestamps(inspectionData);
+      convertedData['id'] = inspectionId;
+
+      // Criar objeto Inspection
+      final inspection = Inspection.fromMap(convertedData);
+
+      // Salvar localmente usando método unificado
+      await insertOrUpdateInspectionFromCloud(inspection);
+
+      // Baixar template se existir
+      if (inspection.templateId != null) {
+        await _downloadTemplate(inspection.templateId!);
+      }
+
+      // REMOVED: markInspectionSynced call - Always sync all data on demand
+
+      debugPrint('OfflineDataService: Successfully downloaded inspection $inspectionId');
+    } catch (e) {
+      debugPrint('OfflineDataService: Error downloading inspection $inspectionId: $e');
+      rethrow;
+    }
+  }
+
+  /// Download de template do Firestore
+  Future<void> _downloadTemplate(String templateId) async {
+    try {
+      // Verificar se já existe
+      final existingTemplate = await DatabaseHelper.getTemplate(templateId);
+      if (existingTemplate != null) {
+        debugPrint('OfflineDataService: Template $templateId already exists');
+        return;
+      }
+
+      // Buscar template no Firestore
+      final templateDoc = await FirebaseFirestore.instance
+          .collection('templates')
+          .doc(templateId)
+          .get();
+
+      if (!templateDoc.exists) {
+        debugPrint('OfflineDataService: Template $templateId not found in cloud');
+        return;
+      }
+
+      final templateData = templateDoc.data()!;
+      final templateName = templateData['name'] ?? 'Unknown Template';
+
+      // Salvar template localmente
+      final template = Template(
+        id: templateId,
+        name: templateName,
+        version: templateData['version'] ?? '1.0',
+        description: templateData['description'],
+        category: templateData['category'],
+        structure: templateData.toString(), // Store as string for now
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isActive: true,
+        needsSync: false,
+      );
+      await DatabaseHelper.insertTemplate(template);
+
+      debugPrint('OfflineDataService: Downloaded template $templateId');
+    } catch (e) {
+      debugPrint('OfflineDataService: Error downloading template $templateId: $e');
+    }
+  }
+
+  /// Helper para converter timestamps do Firestore
+  Map<String, dynamic> _convertFirestoreTimestamps(Map<String, dynamic> data) {
+    final converted = <String, dynamic>{};
+
+    data.forEach((key, value) {
+      if (value is Timestamp) {
+        converted[key] = value.toDate();
+      } else if (value is Map) {
+        converted[key] = _convertFirestoreTimestamps(Map<String, dynamic>.from(value));
+      } else if (value is List) {
+        converted[key] = value.map((item) {
+          if (item is Map) {
+            return _convertFirestoreTimestamps(Map<String, dynamic>.from(item));
+          }
+          return item;
+        }).toList();
+      } else {
+        converted[key] = value;
+      }
+    });
+
+    return converted;
+  }
+
+  // ===============================
+  // OPERAÇÕES DE TEMPLATE
+  // ===============================
+
+  /// Buscar template por ID
+  Future<Map<String, dynamic>?> getTemplate(String templateId) async {
+    final template = await DatabaseHelper.getTemplate(templateId);
+    if (template != null) {
+      return template.toJson();
+    }
+    return null;
+  }
+
+  /// Verificar se uma inspeção existe
+  Future<bool> hasInspection(String inspectionId) async {
+    final inspection = await _inspectionRepository.findById(inspectionId);
+    return inspection != null;
+  }
+
+  // ===============================
   // OPERAÇÕES DE LIMPEZA
   // ===============================
 
@@ -1547,18 +1530,18 @@ class EnhancedOfflineDataService {
       }
 
       debugPrint(
-          'EnhancedOfflineDataService: Successfully duplicated topic $topicId -> $newTopicId with ${originalItems.length} items and ${originalDetails.length} direct details');
+          'OfflineDataService: Successfully duplicated topic $topicId -> $newTopicId with ${originalItems.length} items and ${originalDetails.length} direct details');
 
       // 6. Buscar e retornar o tópico salvo (sem verificação redundante)
       final savedTopic = await getTopic(newTopicId);
       return savedTopic!;
     } catch (e) {
       // Se algo falhar durante a duplicação dos filhos, limpar o tópico criado
-      debugPrint('EnhancedOfflineDataService: Error during duplication, cleaning up: $e');
+      debugPrint('OfflineDataService: Error during duplication, cleaning up: $e');
       try {
         await deleteTopic(newTopicId);
       } catch (cleanupError) {
-        debugPrint('EnhancedOfflineDataService: Error during cleanup: $cleanupError');
+        debugPrint('OfflineDataService: Error during cleanup: $cleanupError');
       }
       rethrow;
     }
@@ -1685,7 +1668,7 @@ class EnhancedOfflineDataService {
     }
 
     debugPrint(
-        'EnhancedOfflineDataService: Successfully duplicated item ${originalItem.id} -> $newItemId with ${originalDetails.length} details');
+        'OfflineDataService: Successfully duplicated item ${originalItem.id} -> $newItemId with ${originalDetails.length} details');
 
     // 5. Retornar o item duplicado (sem busca redundante)
     return duplicatedItem.copyWith(id: newItemId);
@@ -1744,7 +1727,7 @@ class EnhancedOfflineDataService {
     }
     
     // Retornar o detalhe duplicado (sem verificações redundantes)
-    debugPrint('EnhancedOfflineDataService: Successfully duplicated direct detail ${originalDetail.id} -> $newDetailId');
+    debugPrint('OfflineDataService: Successfully duplicated direct detail ${originalDetail.id} -> $newDetailId');
     
     return duplicatedDetail.copyWith(id: newDetailId);
   }

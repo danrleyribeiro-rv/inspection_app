@@ -147,7 +147,9 @@ class MapLocationCard extends StatelessWidget {
                             : 'Endereço não fornecido',
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.grey[400],
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey[400]
+                              : Colors.black,
                         ),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,

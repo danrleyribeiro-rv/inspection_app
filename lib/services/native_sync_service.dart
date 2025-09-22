@@ -51,9 +51,13 @@ class NativeSyncService {
       
       // Start enhanced sync with verification
       final result = await FirestoreSyncService.instance.syncInspection(inspectionId);
-      
-      // Clean up subscription
-      await progressSubscription.cancel();
+
+      // Clean up subscription safely
+      try {
+        await progressSubscription.cancel();
+      } catch (e) {
+        debugPrint('NativeSyncService: Error canceling progress subscription: $e');
+      }
       
       if (result['success'] == true) {
         final verification = result['verification'];
@@ -134,9 +138,13 @@ class NativeSyncService {
       
       // Start enhanced multiple inspections sync
       final result = await FirestoreSyncService.instance.syncMultipleInspections(inspectionIds);
-      
-      // Clean up subscription
-      await progressSubscription.cancel();
+
+      // Clean up subscription safely
+      try {
+        await progressSubscription.cancel();
+      } catch (e) {
+        debugPrint('NativeSyncService: Error canceling progress subscription: $e');
+      }
       
       if (result['success'] == true) {
         final successCount = result['successCount'] ?? 0;

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:lince_inspecoes/services/data/offline_data_service.dart';
+import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 
 class OfflineMediaService {
   static OfflineMediaService? _instance;
@@ -81,14 +81,18 @@ class OfflineMediaService {
       };
 
       // Salvar no banco de dados
-      await _dataService.saveMediaFile(
-        inspectionId,
-        fileName,
-        await outputFile.readAsBytes(),
+      final fileBytes = await outputFile.readAsBytes();
+      await _dataService.saveOfflineMedia(
+        inspectionId: inspectionId,
+        filename: fileName,
+        localPath: outputFile.path,
+        cloudUrl: '',
+        type: type,
+        fileSize: fileBytes.length,
+        // mimeType removido - usar 'image/jpeg' como padrão
         topicId: topicId,
         itemId: itemId,
         detailId: detailId,
-        fileType: type,
       );
 
       debugPrint('OfflineMediaService: Captured and processed media $mediaId');

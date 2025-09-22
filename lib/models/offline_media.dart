@@ -1,41 +1,58 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:json_annotation/json_annotation.dart';
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
 part 'offline_media.g.dart';
 
-@JsonSerializable()
+@HiveType(typeId: 5)
 class OfflineMedia {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String inspectionId;
+  @HiveField(2)
   final String? topicId;
+  @HiveField(3)
   final String? itemId;
+  @HiveField(4)
   final String? detailId;
+  @HiveField(5)
   final String? nonConformityId;
+  @HiveField(6)
   final String type; // image, video
+  @HiveField(7)
   final String localPath;
+  @HiveField(8)
   final String? cloudUrl;
+  @HiveField(9)
   final String filename;
+  @HiveField(10)
   final int? fileSize;
-  final String? mimeType;
+  @HiveField(11)
   final String? thumbnailPath;
+  @HiveField(12)
   final int? duration; // Para vídeos, em segundos
+  @HiveField(13)
   final int? width;
+  @HiveField(14)
   final int? height;
-  final bool isProcessed;
+  @HiveField(15)
   final bool isUploaded;
+  @HiveField(16)
   final double uploadProgress;
+  @HiveField(17)
   final DateTime createdAt;
+  @HiveField(18)
   final DateTime updatedAt;
+  @HiveField(19)
   final bool needsSync;
+  @HiveField(20)
   final bool isDeleted;
+  @HiveField(21)
   final String? source; // camera, gallery, import
+  @HiveField(22)
   final bool isResolutionMedia; // NEW: indicates if this media is for NC resolution (solved_media)
-  final Map<String, dynamic>? metadata;
-  final DateTime? capturedAt; // Timestamp quando a mídia foi capturada/registrada
-  final double? latitude; // GPS latitude
-  final double? longitude; // GPS longitude
+  @HiveField(23)
   final int orderIndex; // Índice de ordenação fixa para preservar ordem cronológica
 
   OfflineMedia({
@@ -50,12 +67,10 @@ class OfflineMedia {
     this.cloudUrl,
     required this.filename,
     this.fileSize,
-    this.mimeType,
     this.thumbnailPath,
     this.duration,
     this.width,
     this.height,
-    this.isProcessed = false,
     this.isUploaded = false,
     this.uploadProgress = 0.0,
     required this.createdAt,
@@ -64,10 +79,6 @@ class OfflineMedia {
     this.isDeleted = false,
     this.source,
     this.isResolutionMedia = false,
-    this.metadata,
-    this.capturedAt,
-    this.latitude,
-    this.longitude,
     this.orderIndex = 0,
   });
 
@@ -81,19 +92,14 @@ class OfflineMedia {
     required String localPath,
     required String filename,
     int? fileSize,
-    String? mimeType,
     int? width,
     int? height,
     int? duration,
     String? source,
     bool isResolutionMedia = false,
-    Map<String, dynamic>? metadata,
-    DateTime? capturedAt,
-    double? latitude,
-    double? longitude,
     int? orderIndex,
   }) {
-    final now = DateTime.now();
+    final now = DateFormatter.now();
     return OfflineMedia(
       id: const Uuid().v4(),
       inspectionId: inspectionId,
@@ -105,7 +111,6 @@ class OfflineMedia {
       localPath: localPath,
       filename: filename,
       fileSize: fileSize,
-      mimeType: mimeType,
       width: width,
       height: height,
       duration: duration,
@@ -115,33 +120,17 @@ class OfflineMedia {
       isDeleted: false,
       source: source,
       isResolutionMedia: isResolutionMedia,
-      metadata: metadata,
-      capturedAt: capturedAt ?? now, // Use provided timestamp or current time
-      latitude: latitude,
-      longitude: longitude,
-      orderIndex: orderIndex ?? DateTime.now().millisecondsSinceEpoch, // Use timestamp as default order
+      orderIndex: orderIndex ?? DateFormatter.now().millisecondsSinceEpoch, // Use timestamp as default order
     );
   }
 
-  factory OfflineMedia.fromJson(Map<String, dynamic> json) =>
-      _$OfflineMediaFromJson(json);
+  factory OfflineMedia.fromJson(Map<String, dynamic> json) {
+    return OfflineMedia.fromMap(json);
+  }
 
-  Map<String, dynamic> toJson() => _$OfflineMediaToJson(this);
+  Map<String, dynamic> toJson() => toMap();
 
   factory OfflineMedia.fromMap(Map<String, dynamic> map) {
-    // Parse metadata JSON string back to Map
-    Map<String, dynamic>? metadata;
-    if (map['metadata'] != null && map['metadata'] is String) {
-      try {
-        metadata = Map<String, dynamic>.from(
-          jsonDecode(map['metadata'] as String)
-        );
-      } catch (e) {
-        debugPrint('Error parsing metadata: $e');
-        metadata = null;
-      }
-    }
-    
     return OfflineMedia(
       id: map['id'] as String,
       inspectionId: map['inspection_id'] as String,
@@ -154,12 +143,10 @@ class OfflineMedia {
       cloudUrl: map['cloud_url'] as String?,
       filename: map['filename'] as String,
       fileSize: map['file_size'] as int?,
-      mimeType: map['mime_type'] as String?,
       thumbnailPath: map['thumbnail_path'] as String?,
       duration: map['duration'] as int?,
       width: map['width'] as int?,
       height: map['height'] as int?,
-      isProcessed: (map['is_processed'] as int? ?? 0) == 1,
       isUploaded: (map['is_uploaded'] as int? ?? 0) == 1,
       uploadProgress: (map['upload_progress'] as num?)?.toDouble() ?? 0.0,
       createdAt: DateTime.parse(map['created_at'] as String),
@@ -168,10 +155,7 @@ class OfflineMedia {
       isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
       source: map['source'] as String?,
       isResolutionMedia: (map['is_resolution_media'] as int? ?? 0) == 1,
-      metadata: metadata,
-      capturedAt: map['captured_at'] != null ? DateTime.parse(map['captured_at'] as String) : null,
-      latitude: map['latitude'] as double?,
-      longitude: map['longitude'] as double?,
+      orderIndex: (map['order_index'] as int?) ?? 0,
     );
   }
 
@@ -188,12 +172,10 @@ class OfflineMedia {
       'cloud_url': cloudUrl,
       'filename': filename,
       'file_size': fileSize,
-      'mime_type': mimeType,
       'thumbnail_path': thumbnailPath,
       'duration': duration,
       'width': width,
       'height': height,
-      'is_processed': isProcessed ? 1 : 0,
       'is_uploaded': isUploaded ? 1 : 0,
       'upload_progress': uploadProgress,
       'created_at': createdAt.toIso8601String(),
@@ -202,10 +184,7 @@ class OfflineMedia {
       'is_deleted': isDeleted ? 1 : 0,
       'source': source,
       'is_resolution_media': isResolutionMedia ? 1 : 0,
-      'metadata': metadata != null ? jsonEncode(metadata) : null,
-      'captured_at': capturedAt?.toIso8601String(),
-      'latitude': latitude,
-      'longitude': longitude,
+      'order_index': orderIndex,
     };
   }
 
@@ -221,12 +200,10 @@ class OfflineMedia {
     String? cloudUrl,
     String? filename,
     int? fileSize,
-    String? mimeType,
     String? thumbnailPath,
     int? duration,
     int? width,
     int? height,
-    bool? isProcessed,
     bool? isUploaded,
     double? uploadProgress,
     DateTime? createdAt,
@@ -235,10 +212,7 @@ class OfflineMedia {
     bool? isDeleted,
     String? source,
     bool? isResolutionMedia,
-    Map<String, dynamic>? metadata,
-    DateTime? capturedAt,
-    double? latitude,
-    double? longitude,
+    int? orderIndex,
   }) {
     return OfflineMedia(
       id: id ?? this.id,
@@ -252,12 +226,10 @@ class OfflineMedia {
       cloudUrl: cloudUrl ?? this.cloudUrl,
       filename: filename ?? this.filename,
       fileSize: fileSize ?? this.fileSize,
-      mimeType: mimeType ?? this.mimeType,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       duration: duration ?? this.duration,
       width: width ?? this.width,
       height: height ?? this.height,
-      isProcessed: isProcessed ?? this.isProcessed,
       isUploaded: isUploaded ?? this.isUploaded,
       uploadProgress: uploadProgress ?? this.uploadProgress,
       createdAt: createdAt ?? this.createdAt,
@@ -266,10 +238,7 @@ class OfflineMedia {
       isDeleted: isDeleted ?? this.isDeleted,
       source: source ?? this.source,
       isResolutionMedia: isResolutionMedia ?? this.isResolutionMedia,
-      metadata: metadata ?? this.metadata,
-      capturedAt: capturedAt ?? this.capturedAt,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
+      orderIndex: orderIndex ?? this.orderIndex,
     );
   }
 
@@ -284,16 +253,15 @@ class OfflineMedia {
 
   @override
   String toString() {
-    return 'OfflineMedia(id: $id, filename: $filename, type: $type, isProcessed: $isProcessed, isUploaded: $isUploaded)';
+    return 'OfflineMedia(id: $id, filename: $filename, type: $type, isUploaded: $isUploaded)';
   }
 
   // Getters utilitários
   bool get isImage => type == 'image';
   bool get isVideo => type == 'video';
-  bool get isReadyForUpload => isProcessed && !isUploaded;
+  bool get isReadyForUpload => !isUploaded;
   bool get isFullyUploaded => isUploaded && uploadProgress >= 100.0;
-  bool get isProcessing => !isProcessed && !isUploaded;
-  bool get isUploading => isProcessed && !isUploaded && uploadProgress > 0.0 && uploadProgress < 100.0;
+  bool get isUploading => !isUploaded && uploadProgress > 0.0 && uploadProgress < 100.0;
   
   String get displayName => filename.split('.').first;
   String get extension => filename.split('.').last;
@@ -302,7 +270,6 @@ class OfflineMedia {
     if (isUploaded) return 'Enviado';
     if (isUploading) return 'Enviando...';
     if (isReadyForUpload) return 'Pronto para envio';
-    if (isProcessing) return 'Processando...';
     return 'Pendente';
   }
   

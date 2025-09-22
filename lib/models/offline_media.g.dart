@@ -3,74 +3,108 @@
 part of 'offline_media.dart';
 
 // **************************************************************************
-// JsonSerializableGenerator
+// TypeAdapterGenerator
 // **************************************************************************
 
-OfflineMedia _$OfflineMediaFromJson(Map<String, dynamic> json) => OfflineMedia(
-      id: json['id'] as String,
-      inspectionId: json['inspectionId'] as String,
-      topicId: json['topicId'] as String?,
-      itemId: json['itemId'] as String?,
-      detailId: json['detailId'] as String?,
-      nonConformityId: json['nonConformityId'] as String?,
-      type: json['type'] as String,
-      localPath: json['localPath'] as String,
-      cloudUrl: json['cloudUrl'] as String?,
-      filename: json['filename'] as String,
-      fileSize: (json['fileSize'] as num?)?.toInt(),
-      mimeType: json['mimeType'] as String?,
-      thumbnailPath: json['thumbnailPath'] as String?,
-      duration: (json['duration'] as num?)?.toInt(),
-      width: (json['width'] as num?)?.toInt(),
-      height: (json['height'] as num?)?.toInt(),
-      isProcessed: json['isProcessed'] as bool? ?? false,
-      isUploaded: json['isUploaded'] as bool? ?? false,
-      uploadProgress: (json['uploadProgress'] as num?)?.toDouble() ?? 0.0,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      needsSync: json['needsSync'] as bool? ?? false,
-      isDeleted: json['isDeleted'] as bool? ?? false,
-      source: json['source'] as String?,
-      isResolutionMedia: json['isResolutionMedia'] as bool? ?? false,
-      metadata: json['metadata'] as Map<String, dynamic>?,
-      capturedAt: json['capturedAt'] == null
-          ? null
-          : DateTime.parse(json['capturedAt'] as String),
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
-      orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
-    );
+class OfflineMediaAdapter extends TypeAdapter<OfflineMedia> {
+  @override
+  final int typeId = 5;
 
-Map<String, dynamic> _$OfflineMediaToJson(OfflineMedia instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'inspectionId': instance.inspectionId,
-      'topicId': instance.topicId,
-      'itemId': instance.itemId,
-      'detailId': instance.detailId,
-      'nonConformityId': instance.nonConformityId,
-      'type': instance.type,
-      'localPath': instance.localPath,
-      'cloudUrl': instance.cloudUrl,
-      'filename': instance.filename,
-      'fileSize': instance.fileSize,
-      'mimeType': instance.mimeType,
-      'thumbnailPath': instance.thumbnailPath,
-      'duration': instance.duration,
-      'width': instance.width,
-      'height': instance.height,
-      'isProcessed': instance.isProcessed,
-      'isUploaded': instance.isUploaded,
-      'uploadProgress': instance.uploadProgress,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'updatedAt': instance.updatedAt.toIso8601String(),
-      'needsSync': instance.needsSync,
-      'isDeleted': instance.isDeleted,
-      'source': instance.source,
-      'isResolutionMedia': instance.isResolutionMedia,
-      'metadata': instance.metadata,
-      'capturedAt': instance.capturedAt?.toIso8601String(),
-      'latitude': instance.latitude,
-      'longitude': instance.longitude,
-      'orderIndex': instance.orderIndex,
+  @override
+  OfflineMedia read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+    return OfflineMedia(
+      id: fields[0] as String,
+      inspectionId: fields[1] as String,
+      topicId: fields[2] as String?,
+      itemId: fields[3] as String?,
+      detailId: fields[4] as String?,
+      nonConformityId: fields[5] as String?,
+      type: fields[6] as String,
+      localPath: fields[7] as String,
+      cloudUrl: fields[8] as String?,
+      filename: fields[9] as String,
+      fileSize: fields[10] as int?,
+      thumbnailPath: fields[11] as String?,
+      duration: fields[12] as int?,
+      width: fields[13] as int?,
+      height: fields[14] as int?,
+      isUploaded: fields[15] as bool? ?? false,
+      uploadProgress: fields[16] as double? ?? 0.0,
+      createdAt: fields[17] as DateTime? ?? DateTime.now(),
+      updatedAt: fields[18] as DateTime? ?? DateTime.now(),
+      needsSync: fields[19] as bool? ?? false,
+      isDeleted: fields[20] as bool? ?? false,
+      source: fields[21] as String?,
+      isResolutionMedia: fields[22] as bool? ?? false,
+      orderIndex: fields[23] as int? ?? 0,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, OfflineMedia obj) {
+    writer
+      ..writeByte(24)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.inspectionId)
+      ..writeByte(2)
+      ..write(obj.topicId)
+      ..writeByte(3)
+      ..write(obj.itemId)
+      ..writeByte(4)
+      ..write(obj.detailId)
+      ..writeByte(5)
+      ..write(obj.nonConformityId)
+      ..writeByte(6)
+      ..write(obj.type)
+      ..writeByte(7)
+      ..write(obj.localPath)
+      ..writeByte(8)
+      ..write(obj.cloudUrl)
+      ..writeByte(9)
+      ..write(obj.filename)
+      ..writeByte(10)
+      ..write(obj.fileSize)
+      ..writeByte(11)
+      ..write(obj.thumbnailPath)
+      ..writeByte(12)
+      ..write(obj.duration)
+      ..writeByte(13)
+      ..write(obj.width)
+      ..writeByte(14)
+      ..write(obj.height)
+      ..writeByte(15)
+      ..write(obj.isUploaded)
+      ..writeByte(16)
+      ..write(obj.uploadProgress)
+      ..writeByte(17)
+      ..write(obj.createdAt)
+      ..writeByte(18)
+      ..write(obj.updatedAt)
+      ..writeByte(19)
+      ..write(obj.needsSync)
+      ..writeByte(20)
+      ..write(obj.isDeleted)
+      ..writeByte(21)
+      ..write(obj.source)
+      ..writeByte(22)
+      ..write(obj.isResolutionMedia)
+      ..writeByte(23)
+      ..write(obj.orderIndex);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OfflineMediaAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

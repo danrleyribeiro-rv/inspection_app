@@ -82,10 +82,11 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
       // Check if topic has direct_details
       final topic = widget.topics.firstWhere((t) => t.id == topicId);
       final hasDirectDetails = topic.directDetails == true;
-      
+
       if (hasDirectDetails) {
         // Load direct details instead of items
-        final directDetails = await _serviceFactory.dataService.getDetailsByTopic(topicId);
+        final directDetails =
+            await _serviceFactory.dataService.getDetailsByTopic(topicId);
         if (mounted) {
           setState(() {
             _hasDirectDetails = true;
@@ -375,7 +376,7 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 value: _isNonConformityOnly ?? false,
                 onChanged: (value) =>
                     setState(() => _isNonConformityOnly = value),
-                activeColor: Colors.orange,
+                activeThumbColor: Colors.orange,
                 contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 10),
@@ -388,32 +389,30 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 decoration: BoxDecoration(
                     color: Colors.grey[800],
                     borderRadius: BorderRadius.circular(8)),
-                child: Column(
-                  children: [
-                    RadioListTile<String?>(
+                child: RadioGroup<String?>(
+                  groupValue: _mediaType,
+                  onChanged: (value) => setState(() => _mediaType = value),
+                  child: Column(
+                    children: [
+                      RadioListTile<String?>(
                         title: const Text('Todos'),
                         value: null,
-                        groupValue: _mediaType,
-                        onChanged: (value) =>
-                            setState(() => _mediaType = value),
-                        activeColor: Colors.blue),
-                    Divider(height: 1, color: Colors.grey[700]),
-                    RadioListTile<String>(
+                        activeColor: Colors.blue,
+                      ),
+                      Divider(height: 1, color: Colors.grey[700]),
+                      RadioListTile<String>(
                         title: const Text('Fotos'),
                         value: 'image',
-                        groupValue: _mediaType,
-                        onChanged: (value) =>
-                            setState(() => _mediaType = value),
-                        activeColor: Colors.blue),
-                    Divider(height: 1, color: Colors.grey[700]),
-                    RadioListTile<String>(
+                        activeColor: Colors.blue,
+                      ),
+                      Divider(height: 1, color: Colors.grey[700]),
+                      RadioListTile<String>(
                         title: const Text('Vídeos'),
                         value: 'video',
-                        groupValue: _mediaType,
-                        onChanged: (value) =>
-                            setState(() => _mediaType = value),
-                        activeColor: Colors.blue),
-                  ],
+                        activeColor: Colors.blue,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

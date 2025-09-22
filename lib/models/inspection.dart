@@ -1,33 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
+part 'inspection.g.dart';
+
+@HiveType(typeId: 0)
 class Inspection {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String title;
+  @HiveField(2)
   final String? cod;
+  @HiveField(3)
   final String? street;
+  @HiveField(4)
   final String? neighborhood;
+  @HiveField(5)
   final String? city;
+  @HiveField(6)
   final String? state;
+  @HiveField(7)
   final String? zipCode;
+  @HiveField(8)
   final String? addressString;
+  @HiveField(9)
   final Map<String, dynamic>? address;
+  @HiveField(10)
   final String status;
+  @HiveField(11)
   final String? observation;
+  @HiveField(12)
   final DateTime? scheduledDate;
+  @HiveField(13)
   final DateTime? finishedAt;
+  @HiveField(14)
   final DateTime createdAt;
+  @HiveField(15)
   final DateTime updatedAt;
+  @HiveField(16)
   final String? projectId;
+  @HiveField(17)
   final String? inspectorId;
+  @HiveField(18)
   final bool isTemplated;
+  @HiveField(19)
   final String? templateId;
+  @HiveField(20)
   final bool isSynced;
+  @HiveField(21)
   final DateTime? lastSyncAt;
+  @HiveField(22)
   final bool hasLocalChanges;
+  @HiveField(23)
   final List<Map<String, dynamic>>? topics;
+  @HiveField(24)
   final bool needsSync;
+  @HiveField(25)
   final List<Map<String, dynamic>>? syncHistory;
+  @HiveField(26)
   final String? area;
+  @HiveField(27)
   final DateTime? deletedAt;
 
   Inspection({
@@ -272,8 +305,8 @@ class Inspection {
       observation: json['observation'],
       scheduledDate: _parseDateTime(json['scheduled_date']),
       finishedAt: _parseDateTime(json['finished_at']),
-      createdAt: _parseDateTime(json['created_at']) ?? DateTime.now(),
-      updatedAt: _parseDateTime(json['updated_at']) ?? DateTime.now(),
+      createdAt: _parseDateTime(json['created_at']) ?? DateFormatter.now(),
+      updatedAt: _parseDateTime(json['updated_at']) ?? DateFormatter.now(),
       projectId: json['project_id']?.toString(),
       inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,

@@ -1,26 +1,44 @@
-import 'package:json_annotation/json_annotation.dart';
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
 part 'non_conformity.g.dart';
 
-@JsonSerializable()
+@HiveType(typeId: 4)
 class NonConformity {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String inspectionId;
+  @HiveField(2)
   final String? topicId;
+  @HiveField(3)
   final String? itemId;
+  @HiveField(4)
   final String? detailId;
+  @HiveField(5)
   final String title;
+  @HiveField(6)
   final String description;
+  @HiveField(7)
   final String severity; // low, medium, high, critical
+  @HiveField(8)
   final String status; // open, closed, in_progress
+  @HiveField(9)
   final String? correctiveAction;
+  @HiveField(10)
   final DateTime? deadline;
+  @HiveField(11)
   final bool isResolved; // NEW: flag for resolution status
+  @HiveField(12)
   final DateTime? resolvedAt; // NEW: resolution timestamp
+  @HiveField(13)
   final DateTime createdAt;
+  @HiveField(14)
   final DateTime updatedAt;
+  @HiveField(15)
   final bool needsSync;
+  @HiveField(16)
   final bool isDeleted;
 
   NonConformity({
@@ -57,7 +75,7 @@ class NonConformity {
     bool isResolved = false,
     DateTime? resolvedAt,
   }) {
-    final now = DateTime.now();
+    final now = DateFormatter.now();
     return NonConformity(
       id: const Uuid().v4(),
       inspectionId: inspectionId,
@@ -79,10 +97,11 @@ class NonConformity {
     );
   }
 
-  factory NonConformity.fromJson(Map<String, dynamic> json) =>
-      _$NonConformityFromJson(json);
+  factory NonConformity.fromJson(Map<String, dynamic> json) {
+    return NonConformity.fromMap(json);
+  }
 
-  Map<String, dynamic> toJson() => _$NonConformityToJson(this);
+  Map<String, dynamic> toJson() => toMap();
 
   factory NonConformity.fromMap(Map<String, dynamic> map) {
     return NonConformity(

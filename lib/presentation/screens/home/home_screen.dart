@@ -41,20 +41,22 @@ class _HomeScreenState extends State<HomeScreen> {
   void _checkNotificationPermissions() async {
     // Aguarda um pouco para garantir que a tela esteja totalmente carregada
     await Future.delayed(const Duration(milliseconds: 1500));
-    
+
     if (!mounted) return;
-    
+
     // Verifica se as notificações já estão habilitadas
-    final areEnabled = await SimpleNotificationService.instance.areNotificationsEnabled();
-    
+    final areEnabled =
+        await SimpleNotificationService.instance.areNotificationsEnabled();
+
     if (!areEnabled && mounted) {
       // Mostra o diálogo de permissão
       final granted = await NotificationPermissionDialog.show(context);
-      
+
       if (granted && mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Notificações habilitadas! Você receberá atualizações sobre sincronizações.'),
+            content: Text(
+                'Notificações habilitadas! Você receberá atualizações sobre sincronizações.'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -63,18 +65,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: _tabs[_currentIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF312456),
+          color: theme.colorScheme.surface,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha((0.1 * 255).round()),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -91,10 +101,10 @@ class _HomeScreenState extends State<HomeScreen> {
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.transparent,
             elevation: 0,
-            selectedItemColor: const Color(0xFFBB8FEB),
-            unselectedItemColor: Colors.grey[400],
-            selectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+            selectedItemColor: theme.colorScheme.primary,
+            unselectedItemColor: theme.unselectedWidgetColor,
+            selectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             unselectedLabelStyle:
                 const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
             showUnselectedLabels: true,
@@ -102,13 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
               BottomNavigationBarItem(
                 icon: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: _currentIndex == 0
-                      ? BoxDecoration(
-                          color: const Color(0xFFBB8FEB)
-                              .withAlpha((255 * 0.12).round()),
-                          borderRadius: BorderRadius.circular(12),
-                        )
-                      : null,
                   child: const Icon(Icons.check_box),
                 ),
                 label: 'Inspeções',
@@ -116,13 +119,6 @@ class _HomeScreenState extends State<HomeScreen> {
               BottomNavigationBarItem(
                 icon: Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: _currentIndex == 1
-                      ? BoxDecoration(
-                          color: const Color(0xFFBB8FEB)
-                              .withAlpha((255 * 0.12).round()),
-                          borderRadius: BorderRadius.circular(12),
-                        )
-                      : null,
                   child: const Icon(Icons.person),
                 ),
                 label: 'Perfil',

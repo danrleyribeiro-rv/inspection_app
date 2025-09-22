@@ -1,5 +1,6 @@
 // lib/models/user.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
 class User {
   final String id;
@@ -25,8 +26,8 @@ class User {
       id: doc.id,
       email: data['email'] ?? '',
       role: data['role'] ?? 'user',
-      createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updated_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateFormatter.now(),
+      updatedAt: (data['updated_at'] as Timestamp?)?.toDate() ?? DateFormatter.now(),
       profileImageUrl: data['profileImageUrl'],
     );
   }
@@ -53,7 +54,7 @@ class User {
       email: email ?? this.email,
       role: role ?? this.role,
       createdAt: createdAt,
-      updatedAt: DateTime.now(),
+      updatedAt: DateFormatter.now(),
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
     );
   }

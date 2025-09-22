@@ -8,14 +8,12 @@ import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/hierarchical_inspection_view.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/empty_topic_state.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/loading_state.dart';
-import 'package:lince_inspecoes/presentation/widgets/dialogs/offline_template_topic_selector_dialog.dart';
+import 'package:lince_inspecoes/presentation/widgets/dialogs/template_selector_dialog.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/inspection_info_dialog.dart';
@@ -32,7 +30,8 @@ class InspectionDetailScreen extends StatefulWidget {
   State<InspectionDetailScreen> createState() => _InspectionDetailScreenState();
 }
 
-class _InspectionDetailScreenState extends State<InspectionDetailScreen> with WidgetsBindingObserver {
+class _InspectionDetailScreenState extends State<InspectionDetailScreen>
+    with WidgetsBindingObserver {
   final EnhancedOfflineServiceFactory _serviceFactory =
       EnhancedOfflineServiceFactory.instance;
 
@@ -64,21 +63,25 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.resumed:
-        debugPrint('InspectionDetailScreen: App resumed - navigation state restoration controlled by session');
+        debugPrint(
+            'InspectionDetailScreen: App resumed - navigation state restoration controlled by session');
         break;
       case AppLifecycleState.paused:
-        debugPrint('InspectionDetailScreen: App paused - navigation state will be preserved');
+        debugPrint(
+            'InspectionDetailScreen: App paused - navigation state will be preserved');
         break;
       case AppLifecycleState.detached:
         // App está sendo completamente fechado
-        debugPrint('InspectionDetailScreen: App detached - preparing for session reset');
+        debugPrint(
+            'InspectionDetailScreen: App detached - preparing for session reset');
         NavigationStateService.markNewSession();
         break;
       case AppLifecycleState.inactive:
-        debugPrint('InspectionDetailScreen: App inactive (notification panel, etc.)');
+        debugPrint(
+            'InspectionDetailScreen: App inactive (notification panel, etc.)');
         break;
       case AppLifecycleState.hidden:
         debugPrint('InspectionDetailScreen: App hidden');
@@ -169,17 +172,18 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
     try {
       // Always load topics (especially after adding new ones)
-      final topics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
-      
+      final topics =
+          await _serviceFactory.dataService.getTopics(widget.inspectionId);
 
       // Load items and details for all topics
       for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
         final topic = topics[topicIndex];
         final topicId = topic.id ?? 'topic_$topicIndex';
-        
+
         // Always reload to ensure we have the latest data
         if (topic.directDetails == true) {
-          final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
+          final directDetails =
+              await _serviceFactory.dataService.getDirectDetails(topicId);
           _detailsCache['${topicId}_direct'] = directDetails;
           _itemsCache[topicId] = [];
         } else {
@@ -189,7 +193,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
             final item = items[itemIndex];
             final itemId = item.id ?? 'item_$itemIndex';
-            final details = await _serviceFactory.dataService.getDetails(itemId);
+            final details =
+                await _serviceFactory.dataService.getDetails(itemId);
             _detailsCache['${topicId}_$itemId'] = details;
           }
         }
@@ -207,8 +212,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       }
     }
   }
-
-
 
   void _showErrorSnackBar(String message) {
     if (mounted) {
@@ -244,8 +247,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                   await _downloadInspectionForOffline();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6F4B99),
-                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 ),
                 child: const Text('Baixar'),
               ),
@@ -314,10 +317,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       return;
     }
 
-    // Use offline-capable dialog that works with cached templates
+    // Use unified template dialog for topics
     final result = await showDialog<Topic>(
       context: context,
-      builder: (context) => OfflineTemplateTopicSelectorDialog(
+      builder: (context) => TemplateSelectorDialog(
+        title: 'Adicionar Tópico',
+        type: 'topic',
+        parentName: '',
         inspectionId: widget.inspectionId,
         templateId: _inspection?.templateId,
       ),
@@ -335,8 +341,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       // Adicionar o tópico à estrutura aninhada da inspeção
       await _addTopicToNestedStructure(result);
 
-      await _markAsModified();
-
       // Reload data to ensure consistency and show new topic immediately
       await _loadAllData();
 
@@ -344,7 +348,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         setState(() {}); // Trigger UI update
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Tópico "${result.topicName}" adicionado com sucesso'),
+            content:
+                Text('Tópico "${result.topicName}" adicionado com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -368,32 +373,40 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       // Verificar se o tópico tem ID válido, se não tiver, buscar por position
       String? topicId = topic.id;
       if (topicId == null) {
-        debugPrint('InspectionDetailScreen: Topic ID is null, searching by position ${topic.position}');
+        debugPrint(
+            'InspectionDetailScreen: Topic ID is null, searching by position ${topic.position}');
         // Buscar o tópico recém-criado pelo position
-        final allTopics = await _serviceFactory.dataService.getTopics(widget.inspectionId);
-        final matchingTopic = allTopics.where((t) => t.position == topic.position && t.topicName == topic.topicName).firstOrNull;
+        final allTopics =
+            await _serviceFactory.dataService.getTopics(widget.inspectionId);
+        final matchingTopic = allTopics
+            .where((t) =>
+                t.position == topic.position && t.topicName == topic.topicName)
+            .firstOrNull;
         if (matchingTopic?.id != null) {
           topicId = matchingTopic!.id;
-          debugPrint('InspectionDetailScreen: Found topic by position with ID: $topicId');
+          debugPrint(
+              'InspectionDetailScreen: Found topic by position with ID: $topicId');
         } else {
-          debugPrint('InspectionDetailScreen: Could not find topic by position, cannot add to nested structure');
+          debugPrint(
+              'InspectionDetailScreen: Could not find topic by position, cannot add to nested structure');
           return;
         }
       }
-      
+
       // Buscar itens criados para este tópico usando o topicId encontrado
       final items = await _serviceFactory.dataService.getItems(topicId!);
-      
+
       // Verificar se é um tópico com direct_details
       final bool hasDirectDetails = topic.directDetails == true;
-      
+
       // Criar estrutura do tópico baseada no tipo
       Map<String, dynamic> topicData;
-      
+
       if (hasDirectDetails) {
         // Para tópicos com direct_details, buscar detalhes diretos
-        final directDetails = await _serviceFactory.dataService.getDirectDetails(topicId);
-        
+        final directDetails =
+            await _serviceFactory.dataService.getDirectDetails(topicId);
+
         final List<Map<String, dynamic>> detailsData = [];
         for (final detail in directDetails) {
           try {
@@ -408,10 +421,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
               'non_conformities': [],
             });
           } catch (e) {
-            debugPrint('InspectionDetailScreen: Error processing direct detail ${detail.id}: $e');
+            debugPrint(
+                'InspectionDetailScreen: Error processing direct detail ${detail.id}: $e');
           }
         }
-        
+
         topicData = {
           'name': topic.topicName,
           'description': topic.topicLabel ?? '',
@@ -426,12 +440,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         final List<Map<String, dynamic>> itemsData = [];
         for (final item in items) {
           if (item.id == null) {
-            debugPrint('InspectionDetailScreen: Item ID is null, skipping item');
+            debugPrint(
+                'InspectionDetailScreen: Item ID is null, skipping item');
             continue;
           }
-          
-          final details = await _serviceFactory.dataService.getDetails(item.id!);
-          
+
+          final details =
+              await _serviceFactory.dataService.getDetails(item.id!);
+
           final List<Map<String, dynamic>> detailsData = [];
           for (final detail in details) {
             try {
@@ -446,10 +462,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                 'non_conformities': [],
               });
             } catch (e) {
-              debugPrint('InspectionDetailScreen: Error processing detail ${detail.id}: $e');
+              debugPrint(
+                  'InspectionDetailScreen: Error processing detail ${detail.id}: $e');
             }
           }
-          
+
           itemsData.add({
             'name': item.itemName,
             'description': item.itemLabel ?? '',
@@ -462,7 +479,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
             'non_conformities': [],
           });
         }
-        
+
         topicData = {
           'name': topic.topicName,
           'description': topic.topicLabel ?? '',
@@ -473,7 +490,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           'non_conformities': [],
         };
       }
-      
 
       // Obter os topics atuais da inspeção
       final currentTopics =
@@ -528,29 +544,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     }
   }
 
-  Future<void> _markAsModified() async {
-    try {
-      await _serviceFactory.dataService
-          .updateInspectionStatus(widget.inspectionId, 'modified');
-      debugPrint(
-          'InspectionDetailScreen: Marked inspection ${widget.inspectionId} as modified');
-    } catch (e) {
-      debugPrint(
-          'InspectionDetailScreen: Error marking inspection as modified: $e');
-    }
-  }
-
   Future<void> _updateCache() async {
-    await _markAsModified();
     _invalidateProgressCache();
-    
+
     // Force reload data to show duplicated items/topics/details
     _itemsCache.clear();
     _detailsCache.clear();
     _topics.clear();
-    
+
     await _loadAllData();
-    
+
     if (mounted) {
       setState(() {});
     }
@@ -558,19 +561,19 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
   double _calculateInspectionProgress() {
     if (_cachedProgress != null) return _cachedProgress!;
-    
+
     if (_topics.isEmpty) return 0.0;
-    
+
     int totalUnits = 0;
     int completedUnits = 0;
-    
+
     for (final topic in _topics) {
       final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
-      
+
       if (topic.directDetails == true) {
         final directDetailsKey = '${topicId}_direct';
         final details = _detailsCache[directDetailsKey] ?? [];
-        
+
         for (final detail in details) {
           totalUnits++;
           if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
@@ -579,17 +582,18 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         }
       } else {
         final items = _itemsCache[topicId] ?? [];
-        
+
         for (final item in items) {
           final itemId = item.id ?? 'item_${items.indexOf(item)}';
-          
+
           if (item.evaluable == true) {
             totalUnits++;
-            if (item.evaluationValue != null && item.evaluationValue!.isNotEmpty) {
+            if (item.evaluationValue != null &&
+                item.evaluationValue!.isNotEmpty) {
               completedUnits++;
             }
           }
-          
+
           final details = _detailsCache['${topicId}_$itemId'] ?? [];
           for (final detail in details) {
             totalUnits++;
@@ -600,7 +604,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         }
       }
     }
-    
+
     _cachedProgress = totalUnits > 0 ? completedUnits / totalUnits : 0.0;
     return _cachedProgress!;
   }
@@ -609,13 +613,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     _cachedProgress = null;
   }
 
-
   Map<String, dynamic> _formatMediaForExport(dynamic media) {
     return {
       'filename': media.filename,
       'url': media.cloudUrl ?? '',
       'type': media.type ?? 'image',
-      'created_at': media.createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'created_at': media.createdAt?.toIso8601String() ??
+          DateTime.now().toIso8601String(),
     };
   }
 
@@ -633,16 +637,22 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     try {
       // Create cloud-sync format inspection data
       final Map<String, dynamic> inspectionData = _inspection?.toMap() ?? {};
-      
+
       // Remove ALL local-only fields to match cloud format exactly
       final fieldsToRemove = [
-        'id', 'needs_sync', 'is_deleted', 'has_local_changes', 
-        'is_synced', 'last_sync_at', 'sync_history', 'local_id'
+        'id',
+        'needs_sync',
+        'is_deleted',
+        'has_local_changes',
+        'is_synced',
+        'last_sync_at',
+        'sync_history',
+        'local_id'
       ];
       for (final field in fieldsToRemove) {
         inspectionData.remove(field);
       }
-      
+
       // Ensure timestamps are properly formatted for cloud sync
       if (inspectionData['created_at'] != null) {
         final createdAt = inspectionData['created_at'];
@@ -653,7 +663,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           };
         }
       }
-      
+
       if (inspectionData['updated_at'] != null) {
         final updatedAt = inspectionData['updated_at'];
         if (updatedAt is DateTime) {
@@ -663,30 +673,33 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           };
         }
       }
-      
+
       // Build ordered and organized topics structure
       final List<Map<String, dynamic>> orderedTopicsData = [];
-      
+
       // Sort topics by position for proper ordering
       final sortedTopics = List<Topic>.from(_topics);
       sortedTopics.sort((a, b) => a.position.compareTo(b.position));
-      
+
       for (final topic in sortedTopics) {
         final topicId = topic.id ?? 'topic_${sortedTopics.indexOf(topic)}';
-        
+
         Map<String, dynamic> topicData;
         if (topic.directDetails == true) {
           // Direct details topic
           final directDetails = _detailsCache['${topicId}_direct'] ?? [];
           final sortedDetails = List.from(directDetails);
-          sortedDetails.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
-          
+          sortedDetails
+              .sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+
           final List<Map<String, dynamic>> detailsData = [];
-          
+
           for (final detail in sortedDetails) {
-            final detailMedia = await _serviceFactory.mediaService.getMediaByContext(detailId: detail.id);
-            final detailNCs = await _serviceFactory.dataService.getNonConformitiesByDetail(detail.id ?? '');
-            
+            final detailMedia = await _serviceFactory.mediaService
+                .getMediaByContext(detailId: detail.id);
+            final detailNCs = await _serviceFactory.dataService
+                .getNonConformitiesByDetail(detail.id ?? '');
+
             detailsData.add({
               'name': detail.detailName,
               'type': detail.type ?? 'text',
@@ -695,43 +708,53 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
               'value': detail.detailValue,
               'observation': detail.observation,
               'is_damaged': false,
-              'media': detailMedia.map((media) => _formatMediaForExport(media)).toList(),
+              'media': detailMedia
+                  .map((media) => _formatMediaForExport(media))
+                  .toList(),
               'non_conformities': detailNCs.map((nc) => nc.toMap()).toList(),
             });
           }
-          
-          final topicMedia = await _serviceFactory.mediaService.getMediaByContext(topicId: topicId);
-          final topicNCs = await _serviceFactory.dataService.getNonConformitiesByTopic(topicId);
-          
+
+          final topicMedia = await _serviceFactory.mediaService
+              .getMediaByContext(topicId: topicId);
+          final topicNCs = await _serviceFactory.dataService
+              .getNonConformitiesByTopic(topicId);
+
           topicData = {
             'name': topic.topicName,
             'description': topic.topicLabel,
             'observation': topic.observation,
             'direct_details': true,
             'details': detailsData,
-            'media': topicMedia.map((media) => _formatMediaForExport(media)).toList(),
+            'media': topicMedia
+                .map((media) => _formatMediaForExport(media))
+                .toList(),
             'non_conformities': topicNCs.map((nc) => nc.toMap()).toList(),
           };
         } else {
           // Regular topic with items
           final items = _itemsCache[topicId] ?? [];
           final sortedItems = List.from(items);
-          sortedItems.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
-          
+          sortedItems
+              .sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+
           final List<Map<String, dynamic>> itemsData = [];
-          
+
           for (final item in sortedItems) {
             final itemId = item.id ?? 'item_${sortedItems.indexOf(item)}';
             final details = _detailsCache['${topicId}_$itemId'] ?? [];
             final sortedDetails = List.from(details);
-            sortedDetails.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
-            
+            sortedDetails
+                .sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+
             final List<Map<String, dynamic>> detailsData = [];
-            
+
             for (final detail in sortedDetails) {
-              final detailMedia = await _serviceFactory.mediaService.getMediaByContext(detailId: detail.id);
-              final detailNCs = await _serviceFactory.dataService.getNonConformitiesByDetail(detail.id ?? '');
-              
+              final detailMedia = await _serviceFactory.mediaService
+                  .getMediaByContext(detailId: detail.id);
+              final detailNCs = await _serviceFactory.dataService
+                  .getNonConformitiesByDetail(detail.id ?? '');
+
               detailsData.add({
                 'name': detail.detailName,
                 'type': detail.type ?? 'text',
@@ -740,14 +763,18 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                 'value': detail.detailValue,
                 'observation': detail.observation,
                 'is_damaged': false,
-                'media': detailMedia.map((media) => _formatMediaForExport(media)).toList(),
+                'media': detailMedia
+                    .map((media) => _formatMediaForExport(media))
+                    .toList(),
                 'non_conformities': detailNCs.map((nc) => nc.toMap()).toList(),
               });
             }
-            
-            final itemMedia = await _serviceFactory.mediaService.getMediaByContext(itemId: itemId);
-            final itemNCs = await _serviceFactory.dataService.getNonConformitiesByItem(itemId);
-            
+
+            final itemMedia = await _serviceFactory.mediaService
+                .getMediaByContext(itemId: itemId);
+            final itemNCs = await _serviceFactory.dataService
+                .getNonConformitiesByItem(itemId);
+
             itemsData.add({
               'name': item.itemName,
               'description': item.itemLabel,
@@ -756,28 +783,34 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
               'evaluation_options': item.evaluationOptions ?? [],
               'evaluation_value': item.evaluationValue,
               'details': detailsData,
-              'media': itemMedia.map((media) => _formatMediaForExport(media)).toList(),
+              'media': itemMedia
+                  .map((media) => _formatMediaForExport(media))
+                  .toList(),
               'non_conformities': itemNCs.map((nc) => nc.toMap()).toList(),
             });
           }
-          
-          final topicMedia = await _serviceFactory.mediaService.getMediaByContext(topicId: topicId);
-          final topicNCs = await _serviceFactory.dataService.getNonConformitiesByTopic(topicId);
-          
+
+          final topicMedia = await _serviceFactory.mediaService
+              .getMediaByContext(topicId: topicId);
+          final topicNCs = await _serviceFactory.dataService
+              .getNonConformitiesByTopic(topicId);
+
           topicData = {
             'name': topic.topicName,
             'description': topic.topicLabel,
             'observation': topic.observation,
             'direct_details': false,
             'items': itemsData,
-            'media': topicMedia.map((media) => _formatMediaForExport(media)).toList(),
+            'media': topicMedia
+                .map((media) => _formatMediaForExport(media))
+                .toList(),
             'non_conformities': topicNCs.map((nc) => nc.toMap()).toList(),
           };
         }
-        
+
         orderedTopicsData.add(topicData);
       }
-      
+
       inspectionData['topics'] = orderedTopicsData;
 
       // Create ZIP archive
@@ -786,31 +819,23 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       // Add inspection JSON file
       final jsonString = jsonEncode(inspectionData);
       final jsonBytes = utf8.encode(jsonString);
-      final jsonFile = ArchiveFile('inspection.json', jsonBytes.length, jsonBytes);
+      final jsonFile =
+          ArchiveFile('inspection.json', jsonBytes.length, jsonBytes);
       archive.addFile(jsonFile);
 
-      // NOVA FUNCIONALIDADE: Adicionar arquivo .db do SQLite
+      // Database backup - Hive databases are stored in a different format
       try {
-        final dbPath = path.join(await getDatabasesPath(), 'inspection_offline.db');
-        final dbFile = File(dbPath);
-
-        if (await dbFile.exists()) {
-          final dbBytes = await dbFile.readAsBytes();
-          final dbArchiveFile = ArchiveFile('database/inspection_offline.db', dbBytes.length, dbBytes);
-          archive.addFile(dbArchiveFile);
-          debugPrint('Database file added to export: ${dbBytes.length} bytes');
-        } else {
-          debugPrint('Database file not found at: $dbPath');
-          // Forçar criação de backup mesmo sem DB
-          final backupInfo = {
-            'message': 'Database backup not available - using JSON export only',
-            'timestamp': DateTime.now().toIso8601String(),
-            'inspection_id': widget.inspectionId,
-          };
-          final backupBytes = utf8.encode(jsonEncode(backupInfo));
-          final backupFile = ArchiveFile('database/backup_info.json', backupBytes.length, backupBytes);
-          archive.addFile(backupFile);
-        }
+        // For Hive, we export the data as JSON instead of raw database files
+        final backupInfo = {
+          'message': 'Using Hive database - JSON export format',
+          'timestamp': DateTime.now().toIso8601String(),
+          'inspection_id': widget.inspectionId,
+          'database_type': 'Hive',
+        };
+        final backupBytes = utf8.encode(jsonEncode(backupInfo));
+        final backupFile = ArchiveFile(
+            'database/backup_info.json', backupBytes.length, backupBytes);
+        archive.addFile(backupFile);
       } catch (e) {
         debugPrint('Error adding database to export: $e');
         // Garantir que sempre tenha algo mesmo com erro
@@ -821,13 +846,15 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           'fallback': 'Using JSON export as primary backup'
         };
         final errorBytes = utf8.encode(jsonEncode(errorInfo));
-        final errorFile = ArchiveFile('database/error_log.json', errorBytes.length, errorBytes);
+        final errorFile = ArchiveFile(
+            'database/error_log.json', errorBytes.length, errorBytes);
         archive.addFile(errorFile);
       }
 
       // Collect and organize all media files with proper structure
-      final allMedia = await _serviceFactory.mediaService.getMediaByInspection(widget.inspectionId);
-      
+      final allMedia = await _serviceFactory.mediaService
+          .getMediaByInspection(widget.inspectionId);
+
       // Build organized folder structure for media
       for (final media in allMedia) {
         try {
@@ -835,11 +862,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
             final imageFile = File(media.localPath);
             if (await imageFile.exists()) {
               final imageBytes = await imageFile.readAsBytes();
-              
+
               String folderPath = _buildMediaFolderPath(media);
-              
+
               final fileName = media.filename;
-              final archiveImageFile = ArchiveFile('$folderPath/$fileName', imageBytes.length, imageBytes);
+              final archiveImageFile = ArchiveFile(
+                  '$folderPath/$fileName', imageBytes.length, imageBytes);
               archive.addFile(archiveImageFile);
             }
           }
@@ -880,7 +908,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
               // Criar pasta Downloads na pasta da aplicação
               directory = Directory('${externalDir.path}/Downloads');
               await directory.create(recursive: true);
-              debugPrint('Created Downloads in external storage: ${directory.path}');
+              debugPrint(
+                  'Created Downloads in external storage: ${directory.path}');
             }
           }
 
@@ -908,7 +937,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
       }
 
       // GARANTIR salvamento do arquivo ZIP
-      final fileName = 'inspecao_${_inspection?.cod ?? 'export'}_${DateTime.now().millisecondsSinceEpoch}.zip';
+      final fileName =
+          'inspecao_${_inspection?.cod ?? 'export'}_${DateTime.now().millisecondsSinceEpoch}.zip';
       File? zipFile;
 
       try {
@@ -941,36 +971,30 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           throw Exception('Failed to save ZIP to any location');
         }
       }
-      
+
       if (mounted) {
+        if (zipFile == null || !(await zipFile.exists())) {
+          throw Exception('Falha ao salvar o arquivo ZIP em um local válido.');
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Inspeção exportada como ZIP!'),
-                const SizedBox(height: 4),
-                Text(
-                  'Local: ${zipFile?.path ?? 'Erro ao obter caminho'}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
+            content: Text('Arquivo salvo em: ${zipFile.path}'),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'ABRIR',
-              textColor: Colors.white,
-              onPressed: () => _openExportedFile(zipFile?.path ?? ''),
-            ),
           ),
+        );
+
+        // Abre a bandeja de compartilhamento nativa com o arquivo.
+        await Share.shareXFiles(
+          [XFile(zipFile.path)],
+          text: 'Inspeção exportada: ${_inspection?.cod ?? 'Lince Inspeções'}',
         );
       }
 
-      debugPrint('Inspection exported successfully as ZIP: ${zipFile?.path ?? 'unknown path'}');
-      debugPrint('ZIP contains organized JSON data, database backup, and ${allMedia.length} images');
-
+      debugPrint(
+          'Inspection exported successfully as ZIP: ${zipFile?.path ?? 'unknown path'}');
+      debugPrint(
+          'ZIP contains organized JSON data, database backup, and ${allMedia.length} images');
     } catch (e) {
       debugPrint('Error exporting inspection: $e');
       if (mounted) {
@@ -990,23 +1014,21 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
     if (media.nonConformityId != null) {
       return 'media/nao_conformidades';
     }
-    
+
     // Find topic
-    final topic = _topics.firstWhere(
-      (t) => t.id == media.topicId, 
-      orElse: () => Topic(
-        topicName: 'topico_nao_encontrado',
-        inspectionId: widget.inspectionId,
-        position: 0,
-      )
-    );
+    final topic = _topics.firstWhere((t) => t.id == media.topicId,
+        orElse: () => Topic(
+              topicName: 'topico_nao_encontrado',
+              inspectionId: widget.inspectionId,
+              position: 0,
+            ));
     final sanitizedTopicName = _sanitizeFileName(topic.topicName);
-    
+
     // Topic-level media
     if (media.itemId == null && media.detailId == null) {
       return 'media/01_topicos/$sanitizedTopicName';
     }
-    
+
     // Detail-level media
     if (media.detailId != null) {
       if (topic.directDetails == true) {
@@ -1014,112 +1036,37 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         final detailsKey = '${media.topicId}_direct';
         final details = _detailsCache[detailsKey] ?? [];
         final detail = details.where((d) => d.id == media.detailId).firstOrNull;
-        final sanitizedDetailName = _sanitizeFileName(detail?.detailName ?? 'detalhe_nao_encontrado');
+        final sanitizedDetailName =
+            _sanitizeFileName(detail?.detailName ?? 'detalhe_nao_encontrado');
         return 'media/01_topicos/$sanitizedTopicName/03_detalhes/$sanitizedDetailName';
       } else {
         // Regular details under items
         final items = _itemsCache[media.topicId] ?? [];
         final item = items.where((it) => it.id == media.itemId).firstOrNull;
-        final sanitizedItemName = _sanitizeFileName(item?.itemName ?? 'item_nao_encontrado');
-        
+        final sanitizedItemName =
+            _sanitizeFileName(item?.itemName ?? 'item_nao_encontrado');
+
         final detailsKey = '${media.topicId}_${media.itemId}';
         final details = _detailsCache[detailsKey] ?? [];
         final detail = details.where((d) => d.id == media.detailId).firstOrNull;
-        final sanitizedDetailName = _sanitizeFileName(detail?.detailName ?? 'detalhe_nao_encontrado');
-        
+        final sanitizedDetailName =
+            _sanitizeFileName(detail?.detailName ?? 'detalhe_nao_encontrado');
+
         return 'media/01_topicos/$sanitizedTopicName/02_itens/$sanitizedItemName/03_detalhes/$sanitizedDetailName';
       }
     }
-    
+
     // Item-level media
     if (media.itemId != null) {
       final items = _itemsCache[media.topicId] ?? [];
       final item = items.where((it) => it.id == media.itemId).firstOrNull;
-      final sanitizedItemName = _sanitizeFileName(item?.itemName ?? 'item_nao_encontrado');
+      final sanitizedItemName =
+          _sanitizeFileName(item?.itemName ?? 'item_nao_encontrado');
       return 'media/01_topicos/$sanitizedTopicName/02_itens/$sanitizedItemName';
     }
-    
+
     // Fallback
     return 'media/01_topicos/$sanitizedTopicName';
-  }
-
-  Future<void> _openExportedFile(String filePath) async {
-    if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Arquivo Exportado com Sucesso!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            const Text('O arquivo ZIP foi salvo em:'),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: SelectableText(
-                filePath,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Você pode compartilhar o arquivo ou encontrá-lo no gerenciador de arquivos.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
-              navigator.pop();
-              try {
-                await Share.shareXFiles(
-                  [XFile(filePath)],
-                  text: 'Inspeção exportada - ${_inspection?.cod ?? 'Lince Inspeções'}',
-                );
-              } catch (e) {
-                debugPrint('Erro ao compartilhar arquivo: $e');
-                if (mounted) {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Erro ao compartilhar: $e'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              }
-            },
-            icon: const Icon(Icons.share),
-            label: const Text('Compartilhar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6F4B99),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _importInspection() async {
@@ -1150,7 +1097,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
 
       // Implementar importação usando createInspectionFromJson
       await _importFromVistoriaFlexivel();
-
     } catch (e) {
       debugPrint('Error importing inspection: $e');
       if (mounted) {
@@ -1186,7 +1132,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           "city": "Florianópolis",
           "state": "SC"
         },
-        "address_string": "Rua Crisógono Vieira da Cruz, 233, Lagoa da Conceição, Florianópolis - SC",
+        "address_string":
+            "Rua Crisógono Vieira da Cruz, 233, Lagoa da Conceição, Florianópolis - SC",
         "is_templated": true,
         "area": "0",
         "topics": [
@@ -1260,18 +1207,13 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         ],
         "cod": "INSP250715-001.TP0004",
         "deleted_at": null,
-        "updated_at": {
-          "_seconds": 1752625367,
-          "_nanoseconds": 469000000
-        },
-        "created_at": {
-          "_seconds": 1752625367,
-          "_nanoseconds": 469000000
-        }
+        "updated_at": {"_seconds": 1752625367, "_nanoseconds": 469000000},
+        "created_at": {"_seconds": 1752625367, "_nanoseconds": 469000000}
       };
 
       // Usar o serviço de dados para processar a estrutura aninhada
-      await _serviceFactory.dataService.createInspectionFromJson(vistoriaFlexivelData);
+      await _serviceFactory.dataService
+          .createInspectionFromJson(vistoriaFlexivelData);
 
       // Recarregar a inspeção após importação
       await _loadInspection();
@@ -1285,7 +1227,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
           ),
         );
       }
-
     } catch (e) {
       debugPrint('Error importing Vistoria_Flexivel.json: $e');
       if (mounted) {
@@ -1383,6 +1324,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -1407,15 +1349,16 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                       height: 4,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(2),
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: theme.colorScheme.onSurface
+                            .withAlpha((0.3 * 255).round()),
                       ),
                       child: LinearProgressIndicator(
                         value: _calculateInspectionProgress(),
                         backgroundColor: Colors.transparent,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          _calculateInspectionProgress() >= 1.0 
-                            ? Colors.green 
-                            : Colors.white,
+                          _calculateInspectionProgress() >= 1.0
+                              ? Colors.green
+                              : theme.colorScheme.onSurface,
                         ),
                         minHeight: 4,
                       ),
@@ -1428,14 +1371,14 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
         ),
         actions: [
           if (_isSyncing || _isApplyingTemplate)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8.0),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: theme.colorScheme.onPrimary,
                 ),
               ),
             ),
@@ -1498,103 +1441,95 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen> with Wi
                       ),
           ),
 
-          // Barra inferior
-          if (keyboardHeight == 0 && !_isLoading && _topics.isNotEmpty)
-            Container(
-              padding: EdgeInsets.only(
-                top: 4,
-                bottom: bottomPadding + 4,
-                left: 8,
-                right: 8,
-              ),
+        ],
+      ),
+      bottomNavigationBar: keyboardHeight == 0 && !_isLoading && _topics.isNotEmpty
+          ? Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF312456),
+                color: theme.colorScheme.surface,
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildShortcutButton(
-                    icon: Icons.photo_library,
-                    label: 'Galeria',
-                    onTap: _navigateToMediaGallery,
-                    color: Colors.purple,
-                  ),
-                  _buildShortcutButton(
-                    icon: Icons.warning_amber_rounded,
-                    label: 'NCs',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => NonConformityScreen(
-                            inspectionId: widget.inspectionId,
-                            initialTabIndex: 1, // Ir direto para a aba de listagem
-                          ),
-                        ),
-                      );
-                    },
-                    color: Colors.red,
-                  ),
-                  _buildShortcutButton(
-                    icon: Icons.add_circle_outline,
-                    label: '+ Tópico',
-                    onTap: _canEdit
-                        ? _addTopic
-                        : () => _showOfflineRequiredDialog(),
-                    color: _canEdit ? Color(0xFF6F4B99) : Colors.grey,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha((0.1 * 255).round()),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-            ),
-        ],
-      ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                child: BottomNavigationBar(
+                  currentIndex: 0, // Usar um item válido sem destaque visual especial
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  selectedItemColor: theme.unselectedWidgetColor, // Mesma cor para todos
+                  unselectedItemColor: theme.unselectedWidgetColor,
+                  selectedLabelStyle:
+                      const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  unselectedLabelStyle:
+                      const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+                  showUnselectedLabels: true,
+                  onTap: (index) {
+                    switch (index) {
+                      case 0:
+                        _navigateToMediaGallery();
+                        break;
+                      case 1:
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => NonConformityScreen(
+                              inspectionId: widget.inspectionId,
+                              initialTabIndex: 1,
+                            ),
+                          ),
+                        );
+                        break;
+                      case 2:
+                        if (_canEdit) {
+                          _addTopic();
+                        } else {
+                          _showOfflineRequiredDialog();
+                        }
+                        break;
+                    }
+                  },
+                  items: [
+                    BottomNavigationBarItem(
+                      icon: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(Icons.photo_library),
+                      ),
+                      label: 'Galeria',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(Icons.warning_amber_rounded),
+                      ),
+                      label: 'NCs',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(Icons.add_circle_outline),
+                      ),
+                      label: '+ Tópico',
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 
-  Widget _buildShortcutButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-          decoration: BoxDecoration(
-            color: color.withAlpha((255 * 0.08).round()),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: color,
-                size: 20,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _OfflineDownloadDialog extends StatefulWidget {

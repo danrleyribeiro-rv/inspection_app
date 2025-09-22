@@ -13,7 +13,7 @@ class MediaDownloadVerificationService {
   
   MediaDownloadVerificationService._internal();
   
-  late final EnhancedOfflineDataService _offlineService;
+  late final OfflineDataService _offlineService;
   bool _isInitialized = false;
   
   Future<void> initialize() async {

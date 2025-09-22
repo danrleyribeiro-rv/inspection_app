@@ -143,7 +143,7 @@ class _MediaGridState extends State<MediaGrid> {
                   ? 'Mídia offline excluída com sucesso!'
                   : 'Imagem excluída com sucesso!'),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
+              duration: const Duration(milliseconds: 800),
             ),
           );
           if (widget.onRefresh != null) {

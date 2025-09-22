@@ -1,7 +1,7 @@
 // lib/presentation/widgets/inspection_card.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:lince_inspecoes/presentation/widgets/common/map_location_card.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
 class InspectionCard extends StatelessWidget {
   final Map<String, dynamic> inspection;
@@ -19,6 +19,7 @@ class InspectionCard extends StatelessWidget {
   final bool hasConflicts; // Se a inspeção tem conflitos com a versão na nuvem
   final bool isSyncing; // Se está sincronizando no momento
   final bool isVerified; // Se foi verificado na nuvem
+  final DateTime? lastSyncDate; // Data da última sincronização
 
   const InspectionCard({
     super.key,
@@ -36,6 +37,7 @@ class InspectionCard extends StatelessWidget {
     this.hasConflicts = false,
     this.isSyncing = false,
     this.isVerified = false,
+    this.lastSyncDate,
   });
 
   @override
@@ -43,7 +45,7 @@ class InspectionCard extends StatelessWidget {
     // Extract location data
     final title = inspection['title'] ?? 'Untitled Inspection';
     final cod = inspection['cod'] ?? '';
-    final scheduledDate = _formatDate(inspection['scheduled_date']);
+    final scheduledDate = DateFormatter.formatDate(inspection['scheduled_date']);
 
     // --- Address Extraction Logic (Keep Existing) ---
     String address = '';
@@ -85,7 +87,7 @@ class InspectionCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: Colors.grey[850],
+      color: const Color(0xFF4A148C),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
@@ -188,6 +190,26 @@ class InspectionCard extends StatelessWidget {
                 ),
               ),
 
+              // Last sync date
+              if (lastSyncDate != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3.0),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.sync,
+                        size: 12,
+                        color: Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Última sincronização: ${DateFormatter.formatDateTime(lastSyncDate)}',
+                        style: const TextStyle(fontSize: 10, color: Colors.green),
+                      ),
+                    ],
+                  ),
+                ),
+
               // --- Map card ---
               // Pass the required googleMapsApiKey received by InspectionCard
               MapLocationCard(
@@ -241,15 +263,14 @@ class InspectionCard extends StatelessWidget {
                     flex: 1,
                     child: Row(
                       children: [
-                        // Sync button - show if inspection has been downloaded and needs sync OR is syncing
-                        if (onSync != null && isFullyDownloaded && (needsSync || isSyncing))
+                        // Sync button - always show if inspection has been downloaded (always sync all data)
+                        if (onSync != null && isFullyDownloaded)
                           Expanded(
                             child: _buildSyncButton(),
                           ),
 
                         if (onSync != null &&
                             isFullyDownloaded &&
-                            needsSync &&
                             onDownload != null)
                           const SizedBox(width: 4),
 
@@ -335,9 +356,16 @@ class InspectionCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 4),
                             ),
-                            child: const Text(
-                              'Continuar',
-                              style: TextStyle(fontSize: 12),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.edit, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Editar',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
                             ),
                           ),
                       ],
@@ -512,60 +540,7 @@ class InspectionCard extends StatelessWidget {
         : address; // Changed fallback message
   }
 
-  String _formatDate(dynamic dateValue) {
-    if (dateValue == null) return 'Data não definida';
-
-    try {
-      DateTime date;
-      if (dateValue is Map<String, dynamic>) {
-        // Handle Firestore Timestamp Map format
-        if (dateValue.containsKey('seconds') &&
-            dateValue.containsKey('nanoseconds')) {
-          // New Firestore Timestamp format
-          final seconds = dateValue['seconds'] as int;
-          final nanoseconds = dateValue['nanoseconds'] as int;
-          date = DateTime.fromMillisecondsSinceEpoch(
-            seconds * 1000 + (nanoseconds / 1000000).round(),
-          ).toLocal();
-        } else if (dateValue.containsKey('_seconds')) {
-          // Legacy format support
-          final seconds = dateValue['_seconds'] as int;
-          final nanoseconds = dateValue['_nanoseconds'] as int? ?? 0;
-          date = DateTime.fromMillisecondsSinceEpoch(
-            seconds * 1000 + (nanoseconds / 1000000).round(),
-          ).toLocal();
-        } else {
-          return 'Data inválida (Formato)';
-        }
-      } else if (dateValue is int) {
-        // Handle timestamp as int (milliseconds)
-        date = DateTime.fromMillisecondsSinceEpoch(dateValue).toLocal();
-      } else if (dateValue is String) {
-        // Handle ISO 8601 String
-        date = DateTime.parse(dateValue).toLocal();
-      } else if (dateValue.runtimeType.toString().contains('Timestamp')) {
-        // Handle actual Firestore Timestamp object
-        try {
-          // Use dynamic invocation for Timestamp.toDate()
-          final toDateMethod = (dateValue as dynamic).toDate;
-          if (toDateMethod != null) {
-            date = toDateMethod().toLocal();
-          } else {
-            throw Exception('Invalid Timestamp object: missing toDate method');
-          }
-        } catch (e) {
-          return 'Data inválida (TS)';
-        }
-      } else {
-        return 'Data inválida (Tipo)';
-      }
-
-      // Format to Brazilian standard without time
-      return DateFormat('dd/MM/yyyy').format(date);
-    } catch (e) {
-      return 'Data inválida (Erro)';
-    }
-  }
+  // REMOVED: _formatDate and _formatDateTime - Using centralized DateFormatter utility
 
   // --- Remove Dialog ---
   Future<void> _showRemoveDialog(BuildContext context) async {

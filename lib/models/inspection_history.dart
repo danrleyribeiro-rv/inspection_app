@@ -1,24 +1,48 @@
 
+import 'package:hive/hive.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
+
+part 'inspection_history.g.dart';
+
+@HiveType(typeId: 6)
 enum HistoryStatus {
+  @HiveField(0)
   downloadedInspection,
+  @HiveField(1)
   uploadedInspection,
+  @HiveField(2)
   createdInspection,
+  @HiveField(3)
   updatedInspection,
+  @HiveField(4)
   completedInspection,
+  @HiveField(5)
   mediaUploaded,
+  @HiveField(6)
   conflictDetected,
+  @HiveField(7)
   conflictResolved,
 }
 
+@HiveType(typeId: 7)
 class InspectionHistory {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String inspectionId;
+  @HiveField(2)
   final DateTime date;
+  @HiveField(3)
   final HistoryStatus status;
+  @HiveField(4)
   final String inspectorId;
+  @HiveField(5)
   final String? description;
+  @HiveField(6)
   final Map<String, dynamic>? metadata;
+  @HiveField(7)
   final DateTime createdAt;
+  @HiveField(8)
   final bool needsSync;
 
   const InspectionHistory({
@@ -40,7 +64,7 @@ class InspectionHistory {
     String? description,
     Map<String, dynamic>? metadata,
   }) {
-    final now = DateTime.now();
+    final now = DateFormatter.now();
     return InspectionHistory(
       id: 'hist_${now.millisecondsSinceEpoch}',
       inspectionId: inspectionId,

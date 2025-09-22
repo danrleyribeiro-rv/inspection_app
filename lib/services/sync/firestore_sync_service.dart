@@ -8,6 +8,7 @@ import 'dart:developer';
 import '../upload_progress_service.dart';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/cloud_verification_service.dart';
 import 'package:lince_inspecoes/models/inspection.dart';
@@ -19,10 +20,11 @@ import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:lince_inspecoes/models/inspection_history.dart';
 import 'package:lince_inspecoes/models/sync_progress.dart';
 import 'package:lince_inspecoes/services/simple_notification_service.dart';
+// import 'package:lince_inspecoes/services/firebase_token_manager.dart'; // Temporariamente removido
 
 class FirestoreSyncService {
   final FirebaseService _firebaseService;
-  final EnhancedOfflineDataService _offlineService;
+  final OfflineDataService _offlineService;
   bool _isSyncing = false;
   
   // Stream controller for detailed sync progress
@@ -41,13 +43,13 @@ class FirestoreSyncService {
 
   FirestoreSyncService({
     required FirebaseService firebaseService,
-    required EnhancedOfflineDataService offlineService,
+    required OfflineDataService offlineService,
   })  : _firebaseService = firebaseService,
         _offlineService = offlineService;
 
   static void initialize({
     required FirebaseService firebaseService,
-    required EnhancedOfflineDataService offlineService,
+    required OfflineDataService offlineService,
   }) {
     _instance = FirestoreSyncService(
       firebaseService: firebaseService,
@@ -135,7 +137,7 @@ class FirestoreSyncService {
         final downloadedInspection = cloudInspection.copyWith(
           hasLocalChanges: false,
           isSynced: true,
-          lastSyncAt: DateTime.now(),
+          lastSyncAt: DateFormatter.now(),
         );
         
         await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
@@ -205,7 +207,7 @@ class FirestoreSyncService {
         final downloadedInspection = cloudInspection.copyWith(
           hasLocalChanges: false,
           isSynced: true,
-          lastSyncAt: DateTime.now(),
+          lastSyncAt: DateFormatter.now(),
         );
         
         await _offlineService.insertOrUpdateInspectionFromCloud(downloadedInspection);
@@ -1160,15 +1162,14 @@ class FirestoreSyncService {
         cloudUrl: cloudUrl,
         type: mediaData['type'] as String? ?? 'image',
         fileSize: mediaData['fileSize'] as int? ?? mediaData['file_size'] as int? ?? 0,
-        mimeType: mediaData['mimeType'] as String? ?? mediaData['mime_type'] as String? ?? 'image/jpeg',
+        // mimeType removido - usar 'image/jpeg' como padrão
         topicId: topicId,
         itemId: itemId,
         detailId: detailId,
         nonConformityId: nonConformityId,
         isUploaded: true,
-        // PRESERVE COMPLETE ORIGINAL METADATA
+        // PRESERVE COMPLETE ORIGINAL SOURCE
         source: mediaData['source'] as String?,
-        metadata: completeMetadata,
         width: mediaData['width'] as int? ?? mediaData['dimensions']?['width'] as int?,
         height: mediaData['height'] as int? ?? mediaData['dimensions']?['height'] as int?,
         duration: mediaData['duration'] as int?,
@@ -1270,7 +1271,7 @@ class FirestoreSyncService {
         }
       });
       
-      const int maxConcurrentBatch = 35; // Máximo para upload manual
+      const int maxConcurrentBatch = 3; // Máximo para upload manual (reduzido para estabilidade)
       const int chunkSizeBatch = 25; // Chunks maiores para melhor throughput
       
       int totalUploaded = 0;
@@ -1384,7 +1385,7 @@ class FirestoreSyncService {
       
       // Metadata mínima para upload mais rápido
       final metadata = SettableMetadata(
-        contentType: media.mimeType,
+        contentType: 'image/jpeg', // Padrão
         customMetadata: {
           'inspection_id': media.inspectionId,
           'type': media.type,
@@ -1416,8 +1417,14 @@ class FirestoreSyncService {
           throw TimeoutException('Upload timeout batch', const Duration(minutes: 2));
         },
       );
-      
-      progressSubscription?.cancel();
+
+      // Cancel subscription only after successful completion
+      try {
+        progressSubscription?.cancel();
+      } catch (e) {
+        // Ignore cancel errors after success
+        debugPrint('FirestoreSyncService: Ignoring cancel error after success: $e');
+      }
       return await snapshot.ref.getDownloadURL();
       
     } catch (e) {
@@ -1460,8 +1467,8 @@ class FirestoreSyncService {
       // Sort by file size for optimal upload order
       mediaFiles.sort((a, b) => (a.fileSize ?? 0).compareTo(b.fileSize ?? 0));
       
-      const int maxConcurrent = 25; // Maximum concurrent uploads (reduzido para estabilidade)
-      const int chunkSize = 20; // Process in chunks to avoid memory issues (aumentado)
+      const int maxConcurrent = 3; // Maximum concurrent uploads (reduzido drasticamente para estabilidade)
+      const int chunkSize = 5; // Process in smaller chunks to avoid memory issues
       
       int totalUploaded = 0;
       
@@ -1678,78 +1685,114 @@ class FirestoreSyncService {
 
   Future<String?> _uploadMediaToStorageOptimized(OfflineMedia media) async {
     try {
-      // Check if file exists
+      // Se já tem cloudUrl, assume que está válida (evita verificações desnecessárias)
+      if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+        debugPrint('FirestoreSyncService: Usando URL existente para ${media.filename}');
+        return media.cloudUrl!;
+      }
+
+      // Comentado: Verificação que estava causando erros 404 desnecessários
+      // final existingUrl = await FirebaseTokenManager.generateDownloadUrl(
+      //   media.inspectionId,
+      //   media.filename,
+      //   media.type
+      // );
+      // if (existingUrl != null) {
+      //   debugPrint('FirestoreSyncService: Arquivo ${media.filename} já existe no storage, usando URL existente');
+      //   return existingUrl;
+      // }
+
+      // Check if file exists locally
       final file = File(media.localPath);
       if (!await file.exists()) {
         return null;
       }
-      
+
+      debugPrint('FirestoreSyncService: Fazendo upload de ${media.filename} para storage');
+
       // Create storage reference with optimized path structure
       final storageRef = _firebaseService.storage.ref();
       final mediaPath = 'inspections/${media.inspectionId}/media/${media.type}/${media.filename}';
       final mediaRef = storageRef.child(mediaPath);
-      
+
       // Minimal metadata for faster upload
       final metadata = SettableMetadata(
-        contentType: media.mimeType,
+        contentType: 'image/jpeg', // Default content type
         customMetadata: {
           'inspection_id': media.inspectionId,
           'type': media.type,
           'filename': media.filename,
         },
       );
-      
+
       // Upload with timeout for faster failure detection
       final uploadTask = mediaRef.putFile(file, metadata);
-      
+
       // Wait for upload completion with timeout
       final snapshot = await uploadTask.timeout(
         const Duration(minutes: 3),
         onTimeout: () {
-          uploadTask.cancel();
+          try {
+            uploadTask.cancel();
+          } catch (e) {
+            debugPrint('FirestoreSyncService: Error canceling upload on timeout: $e');
+          }
           throw TimeoutException('Upload timeout', const Duration(minutes: 3));
         },
       );
-      
+
       // Get download URL
       final downloadUrl = await snapshot.ref.getDownloadURL();
+      debugPrint('FirestoreSyncService: Upload concluído para ${media.filename}');
       return downloadUrl;
-      
+
     } catch (e) {
       // Handle timeout gracefully - try once more with regular method
       if (e is TimeoutException) {
         return _uploadMediaToStorage(media);
       }
-      
+
+      debugPrint('FirestoreSyncService: Erro no upload otimizado de ${media.filename}: $e');
       return null;
     }
   }
 
   Future<String?> _uploadMediaToStorage(OfflineMedia media) async {
     try {
-      // Check if media already has cloudUrl (already uploaded by BackgroundMediaSyncService)
+      // Se já tem cloudUrl, assume que está válida (evita verificações desnecessárias)
       if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
-        debugPrint('FirestoreSyncService: Media ${media.filename} already has cloudUrl, skipping upload');
-        return media.cloudUrl;
+        debugPrint('FirestoreSyncService: Usando cloudUrl existente para ${media.filename}');
+        return media.cloudUrl!;
       }
-      
+
+      // Comentado: Verificação que estava causando erros 404 desnecessários
+      // final existingUrl = await FirebaseTokenManager.generateDownloadUrl(
+      //   media.inspectionId,
+      //   media.filename,
+      //   media.type
+      // );
+      // if (existingUrl != null) {
+      //   debugPrint('FirestoreSyncService: Arquivo ${media.filename} já existe no storage');
+      //   return existingUrl;
+      // }
+
       debugPrint('FirestoreSyncService: Uploading media ${media.filename} to Firebase Storage');
-      
+
       // Check if file exists
       final file = File(media.localPath);
       if (!await file.exists()) {
         debugPrint('FirestoreSyncService: File does not exist: ${media.localPath}');
         return null;
       }
-      
+
       // Create storage reference with proper path structure
       final storageRef = _firebaseService.storage.ref();
       final mediaPath = 'inspections/${media.inspectionId}/media/${media.type}/${media.filename}';
       final mediaRef = storageRef.child(mediaPath);
-      
+
       // Set metadata
       final metadata = SettableMetadata(
-        contentType: media.mimeType,
+        contentType: 'image/jpeg', // Default content type
         customMetadata: {
           'inspection_id': media.inspectionId,
           'topic_id': media.topicId ?? '',
@@ -1761,10 +1804,10 @@ class FirestoreSyncService {
           'created_at': media.createdAt.toIso8601String(),
         },
       );
-      
+
       // Upload file with metadata
       final uploadTask = mediaRef.putFile(file, metadata);
-      
+
       // Monitor upload progress with error handling
       late StreamSubscription progressSubscription;
       progressSubscription = uploadTask.snapshotEvents.listen(
@@ -1772,7 +1815,7 @@ class FirestoreSyncService {
           if (snapshot.state == TaskState.running) {
             final progress = snapshot.bytesTransferred / snapshot.totalBytes;
             debugPrint('FirestoreSyncService: Upload progress for ${media.filename}: ${(progress * 100).toStringAsFixed(1)}%');
-            
+
             // Update progress in database
             _offlineService.updateMediaUploadProgress(media.id, progress * 100).catchError((e) {
               debugPrint('FirestoreSyncService: Error updating progress for ${media.filename}: $e');
@@ -1781,33 +1824,45 @@ class FirestoreSyncService {
         },
         onError: (error) {
           debugPrint('FirestoreSyncService: Progress monitoring error for ${media.filename}: $error');
-          progressSubscription.cancel();
+          try {
+            progressSubscription.cancel();
+          } catch (e) {
+            debugPrint('FirestoreSyncService: Error canceling on error: $e');
+          }
         },
         onDone: () {
-          progressSubscription.cancel();
+          try {
+            progressSubscription.cancel();
+          } catch (e) {
+            debugPrint('FirestoreSyncService: Error canceling on done: $e');
+          }
         },
       );
-      
+
       // Wait for upload completion with timeout
       final snapshot = await uploadTask.timeout(
         const Duration(minutes: 5), // 5 minute timeout per file
         onTimeout: () {
           debugPrint('FirestoreSyncService: Upload timeout for ${media.filename}');
-          uploadTask.cancel();
-          progressSubscription.cancel();
+          try {
+            uploadTask.cancel();
+            progressSubscription.cancel();
+          } catch (e) {
+            debugPrint('FirestoreSyncService: Error canceling on timeout: $e');
+          }
           throw TimeoutException('Upload timeout', const Duration(minutes: 5));
         },
       );
-      
+
       // Get download URL
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      
+
       debugPrint('FirestoreSyncService: Successfully uploaded ${media.filename} to Firebase Storage');
       return downloadUrl;
-      
+
     } catch (e) {
       debugPrint('FirestoreSyncService: Error uploading media ${media.filename} to storage: $e');
-      
+
       // Handle specific Firebase Storage errors
       if (e is FirebaseException) {
         switch (e.code) {
@@ -1837,7 +1892,7 @@ class FirestoreSyncService {
             debugPrint('FirestoreSyncService: Firebase Storage error: ${e.code} - ${e.message}');
         }
       }
-      
+
       return null;
     }
   }
@@ -1934,10 +1989,11 @@ class FirestoreSyncService {
       // Adicionar entrada no histórico de sincronização
       final currentUser = _firebaseService.currentUser;
       if (currentUser != null) {
-        await _offlineService.addSyncHistoryEntry(
-          inspection.id,
-          currentUser.uid,
-          'upload',
+        await _offlineService.addInspectionHistory(
+          inspectionId: inspection.id,
+          status: HistoryStatus.uploadedInspection,
+          inspectorId: currentUser.uid,
+          description: 'Inspeção enviada via sincronização única',
           metadata: {
             'source': 'single_sync',
             'inspection_title': inspection.title,
@@ -2026,17 +2082,15 @@ class FirestoreSyncService {
       final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');
       final topicMediaList = <Map<String, dynamic>>[];
       
-      // Add direct topic media (sorted by orderIndex and capturedAt)
+      // Add direct topic media (sorted by orderIndex and createdAt)
       final sortedTopicMedia = List<OfflineMedia>.from(topicMedia)
         ..sort((a, b) {
           // Primary sort by orderIndex
           final orderComparison = a.orderIndex.compareTo(b.orderIndex);
           if (orderComparison != 0) return orderComparison;
-          
-          // Secondary sort by capturedAt if orderIndex is the same
-          final aCaptured = a.capturedAt ?? a.createdAt;
-          final bCaptured = b.capturedAt ?? b.createdAt;
-          return aCaptured.compareTo(bCaptured);
+
+          // Secondary sort by createdAt if orderIndex is the same
+          return a.createdAt.compareTo(b.createdAt);
         });
       
       topicMediaList.addAll(sortedTopicMedia.map((media) => {
@@ -2046,10 +2100,10 @@ class FirestoreSyncService {
         'cloudUrl': media.cloudUrl,
         'thumbnailPath': media.thumbnailPath,
         'fileSize': media.fileSize,
-        'mimeType': media.mimeType,
+        'mimeType': 'image/jpeg', // Default mimeType
         'isUploaded': media.isUploaded,
         'createdAt': media.createdAt.toIso8601String(),
-        'capturedAt': (media.capturedAt ?? media.createdAt).toIso8601String(),
+        // capturedAt removido - usar createdAt
         'orderIndex': media.orderIndex,
       }));
       
@@ -2097,7 +2151,7 @@ class FirestoreSyncService {
             'cloudUrl': media.cloudUrl,
             'thumbnailPath': media.thumbnailPath,
             'fileSize': media.fileSize,
-            'mimeType': media.mimeType,
+            'mimeType': 'image/jpeg', // Default mimeType
             'isUploaded': media.isUploaded,
             'createdAt': media.createdAt.toIso8601String(),
           }).toList();
@@ -2145,7 +2199,7 @@ class FirestoreSyncService {
           'cloudUrl': media.cloudUrl,
           'thumbnailPath': media.thumbnailPath,
           'fileSize': media.fileSize,
-          'mimeType': media.mimeType,
+          'mimeType': 'image/jpeg', // Default mimeType
           'isUploaded': media.isUploaded,
           'createdAt': media.createdAt.toIso8601String(),
         }).toList();
@@ -2187,7 +2241,7 @@ class FirestoreSyncService {
             'cloudUrl': media.cloudUrl,
             'thumbnailPath': media.thumbnailPath,
             'fileSize': media.fileSize,
-            'mimeType': media.mimeType,
+            'mimeType': 'image/jpeg', // Default mimeType
             'isUploaded': media.isUploaded,
             'createdAt': media.createdAt.toIso8601String(),
           }).toList();
@@ -2368,7 +2422,7 @@ class FirestoreSyncService {
         'cloudUrl': media.cloudUrl,
         'thumbnailPath': media.thumbnailPath,
         'fileSize': media.fileSize,
-        'mimeType': media.mimeType,
+        'mimeType': 'image/jpeg', // Default mimeType
         'isUploaded': media.isUploaded,
         'createdAt': media.createdAt.toIso8601String(),
         'isResolutionMedia': media.isResolutionMedia,
@@ -2401,62 +2455,8 @@ class FirestoreSyncService {
 
 
   Future<void> _markInspectionAndChildrenSynced(String inspectionId) async {
-    // Mark inspection as synced
-    await _offlineService.markInspectionSynced(inspectionId);
-
-    // Mark all topics as synced
-    final topics = await _offlineService.getTopics(inspectionId);
-    for (final topic in topics) {
-      await _offlineService.markTopicSynced(topic.id ?? '');
-      
-      // Mark topic-level media as synced
-      final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');
-      for (final media in topicMedia) {
-        await _offlineService.markMediaSynced(media.id);
-      }
-      
-      // Mark topic-level non-conformities as synced
-      final topicNCs = await _offlineService.getNonConformitiesByTopic(topic.id ?? '');
-      for (final nc in topicNCs) {
-        await _offlineService.markNonConformitySynced(nc.id);
-      }
-
-      // Mark all items as synced
-      final items = await _offlineService.getItems(topic.id ?? '');
-      for (final item in items) {
-        await _offlineService.markItemSynced(item.id ?? '');
-        
-        // Mark item-level media as synced
-        final itemMedia = await _offlineService.getMediaByItem(item.id ?? '');
-        for (final media in itemMedia) {
-          await _offlineService.markMediaSynced(media.id);
-        }
-        
-        // Mark item-level non-conformities as synced
-        final itemNCs = await _offlineService.getNonConformitiesByItem(item.id ?? '');
-        for (final nc in itemNCs) {
-          await _offlineService.markNonConformitySynced(nc.id);
-        }
-
-        // Mark all details as synced
-        final details = await _offlineService.getDetails(item.id ?? '');
-        for (final detail in details) {
-          await _offlineService.markDetailSynced(detail.id ?? '');
-          
-          // Mark detail-level media as synced
-          final detailMedia = await _offlineService.getMediaByDetail(detail.id ?? '');
-          for (final media in detailMedia) {
-            await _offlineService.markMediaSynced(media.id);
-          }
-          
-          // Mark detail-level non-conformities as synced
-          final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id ?? '');
-          for (final nc in detailNCs) {
-            await _offlineService.markNonConformitySynced(nc.id);
-          }
-        }
-      }
-    }
+    // REMOVED: All markSynced calls - Always sync all data on demand
+    debugPrint('FirestoreSyncService: Skipping markSynced - Always sync all data on demand');
   }
 
   Future<void> _downloadInspectionTemplate(Inspection inspection) async {
@@ -2527,6 +2527,8 @@ class FirestoreSyncService {
     }
 
     try {
+      // Enable Firestore network for sync operation
+      await _firebaseService.enableNetwork();
       debugPrint('FirestoreSyncService: Starting enhanced sync for inspection $inspectionId');
 
       // Emit starting progress
@@ -2581,6 +2583,15 @@ class FirestoreSyncService {
         await _uploadSingleInspectionWithNestedStructure(inspectionId);
         
         debugPrint('FirestoreSyncService: ✅ Successfully uploaded all local changes for inspection $inspectionId');
+
+        // Update lastSyncAt after successful upload
+        final updatedInspection = localInspection.copyWith(
+          lastSyncAt: DateFormatter.now(),
+          hasLocalChanges: false,
+          isSynced: true,
+        );
+        await _offlineService.insertOrUpdateInspectionFromCloud(updatedInspection);
+        debugPrint('FirestoreSyncService: Updated lastSyncAt for inspection $inspectionId');
       }
 
       // *** DOWNLOAD APENAS SE NÃO TEMOS DADOS LOCAIS (primeiro download) ***
@@ -2607,7 +2618,7 @@ class FirestoreSyncService {
         final downloadedInspection = cloudInspection.copyWith(
           hasLocalChanges: false,
           isSynced: true,
-          lastSyncAt: DateTime.now(),
+          lastSyncAt: DateFormatter.now(),
         );
         
         debugPrint('FirestoreSyncService: Saving inspection $inspectionId to local database');
@@ -2667,8 +2678,8 @@ class FirestoreSyncService {
         );
       }
 
-      // Marcar como sincronizado apenas após verificação completa
-      await _offlineService.markInspectionSynced(inspectionId);
+      // REMOVED: markInspectionSynced - Always sync all data on demand
+      debugPrint('FirestoreSyncService: Skipping markSynced - Always sync all data on demand');
 
       _syncProgressController.add(SyncProgress(
         inspectionId: inspectionId,
@@ -2696,8 +2707,11 @@ class FirestoreSyncService {
         total: 1,
         message: 'Erro na sincronização: $e',
       ));
-      
+
       return {'success': false, 'error': e.toString()};
+    } finally {
+      // Keep network enabled for continuous operation
+      debugPrint('Sync operation completed');
     }
   }
 
@@ -2863,28 +2877,6 @@ class FirestoreSyncService {
 
   bool get isSyncing => _isSyncing;
 
-  Future<Map<String, int>> getSyncStatus() async {
-    final inspections = await _offlineService.getInspectionsNeedingSync();
-    final topics = await _offlineService.getTopicsNeedingSync();
-    final items = await _offlineService.getItemsNeedingSync();
-    final details = await _offlineService.getDetailsNeedingSync();
-    final nonConformities =
-        await _offlineService.getNonConformitiesNeedingSync();
-
-    return {
-      'inspections': inspections.length,
-      'topics': topics.length,
-      'items': items.length,
-      'details': details.length,
-      'non_conformities': nonConformities.length,
-    };
-  }
-
-  Future<bool> hasUnsyncedData() async {
-    final status = await getSyncStatus();
-    return status.values.any((pendingCount) => pendingCount > 0);
-  }
-
   // Alias for performFullSync for backward compatibility
   Future<void> fullSync() async {
     await performFullSync();
@@ -2897,8 +2889,10 @@ class FirestoreSyncService {
   /// Downloads a specific inspection from the cloud, replacing the local version
   Future<void> downloadSpecificInspection(String inspectionId) async {
     try {
+      // Enable Firestore network for download operation
+      await _firebaseService.enableNetwork();
       debugPrint('FirestoreSyncService: Downloading specific inspection $inspectionId to resolve conflicts');
-      
+
       if (!await isConnected()) {
         throw Exception('Sem conexão com a internet');
       }
@@ -2919,8 +2913,9 @@ class FirestoreSyncService {
       final cloudInspection = Inspection.fromMap(convertedData);
 
       // Replace local version with cloud version
-      await _offlineService.insertOrUpdateInspection(cloudInspection);
-      await _offlineService.markInspectionSynced(inspectionId);
+      await _offlineService.insertOrUpdateInspectionFromCloud(cloudInspection);
+      // REMOVED: markInspectionSynced - Always sync all data on demand
+      debugPrint('FirestoreSyncService: Skipping markSynced - Always sync all data on demand');
 
       // Download related data
       await _downloadInspectionRelatedData(inspectionId);
@@ -2935,6 +2930,9 @@ class FirestoreSyncService {
     } catch (e) {
       debugPrint('FirestoreSyncService: Error downloading specific inspection $inspectionId: $e');
       rethrow;
+    } finally {
+      // Keep network enabled for continuous operation
+      debugPrint('Download operation completed');
     }
   }
 
@@ -2959,7 +2957,8 @@ class FirestoreSyncService {
       await _uploadSingleInspectionWithNestedStructure(inspectionId);
       
       // Mark as synced
-      await _offlineService.markInspectionSynced(inspectionId);
+      // REMOVED: markInspectionSynced - Always sync all data on demand
+      debugPrint('FirestoreSyncService: Skipping markSynced - Always sync all data on demand');
 
       debugPrint('FirestoreSyncService: Successfully force uploaded inspection $inspectionId');
     } catch (e) {

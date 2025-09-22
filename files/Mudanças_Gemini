@@ -1,0 +1,1335 @@
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  > no @lib/main.dart implemente um sistema para trocar entre tema claro e escuro e adicione a opção de trocar  │
+│    em @lib/presentation/screens/settings/settings_screen.dart No caso troque o fundo da aplicação para branco  │
+│    e os textos que estão brancos para pretos e o textos das demais cores para tons mais escuros no modo claro, │
+│     e no modo escuro, mantenha como está agora a aplicação. Altere somente esses dois arquivos.                │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+✦ Okay, I'll implement the theme switching functionality. Here is the plan:
+
+   1. In `lib/main.dart`:
+       * I will define two ThemeData objects: one for the light theme and one for the dark theme.
+       * The application will be converted into a StatefulWidget to manage the theme state.
+       * The MaterialApp will be updated to use the new theme configurations.
+
+   2. In `lib/presentation/screens/settings/settings_screen.dart`:
+       * I will add a new "Appearance" section with a switch to toggle between light and dark modes.
+       * I will remove hardcoded colors from the settings screen to ensure they adapt correctly to the selected
+         theme.
+
+  I will now apply these changes.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib/main.dart: class MyApp extends StatelessW... => final ThemeData darkTheme = Th...        │
+ │                                                                                                      │
+ │    ... first 71 lines hidden ...                                                                     │
+ │    244 +         fontWeight: FontWeight.bold),                                                       │
+ │    245 +     headlineSmall: TextStyle(                                                               │
+ │    246 +         fontFamily: 'BricolageGrotesque',                                                   │
+ │    247 +         color: Colors.black,                                                                │
+ │    248 +         fontWeight: FontWeight.bold),                                                       │
+ │    249 +     titleLarge: TextStyle(                                                                  │
+ │    250 +         fontFamily: 'BricolageGrotesque',                                                   │
+ │    251 +         color: Colors.black,                                                                │
+ │    252 +         fontWeight: FontWeight.w600),                                                       │
+ │    253 +     titleMedium: TextStyle(                                                                 │
+ │    254 +         fontFamily: 'BricolageGrotesque',                                                   │
+ │    255 +         color: Colors.black,                                                                │
+ │    256 +         fontWeight: FontWeight.w600),                                                       │
+ │    257 +     titleSmall: TextStyle(                                                                  │
+ │    258 +         fontFamily: 'BricolageGrotesque',                                                   │
+ │    259 +         color: Colors.black,                                                                │
+ │    260 +         fontWeight: FontWeight.w600),                                                       │
+ │    261 +     bodyLarge: TextStyle(color: Colors.black),                                              │
+ │    262 +     bodyMedium: TextStyle(color: Colors.black),                                             │
+ │    263 +     bodySmall: TextStyle(color: Colors.black),                                              │
+ │    264 +     labelLarge: TextStyle(color: Colors.black),                                             │
+ │    265 +     labelMedium: TextStyle(color: Colors.black54),                                          │
+ │    266 +     labelSmall: TextStyle(color: Colors.black),                                             │
+ │    267     ),                                                                                        │
+ │    268 +   colorScheme: const ColorScheme.light(                                                     │
+ │    269 +     primary: Color(0xFF6F4B99),                                                             │
+ │    270 +     secondary: Color(0xFFD97706), // Laranja mais escuro                                    │
+ │    271 +     surface: Colors.white,                                                                  │
+ │    272 +     error: Colors.red,                                                                      │
+ │    273 +   ),                                                                                        │
+ │    274 +   appBarTheme: const AppBarTheme(                                                           │
+ │    275 +     backgroundColor: Colors.white,                                                          │
+ │    276 +     foregroundColor: Colors.black,                                                          │
+ │    277 +     elevation: 0,                                                                           │
+ │    278 +     titleTextStyle: TextStyle(                                                              │
+ │    279 +       fontFamily: 'BricolageGrotesque',                                                     │
+ │    280 +       color: Colors.black,                                                                  │
+ │    281 +       fontSize: 20,                                                                         │
+ │    282 +       fontWeight: FontWeight.w600,                                                          │
+ │    283 +     ),                                                                                      │
+ │    284 +   ),                                                                                        │
+ │    285 +   elevatedButtonTheme: ElevatedButtonThemeData(                                             │
+ │    286 +     style: ElevatedButton.styleFrom(                                                        │
+ │    287 +       backgroundColor: const Color(0xFF6F4B99),                                             │
+ │    288 +       foregroundColor: Colors.white,                                                        │
+ │    289 +       shape: RoundedRectangleBorder(                                                        │
+ │    290 +         borderRadius: BorderRadius.circular(8),                                             │
+ │    291 +       ),                                                                                    │
+ │    292 +     ),                                                                                      │
+ │    293 +   ),                                                                                        │
+ │    294 +   textButtonTheme: TextButtonThemeData(                                                     │
+ │    295 +     style: TextButton.styleFrom(                                                            │
+ │    296 +       foregroundColor: const Color(0xFF6F4B99),                                             │
+ │    297 +     ),                                                                                      │
+ │    298 +   ),                                                                                        │
+ │    299 +   inputDecorationTheme: InputDecorationTheme(                                               │
+ │    300 +     border: OutlineInputBorder(                                                             │
+ │    301 +       borderRadius: BorderRadius.circular(8),                                               │
+ │    302 +     ),                                                                                      │
+ │    303 +     focusedBorder: OutlineInputBorder(                                                      │
+ │    304 +       borderRadius: BorderRadius.circular(8),                                               │
+ │    305 +       borderSide: const BorderSide(color: Color(0xFF6F4B99), width: 2),                     │
+ │    306 +     ),                                                                                      │
+ │    307 +     fillColor: Colors.black.withOpacity(0.05),                                              │
+ │    308 +     filled: true,                                                                           │
+ │    309 +     labelStyle: const TextStyle(color: Colors.black54),                                     │
+ │    310 +   ),                                                                                        │
+ │    311 +   cardTheme: CardThemeData(                                                                 │
+ │    312 +     color: Colors.grey[100],                                                                │
+ │    313 +     shape: RoundedRectangleBorder(                                                          │
+ │    314 +       borderRadius: BorderRadius.circular(8),                                               │
+ │    315 +     ),                                                                                      │
+ │    316 +   ),                                                                                        │
+ │    317 +   dividerTheme: DividerThemeData(                                                           │
+ │    318 +     color: Colors.grey[300],                                                                │
+ │    319 +   ),                                                                                        │
+ │    320 +   datePickerTheme: DatePickerThemeData(                                                     │
+ │    321 +     backgroundColor: Colors.white,                                                          │
+ │    322 +     headerBackgroundColor: const Color(0xFF6F4B99),                                         │
+ │    323 +     headerForegroundColor: Colors.white,                                                    │
+ │    324 +     headerHeadlineStyle: const TextStyle(                                                   │
+ │    325 +       fontFamily: 'BricolageGrotesque',                                                     │
+ │    326 +       color: Colors.white,                                                                  │
+ │    327 +       fontSize: 18,                                                                         │
+ │    328 +       fontWeight: FontWeight.w600,                                                          │
+ │    329 +     ),                                                                                      │
+ │    330 +     headerHelpStyle: const TextStyle(                                                       │
+ │    331 +       color: Colors.white70,                                                                │
+ │    332 +       fontSize: 14,                                                                         │
+ │    333 +     ),                                                                                      │
+ │    334 +     weekdayStyle: const TextStyle(                                                          │
+ │    335 +       color: Colors.black54,                                                                │
+ │    336 +       fontSize: 14,                                                                         │
+ │    337 +       fontWeight: FontWeight.w500,                                                          │
+ │    338 +     ),                                                                                      │
+ │    339 +     dayStyle: const TextStyle(                                                              │
+ │    340 +       color: Colors.black,                                                                  │
+ │    341 +       fontSize: 14,                                                                         │
+ │    342 +     ),                                                                                      │
+ │    343 +     yearStyle: const TextStyle(                                                             │
+ │    344 +       color: Colors.black,                                                                  │
+ │    345 +       fontSize: 16,                                                                         │
+ │    346 +       fontWeight: FontWeight.w500,                                                          │
+ │    347 +     ),                                                                                      │
+ │    348 +     dayOverlayColor:                                                                        │
+ │    349 +         WidgetStateProperty.all(const Color(0xFF6F4B99).withOpacity(0.1)),                  │
+ │    350 +     todayBackgroundColor:                                                                   │
+ │    351 +         WidgetStateProperty.all(const Color(0xFF6F4B99).withOpacity(0.3)),                  │
+ │    352 +     dayBackgroundColor: WidgetStateProperty.resolveWith((states) {                          │
+ │    353 +       if (states.contains(WidgetState.selected)) {                                          │
+ │    354 +         return const Color(0xFF6F4B99);                                                     │
+ │    355 +       }                                                                                     │
+ │    356 +       return Colors.transparent;                                                            │
+ │    357 +     }),                                                                                     │
+ │    358 +     dayForegroundColor: WidgetStateProperty.resolveWith((states) {                          │
+ │    359 +       if (states.contains(WidgetState.selected)) {                                          │
+ │    360 +         return Colors.white;                                                                │
+ │    361 +       }                                                                                     │
+ │    362 +       return Colors.black;                                                                  │
+ │    363 +     }),                                                                                     │
+ │    364 +   ),                                                                                        │
+ │    365 + );                                                                                          │
+ │    366 +                                                                                             │
+ │    367 + class MyApp extends StatefulWidget {                                                        │
+ │    368 +   const MyApp({super.key});                                                                 │
+ │    369 +                                                                                             │
+ │    370 +   static _MyAppState? of(BuildContext context) =>                                           │
+ │    371 +       context.findAncestorStateOfType<_MyAppState>();                                       │
+ │    372 +                                                                                             │
+ │    373 +   @override                                                                                 │
+ │    374 +   State<MyApp> createState() => _MyAppState();                                              │
+ │    375 + }                                                                                           │
+ │    376 +                                                                                             │
+ │    377 + class _MyAppState extends State<MyApp> {                                                    │
+ │    378 +   ThemeMode _themeMode = ThemeMode.dark;                                                    │
+ │    379 +                                                                                             │
+ │    380 +   void changeTheme(ThemeMode themeMode) {                                                   │
+ │    381 +     setState(() {                                                                           │
+ │    382 +       _themeMode = themeMode;                                                               │
+ │    383 +     });                                                                                     │
+ │    384 +   }                                                                                         │
+ │    385 +                                                                                             │
+ │    386 +   @override                                                                                 │
+ │    387 +   Widget build(BuildContext context) {                                                      │
+ │    388 +     return MaterialApp(                                                                     │
+ │    389 +       title: 'Inspection App',                                                              │
+ │    390 +       debugShowCheckedModeBanner: false,                                                    │
+ │    391 +       locale: const Locale('pt', 'BR'),                                                     │
+ │    392 +       supportedLocales: const [                                                             │
+ │    393 +         Locale('pt', 'BR'),                                                                 │
+ │    394 +       ],                                                                                    │
+ │    395 +       localizationsDelegates: [                                                             │
+ │    396 +         GlobalMaterialLocalizations.delegate,                                               │
+ │    397 +         GlobalWidgetsLocalizations.delegate,                                                │
+ │    398 +         GlobalCupertinoLocalizations.delegate,                                              │
+ │    399 +       ],                                                                                    │
+ │    400 +       theme: lightTheme,                                                                    │
+ │    401 +       darkTheme: darkTheme,                                                                 │
+ │    402 +       themeMode: _themeMode,                                                                │
+ │    403         initialRoute: '/',                                                                    │
+ │    404         routes: {                                                                             │
+ │    405           '/': (context) => const SplashScreen(),                                             │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib/main.dart:   @override... =>   @override...                                              │
+ │                                                                                                      │
+ │    454   Widget build(BuildContext context) {                                                        │
+ │    455     // Return a placeholder widget while the redirection is being scheduled.                  │
+ │    456     return const Scaffold(                                                                    │
+ │    457 -     backgroundColor: Color(0xFF312456),                                                     │
+ │    457       body: Center(child: CircularProgressIndicator()),                                       │
+ │    458     );                                                                                        │
+ │    459   }                                                                                           │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  WriteFile Writing to lib/settings/settings_screen.dart                                            │
+ │                                                                                                      │
+ │    ... first 26 lines hidden ...                                                                     │
+ │    282         scheme: 'mailto',                                                                     │
+ │    283         path: supportEmail,                                                                   │
+ │    284 -       query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',   │
+ │    284 +       query:                                                                                │
+ │    285 +           'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',      │
+ │    286       );                                                                                      │
+ │    287                                                                                               │
+ │    288       try {                                                                                   │
+ │    291         if (mounted) {                                                                        │
+ │    292           ScaffoldMessenger.of(context).showSnackBar(                                         │
+ │    293             const SnackBar(                                                                   │
+ │    293 -             content: Text('Não foi possível abrir o aplicativo de e-mail. Entre em contato  │
+ │        através do e-mail: it@lincehub.com.br'),                                                      │
+ │    294 +             content: Text(                                                                  │
+ │    295 +                 'Não foi possível abrir o aplicativo de e-mail. Entre em contato através    │
+ │        do e-mail: it@lincehub.com.br'),                                                              │
+ │    296               duration: Duration(seconds: 2),                                                 │
+ │    297             ),                                                                                │
+ │    298           );                                                                                  │
+ │    303     @override                                                                                 │
+ │    304     Widget build(BuildContext context) {                                                      │
+ │    305       return Scaffold(                                                                        │
+ │    304 -       backgroundColor: const Color(0xFF312456),                                             │
+ │    306         appBar: AppBar(                                                                       │
+ │    307           title: const Text('Configurações'),                                                 │
+ │    307 -         backgroundColor: const Color(0xFF312456),                                           │
+ │    308         ),                                                                                    │
+ │    309         body: _isLoading                                                                      │
+ │    310             ? const Center(child: CircularProgressIndicator())                                │
+ │    311             : ListView(                                                                       │
+ │    312                 children: [                                                                   │
+ │    313 +                 _buildSectionHeader('Aparência'),                                           │
+ │    314 +                 SwitchListTile(                                                             │
+ │    315 +                   title: const Text('Tema Escuro'),                                         │
+ │    316 +                   subtitle: const Text('Ativar ou desativar o modo escuro'),                │
+ │    317 +                   value: Theme.of(context).brightness == Brightness.dark,                   │
+ │    318 +                   activeColor: const Color(0xFF6F4B99),                                     │
+ │    319 +                   onChanged: (isDark) {                                                     │
+ │    320 +                     MyApp.of(context)                                                       │
+ │    321 +                         ?.changeTheme(isDark ? ThemeMode.dark : ThemeMode.light);           │
+ │    322 +                   },                                                                        │
+ │    323 +                 ),                                                                          │
+ │    324                   _buildSectionHeader('Permissões'),                                          │
+ │    325                   SwitchListTile(                                                             │
+ │    315 -                   title: const Text('Notificações',                                         │
+ │    316 -                       style: TextStyle(color: Colors.white)),                               │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    326 +                   title: const Text('Notificações'),                                        │
+ │    327                     subtitle: const Text(                                                     │
+ │    318 -                       'Receber alertas sobre novas vistorias e mensagens',                  │
+ │    319 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    328 +                       'Receber alertas sobre novas vistorias e mensagens'),                 │
+ │    329                     value: _notificationsEnabled,                                             │
+ │    321 -                   activeThumbColor: Color(0xFF6F4B99),                                      │
+ │    322 -                   // CORREÇÃO: Callback Síncrono que chama a função Async                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    330 +                   activeColor: const Color(0xFF6F4B99),                                     │
+ │    331                     onChanged: (value) {                                                      │
+ │    332                       _handleNotificationChange(value);                                       │
+ │    333                     },                                                                        │
+ │    334                   ),                                                                          │
+ │    335                   SwitchListTile(                                                             │
+ │    328 -                   title: const Text('Câmera',                                               │
+ │    329 -                       style: TextStyle(color: Colors.white)),                               │
+ │    330 -                   subtitle: const Text(                                                     │
+ │    331 -                       'Permitir acesso à câmera do dispositivo',                            │
+ │    332 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    336 +                   title: const Text('Câmera'),                                              │
+ │    337 +                   subtitle:                                                                 │
+ │    338 +                       const Text('Permitir acesso à câmera do dispositivo'),                │
+ │    339                     value: _cameraPermission,                                                 │
+ │    334 -                   activeThumbColor: Color(0xFF6F4B99),                                      │
+ │    335 -                   // CORREÇÃO: Callback Síncrono que chama a função Async                   │
+ │    340 +                   activeColor: const Color(0xFF6F4B99),                                     │
+ │    341                     onChanged: (value) {                                                      │
+ │    342                       _handleCameraPermissionChange(value);                                   │
+ │    343                     },                                                                        │
+ │    344                   ),                                                                          │
+ │    345                   _buildSectionHeader('Armazenamento'),                                       │
+ │    346                   ListTile(                                                                   │
+ │    342 -                   title: const Text('Limpar Cache',                                         │
+ │    343 -                       style: TextStyle(color: Colors.white)),                               │
+ │    347 +                   title: const Text('Limpar Cache'),                                        │
+ │    348                     subtitle: const Text(                                                     │
+ │    345 -                       'Remover todas as vistorias baixadas e arquivos temporários',         │
+ │    346 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    347 -                   leading:                                                                  │
+ │    348 -                       const Icon(Icons.cleaning_services, color: Colors.white),             │
+ │    349 +                       'Remover todas as vistorias baixadas e arquivos temporários'),        │
+ │    350 +                   leading: const Icon(Icons.cleaning_services),                             │
+ │    351                     onTap: _clearCache,                                                       │
+ │    352                   ),                                                                          │
+ │    353                   _buildSectionHeader('Conta'),                                               │
+ │    354                   ListTile(                                                                   │
+ │    353 -                   title:                                                                    │
+ │    354 -                       const Text('Sair', style: TextStyle(color: Colors.white)),            │
+ │    355 -                   subtitle: const Text('Encerrar sessão atual',                             │
+ │    356 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    357 -                   leading: const Icon(Icons.logout, color: Colors.white),                   │
+ │    355 +                   title: const Text('Sair'),                                                │
+ │    356 +                   subtitle: const Text('Encerrar sessão atual'),                            │
+ │    357 +                   leading: const Icon(Icons.logout),                                        │
+ │    358                     onTap: _signOut,                                                          │
+ │    359                   ),                                                                          │
+ │    360                   ListTile(                                                                   │
+ │    361                     title: const Text('Excluir Conta',                                        │
+ │    362                         style: TextStyle(color: Colors.red)),                                 │
+ │    363 -                   subtitle: const Text('Remover permanentemente sua conta',                 │
+ │    364 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    363 +                   subtitle: const Text('Remover permanentemente sua conta'),                │
+ │    364                     leading: const Icon(Icons.delete_forever, color: Colors.red),             │
+ │    365                     textColor: Colors.red,                                                    │
+ │    366                     onTap: _deleteAccount,                                                    │
+ │    367                   ),                                                                          │
+ │    368                   _buildSectionHeader('Sobre'),                                               │
+ │    369                   ListTile(                                                                   │
+ │    371 -                   title: const Text('Versão do App',                                        │
+ │    372 -                       style: TextStyle(color: Colors.white)),                               │
+ │    373 -                   subtitle: const Text('1.0',                                               │
+ │    374 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    375 -                   leading: const Icon(Icons.info, color: Colors.white),                     │
+ │    370 +                   title: const Text('Versão do App'),                                       │
+ │    371 +                   subtitle: const Text('1.0'),                                              │
+ │    372 +                   leading: const Icon(Icons.info),                                          │
+ │    373                   ),                                                                          │
+ │    374                   ListTile(                                                                   │
+ │    378 -                   title: const Text('Termos de Uso e Política de Privacidade',              │
+ │    379 -                       style: TextStyle(color: Colors.white)),                               │
+ │    380 -                   leading: const Icon(Icons.gavel, color: Colors.white),                    │
+ │    375 +                   title: const Text('Termos de Uso e Política de Privacidade'),             │
+ │    376 +                   leading: const Icon(Icons.gavel),                                         │
+ │    377                     onTap: _showTerms,                                                        │
+ │    378                   ),                                                                          │
+ │    379                   _buildSectionHeader('Suporte'),                                             │
+ │    380                   ListTile(                                                                   │
+ │    385 -                   title: const Text('Entrar em Contato',                                    │
+ │    386 -                       style: TextStyle(color: Colors.white)),                               │
+ │    387 -                   subtitle: const Text('it@lincehub.com.br',                                │
+ │    388 -                       style: TextStyle(color: Colors.white70)),                             │
+ │    389 -                   leading: const Icon(Icons.support_agent, color: Colors.white),            │
+ │    381 +                   title: const Text('Entrar em Contato'),                                   │
+ │    382 +                   subtitle: const Text('it@lincehub.com.br'),                               │
+ │    383 +                   leading: const Icon(Icons.support_agent),                                 │
+ │    384                     onTap: _contactSupport,                                                   │
+ │    385                   ),                                                                          │
+ │    386                 ],                                                                            │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    393         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),                                    │
+ │    394         child: Text(                                                                          │
+ │    395           title,                                                                              │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    402 -         style: const TextStyle(                                                             │
+ │    396 +         style: TextStyle(                                                                   │
+ │    397             fontSize: 10,                                                                     │
+ │    398             fontWeight: FontWeight.bold,                                                      │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    405 -           color: Color(0xFF6F4B99),                                                         │
+ │    399 +           color: Theme.of(context).colorScheme.primary,                                     │
+ │    400           ),                                                                                  │
+ │    401         ),                                                                                    │
+ │    402       );                                                                                      │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ I have implemented the light and dark theme functionality. You can now switch between themes in the settings
+  screen. The UI elements on that screen will also adapt to the selected theme.
+ ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  ReadManyFiles Will attempt to read and concatenate files using patterns:…                                │
+ │                                                                                                             │
+ │                                                                                                             │
+ │    ### ReadManyFiles Result (Target Dir: `/Users/danrleyribeiro/inspection_app`)                            │
+ │                                                                                                             │
+ │    Successfully read and concatenated content from **6 file(s)**.                                           │
+ │                                                                                                             │
+ │    **Processed Files:**                                                                                     │
+ │    - `lib/presentation/screens/home/home_screen.dart`                                                       │
+ │    - `lib/presentation/screens/home/inspection_tab.dart`                                                    │
+ │    - `lib/presentation/screens/home/profile_tab.dart`                                                       │
+ │    - `lib/presentation/screens/inspection/inspection_detail_screen.dart`                                    │
+ │    - `lib/presentation/screens/inspection/non_conformity_screen.dart`                                       │
+ │    - `lib/presentation/screens/profile/edit_profile_screen.dart`                                            │
+ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  > Não mudou o fundo automaticamente em: @lib/presentation/screens/home/profile_tab.dart                    │
+│    @lib/presentation/screens/profile/edit_profile_screen.dart                                               │
+│    @lib/presentation/screens/home/inspection_tab.dart @lib/presentation/screens/home/home_screen.dart       │
+│    @lib/presentation/screens/inspection/inspection_detail_screen.dart                                       │
+│    @lib/presentation/screens/inspection/non_conformity_screen.dart padronize para essas tela também serem   │
+│    automaticamente alteradas ao aplicar o tema.                                                             │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ You are right, several screens have hardcoded colors that prevent them from adapting to the theme. I will go
+  through each of the files you listed and update them to use the application's theme colors.
+
+  This will involve removing hardcoded background colors from Scaffold, AppBar, and other container widgets,
+  and updating text and icon colors to be theme-adaptive.
+
+  I will start with home_screen.dart.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib/screens/home/home_screen.dart:       bottomNavigationBar: Con... =>       bottomNavigationBar: C…  │
+ │                                                                                                                │
+ │     70   body: _tabs[_currentIndex],                                                                           │
+ │     71   bottomNavigationBar: Container(                                                                       │
+ │     72     decoration: BoxDecoration(                                                                          │
+ │     73 -     color: const Color(0xFF312456),                                                                   │
+ │     73 +     color: Theme.of(context).colorScheme.surface,                                                     │
+ │     74       borderRadius: const BorderRadius.only(                                                            │
+ │     75         topLeft: Radius.circular(24),                                                                   │
+ │     76         topRight: Radius.circular(24),                                                                  │
+ │     77       ),                                                                                                │
+ │     78 +     boxShadow: [                                                                                      │
+ │     79 +       BoxShadow(                                                                                      │
+ │     80 +         color: Colors.black.withOpacity(0.1),                                                         │
+ │     81 +         blurRadius: 8,                                                                                │
+ │     82 +         offset: const Offset(0, -2),                                                                  │
+ │     83         ),                                                                                              │
+ │     84 +     ],                                                                                                │
+ │     85 +   ),                                                                                                  │
+ │     86     child: ClipRRect(                                                                                   │
+ │     87       borderRadius: const BorderRadius.only(                                                            │
+ │     88         topLeft: Radius.circular(23),                                                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════            │
+ │     98         type: BottomNavigationBarType.fixed,                                                            │
+ │     99         backgroundColor: Colors.transparent,                                                            │
+ │    100         elevation: 0,                                                                                   │
+ │     94 -       selectedItemColor: const Color(0xFFBB8FEB),                                                     │
+ │     95 -       unselectedItemColor: Colors.grey[400],                                                          │
+ │     96 -       selectedLabelStyle: const TextStyle(                                                            │
+ │     97 -           fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),                            │
+ │    101 +       selectedItemColor: Theme.of(context).colorScheme.primary,                                       │
+ │    102 +       unselectedItemColor: Theme.of(context).unselectedWidgetColor,                                   │
+ │    103 +       selectedLabelStyle:                                                                             │
+ │    104 +           const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),                                 │
+ │    105         unselectedLabelStyle:                                                                           │
+ │    106             const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),                                 │
+ │    107         showUnselectedLabels: true,                                                                     │
+ │    111               padding: const EdgeInsets.all(4),                                                         │
+ │    112               decoration: _currentIndex == 0                                                            │
+ │    113                   ? BoxDecoration(                                                                      │
+ │    107 -                     color: const Color(0xFFBB8FEB)                                                    │
+ │    108 -                         .withAlpha((255 * 0.12).round()),                                             │
+ │    114 +                     color: Theme.of(context)                                                          │
+ │    115 +                         .colorScheme                                                                  │
+ │    116 +                         .primary                                                                      │
+ │    117 +                         .withOpacity(0.12),                                                           │
+ │    118                       borderRadius: BorderRadius.circular(12),                                          │
+ │    119                     )                                                                                   │
+ │    120                   : null,                                                                               │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════            │
+ │    127               padding: const EdgeInsets.all(6),                                                         │
+ │    128               decoration: _currentIndex == 1                                                            │
+ │    129                   ? BoxDecoration(                                                                      │
+ │    121 -                     color: const Color(0xFFBB8FEB)                                                    │
+ │    122 -                         .withAlpha((255 * 0.12).round()),                                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════            │
+ │    130 +                     color: Theme.of(context)                                                          │
+ │    131 +                         .colorScheme                                                                  │
+ │    132 +                         .primary                                                                      │
+ │    133 +                         .withOpacity(0.12),                                                           │
+ │    134                       borderRadius: BorderRadius.circular(12),                                          │
+ │    135                     )                                                                                   │
+ │    136                   : null,                                                                               │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Continuing with profile_tab.dart, I'll remove the hardcoded background colors and update the text styles to be
+  theme-adaptive.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib/screens/home/profile_tab.dart:     return Scaffold(... =>     return Scaffold(...        │
+ │                                                                                                      │
+ │    122   @override                                                                                   │
+ │    123   Widget build(BuildContext context) {                                                        │
+ │    124     return Scaffold(                                                                          │
+ │    125 -     backgroundColor: const Color(0xFF312456),                                               │
+ │    125       appBar: AppBar(                                                                         │
+ │    126         title: const Text('Perfil'),                                                          │
+ │    128 -       backgroundColor: const Color(0xFF312456),                                             │
+ │    127         elevation: 0,                                                                         │
+ │    128         actions: [                                                                            │
+ │    129           IconButton(                                                                         │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Okay, now I'll replace the hardcoded Colors.grey in profile_tab.dart with a theme-adaptive color.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib/screens/home/profile_tab.dart:                     style: con... =>                     style: T…  │
+ │                                                                                                                │
+ │    173   ),                                                                                                    │
+ │    174   Text(                                                                                                 │
+ │    175     _profile?['profession'] ?? 'Not specified',                                                         │
+ │    176 -   style: const TextStyle(                                                                             │
+ │    176 +   style: TextStyle(                                                                                   │
+ │    177       fontSize: 12,                                                                                     │
+ │    178 -     color: Colors.grey,                                                                               │
+ │    178 +     color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),                            │
+ │    179     ),                                                                                                  │
+ │    180   ),                                                                                                    │
+ │    181                                                                                                         │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Fixing the other hardcoded text color in profile_tab.dart now.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib/screens/home/profile_tab.dart:                   style: const... =>                   style: Tex…  │
+ │                                                                                                                │
+ │    329   children: [                                                                                           │
+ │    330     Text(                                                                                               │
+ │    331       label,                                                                                            │
+ │    332 -     style: const TextStyle(                                                                           │
+ │    332 +     style: TextStyle(                                                                                 │
+ │    333         fontWeight: FontWeight.w500,                                                                    │
+ │    334         fontSize: 12,                                                                                   │
+ │    335 -       color: Colors.grey,                                                                             │
+ │    335 +       color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6),                          │
+ │    336       ),                                                                                                │
+ │    337     ),                                                                                                  │
+ │    338     const SizedBox(height: 2),                                                                          │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Okay, inspection_detail_screen.dart is next. I'll start by replacing the bottom container's hardcoded color.
+  Three replacements total to fix the colors.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib//inspection_detail_screen.dart:               decoration: BoxD... =>               decoration: B…  │
+ │                                                                                                                │
+ │    1412     right: 8,                                                                                          │
+ │    1413   ),                                                                                                   │
+ │    1414   decoration: BoxDecoration(                                                                           │
+ │    1415 -   color: const Color(0xFF312456),                                                                    │
+ │    1415 +   color: Theme.of(context).colorScheme.surface,                                                      │
+ │    1416     borderRadius: const BorderRadius.only(                                                             │
+ │    1417       topLeft: Radius.circular(20),                                                                    │
+ │    1418       topRight: Radius.circular(20),                                                                   │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Okay, LinearProgressIndicator in inspection_detail_screen.dart: fix withValues, use theme colors. Done.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib//inspection_detail_screen.dart:                     Container(... =>                     Contain…  │
+ │                                                                                                                │
+ │    1311   height: 4,                                                                                           │
+ │    1312   decoration: BoxDecoration(                                                                           │
+ │    1313     borderRadius: BorderRadius.circular(2),                                                            │
+ │    1314 -   color: Colors.white.withValues(alpha: 0.3),                                                        │
+ │    1314 +   color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),                                   │
+ │    1315   ),                                                                                                   │
+ │    1316   child: LinearProgressIndicator(                                                                      │
+ │    1317     value: _calculateInspectionProgress(),                                                             │
+ │    1319     valueColor: AlwaysStoppedAnimation<Color>(                                                         │
+ │    1320       _calculateInspectionProgress() >= 1.0                                                            │
+ │    1321         ? Colors.green                                                                                 │
+ │    1322 -       : Colors.white,                                                                                │
+ │    1322 +       : Theme.of(context).colorScheme.onSurface,                                                     │
+ │    1323     ),                                                                                                 │
+ │    1324     minHeight: 4,                                                                                      │
+ │    1325   ),                                                                                                   │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Okay, inspection_detail_screen.dart, _buildShortcutButton text style. Done.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  Edit lib//inspection_detail_screen.dart:                 style: const T... =>                 style: cons…  │
+ │                                                                                                                │
+ │    1487   Text(                                                                                                │
+ │    1488     label,                                                                                             │
+ │    1489     style: const TextStyle(                                                                            │
+ │    1490 -     color: Colors.white,                                                                             │
+ │    1490       fontSize: 10,                                                                                    │
+ │    1491       fontWeight: FontWeight.w600,                                                                     │
+ │    1492     ),                                                                                                 │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Okay, edit_profile_screen.dart is next. I'll read it, update the colors to use the theme, and then write the
+  changes back.
+ ╭──────────────────────────────────────────────────────╮
+ │ ✓  ReadFile ...lib/profile/edit_profile_screen.dart  │
+ ╰──────────────────────────────────────────────────────╯
+✦ Got edit_profile_screen.dart content. I'll add theme-adaptive colors and write_file to update it.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  WriteFile Writing to ...lib/profile/edit_profile_screen.dart                                      │
+ │                                                                                                      │
+ │    ... first 54 lines hidden ...                                                                     │
+ │    338                                             ),                                                │
+ │    339                                           )                                                   │
+ │    340                                         : Text(                                               │
+ │    341                                             _getInitials(),                                   │
+ │    342 -                                           style: const TextStyle(                           │
+ │    342 +                                           style: TextStyle(                                 │
+ │    343                                               fontSize: 32,                                   │
+ │    344                                               fontWeight: FontWeight.bold,                    │
+ │    345 -                                             color: Colors.white,                            │
+ │    345 +                                             color: Theme.of                                 │
+ │        (context).colorScheme.onSurface,                                                              │
+ │    346                                             ),                                                │
+ │    347                                           ),                                                  │
+ │    348                               ),                                                              │
+ │    351                                 bottom: 0,                                                    │
+ │    352                                 child: Container(                                             │
+ │    353                                   decoration: BoxDecoration(                                  │
+ │    354 -                                   color: const Color(0xFF6F4B99),                           │
+ │    354 +                                   color: Theme.of(context).colorScheme.primary,             │
+ │    355                                     shape: BoxShape.circle,                                   │
+ │    356                                     boxShadow: [                                              │
+ │    357                                       BoxShadow(                                              │
+ │    358                                         color: Colors.black                                   │
+ │    359 -                                           .withAlpha((255 * 0.3).round()),                  │
+ │    359 +                                           .withOpacity(0.3),                                │
+ │    360                                         blurRadius: 4,                                        │
+ │    361                                         offset: const Offset(0, 2),                           │
+ │    362                                       ),                                                      │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    533                         child: ElevatedButton(                                                │
+ │    534                           onPressed: _isLoading ? null : _saveProfile,                        │
+ │    535                           style: ElevatedButton.styleFrom(                                    │
+ │    536 -                           backgroundColor: const Color(0xFF6F4B99),                         │
+ │    536 +                           backgroundColor: Theme.of(context).colorScheme.primary,           │
+ │    537                             foregroundColor: Colors.white,                                    │
+ │    538                             elevation: 4,                                                     │
+ │    539 -                           shadowColor: const Color(0xFF6F4B99)                              │
+ │    540 -                               .withAlpha((255 * 0.3).round()),                              │
+ │    539 +                           shadowColor: Theme.of(context)                                    │
+ │    540 +                               .colorScheme                                                  │
+ │    541 +                               .primary                                                      │
+ │    542 +                               .withOpacity(0.3),                                            │
+ │    543                             shape: RoundedRectangleBorder(                                    │
+ │    544                               borderRadius: BorderRadius.circular(12),                        │
+ │    545                             ),                                                                │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    582       return Container(                                                                       │
+ │    583         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),                     │
+ │    584         decoration: BoxDecoration(                                                            │
+ │    583 -         color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),                      │
+ │    585 +         color: Theme.of(context).colorScheme.primary.withOpacity(0.1),                      │
+ │    586           borderRadius: BorderRadius.circular(8),                                             │
+ │    587           border: Border.all(                                                                 │
+ │    586 -             color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),                 │
+ │    588 +             color: Theme.of(context).colorScheme.primary.withOpacity(0.3)),                 │
+ │    589         ),                                                                                    │
+ │    590         child: Row(                                                                           │
+ │    591           children: [                                                                         │
+ │    590 -           Icon(icon, color: const Color(0xFF6F4B99), size: 20),                             │
+ │    592 +           Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),               │
+ │    593             const SizedBox(width: 8),                                                         │
+ │    594             Text(                                                                             │
+ │    595               title,                                                                          │
+ │    596               style: TextStyle(                                                               │
+ │    597                 fontSize: 10,                                                                 │
+ │    598                 fontWeight: FontWeight.bold,                                                  │
+ │    597 -               color: Color(0xFF6F4B99),                                                     │
+ │    599 +               color: Theme.of(context).colorScheme.primary,                                 │
+ │    600               ),                                                                              │
+ │    601             ),                                                                                │
+ │    602           ],                                                                                  │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    617       TextCapitalization textCapitalization = TextCapitalization.none,                        │
+ │    618       void Function(String)? onChanged,                                                       │
+ │    619     }) {                                                                                      │
+ │    620 +     final theme = Theme.of(context);                                                        │
+ │    621       return TextFormField(                                                                   │
+ │    622         controller: controller,                                                               │
+ │    623         decoration: InputDecoration(                                                          │
+ │    624           labelText: label,                                                                   │
+ │    625           hintText: hintText,                                                                 │
+ │    623 -         prefixIcon: Icon(icon, color: const Color(0xFF6F4B99)),                             │
+ │    626 +         prefixIcon: Icon(icon, color: theme.colorScheme.primary),                           │
+ │    627           suffixIcon: suffixIcon,                                                             │
+ │    628           border: OutlineInputBorder(                                                         │
+ │    629             borderRadius: BorderRadius.circular(12),                                          │
+ │    627 -           borderSide: BorderSide(color: Colors.grey[600]!),                                 │
+ │    630 +           borderSide: BorderSide(color: theme.disabledColor),                               │
+ │    631           ),                                                                                  │
+ │    632           focusedBorder: OutlineInputBorder(                                                  │
+ │    633             borderRadius: BorderRadius.circular(12),                                          │
+ │    631 -           borderSide: BorderSide(color: Color(0xFF6F4B99), width: 2),                       │
+ │    634 +           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),               │
+ │    635           ),                                                                                  │
+ │    636           enabledBorder: OutlineInputBorder(                                                  │
+ │    637             borderRadius: BorderRadius.circular(12),                                          │
+ │    635 -           borderSide: BorderSide(color: Colors.grey[600]!),                                 │
+ │    638 +           borderSide: BorderSide(color: theme.disabledColor),                               │
+ │    639           ),                                                                                  │
+ │    640           filled: true,                                                                       │
+ │    638 -         fillColor: readOnly ? Colors.grey[800] : Colors.grey[850],                          │
+ │    639 -         labelStyle: TextStyle(color: Colors.grey[400]),                                     │
+ │    640 -         hintStyle: TextStyle(color: Colors.grey),                                           │
+ │    641 +         fillColor: readOnly                                                                 │
+ │    642 +             ? theme.disabledColor.withOpacity(0.2)                                          │
+ │    643 +             : theme.inputDecorationTheme.fillColor,                                         │
+ │    644 +         labelStyle: theme.inputDecorationTheme.labelStyle,                                  │
+ │    645 +         hintStyle: theme.inputDecorationTheme.hintStyle,                                    │
+ │    646         ),                                                                                    │
+ │    642 -       style: const TextStyle(color: Colors.white),                                          │
+ │    647 +       style: theme.textTheme.bodyLarge,                                                     │
+ │    648         keyboardType: keyboardType,                                                           │
+ │    649         inputFormatters: inputFormatters,                                                     │
+ │    650         validator: validator,                                                                 │
+ │    655     }                                                                                         │
+ │    656                                                                                               │
+ │    657     Widget _buildDropdownField() {                                                            │
+ │    658 +     final theme = Theme.of(context);                                                        │
+ │    659       return DropdownButtonFormField<String>(                                                 │
+ │    660         initialValue: _selectedProfession,                                                    │
+ │    661         decoration: InputDecoration(                                                          │
+ │    662           labelText: 'Profissão',                                                             │
+ │    657 -         prefixIcon: Icon(Icons.work_outline, color: Color(0xFF6F4B99)),                     │
+ │    663 +         prefixIcon: Icon(Icons.work_outline, color: theme.colorScheme.primary),             │
+ │    664           border: OutlineInputBorder(                                                         │
+ │    665             borderRadius: BorderRadius.circular(12),                                          │
+ │    660 -           borderSide: BorderSide(color: Colors.grey[600]!),                                 │
+ │    666 +           borderSide: BorderSide(color: theme.disabledColor),                               │
+ │    667           ),                                                                                  │
+ │    668           focusedBorder: OutlineInputBorder(                                                  │
+ │    669             borderRadius: BorderRadius.circular(12),                                          │
+ │    664 -           borderSide: BorderSide(color: Color(0xFF6F4B99), width: 2),                       │
+ │    670 +           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),               │
+ │    671           ),                                                                                  │
+ │    672           enabledBorder: OutlineInputBorder(                                                  │
+ │    673             borderRadius: BorderRadius.circular(12),                                          │
+ │    668 -           borderSide: BorderSide(color: Colors.grey[600]!),                                 │
+ │    674 +           borderSide: BorderSide(color: theme.disabledColor),                               │
+ │    675           ),                                                                                  │
+ │    676           filled: true,                                                                       │
+ │    671 -         fillColor: Colors.grey[850],                                                        │
+ │    672 -         labelStyle: TextStyle(color: Colors.grey[400]),                                     │
+ │    677 +         fillColor: theme.inputDecorationTheme.fillColor,                                    │
+ │    678 +         labelStyle: theme.inputDecorationTheme.labelStyle,                                  │
+ │    679         ),                                                                                    │
+ │    674 -       style: const TextStyle(color: Colors.white),                                          │
+ │    675 -       dropdownColor: Colors.grey[800],                                                      │
+ │    680 +       style: theme.textTheme.bodyLarge,                                                     │
+ │    681 +       dropdownColor: theme.cardColor,                                                       │
+ │    682         items: Constants.professions.map((String value) {                                     │
+ │    683           return DropdownMenuItem<String>(                                                    │
+ │    684             value: value,                                                                     │
+ │    679 -           child: Text(value, style: const TextStyle(color: Colors.white)),                  │
+ │    685 +           child: Text(value),                                                               │
+ │    686           );                                                                                  │
+ │    687         }).toList(),                                                                          │
+ │    688         onChanged: (String? newValue) {                                                       │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    718       super.dispose();                                                                        │
+ │    719     }                                                                                         │
+ │    720   }                                                                                           │
+ │    721 + ''                                                                                          │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Updated edit_profile_screen.dart. Now, non_conformity_screen.dart: read, theme, then write_file.
+ ╭──────────────────────────────────────────────╮
+ │ ✓  ReadFile lib//non_conformity_screen.dart  │
+ ╰──────────────────────────────────────────────╯
+✦ Got non_conformity_screen.dart content. I'll theme it, then write_file.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  WriteFile Writing to lib//non_conformity_screen.dart                                              │
+ │                                                                                                      │
+ │    ... first 5 lines hidden ...                                                                      │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    548                                                                                               │
+ │    549     @override                                                                                 │
+ │    550     Widget build(BuildContext context) {                                                      │
+ │    551 +     final theme = Theme.of(context);                                                        │
+ │    552 +                                                                                             │
+ │    553       return Scaffold(                                                                        │
+ │    552 -       backgroundColor: const Color(0xFF312456),                                             │
+ │    554         appBar: AppBar(                                                                       │
+ │    555           title: const Text(                                                                  │
+ │    556             'Não Conformidades',                                                              │
+ │    557             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),                      │
+ │    558           ),                                                                                  │
+ │    558 -         backgroundColor: const Color(0xFF312456),                                           │
+ │    559           elevation: 0,                                                                       │
+ │    560           leading: Navigator.of(context).canPop()                                             │
+ │    561               ? IconButton(                                                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    589                       // Search and Filter Section                                            │
+ │    590                       Container(                                                              │
+ │    591                         padding: const EdgeInsets.all(12),                                    │
+ │    592 -                       color: const Color(0xFF312456),                                       │
+ │    592 +                       color: theme.scaffoldBackgroundColor,                                 │
+ │    593                         child: Column(                                                        │
+ │    594                           crossAxisAlignment: CrossAxisAlignment.start,                       │
+ │    595                           children: [                                                         │
+ │    596                             // Search Bar                                                     │
+ │    597                             TextField(                                                        │
+ │    598                               controller: _searchController,                                  │
+ │    599 -                             style: const TextStyle(color: Colors.white),                    │
+ │    599 +                             style: theme.textTheme.bodyLarge,                               │
+ │    600                               decoration: InputDecoration(                                    │
+ │    601                                 hintText: 'Pesquisar não conformidades...',                   │
+ │    602 -                               hintStyle: const TextStyle(color: Colors.white54, fontSize:   │
+ │        12),                                                                                          │
+ │    603 -                               prefixIcon: const Icon(Icons.search, color: Colors.white54),  │
+ │    602 +                               hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith     │
+ │        (fontSize: 12),                                                                               │
+ │    603 +                               prefixIcon: Icon(Icons.search, color:                         │
+ │        theme.inputDecorationTheme.hintStyle?.color),                                                 │
+ │    604                                 suffixIcon: _searchQuery.isNotEmpty                           │
+ │    605                                     ? IconButton(                                             │
+ │    606 -                                       icon: const Icon(Icons.clear, color:                  │
+ │        Colors.white54),                                                                              │
+ │    606 +                                       icon: Icon(Icons.clear, color:                        │
+ │        theme.inputDecorationTheme.hintStyle?.color),                                                 │
+ │    607                                         onPressed: () {                                       │
+ │    608                                           _searchController.clear();                          │
+ │    609                                           setState(() => _searchQuery = '');                  │
+ │    611                                       )                                                       │
+ │    612                                     : null,                                                   │
+ │    613                                 filled: true,                                                 │
+ │    614 -                               fillColor: Colors.white.withValues(alpha: 0.1),               │
+ │    614 +                               fillColor: theme.inputDecorationTheme.fillColor,              │
+ │    615                                 border: OutlineInputBorder(                                   │
+ │    616                                   borderRadius: BorderRadius.circular(8),                     │
+ │    617                                   borderSide: BorderSide.none,                                │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    627                             // Level Filter                                                   │
+ │    628                             Row(                                                              │
+ │    629                               children: [                                                     │
+ │    630 -                               const Text(                                                   │
+ │    630 +                               Text(                                                         │
+ │    631                                   'Nível:',                                                   │
+ │    632 -                                 style: TextStyle(                                           │
+ │    633 -                                   color: Colors.white,                                      │
+ │    632 +                                 style: theme.textTheme.bodyLarge?.copyWith(                 │
+ │    633                                     fontWeight: FontWeight.bold,                              │
+ │    634                                     fontSize: 12,                                             │
+ │    635                                   ),                                                          │
+ │    637                                 const SizedBox(width: 8),                                     │
+ │    638                                 Expanded(                                                     │
+ │    639                                   child: DropdownButtonFormField<String>(                     │
+ │    641 -                                   initialValue: _levelFilter,                               │
+ │    642 -                                   style: const TextStyle(color: Colors.white, fontSize: 12  │
+ │        ),                                                                                            │
+ │    640 +                                   value: _levelFilter,                                      │
+ │    641 +                                   style: theme.textTheme.bodyLarge?.copyWith(fontSize: 12   │
+ │        ),                                                                                            │
+ │    642                                     decoration: InputDecoration(                              │
+ │    643                                       filled: true,                                           │
+ │    645 -                                     fillColor: Colors.white.withValues(alpha: 0.1),         │
+ │    644 +                                     fillColor: theme.inputDecorationTheme.fillColor,        │
+ │    645                                       border: OutlineInputBorder(                             │
+ │    646                                         borderRadius: BorderRadius.circular(6),               │
+ │    647                                         borderSide: BorderSide.none,                          │
+ │    649                                       contentPadding: const EdgeInsets.symmetric(horizontal:  │
+ │          12, vertical: 8),                                                                           │
+ │    650                                       isDense: true,                                          │
+ │    651                                     ),                                                        │
+ │    653 -                                   dropdownColor: const Color(0xFF312456),                   │
+ │    652 +                                   dropdownColor: theme.cardColor,                           │
+ │    653                                     items: const [                                            │
+ │    654                                       DropdownMenuItem<String>(                               │
+ │    655                                         value: null,                                          │
+ │    657 -                                       child: Text('Todos os níveis', style: TextStyle(      │
+ │        color: Colors.white, fontSize: 12)),                                                          │
+ │    656 +                                       child: Text('Todos os níveis', style: TextStyle       │
+ │        (fontSize: 12)),                                                                              │
+ │    657                                       ),                                                      │
+ │    658                                       DropdownMenuItem<String>(                               │
+ │    659                                         value: 'topic',                                       │
+ │    661 -                                       child: Text('Apenas Tópicos', style: TextStyle(color  │
+ │        : Colors.white, fontSize: 12)),                                                               │
+ │    660 +                                       child: Text('Apenas Tópicos', style: TextStyle        │
+ │        (fontSize: 12)),                                                                              │
+ │    661                                       ),                                                      │
+ │    662                                       DropdownMenuItem<String>(                               │
+ │    663                                         value: 'item',                                        │
+ │    665 -                                       child: Text('Apenas Itens', style: TextStyle(color:   │
+ │        Colors.white, fontSize: 12)),                                                                 │
+ │    664 +                                       child: Text('Apenas Itens', style: TextStyle          │
+ │        (fontSize: 12)),                                                                              │
+ │    665                                       ),                                                      │
+ │    666                                       DropdownMenuItem<String>(                               │
+ │    667                                         value: 'detail',                                      │
+ │    669 -                                       child: Text('Apenas Detalhes', style: TextStyle(      │
+ │        color: Colors.white, fontSize: 12)),                                                          │
+ │    668 +                                       child: Text('Apenas Detalhes', style: TextStyle       │
+ │        (fontSize: 12)),                                                                              │
+ │    669                                       ),                                                      │
+ │    670                                     ],                                                        │
+ │    671                                     onChanged: (value) {                                      │
+ │    672                                       setState(() => _levelFilter = value);                   │
+ │    673                                     },                                                        │
+ │    675 -                                   icon: const Icon(Icons.arrow_drop_down, color:            │
+ │        Colors.white54),                                                                              │
+ │    674 +                                   icon: Icon(Icons.arrow_drop_down, color:                  │
+ │        theme.inputDecorationTheme.hintStyle?.color),                                                 │
+ │    675                                   ),                                                          │
+ │    676                                 ),                                                            │
+ │    677                               ],                                                              │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    699               ),                                                                              │
+ │    700         bottomNavigationBar: Container(                                                       │
+ │    701           decoration: BoxDecoration(                                                          │
+ │    703 -           color: const Color(0xFF312456),                                                   │
+ │    702 +           color: theme.colorScheme.surface,                                                 │
+ │    703             borderRadius: const BorderRadius.only(                                            │
+ │    704               topLeft: Radius.circular(24),                                                   │
+ │    705               topRight: Radius.circular(24),                                                  │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    720               type: BottomNavigationBarType.fixed,                                            │
+ │    721               backgroundColor: Colors.transparent,                                            │
+ │    722               elevation: 0,                                                                   │
+ │    724 -             selectedItemColor: const Color(0xFFBB8FEB),                                     │
+ │    725 -             unselectedItemColor: Colors.grey[400],                                          │
+ │    726 -             selectedLabelStyle: const TextStyle(                                            │
+ │    727 -                 fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),            │
+ │    723 +             selectedItemColor: theme.colorScheme.primary,                                   │
+ │    724 +             unselectedItemColor: theme.unselectedWidgetColor,                               │
+ │    725 +             selectedLabelStyle:                                                             │
+ │    726 +                 const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),                 │
+ │    727               unselectedLabelStyle:                                                           │
+ │    728                   const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),                 │
+ │    729               showUnselectedLabels: true,                                                     │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    743       );                                                                                      │
+ │    744     }                                                                                         │
+ │    745   }                                                                                           │
+ │    747 -                                                                                             │
+ │    746 + ''                                                                                          │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Updated non_conformity_screen.dart. Now, inspection_tab.dart: read, then write_file to fix hardcoded colors.
+ ╭──────────────────────────────────────────────────────╮
+ │ ✓  ReadFile ...lib/screens/home/inspection_tab.dart  │
+ ╰──────────────────────────────────────────────────────╯
+✦ Got inspection_tab.dart content. I'll theme it, then write_file.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  WriteFile Writing to ...lib/screens/home/inspection_tab.dart                                      │
+ │                                                                                                      │
+ │    ... first 218 lines hidden ...                                                                    │
+ │    1420                               isDownloaded                                                   │
+ │    1421                                   ? 'Já baixada - Toque para abrir'                          │
+ │    1422                                   : 'Toque para baixar',                                     │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1432 -                             style: TextStyle(                                              │
+ │    1433 -                               fontSize: 11,                                                │
+ │    1423 +                             style: theme.textTheme.bodySmall?.copyWith(                    │
+ │    1424                                 fontWeight: FontWeight.w600,                                 │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1435 -                               color: Colors.white,                                         │
+ │    1425                               ),                                                             │
+ │    1426                             ),                                                               │
+ │    1427                           ),                                                                 │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1440                                                                                              │
+ │    1441   @override                                                                                  │
+ │    1442   Widget build(BuildContext context) {                                                       │
+ │    1443 +   final theme = Theme.of(context);                                                         │
+ │    1444     final filteredInspections = _filteredInspections;                                        │
+ │    1445                                                                                              │
+ │    1446     return Dialog(                                                                           │
+ │    1449         width: MediaQuery.of(context).size.width * 0.95,                                     │
+ │    1450         height: MediaQuery.of(context).size.height * 0.8,                                    │
+ │    1451         padding: const EdgeInsets.all(16),                                                   │
+ │    1452 +       color: theme.cardColor,                                                              │
+ │    1453         child: Column(                                                                       │
+ │    1454           crossAxisAlignment: CrossAxisAlignment.start,                                      │
+ │    1455           children: [                                                                        │
+ │    1456             // Header                                                                        │
+ │    1457             Row(                                                                             │
+ │    1458               children: [                                                                    │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1468 -               const Icon(Icons.cloud_download,                                             │
+ │    1469 -                   color: Color(0xFFFFFFFF), size: 20),                                     │
+ │    1459 +               Icon(Icons.cloud_download,                                                   │
+ │    1460 +                   color: theme.colorScheme.onSurface, size: 20),                           │
+ │    1461                 const SizedBox(width: 12),                                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1471 -               const Expanded(                                                              │
+ │    1462 +               Expanded(                                                                    │
+ │    1463                   child: Text(                                                               │
+ │    1464                     'Vistorias Disponíveis',                                                 │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1474 -                   style: TextStyle(                                                        │
+ │    1475 -                     fontSize: 16,                                                          │
+ │    1476 -                     fontWeight: FontWeight.bold,                                           │
+ │    1477 -                     color: Colors.white,                                                   │
+ │    1465 +                   style: theme.textTheme.titleLarge?.copyWith(                             │
+ │    1466                       fontFamily: 'BricolageGrotesque',                                      │
+ │    1467                     ),                                                                       │
+ │    1468                   ),                                                                         │
+ │    1469                 ),                                                                           │
+ │    1470                 IconButton(                                                                  │
+ │    1471                   onPressed: () => Navigator.of(context).pop(),                              │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1484 -                 icon: const Icon(Icons.close, color: Colors.grey),                         │
+ │    1472 +                 icon: Icon(Icons.close, color: theme.iconTheme.color),                     │
+ │    1473                 ),                                                                           │
+ │    1474               ],                                                                             │
+ │    1475             ),                                                                               │
+ │    1479             // Barra de busca                                                                │
+ │    1480             TextField(                                                                       │
+ │    1481               controller: _searchController,                                                 │
+ │    1482 +             style: theme.textTheme.bodyLarge,                                              │
+ │    1483               decoration: InputDecoration(                                                   │
+ │    1484                 hintText: 'Buscar por título, endereço ou código...',                        │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1496 -               hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),                │
+ │    1497 -               prefixIcon: const Icon(Icons.search, color: Colors.grey),                    │
+ │    1485 +               hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith(fontSize: 12),     │
+ │    1486 +               prefixIcon: Icon(Icons.search, color:                                        │
+ │         theme.inputDecorationTheme.hintStyle?.color),                                                │
+ │    1487                 suffixIcon: _searchQuery.isNotEmpty                                          │
+ │    1488                     ? IconButton(                                                            │
+ │    1489                         onPressed: () {                                                      │
+ │    1490                           _searchController.clear();                                         │
+ │    1491                           setState(() => _searchQuery = '');                                 │
+ │    1492                         },                                                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1504 -                       icon: const Icon(Icons.clear, color: Colors.grey),                   │
+ │    1493 +                       icon: Icon(Icons.clear, color:                                       │
+ │         theme.inputDecorationTheme.hintStyle?.color),                                                │
+ │    1494                       )                                                                      │
+ │    1495                     : null,                                                                  │
+ │    1496                 border: OutlineInputBorder(                                                  │
+ │    1497                   borderRadius: BorderRadius.circular(12),                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1509 -                 borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),         │
+ │    1498 +                 borderSide: BorderSide(color: theme.disabledColor.withOpacity(0.3)),       │
+ │    1499                 ),                                                                           │
+ │    1500                 focusedBorder: OutlineInputBorder(                                           │
+ │    1501                   borderRadius: BorderRadius.circular(12),                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1513 -                 borderSide: const BorderSide(color: Color(0xFF312456)),                    │
+ │    1502 +                 borderSide: BorderSide(color: theme.colorScheme.primary),                  │
+ │    1503                 ),                                                                           │
+ │    1504                 filled: true,                                                                │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1516 -               fillColor: Colors.grey.withValues(alpha: 0.05),                              │
+ │    1505 +               fillColor: theme.inputDecorationTheme.fillColor,                             │
+ │    1506               ),                                                                             │
+ │    1507               onChanged: (value) => setState(() => _searchQuery = value),                    │
+ │    1508             ),                                                                               │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1530                             value: _hideDownloaded,                                          │
+ │    1531                             onChanged: (value) => setState(                                  │
+ │    1532                                 () => _hideDownloaded = value ?? false),                     │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1544 -                           activeColor: Colors.blue,                                        │
+ │    1533 +                           activeColor: theme.colorScheme.primary,                          │
+ │    1534                             materialTapTargetSize:                                           │
+ │    1535                                 MaterialTapTargetSize.shrinkWrap,                            │
+ │    1536                           ),                                                                 │
+ │    1537                         ),                                                                   │
+ │    1538                         const SizedBox(width: 6),                                            │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1550 -                       const Text(                                                          │
+ │    1539 +                       Text(                                                                │
+ │    1540                           'Ocultar já baixadas',                                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1552 -                         style: TextStyle(fontSize: 11, color: Colors.white),               │
+ │    1541 +                         style: theme.textTheme.bodySmall,                                  │
+ │    1542                         ),                                                                   │
+ │    1543                       ],                                                                     │
+ │    1544                     ),                                                                       │
+ │    1547                 // Counter on the right                                                      │
+ │    1548                 Text(                                                                        │
+ │    1549                   '${filteredInspections.length} de ${widget.inspections.length} vistorias'  │
+ │           ,                                                                                          │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1561 -                 style: TextStyle(                                                          │
+ │    1562 -                   fontSize: 10,                                                            │
+ │    1563 -                   color: Colors.grey[600],                                                 │
+ │    1550 +                 style: theme.textTheme.bodySmall?.copyWith(                                │
+ │    1551 +                   color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),               │
+ │    1552                   ),                                                                         │
+ │    1553                 ),                                                                           │
+ │    1554               ],                                                                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1570                                   ? Icons.visibility_off                                     │
+ │    1571                                   : Icons.search_off,                                        │
+ │    1572                               size: 48,                                                      │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1585 -                             color: Colors.grey[400],                                       │
+ │    1573 +                             color: theme.textTheme.bodySmall?.color?.withOpacity(0.4),     │
+ │    1574                             ),                                                               │
+ │    1575                             const SizedBox(height: 12),                                      │
+ │    1576                             Text(                                                            │
+ │    1580                                       ? 'Nenhuma vistoria encontrada\npara "$_searchQuery"'  │
+ │    1581                                       : 'Nenhuma vistoria disponível',                       │
+ │    1582                               textAlign: TextAlign.center,                                   │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1595 -                             style: TextStyle(                                              │
+ │    1596 -                               fontSize: 13,                                                │
+ │    1597 -                               color: Colors.grey[600],                                     │
+ │    1598 -                               fontWeight: FontWeight.w500,                                 │
+ │    1583 +                             style: theme.textTheme.bodyLarge?.copyWith(                    │
+ │    1584 +                               color: theme.textTheme.bodyLarge?.color?.withOpacity(0.6),   │
+ │    1585                               ),                                                             │
+ │    1586                             ),                                                               │
+ │    1587                             if (_searchQuery.isNotEmpty) ...[                                │
+ │                                                                                                      │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Updated inspection_tab.dart. Now, I'll read, theme, and write inspection_detail_screen.dart.
+ ╭─────────────────────────────────────────────────╮
+ │ ✓  ReadFile lib//inspection_detail_screen.dart  │
+ ╰─────────────────────────────────────────────────╯
+✦ Got inspection_detail_screen.dart content. I'll theme it and overwrite the file.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  WriteFile Writing to lib//inspection_detail_screen.dart                                           │
+ │                                                                                                      │
+ │     242                   await _downloadInspectionForOffline();                                     │
+ │     243                 },                                                                           │
+ │     244                 style: ElevatedButton.styleFrom(                                             │
+ │     245 -                 backgroundColor: const Color(0xFF6F4B99),                                  │
+ │     246 -                 foregroundColor: Colors.white,                                             │
+ │     245 +                 backgroundColor: Theme.of(context).colorScheme.primary,                    │
+ │     246 +                 foregroundColor: Theme.of(context).colorScheme.onPrimary,                  │
+ │     247                 ),                                                                           │
+ │     248                 child: const Text('Baixar'),                                                 │
+ │     249               ),                                                                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1025   }                                                                                          │
+ │    1026                                                                                              │
+ │    1027                                                                                              │
+ │    1028 -                                                                                            │
+ │    1028   Future<void> _importInspection() async {                                                   │
+ │    1029     if (!mounted) return;                                                                    │
+ │    1030                                                                                              │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1286   Widget build(BuildContext context) {                                                       │
+ │    1287     final bottomPadding = MediaQuery.of(context).padding.bottom;                             │
+ │    1288     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;                         │
+ │    1289 +   final theme = Theme.of(context);                                                         │
+ │    1290                                                                                              │
+ │    1291     return Scaffold(                                                                         │
+ │    1292       appBar: AppBar(                                                                        │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1311                       height: 4,                                                             │
+ │    1312                       decoration: BoxDecoration(                                             │
+ │    1313                         borderRadius: BorderRadius.circular(2),                              │
+ │    1314 -                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),     │
+ │    1314 +                       color: theme.colorScheme.onSurface.withOpacity(0.3),                 │
+ │    1315                       ),                                                                     │
+ │    1316                       child: LinearProgressIndicator(                                        │
+ │    1317                         value: _calculateInspectionProgress(),                               │
+ │    1319                         valueColor: AlwaysStoppedAnimation<Color>(                           │
+ │    1320                           _calculateInspectionProgress() >= 1.0                              │
+ │    1321                             ? Colors.green                                                   │
+ │    1322 -                           : Theme.of(context).colorScheme.onSurface,                       │
+ │    1322 +                           : theme.colorScheme.onSurface,                                   │
+ │    1323                         ),                                                                   │
+ │    1324                         minHeight: 4,                                                        │
+ │    1325                       ),                                                                     │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1332         ),                                                                                   │
+ │    1333         actions: [                                                                           │
+ │    1334           if (_isSyncing || _isApplyingTemplate)                                             │
+ │    1335 -           const Padding(                                                                   │
+ │    1336 -             padding: EdgeInsets.symmetric(horizontal: 8.0),                                │
+ │    1335 +           Padding(                                                                         │
+ │    1336 +             padding: const EdgeInsets.symmetric(horizontal: 8.0),                          │
+ │    1337               child: SizedBox(                                                               │
+ │    1338                 width: 20,                                                                   │
+ │    1339                 height: 20,                                                                  │
+ │    1340                 child: CircularProgressIndicator(                                            │
+ │    1341                   strokeWidth: 2,                                                            │
+ │    1342 -                 color: Colors.white,                                                       │
+ │    1342 +                 color: theme.colorScheme.onPrimary,                                        │
+ │    1343                 ),                                                                           │
+ │    1344               ),                                                                             │
+ │    1345             ),                                                                               │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1412                 right: 8,                                                                    │
+ │    1413               ),                                                                             │
+ │    1414               decoration: BoxDecoration(                                                     │
+ │    1415 -               color: Theme.of(context).colorScheme.surface,                                │
+ │    1415 +               color: theme.colorScheme.surface,                                            │
+ │    1416                 borderRadius: const BorderRadius.only(                                       │
+ │    1417                   topLeft: Radius.circular(20),                                              │
+ │    1418                   topRight: Radius.circular(20),                                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1448                     onTap: _canEdit                                                          │
+ │    1449                         ? _addTopic                                                          │
+ │    1450                         : () => _showOfflineRequiredDialog(),                                │
+ │    1451 -                   color: _canEdit ? Color(0xFF6F4B99) : Colors.grey,                       │
+ │    1451 +                   color: _canEdit ? theme.colorScheme.primary : Colors.grey,               │
+ │    1452                   ),                                                                         │
+ │    1453                 ],                                                                           │
+ │    1454               ),                                                                             │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1472           margin: const EdgeInsets.symmetric(horizontal: 4),                                 │
+ │    1473           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),                   │
+ │    1474           decoration: BoxDecoration(                                                         │
+ │    1475 -           color: color.withAlpha((255 * 0.08).round()),                                    │
+ │    1475 +           color: color.withOpacity(0.08),                                                  │
+ │    1476             borderRadius: BorderRadius.circular(16),                                         │
+ │    1477           ),                                                                                 │
+ │    1478           child: Column(                                                                     │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    1486               const SizedBox(height: 2),                                                     │
+ │    1487               Text(                                                                          │
+ │    1488                 label,                                                                       │
+ │    1489 -               style: const TextStyle(                                                      │
+ │    1490 -                 fontSize: 10,                                                              │
+ │    1489 +               style: Theme.of(context).textTheme.bodySmall?.copyWith(                      │
+ │    1490                   fontWeight: FontWeight.w600,                                               │
+ │    1491                 ),                                                                           │
+ │    1492                 textAlign: TextAlign.center,                                                 │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ I have updated all the requested files to ensure their colors are now fully adapted to the application's theme.
+   The hardcoded colors have been replaced with theme-adaptive values, so the screens should now correctly
+  reflect the light and dark modes.
+ ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  ReadManyFiles Will attempt to read and concatenate files using patterns:…                                │
+ │                                                                                                             │
+ │                                                                                                             │
+ │    ### ReadManyFiles Result (Target Dir: `/Users/danrleyribeiro/inspection_app`)                            │
+ │                                                                                                             │
+ │    Successfully read and concatenated content from **4 file(s)**.                                           │
+ │                                                                                                             │
+ │    **Processed Files:**                                                                                     │
+ │    - `lib/presentation/screens/inspection/components/empty_topic_state.dart`                                │
+ │    - `lib/presentation/screens/inspection/components/hierarchical_inspection_view.dart`                     │
+ │    - `lib/presentation/screens/inspection/components/swipeable_level_header.dart`                           │
+ │    - `lib/presentation/screens/inspection/inspection_detail_screen.dart`                                    │
+ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  > Faltou o @lib/presentation/screens/inspection/inspection_detail_screen.dart que ainda está com o fundo   │
+│    padrão. Analise os arquivos que renderizam nessa tela como                                               │
+│    @lib/presentation/screens/inspection/components/hierarchical_inspection_view.dart                        │
+│    @lib/presentation/screens/inspection/components/swipeable_level_header.dart                              │
+│    @lib/presentation/screens/inspection/components/empty_topic_state.dart etc                               │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ You're right, my apologies. The issue is deeper than just the main screen file. The background color is being
+  overridden by child components. I will analyze the component files you've pointed out and fix the hardcoded
+  colors there.
+
+  Here's the plan:
+   1. `hierarchical_inspection_view.dart`: This seems to be the main culprit. I'll remove the hardcoded
+      background color from its root container.
+   2. `empty_topic_state.dart`: I'll update the icon and text colors to be theme-adaptive.
+   3. `swipeable_level_header.dart`: I'll correct the hardcoded colors within the dropdown menu to respect the
+      theme.
+
+  I'll start with hierarchical_inspection_view.dart.
+ ╭────────────────────────────────────────────────────────╮
+ │ ✓  ReadFile ...lib//hierarchical_inspection_view.dart  │
+ ╰────────────────────────────────────────────────────────╯
+✦ Got hierarchical_inspection_view.dart content. I'll theme it, then write_file.
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✓  WriteFile Writing to ...lib//hierarchical_inspection_view.dart                                    │
+ │                                                                                                      │
+ │      1 - import 'package:flutter/material.dart';                                                     │
+ │      1 + '''import 'package:flutter/material.dart';                                                  │
+ │      2   import 'package:lince_inspecoes/models/topic.dart';                                         │
+ │      3   import 'package:lince_inspecoes/models/item.dart';                                          │
+ │      4   import 'package:lince_inspecoes/models/detail.dart';                                        │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    247                                                                                               │
+ │    248     @override                                                                                 │
+ │    249     Widget build(BuildContext context) {                                                      │
+ │    250 +     final theme = Theme.of(context);                                                        │
+ │    251       if (widget.topics.isEmpty) {                                                            │
+ │    251 -       return const Center(                                                                  │
+ │    252 +       return Center(                                                                        │
+ │    253           child: Text('Nenhum tópico encontrado',                                             │
+ │    253 -             style: TextStyle(color: Colors.white70, fontSize: 12)),                         │
+ │    254 +             style: TextStyle(color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),     │
+ │        fontSize: 12)),                                                                               │
+ │    255         );                                                                                    │
+ │    256       }                                                                                       │
+ │    257                                                                                               │
+ │    258       return Container(                                                                       │
+ │    258 -       color: const Color(0xFF312456),                                                       │
+ │    259 +       color: theme.scaffoldBackgroundColor,                                                 │
+ │    260         child: Column(                                                                        │
+ │    261           children: [                                                                         │
+ │    262             Expanded(                                                                         │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    445                                                 horizontal: 4, vertical: 2),                  │
+ │    446                                             decoration: BoxDecoration(                        │
+ │    447                                               color: Colors.green                             │
+ │    447 -                                                 .withAlpha((255 * 0.1).round()),            │
+ │    448 +                                                 .withOpacity(0.1),                          │
+ │    449                                               borderRadius:                                   │
+ │    450                                                   BorderRadius.circular(12),                  │
+ │    451                                               border: Border.all(                             │
+ │    451 -                                                 color: Colors.green.withAlpha(              │
+ │    452 -                                                     (255 * 0.3).round())),                  │
+ │    452 +                                                 color: Colors.green.withOpacity(0.3)),      │
+ │    453                                             ),                                                │
+ │    454                                             child: Material(                                  │
+ │    455                                               color: Colors.transparent,                      │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    555                                                                                               │
+ │    556                                     if (!_isDetailsExpanded &&                                │
+ │    557                                         itemDetails.isEmpty)                                  │
+ │    558 -                                     const Padding(                                          │
+ │    559 -                                       padding: EdgeInsets.all(32.0),                        │
+ │    558 +                                     Padding(                                                │
+ │    559 +                                       padding: const EdgeInsets.all(32.0),                  │
+ │    560                                         child: Center(                                        │
+ │    561                                           child: Column(                                      │
+ │    562                                             mainAxisAlignment:                                │
+ │    564                                             children: [                                       │
+ │    565                                               Icon(Icons.details,                             │
+ │    566                                                   size: 48,                                   │
+ │    567 -                                                 color: Colors.white30),                     │
+ │    568 -                                             SizedBox(height: 4),                            │
+ │    567 +                                                 color: theme.textTheme.bodySmall?.color?.   │
+ │        withOpacity(0.3)),                                                                            │
+ │    568 +                                             const SizedBox(height: 4),                      │
+ │    569                                               Text('Nenhum detalhe encontrado',               │
+ │    570                                                   style: TextStyle(                           │
+ │    571 -                                                     color: Colors.white70,                  │
+ │    571 +                                                     color:                                  │
+ │        theme.textTheme.bodySmall?.color?.withOpacity(0.7),                                           │
+ │    572                                                       fontSize: 12)),                         │
+ │    573                                             ],                                                │
+ │    574                                           ),                                                  │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    708                                                                                               │
+ │    709     /// Constrói a view para tópicos com detalhes diretos (sem itens intermediários)          │
+ │    710     Widget _buildDirectDetailsView(Topic topic, int topicIndex) {                             │
+ │    711 +     final theme = Theme.of(context);                                                        │
+ │    712       final topicId = topic.id ?? 'topic_$topicIndex';                                        │
+ │    713       // Usar chave especial para detalhes diretos                                            │
+ │    714       final directDetailsKey = '${topicId}_direct';                                           │
+ │    ════════════════════════════════════════════════════════════════════════════════════════════════  │
+ │    778                                                                                               │
+ │    779             // Mensagem quando não há detalhes                                                │
+ │    780             if (topicDetails.isEmpty)                                                         │
+ │    780 -             const Padding(                                                                  │
+ │    781 -               padding: EdgeInsets.all(32.0),                                                │
+ │    781 +             Padding(                                                                        │
+ │    782 +               padding: const EdgeInsets.all(32.0),                                          │
+ │    783                 child: Center(                                                                │
+ │    784                   child: Column(                                                              │
+ │    785                     mainAxisAlignment: MainAxisAlignment.center,                              │
+ │    786                     children: [                                                               │
+ │    786 -                     Icon(Icons.details, size: 48, color: Colors.white30),                   │
+ │    787 -                     SizedBox(height: 4),                                                    │
+ │    787 +                     Icon(Icons.details, size: 48, color:                                    │
+ │        theme.textTheme.bodySmall?.color?.withOpacity(0.3)),                                          │
+ │    788 +                     const SizedBox(height: 4),                                              │
+ │    789                       Text('Nenhum detalhe encontrado',                                       │
+ │    789 -                         style: TextStyle(color: Colors.white70, fontSize: 12)),             │
+ │    790 +                         style: TextStyle(color: theme.textTheme.bodySmall?.color?.          │
+ │        withOpacity(0.7), fontSize: 12)),                                                             │
+ │    791                     ],                                                                        │
+ │    792                   ),                                                                          │
+ │    793                 ),                                                                            │
+ │    799                                                                                               │
+ │    800     // REMOVIDO: Método não utilizado após remoção do header de item para direct_details      │
+ │    801   }                                                                                           │
+ │    802 + ''                                          

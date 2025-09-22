@@ -1,17 +1,35 @@
 // lib/models/topic.dart (adaptado)
+import 'package:hive/hive.dart';
+
+part 'topic.g.dart';
+
+@HiveType(typeId: 1)
 class Topic {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String inspectionId;
+  @HiveField(2)
   final int position;
+  @HiveField(3)
   final int orderIndex;
+  @HiveField(4)
   final String topicName;
+  @HiveField(5)
   final String? topicLabel;
+  @HiveField(6)
   final String? description;
+  @HiveField(7)
   final bool? directDetails;
+  @HiveField(8)
   final String? observation;
+  @HiveField(9)
   final bool? isDamaged;
+  @HiveField(10)
   final List<String>? tags;
+  @HiveField(11)
   final DateTime? createdAt;
+  @HiveField(12)
   final DateTime? updatedAt;
 
   Topic({

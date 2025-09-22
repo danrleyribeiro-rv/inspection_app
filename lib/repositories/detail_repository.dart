@@ -1,277 +1,217 @@
+import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/models/detail.dart';
-import 'package:lince_inspecoes/repositories/base_repository.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
-class DetailRepository extends BaseRepository<Detail> {
-  @override
-  String get tableName => 'details';
-
-  @override
-  Detail fromMap(Map<String, dynamic> map) {
-    return Detail.fromMap(map);
+class DetailRepository {
+  // Métodos básicos CRUD usando DatabaseHelper
+  Future<String> insert(Detail detail) async {
+    await DatabaseHelper.insertDetail(detail);
+    return detail.id!;
   }
 
-  @override
-  Map<String, dynamic> toMap(Detail entity) {
-    return entity.toMap();
+  Future<void> update(Detail detail) async {
+    await DatabaseHelper.updateDetail(detail);
   }
 
-  // Métodos específicos do Detail
+  Future<void> delete(String id) async {
+    await DatabaseHelper.deleteDetail(id);
+  }
+
+  Future<Detail?> findById(String id) async {
+    return await DatabaseHelper.getDetail(id);
+  }
+
   Future<List<Detail>> findByItemId(String itemId) async {
-    return await findWhere('item_id = ?', [itemId]);
+    return await DatabaseHelper.getDetailsByItem(itemId);
   }
 
   Future<List<Detail>> findByItemIdOrdered(String itemId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'item_id = ? AND is_deleted = 0',
-      whereArgs: [itemId],
-      orderBy: 'order_index ASC',
-    );
-
-    return maps.map((map) => fromMap(map)).toList();
+    final details = await DatabaseHelper.getDetailsByItem(itemId);
+    details.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return details;
   }
 
   Future<List<Detail>> findByTopicId(String topicId) async {
-    return await findWhere('topic_id = ?', [topicId]);
+    // Para Hive, filtraremos na aplicação já que não temos SQL WHERE
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) => detail.topicId == topicId).toList();
   }
 
   Future<List<Detail>> findByInspectionId(String inspectionId) async {
-    return await findWhere('inspection_id = ?', [inspectionId]);
+    // Para Hive, filtraremos na aplicação
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) => detail.inspectionId == inspectionId).toList();
   }
 
   Future<Detail?> findByItemIdAndIndex(String itemId, int orderIndex) async {
-    final results = await findWhere(
-        'item_id = ? AND order_index = ?', [itemId, orderIndex]);
-    return results.isNotEmpty ? results.first : null;
+    final details = await findByItemId(itemId);
+    try {
+      return details.firstWhere((detail) => detail.orderIndex == orderIndex);
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<int> getMaxOrderIndex(String itemId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT MAX(order_index) as max_index FROM $tableName WHERE item_id = ? AND is_deleted = 0',
-      [itemId],
-    );
-    return (result.first['max_index'] as int?) ?? 0;
+    final details = await findByItemId(itemId);
+    if (details.isEmpty) return 0;
+    return details.map((d) => d.orderIndex).reduce((a, b) => a > b ? a : b);
   }
 
-  Future<void> updateValue(
-      String detailId, String? value, String? observation) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'detail_value': value,
-        'observation': observation,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [detailId],
-    );
+  Future<void> updateValue(String detailId, String? value, String? observation) async {
+    final detail = await findById(detailId);
+    if (detail != null) {
+      final updatedDetail = detail.copyWith(
+        detailValue: value,
+        observation: observation,
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedDetail);
+    }
   }
 
   Future<void> markAsCompleted(String detailId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'status': 'completed',
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [detailId],
-    );
+    final detail = await findById(detailId);
+    if (detail != null) {
+      final updatedDetail = detail.copyWith(
+        status: 'completed',
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedDetail);
+    }
   }
 
   Future<void> markAsIncomplete(String detailId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'status': 'pending',
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [detailId],
-    );
+    final detail = await findById(detailId);
+    if (detail != null) {
+      final updatedDetail = detail.copyWith(
+        status: 'pending',
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedDetail);
+    }
   }
 
   Future<void> setNonConformity(String detailId, bool hasNonConformity) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'has_non_conformity': hasNonConformity ? 1 : 0,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [detailId],
-    );
+    final detail = await findById(detailId);
+    if (detail != null) {
+      final updatedDetail = detail.copyWith(
+        isDamaged: hasNonConformity,
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedDetail);
+    }
   }
 
   Future<void> reorderDetails(String itemId, List<String> detailIds) async {
-    final db = await database;
-    await db.transaction((txn) async {
-      for (int i = 0; i < detailIds.length; i++) {
-        await txn.update(
-          tableName,
-          {
-            'order_index': i,
-            'updated_at': DateTime.now().toIso8601String(),
-            'needs_sync': 1,
-          },
-          where: 'id = ? AND item_id = ?',
-          whereArgs: [detailIds[i], itemId],
+    for (int i = 0; i < detailIds.length; i++) {
+      final detail = await findById(detailIds[i]);
+      if (detail != null && detail.itemId == itemId) {
+        final updatedDetail = detail.copyWith(
+          orderIndex: i,
+          updatedAt: DateFormatter.now(),
         );
+        await update(updatedDetail);
       }
-    });
+    }
   }
 
   Future<void> deleteByItemId(String itemId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'is_deleted': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'item_id = ?',
-      whereArgs: [itemId],
-    );
+    final details = await findByItemId(itemId);
+    for (final detail in details) {
+      await delete(detail.id!);
+    }
   }
 
   Future<void> deleteByTopicId(String topicId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'is_deleted': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'topic_id = ?',
-      whereArgs: [topicId],
-    );
+    final details = await findByTopicId(topicId);
+    for (final detail in details) {
+      await delete(detail.id!);
+    }
   }
 
   Future<void> deleteByInspectionId(String inspectionId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'is_deleted': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'inspection_id = ?',
-      whereArgs: [inspectionId],
-    );
+    final details = await findByInspectionId(inspectionId);
+    for (final detail in details) {
+      await delete(detail.id!);
+    }
   }
 
   Future<List<Detail>> findByStatus(String status) async {
-    return await findWhere('status = ?', [status]);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) => detail.status == status).toList();
   }
 
   Future<List<Detail>> findByType(String type) async {
-    return await findWhere('type = ?', [type]);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) => detail.type == type).toList();
   }
 
   Future<List<Detail>> findRequired() async {
-    return await findWhere('is_required = 1', []);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) => detail.isRequired == true).toList();
   }
 
   Future<List<Detail>> findWithNonConformity() async {
-    return await findWhere('has_non_conformity = 1', []);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) => detail.isDamaged == true).toList();
   }
 
   Future<List<Detail>> findWithValue() async {
-    return await findWhere('value IS NOT NULL AND value != ""', []);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) =>
+      detail.detailValue != null && detail.detailValue!.isNotEmpty
+    ).toList();
   }
 
   Future<int> countByItemId(String itemId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE item_id = ? AND is_deleted = 0',
-      [itemId],
-    );
-    return result.first['count'] as int;
+    final details = await findByItemId(itemId);
+    return details.length;
   }
 
   Future<int> countCompletedByItemId(String itemId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE item_id = ? AND is_deleted = 0 AND status = ?',
-      [itemId, 'completed'],
-    );
-    return result.first['count'] as int;
+    final details = await findByItemId(itemId);
+    return details.where((d) => d.status == 'completed').length;
   }
 
   Future<int> countRequiredByItemId(String itemId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE item_id = ? AND is_deleted = 0 AND is_required = 1',
-      [itemId],
-    );
-    return result.first['count'] as int;
+    final details = await findByItemId(itemId);
+    return details.where((d) => d.isRequired == true).length;
   }
 
   Future<int> countRequiredCompletedByItemId(String itemId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE item_id = ? AND is_deleted = 0 AND is_required = 1 AND status = ?',
-      [itemId, 'completed'],
-    );
-    return result.first['count'] as int;
+    final details = await findByItemId(itemId);
+    return details.where((d) => d.isRequired == true && d.status == 'completed').length;
   }
 
   // =================================
   // MÉTODOS PARA HIERARQUIAS FLEXÍVEIS
   // =================================
 
-  // Buscar detalhes diretos de tópico (sem item intermediário)
   Future<List<Detail>> findDirectDetailsByTopicId(String topicId) async {
-    return await findWhere('topic_id = ? AND item_id IS NULL', [topicId]);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) =>
+      detail.topicId == topicId && detail.itemId == null
+    ).toList();
   }
 
-  // Buscar detalhes diretos de tópico ordenados
   Future<List<Detail>> findDirectDetailsByTopicIdOrdered(String topicId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'topic_id = ? AND item_id IS NULL AND is_deleted = 0',
-      whereArgs: [topicId],
-      orderBy: 'order_index ASC',
-    );
-
-    return maps.map((map) => fromMap(map)).toList();
+    final details = await findDirectDetailsByTopicId(topicId);
+    details.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return details;
   }
 
-  // Contar detalhes diretos de tópico
   Future<int> countDirectDetailsByTopicId(String topicId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE topic_id = ? AND item_id IS NULL AND is_deleted = 0',
-      [topicId],
-    );
-    return result.first['count'] as int;
+    final details = await findDirectDetailsByTopicId(topicId);
+    return details.length;
   }
 
-  // Contar detalhes diretos completados de tópico
   Future<int> countDirectDetailsCompletedByTopicId(String topicId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE topic_id = ? AND item_id IS NULL AND is_deleted = 0 AND status = ?',
-      [topicId, 'completed'],
-    );
-    return result.first['count'] as int;
+    final details = await findDirectDetailsByTopicId(topicId);
+    return details.where((d) => d.status == 'completed').length;
   }
 
-  // Buscar detalhes por hierarquia flexível
   Future<List<Detail>> findByHierarchy({
     required String inspectionId,
     String? topicId,
@@ -279,137 +219,109 @@ class DetailRepository extends BaseRepository<Detail> {
     String? detailId,
     bool? directOnly,
   }) async {
-    final conditions = ['inspection_id = ?'];
-    final args = [inspectionId];
-    
-    if (topicId != null) {
-      conditions.add('topic_id = ?');
-      args.add(topicId);
-    }
-    if (itemId != null) {
-      conditions.add('item_id = ?');
-      args.add(itemId);
-    } else if (directOnly == true) {
-      conditions.add('item_id IS NULL');
-    }
-    if (detailId != null) {
-      conditions.add('detail_id = ?');
-      args.add(detailId);
-    }
-    
-    return await findWhere(conditions.join(' AND '), args);
+    final allDetails = DatabaseHelper.details.values.toList();
+    return allDetails.where((detail) {
+      if (detail.inspectionId != inspectionId) return false;
+      if (topicId != null && detail.topicId != topicId) return false;
+      if (itemId != null && detail.itemId != itemId) return false;
+      if (directOnly == true && detail.itemId != null) return false;
+      if (detailId != null && detail.detailId != detailId) return false;
+      return true;
+    }).toList();
   }
 
-  // Buscar detalhes por contexto específico com ordenação
   Future<List<Detail>> findDetailsByContextOrdered({
     required String inspectionId,
     String? topicId,
     String? itemId,
     bool? directOnly,
   }) async {
-    var whereClause = 'inspection_id = ? AND is_deleted = 0';
-    var args = [inspectionId];
-    
-    if (topicId != null) {
-      whereClause += ' AND topic_id = ?';
-      args.add(topicId);
-    }
-    
-    if (itemId != null) {
-      whereClause += ' AND item_id = ?';
-      args.add(itemId);
-    } else if (directOnly == true) {
-      whereClause += ' AND item_id IS NULL';
-    }
-
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: whereClause,
-      whereArgs: args,
-      orderBy: 'order_index ASC',
+    final details = await findByHierarchy(
+      inspectionId: inspectionId,
+      topicId: topicId,
+      itemId: itemId,
+      directOnly: directOnly,
     );
-
-    return maps.map((map) => fromMap(map)).toList();
+    details.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return details;
   }
 
-  // Reordenar detalhes diretos de tópico
   Future<void> reorderDirectDetails(String topicId, List<String> detailIds) async {
-    final db = await database;
-    await db.transaction((txn) async {
-      for (int i = 0; i < detailIds.length; i++) {
-        await txn.update(
-          tableName,
-          {
-            'order_index': i,
-            'updated_at': DateTime.now().toIso8601String(),
-            'needs_sync': 1,
-          },
-          where: 'id = ? AND topic_id = ? AND item_id IS NULL',
-          whereArgs: [detailIds[i], topicId],
+    for (int i = 0; i < detailIds.length; i++) {
+      final detail = await findById(detailIds[i]);
+      if (detail != null && detail.topicId == topicId && detail.itemId == null) {
+        final updatedDetail = detail.copyWith(
+          orderIndex: i,
+          updatedAt: DateFormatter.now(),
         );
+        await update(updatedDetail);
       }
-    });
+    }
   }
 
-  // Validar hierarquia do detalhe
   Future<bool> validateDetailHierarchy(Detail detail) async {
     // Se é detalhe direto de tópico, verificar se o tópico permite
     if (detail.topicId != null && detail.itemId == null) {
-      // Buscar o tópico para verificar se permite detalhes diretos
-      final db = await database;
-      final result = await db.query(
-        'topics',
-        columns: ['direct_details'],
-        where: 'id = ? AND is_deleted = 0',
-        whereArgs: [detail.topicId],
-      );
-      
-      if (result.isNotEmpty) {
-        final directDetails = result.first['direct_details'] as int;
-        return directDetails == 1;
-      }
-      return false;
+      final topic = await DatabaseHelper.getTopic(detail.topicId!);
+      return topic?.directDetails == true;
     }
-    
+
     // Se é detalhe de item, verificar se o item existe
     if (detail.itemId != null) {
-      final db = await database;
-      final result = await db.query(
-        'items',
-        columns: ['id'],
-        where: 'id = ? AND is_deleted = 0',
-        whereArgs: [detail.itemId],
-      );
-      return result.isNotEmpty;
+      final item = await DatabaseHelper.getItem(detail.itemId!);
+      return item != null;
     }
-    
+
     return true;
   }
 
-  // Obter máximo order_index para detalhes diretos de tópico
   Future<int> getMaxOrderIndexForTopic(String topicId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT MAX(order_index) as max_index FROM $tableName WHERE topic_id = ? AND item_id IS NULL AND is_deleted = 0',
-      [topicId],
-    );
-    return (result.first['max_index'] as int?) ?? 0;
+    final details = await findDirectDetailsByTopicId(topicId);
+    if (details.isEmpty) return 0;
+    return details.map((d) => d.orderIndex).reduce((a, b) => a > b ? a : b);
   }
 
-  // Atualizar opção customizada
   Future<void> updateCustomOption(String detailId, bool allowCustom, String? customValue) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'allow_custom_option': allowCustom ? 1 : 0,
-        'custom_option_value': customValue,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [detailId],
+    final detail = await findById(detailId);
+    if (detail != null) {
+      final updatedDetail = detail.copyWith(
+        allowCustomOption: allowCustom,
+        customOptionValue: customValue,
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedDetail);
+    }
+  }
+
+  // ===============================
+  // MÉTODOS DE CLOUD SYNC
+  // ===============================
+
+  /// Inserir ou atualizar detalhe vindo da nuvem
+  Future<void> insertOrUpdateFromCloud(Detail detail) async {
+    final existing = await findById(detail.id!);
+    final detailToSave = detail.copyWith(
+      updatedAt: DateTime.now(),
     );
+
+    if (existing != null) {
+      await update(detailToSave);
+    } else {
+      await insert(detailToSave);
+    }
+  }
+
+  /// Inserir ou atualizar detalhe local
+  Future<void> insertOrUpdate(Detail detail) async {
+    final existing = await findById(detail.id!);
+    final detailToSave = detail.copyWith(
+      updatedAt: DateTime.now(),
+    );
+
+    if (existing != null) {
+      await update(detailToSave);
+    } else {
+      await insert(detailToSave);
+    }
   }
 }

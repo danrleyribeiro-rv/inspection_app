@@ -47,20 +47,23 @@ class SwipeableLevelHeader extends StatefulWidget {
 
 class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
   Color get _levelColor {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     switch (widget.level) {
       case 1:
-        return Color(0xFFBB8FEB);
+        return isDark ? const Color(0xFFBB8FEB) : const Color(0xFF4A148C); // Roxo claro no escuro, escuro no claro
       case 2:
-        return Colors.orange;
+        return isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100); // Laranja claro no escuro, escuro no claro
       case 3:
-        return Colors.green;
+        return const Color(0xFF1B5E20); // Verde muito escuro
       default:
         return Colors.grey;
     }
   }
 
   Color get _backgroundColor {
-    return _levelColor.withAlpha((255 * 0.1).round());
+    return _levelColor.withAlpha((0.1 * 255).round());
   }
 
   void _showDropdownMenu(BuildContext context) {
@@ -68,6 +71,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
 
     List<String> localItems = List<String>.from(widget.items);
     int localCurrentIndex = widget.currentIndex;
+    final theme = Theme.of(context);
 
     showModalBottomSheet(
       context: context,
@@ -82,7 +86,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
               maxHeight: MediaQuery.of(context).size.height * 0.7,
             ),
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
+              color: theme.cardColor,
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(20)),
             ),
@@ -124,11 +128,11 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                       final itemTitle = localItems[index];
                       final isSelected = index == localCurrentIndex;
 
-                      final itemProgress = (widget.itemProgresses != null && 
-                                           index < widget.itemProgresses!.length) 
-                                         ? widget.itemProgresses![index] 
-                                         : 0.0;
-                      
+                      final itemProgress = (widget.itemProgresses != null &&
+                              index < widget.itemProgresses!.length)
+                          ? widget.itemProgresses![index]
+                          : 0.0;
+
                       return ListTile(
                         key: Key('${itemTitle}_$index'),
                         leading: Icon(
@@ -162,7 +166,9 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
-                                      color: isSelected ? _levelColor : Colors.grey.shade300,
+                                      color: isSelected
+                                          ? _levelColor
+                                          : theme.disabledColor,
                                     ),
                                   ),
                                 ],
@@ -172,9 +178,12 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                               const SizedBox(height: 4),
                               LinearProgressIndicator(
                                 value: itemProgress,
-                                backgroundColor: Colors.grey.shade700,
+                                backgroundColor: theme.dividerColor,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  isSelected ? _levelColor : _levelColor.withValues(alpha: 0.7),
+                                  isSelected
+                                      ? _levelColor
+                                      : _levelColor
+                                          .withAlpha((0.7 * 255).round()),
                                 ),
                                 minHeight: 3,
                               ),
@@ -192,7 +201,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                 index: index,
                                 child: Icon(
                                   Icons.drag_handle,
-                                  color: Colors.grey.shade500,
+                                  color: theme.disabledColor,
                                 ),
                               ),
                             ]
@@ -264,9 +273,9 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
           borderRadius: BorderRadius.circular(size / 2),
           child: Container(
             decoration: BoxDecoration(
-              color: color.withAlpha((255 * 0.1).round()),
+              color: color.withAlpha((0.1 * 255).round()),
               shape: BoxShape.circle,
-              border: Border.all(color: color.withAlpha((255 * 0.3).round())),
+              border: Border.all(color: color.withAlpha((0.3 * 255).round())),
             ),
             child: Icon(icon, color: color, size: size * 0.6),
           ),
@@ -282,7 +291,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
       decoration: BoxDecoration(
         color: _backgroundColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _levelColor.withAlpha((255 * 0.3).round())),
+        border: Border.all(color: _levelColor.withAlpha((0.3 * 255).round())),
       ),
       child: Material(
         color: Colors.transparent,
@@ -298,8 +307,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                     IconButton(
                       icon: Icon(Icons.chevron_left, color: _levelColor),
                       onPressed: widget.currentIndex > 0
-                          ? () =>
-                              widget.onIndexChanged(widget.currentIndex - 1)
+                          ? () => widget.onIndexChanged(widget.currentIndex - 1)
                           : null,
                       padding: const EdgeInsets.all(4),
                       constraints:
@@ -314,8 +322,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                         children: [
                           Row(
                             children: [
-                              Icon(widget.icon,
-                                  color: _levelColor, size: 18),
+                              Icon(widget.icon, color: _levelColor, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: GestureDetector(
@@ -327,8 +334,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                         child: Row(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.baseline,
-                                          textBaseline:
-                                              TextBaseline.alphabetic,
+                                          textBaseline: TextBaseline.alphabetic,
                                           children: [
                                             Flexible(
                                               child: Text(
@@ -344,7 +350,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                             ),
                                             if (widget.hasObservation) ...[
                                               const SizedBox(width: 4),
-                                              Icon(
+                                              const Icon(
                                                 Icons.note_alt,
                                                 color: Colors.amber,
                                                 size: 14,
@@ -365,7 +371,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                 _buildActionButton(
                                   icon: Icons.edit,
                                   onPressed: widget.onRename,
-                                  color: Color(0xFF6F4B99),
+                                  color: const Color(0xFF6F4B99),
                                   size: 20,
                                 ),
                                 const SizedBox(width: 4),
@@ -392,8 +398,8 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                               widget.subtitle!,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _levelColor
-                                    .withAlpha((255 * 0.7).round()),
+                                color:
+                                    _levelColor.withAlpha((0.7 * 255).round()),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -403,8 +409,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                             '${widget.currentIndex + 1} de ${widget.totalCount}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: _levelColor
-                                  .withAlpha((255 * 0.6).round()),
+                              color: _levelColor.withAlpha((0.6 * 255).round()),
                             ),
                           ),
                         ],
@@ -414,8 +419,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                     IconButton(
                       icon: Icon(Icons.chevron_right, color: _levelColor),
                       onPressed: widget.currentIndex < widget.totalCount - 1
-                          ? () =>
-                              widget.onIndexChanged(widget.currentIndex + 1)
+                          ? () => widget.onIndexChanged(widget.currentIndex + 1)
                           : null,
                       padding: const EdgeInsets.all(4),
                       constraints:
@@ -423,9 +427,7 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                     ),
                     const SizedBox(width: 8),
                     Icon(
-                      widget.isExpanded
-                          ? Icons.expand_less
-                          : Icons.expand_more,
+                      widget.isExpanded ? Icons.expand_less : Icons.expand_more,
                       color: _levelColor,
                       size: 24,
                     ),
@@ -438,7 +440,8 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: double.infinity),
+                    constraints:
+                        const BoxConstraints(maxWidth: double.infinity),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -452,14 +455,16 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                             return GestureDetector(
                               onTap: () => widget.onIndexChanged(index),
                               child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 2),
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 2),
                                 width: isActive ? 8 : 6,
                                 height: isActive ? 8 : 6,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: isActive
                                       ? _levelColor
-                                      : _levelColor.withAlpha((255 * 0.3).round()),
+                                      : _levelColor
+                                          .withAlpha((0.3 * 255).round()),
                                 ),
                               ),
                             );

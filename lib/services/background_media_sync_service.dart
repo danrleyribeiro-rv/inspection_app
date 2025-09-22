@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
+// import 'package:lince_inspecoes/services/firebase_token_manager.dart'; // Temporariamente removido
 
 /// Serviço para upload automático periódico de imagens em background
 /// Mantém os status da inspeção inalterados - apenas acelera o upload futuro
@@ -179,23 +180,35 @@ class BackgroundMediaSyncService {
     }
   }
   
-  /// Upload direto para Firebase Storage
+  /// Upload direto para Firebase Storage com verificação de arquivos existentes
   Future<String?> _uploadToFirebaseStorage(File file, OfflineMedia media, String inspectionId) async {
     try {
       final firebaseService = FirebaseService();
       if (firebaseService.currentUser == null) {
         return null;
       }
-      
-      // Gera caminho do arquivo no Storage seguindo padrão do FirestoreSyncService
+
+      // Se já tem cloudUrl, assume que está válida (evita verificações desnecessárias)
+      if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+        return media.cloudUrl!;
+      }
+
+      // Comentado: Verificação que estava causando erros 404 desnecessários
+      // final existingUrl = await FirebaseTokenManager.generateDownloadUrl(
+      //   media.inspectionId,
+      //   media.filename,
+      //   media.type
+      // );
+      // if (existingUrl != null) {
+      //   return existingUrl;
+      // }
+
+      // Se não existe, fazer upload
       final storagePath = 'inspections/${media.inspectionId}/media/${media.type}/${media.filename}';
-      
-      // Upload para Firebase Storage com metadados
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
-      
-      // Define metadados como no FirestoreSyncService
+
       final metadata = SettableMetadata(
-        contentType: media.mimeType,
+        contentType: 'image/jpeg', // Default content type
         customMetadata: {
           'inspection_id': media.inspectionId,
           'topic_id': media.topicId ?? '',
@@ -207,14 +220,13 @@ class BackgroundMediaSyncService {
           'created_at': media.createdAt.toIso8601String(),
         },
       );
-      
+
       final uploadTask = storageRef.putFile(file, metadata);
-      
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      
+
       return downloadUrl;
-      
+
     } catch (e) {
       return null;
     }

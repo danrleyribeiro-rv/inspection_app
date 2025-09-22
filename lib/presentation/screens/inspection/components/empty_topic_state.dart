@@ -11,22 +11,25 @@ class EmptyTopicState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.home_work_outlined, size: 80, color: Colors.grey),
+          Icon(Icons.home_work_outlined, size: 80, color: theme.disabledColor),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Nenhum tópico adicionado',
-            style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Clique no botão + para adicionar tópicos',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color
+                  ?.withAlpha((0.7 * 255).round()),
+            ),
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(

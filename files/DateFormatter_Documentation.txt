@@ -1,0 +1,269 @@
+===============================================================================
+                      DOCUMENTAÇÃO DO DATEFORMATTER
+===============================================================================
+
+DESCRIÇÃO GERAL:
+O DateFormatter é um utilitário centralizado para formatação e manipulação de
+datas e timestamps em toda a aplicação. Foi criado para padronizar todos os
+formatos de data/hora seguindo o padrão brasileiro e garantir consistência
+na apresentação de dados temporais.
+
+LOCALIZAÇÃO: /lib/utils/date_formatter.dart
+
+===============================================================================
+                           ALGORITMO PRINCIPAL
+===============================================================================
+
+1. PARSING DE ENTRADA (_parseDateTime):
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Input: dynamic dateValue                                                │
+   │                                                                         │
+   │ ┌─ Map<String, dynamic>? ──┐                                           │
+   │ │  ├─ Firestore Timestamp   │ → seconds + nanoseconds → DateTime       │
+   │ │  └─ Legacy Timestamp      │ → _seconds + _nanoseconds → DateTime     │
+   │ │                                                                       │
+   │ ├─ int? ──────────────────── → milliseconds → DateTime                 │
+   │ │                                                                       │
+   │ ├─ String? ───────────────── → ISO 8601 parsing → DateTime             │
+   │ │                                                                       │
+   │ ├─ DateTime? ──────────────── → toLocal() → DateTime                    │
+   │ │                                                                       │
+   │ └─ Firestore Timestamp ───── → toDate() → DateTime                     │
+   │                                                                         │
+   │ Output: DateTime? (local timezone)                                      │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+2. FORMATAÇÃO DE SAÍDA:
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ DateTime (local) → DateFormat (brasileiro) → String formatada          │
+   │                                                                         │
+   │ Formatos disponíveis:                                                   │
+   │ ├─ dd/MM/yyyy          (data)                                          │
+   │ ├─ dd/MM/yyyy HH:mm    (data e hora)                                   │
+   │ ├─ HH:mm               (apenas hora)                                    │
+   │ └─ dd/MM/yyyy HH:mm:ss (data/hora completa)                           │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+3. TRATAMENTO DE ERROS:
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Input inválido → null → "Data não definida"                           │
+   │ Parsing error → Exception → "Data não definida"                        │
+   │ Format error → Exception → "Data não definida"                         │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+===============================================================================
+                          MÉTODOS E FUNCIONALIDADES
+===============================================================================
+
+1. formatDate(dynamic dateValue) → String
+   DESCRIÇÃO: Formata apenas a data no padrão brasileiro
+   FORMATO: dd/MM/yyyy
+
+2. formatDateTime(dynamic dateValue) → String
+   DESCRIÇÃO: Formata data e hora no padrão brasileiro
+   FORMATO: dd/MM/yyyy HH:mm
+
+3. formatTime(dynamic dateValue) → String
+   DESCRIÇÃO: Formata apenas a hora
+   FORMATO: HH:mm
+
+4. formatFullDateTime(dynamic dateValue) → String
+   DESCRIÇÃO: Formata data/hora completa com segundos
+   FORMATO: dd/MM/yyyy HH:mm:ss
+
+5. toIsoString(DateTime dateTime) → String
+   DESCRIÇÃO: Converte DateTime para ISO 8601 (UTC) para armazenamento
+   FORMATO: yyyy-MM-ddTHH:mm:ss.sssZ
+
+6. nowIsoString() → String
+   DESCRIÇÃO: Retorna timestamp atual em ISO 8601 (UTC)
+
+7. now() → DateTime
+   DESCRIÇÃO: Retorna DateTime atual (local)
+
+8. isValidDate(dynamic dateValue) → bool
+   DESCRIÇÃO: Verifica se uma data é válida
+
+9. timeAgo(dynamic dateValue) → String
+   DESCRIÇÃO: Retorna diferença de tempo em texto amigável
+
+===============================================================================
+                           EXEMPLOS DE ENTRADA
+===============================================================================
+
+1. FIRESTORE TIMESTAMP (Novo formato):
+   INPUT: {
+     "seconds": 1695139200,
+     "nanoseconds": 123456789
+   }
+
+2. FIRESTORE TIMESTAMP (Formato legado):
+   INPUT: {
+     "_seconds": 1695139200,
+     "_nanoseconds": 123456789
+   }
+
+3. TIMESTAMP COMO INTEGER:
+   INPUT: 1695139200000  (milliseconds since epoch)
+
+4. STRING ISO 8601:
+   INPUT: "2025-09-19T14:30:00.000Z"
+   INPUT: "2025-09-19T14:30:00-03:00"
+
+5. DATETIME OBJECT:
+   INPUT: DateTime(2025, 9, 19, 14, 30, 0)
+
+6. FIRESTORE TIMESTAMP OBJECT:
+   INPUT: Timestamp.fromDate(DateTime.now())
+
+===============================================================================
+                           EXEMPLOS DE SAÍDA
+===============================================================================
+
+Data de exemplo: 19 de setembro de 2025, 14:30:45
+
+1. formatDate():
+   OUTPUT: "19/09/2025"
+
+2. formatDateTime():
+   OUTPUT: "19/09/2025 14:30"
+
+3. formatTime():
+   OUTPUT: "14:30"
+
+4. formatFullDateTime():
+   OUTPUT: "19/09/2025 14:30:45"
+
+5. toIsoString():
+   OUTPUT: "2025-09-19T17:30:45.000Z"  (UTC)
+
+6. nowIsoString():
+   OUTPUT: "2025-09-19T17:30:45.123Z"  (timestamp atual em UTC)
+
+7. isValidDate():
+   OUTPUT: true (para entrada válida)
+   OUTPUT: false (para entrada inválida)
+
+8. timeAgo() - Exemplos baseados em diferença:
+   OUTPUT: "agora"           (< 1 minuto)
+   OUTPUT: "há 5 minutos"    (5 minutos atrás)
+   OUTPUT: "há 2 horas"      (2 horas atrás)
+   OUTPUT: "há 3 dias"       (3 dias atrás)
+   OUTPUT: "há 2 meses"      (2 meses atrás)
+   OUTPUT: "há 1 ano"        (1 ano atrás)
+
+===============================================================================
+                              CASOS DE ERRO
+===============================================================================
+
+1. ENTRADA NULA:
+   INPUT: null
+   OUTPUT: "Data não definida"
+
+2. ENTRADA INVÁLIDA:
+   INPUT: "data inválida"
+   OUTPUT: "Data não definida"
+
+3. MAP SEM CAMPOS NECESSÁRIOS:
+   INPUT: {"campo": "valor"}
+   OUTPUT: "Data não definida"
+
+4. TIMESTAMP INVÁLIDO:
+   INPUT: -1
+   OUTPUT: "Data não definida"
+
+===============================================================================
+                           EXEMPLOS DE USO NO CÓDIGO
+===============================================================================
+
+1. NO REPOSITÓRIO:
+   ```dart
+   import 'package:lince_inspecoes/utils/date_formatter.dart';
+
+   // Criando timestamp
+   final inspection = inspection.copyWith(
+     updatedAt: DateFormatter.now(),
+   );
+
+   // Para armazenamento
+   final isoString = DateFormatter.toIsoString(DateTime.now());
+   ```
+
+2. NA UI:
+   ```dart
+   import 'package:lince_inspecoes/utils/date_formatter.dart';
+
+   // Exibindo data
+   Text('Data: ${DateFormatter.formatDate(inspection.scheduledDate)}')
+
+   // Exibindo data e hora
+   Text('Última sincronização: ${DateFormatter.formatDateTime(lastSyncDate)}')
+
+   // Exibindo tempo relativo
+   Text('Criado ${DateFormatter.timeAgo(createdAt)}')
+   ```
+
+3. NO MODEL:
+   ```dart
+   import 'package:lince_inspecoes/utils/date_formatter.dart';
+
+   // Factory constructor
+   factory MyModel.create() {
+     final now = DateFormatter.now();
+     return MyModel(
+       createdAt: now,
+       updatedAt: now,
+     );
+   }
+   ```
+
+===============================================================================
+                            BENEFÍCIOS DA IMPLEMENTAÇÃO
+===============================================================================
+
+1. CONSISTÊNCIA:
+   - Todos os timestamps seguem o padrão brasileiro (dd/MM/yyyy)
+   - Formatação uniforme em toda a aplicação
+   - Timezone sempre convertido para local
+
+2. ROBUSTEZ:
+   - Suporte a múltiplos tipos de entrada
+   - Tratamento robusto de erros
+   - Fallbacks seguros para dados inválidos
+
+3. MANUTENIBILIDADE:
+   - Centralização da lógica de formatação
+   - Fácil alteração de formatos globalmente
+   - Código reutilizável
+
+4. FLEXIBILIDADE:
+   - Múltiplos formatos de saída
+   - Suporte a diferentes tipos de entrada
+   - Funções utilitárias adicionais (timeAgo, isValidDate)
+
+5. PERFORMANCE:
+   - Formatadores pré-instanciados
+   - Parsing otimizado
+   - Conversões eficientes
+
+===============================================================================
+                                DEPENDÊNCIAS
+===============================================================================
+
+- package:intl/intl.dart (para DateFormat)
+- Dart core (DateTime, Map, String, etc.)
+
+===============================================================================
+                              VERSÃO E HISTÓRICO
+===============================================================================
+
+Versão: 1.0
+Data de criação: 19/09/2025
+Autor: Sistema de padronização de timestamps
+
+Changelog:
+- v1.0: Implementação inicial com suporte completo a formatação brasileira
+- Substituição de formatadores locais por utilitário centralizado
+- Atualização de 15+ arquivos para usar o novo sistema
+
+===============================================================================

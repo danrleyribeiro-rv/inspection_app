@@ -29,11 +29,20 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _proceedToNextScreen() async {
     if (!mounted) return;
 
-    final currentUser = _serviceFactory.authService.currentUser;
-    if (currentUser != null) {
-      Navigator.of(context).pushReplacementNamed('/home');
-    } else {
-      Navigator.of(context).pushReplacementNamed('/get-started');
+    try {
+      final currentUser = _serviceFactory.authService.currentUser;
+      if (mounted) {
+        if (currentUser != null) {
+          Navigator.of(context).pushReplacementNamed('/home');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/get-started');
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar usuário: $e');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/get-started');
+      }
     }
   }
 

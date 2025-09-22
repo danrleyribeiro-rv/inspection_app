@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 
 class AuthService {
@@ -70,8 +70,14 @@ class AuthService {
 
   Future<bool> checkUserRole(String userId, String role) async {
     try {
+      // Temporarily enable network for user role check
+      await _firebase.enableNetwork();
+
       final doc =
           await _firebase.firestore.collection('users').doc(userId).get();
+
+      // Keep network enabled for authentication
+
       if (doc.exists) {
         final data = doc.data();
         return data != null && data['role'] == role;
@@ -79,6 +85,9 @@ class AuthService {
       return false;
     } catch (e) {
       debugPrint('Error checking user role: $e');
+
+      // Keep network enabled for authentication
+
       return false;
     }
   }

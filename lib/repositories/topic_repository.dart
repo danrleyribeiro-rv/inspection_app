@@ -1,100 +1,92 @@
 import 'package:lince_inspecoes/models/topic.dart';
-import 'package:lince_inspecoes/repositories/base_repository.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
+import 'package:lince_inspecoes/utils/date_formatter.dart';
 
-class TopicRepository extends BaseRepository<Topic> {
-  @override
-  String get tableName => 'topics';
+class TopicRepository {
+  // Métodos básicos CRUD usando DatabaseHelper
+  Future<String> insert(Topic topic) async {
+    await DatabaseHelper.insertTopic(topic);
+    return topic.id!; // Use ! since we expect id to be non-null after insertion
+  }
 
-  @override
+  Future<void> update(Topic topic) async {
+    await DatabaseHelper.updateTopic(topic);
+  }
+
+  Future<void> delete(String id) async {
+    await DatabaseHelper.deleteTopic(id);
+  }
+
+  Future<Topic?> findById(String id) async {
+    return await DatabaseHelper.getTopic(id);
+  }
+
   Topic fromMap(Map<String, dynamic> map) {
     return Topic.fromMap(map);
   }
 
-  @override
   Map<String, dynamic> toMap(Topic entity) {
     return entity.toMap();
   }
 
   // Métodos específicos do Topic
   Future<List<Topic>> findByInspectionId(String inspectionId) async {
-    return await findWhere('inspection_id = ?', [inspectionId]);
+    return await DatabaseHelper.getTopicsByInspection(inspectionId);
   }
 
   Future<List<Topic>> findByInspectionIdOrdered(String inspectionId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'inspection_id = ? AND is_deleted = 0',
-      whereArgs: [inspectionId],
-      orderBy: 'order_index ASC',
-    );
-
-    return maps.map((map) => fromMap(map)).toList();
+    final topics = await DatabaseHelper.getTopicsByInspection(inspectionId);
+    topics.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return topics;
   }
 
   Future<Topic?> findByInspectionIdAndIndex(
       String inspectionId, int orderIndex) async {
-    final results = await findWhere(
-        'inspection_id = ? AND order_index = ?', [inspectionId, orderIndex]);
-    return results.isNotEmpty ? results.first : null;
+    final topics = await findByInspectionId(inspectionId);
+    try {
+      return topics.firstWhere((topic) => topic.orderIndex == orderIndex);
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<int> getMaxOrderIndex(String inspectionId) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT MAX(order_index) as max_index FROM $tableName WHERE inspection_id = ? AND is_deleted = 0',
-      [inspectionId],
-    );
-    return (result.first['max_index'] as int?) ?? 0;
+    final topics = await findByInspectionId(inspectionId);
+    if (topics.isEmpty) return 0;
+    return topics.map((t) => t.orderIndex).reduce((a, b) => a > b ? a : b);
   }
 
   Future<void> updateProgress(String topicId, double progressPercentage,
       int completedItems, int totalItems) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'progress_percentage': progressPercentage,
-        'completed_items': completedItems,
-        'total_items': totalItems,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [topicId],
-    );
+    final topic = await findById(topicId);
+    if (topic != null) {
+      final updatedTopic = topic.copyWith(
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedTopic);
+    }
   }
 
   Future<void> reorderTopics(String inspectionId, List<String> topicIds) async {
-    final db = await database;
-    await db.transaction((txn) async {
-      for (int i = 0; i < topicIds.length; i++) {
-        await txn.update(
-          tableName,
-          {
-            'order_index': i,
-            'updated_at': DateTime.now().toIso8601String(),
-            'needs_sync': 1,
-          },
-          where: 'id = ? AND inspection_id = ?',
-          whereArgs: [topicIds[i], inspectionId],
+    for (int i = 0; i < topicIds.length; i++) {
+      final topic = await findById(topicIds[i]);
+      if (topic != null && topic.inspectionId == inspectionId) {
+        final updatedTopic = topic.copyWith(
+          orderIndex: i,
+          updatedAt: DateFormatter.now(),
         );
+        await update(updatedTopic);
       }
-    });
+    }
   }
 
   Future<void> deleteByInspectionId(String inspectionId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'is_deleted': 1,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'inspection_id = ?',
-      whereArgs: [inspectionId],
-    );
+    final topics = await findByInspectionId(inspectionId);
+    for (final topic in topics) {
+      if (topic.id != null) {
+        await delete(topic.id!);
+      }
+    }
   }
 
   // =================================
@@ -103,84 +95,54 @@ class TopicRepository extends BaseRepository<Topic> {
 
   // Buscar tópicos com detalhes diretos
   Future<List<Topic>> findTopicsWithDirectDetails(String inspectionId) async {
-    return await findWhere('inspection_id = ? AND direct_details = 1', [inspectionId]);
+    final allTopics = await findByInspectionId(inspectionId);
+    return allTopics.where((topic) => topic.directDetails == true).toList();
   }
 
   // Buscar tópicos com itens (hierarquia tradicional)
   Future<List<Topic>> findTopicsWithItems(String inspectionId) async {
-    return await findWhere('inspection_id = ? AND (direct_details = 0 OR direct_details IS NULL)', [inspectionId]);
+    final allTopics = await findByInspectionId(inspectionId);
+    return allTopics.where((topic) => topic.directDetails != true).toList();
   }
 
   // Atualizar configuração de detalhes diretos
   Future<void> updateDirectDetailsConfig(String topicId, bool directDetails) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'direct_details': directDetails ? 1 : 0,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [topicId],
-    );
+    final topic = await findById(topicId);
+    if (topic != null) {
+      final updatedTopic = topic.copyWith(
+        directDetails: directDetails,
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedTopic);
+    }
   }
 
   // Verificar se tópico permite detalhes diretos
   Future<bool> hasDirectDetails(String topicId) async {
-    final db = await database;
-    final result = await db.query(
-      tableName,
-      columns: ['direct_details'],
-      where: 'id = ? AND is_deleted = 0',
-      whereArgs: [topicId],
-    );
-    
-    if (result.isNotEmpty) {
-      final directDetails = result.first['direct_details'] as int?;
-      return directDetails == 1;
-    }
-    return false;
+    final topic = await findById(topicId);
+    return topic?.directDetails == true;
   }
 
   // Atualizar descrição do tópico
   Future<void> updateDescription(String topicId, String? description) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'description': description,
-        'updated_at': DateTime.now().toIso8601String(),
-        'needs_sync': 1,
-      },
-      where: 'id = ?',
-      whereArgs: [topicId],
-    );
+    final topic = await findById(topicId);
+    if (topic != null) {
+      final updatedTopic = topic.copyWith(
+        description: description,
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedTopic);
+    }
   }
 
   // Contar tópicos por tipo de hierarquia
   Future<Map<String, int>> getHierarchyStats(String inspectionId) async {
-    final db = await database;
-    
-    final totalResult = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0',
-      [inspectionId],
-    );
-    
-    final directDetailsResult = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0 AND direct_details = 1',
-      [inspectionId],
-    );
-    
-    final withItemsResult = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND is_deleted = 0 AND (direct_details = 0 OR direct_details IS NULL)',
-      [inspectionId],
-    );
-    
-    final total = totalResult.first['count'] as int;
-    final directDetails = directDetailsResult.first['count'] as int;
-    final withItems = withItemsResult.first['count'] as int;
-    
+    final allTopics = await findByInspectionId(inspectionId);
+
+    final total = allTopics.length;
+    final directDetails = allTopics.where((t) => t.directDetails == true).length;
+    final withItems = allTopics.where((t) => t.directDetails != true).length;
+
     return {
       'total': total,
       'direct_details': directDetails,
@@ -193,53 +155,89 @@ class TopicRepository extends BaseRepository<Topic> {
     if (directDetails == null) {
       return await findByInspectionIdOrdered(inspectionId);
     }
-    
-    final condition = directDetails ? 'direct_details = 1' : '(direct_details = 0 OR direct_details IS NULL)';
-    return await findWhere('inspection_id = ? AND $condition', [inspectionId]);
+
+    final allTopics = await findByInspectionId(inspectionId);
+    if (directDetails) {
+      return allTopics.where((topic) => topic.directDetails == true).toList();
+    } else {
+      return allTopics.where((topic) => topic.directDetails != true).toList();
+    }
   }
 
   // Converter tópico entre tipos de hierarquia
   Future<void> convertTopicHierarchy(String topicId, bool toDirectDetails) async {
-    final db = await database;
-    
-    await db.transaction((txn) async {
-      // Atualizar configuração do tópico
-      await txn.update(
-        tableName,
-        {
-          'direct_details': toDirectDetails ? 1 : 0,
-          'updated_at': DateTime.now().toIso8601String(),
-          'needs_sync': 1,
-        },
-        where: 'id = ?',
-        whereArgs: [topicId],
+    // Atualizar configuração do tópico
+    final topic = await findById(topicId);
+    if (topic != null) {
+      final updatedTopic = topic.copyWith(
+        directDetails: toDirectDetails,
+        updatedAt: DateFormatter.now(),
       );
-      
+      await update(updatedTopic);
+
       if (toDirectDetails) {
         // Se convertendo para detalhes diretos, mover detalhes dos itens para o tópico
         // e marcar itens como removidos
-        await txn.update(
-          'details',
-          {
-            'item_id': null,
-            'updated_at': DateTime.now().toIso8601String(),
-            'needs_sync': 1,
-          },
-          where: 'topic_id = ? AND is_deleted = 0',
-          whereArgs: [topicId],
-        );
-        
-        await txn.update(
-          'items',
-          {
-            'is_deleted': 1,
-            'updated_at': DateTime.now().toIso8601String(),
-            'needs_sync': 1,
-          },
-          where: 'topic_id = ? AND is_deleted = 0',
-          whereArgs: [topicId],
-        );
+        final allDetails = DatabaseHelper.details.values.toList();
+        final topicDetails = allDetails.where((detail) => detail.topicId == topicId).toList();
+
+        for (final detail in topicDetails) {
+          final updatedDetail = detail.copyWith(
+            itemId: null,
+            updatedAt: DateFormatter.now(),
+          );
+          await DatabaseHelper.updateDetail(updatedDetail);
+        }
+
+        final allItems = DatabaseHelper.items.values.toList();
+        final topicItems = allItems.where((item) => item.topicId == topicId).toList();
+
+        for (final item in topicItems) {
+          if (item.id != null) {
+            await DatabaseHelper.deleteItem(item.id!);
+          }
+        }
       }
-    });
+    }
+  }
+
+  // ===============================
+  // MÉTODOS DE SINCRONIZAÇÃO
+  // ===============================
+
+  /// Buscar tópicos que precisam ser sincronizados
+  Future<List<Topic>> findPendingSync() async {
+    final List<Map<String, dynamic>> results = await DatabaseHelper.rawQuery(
+      'SELECT * FROM topics WHERE needs_sync = 1'
+    );
+    return results.map((map) => Topic.fromMap(map)).toList();
+  }
+
+  /// Inserir ou atualizar tópico vindo da nuvem
+  Future<void> insertOrUpdateFromCloud(Topic topic) async {
+    final existing = await findById(topic.id!);
+    final topicToSave = topic.copyWith(
+      updatedAt: DateTime.now(),
+    );
+
+    if (existing != null) {
+      await update(topicToSave);
+    } else {
+      await insert(topicToSave);
+    }
+  }
+
+  /// Inserir ou atualizar tópico local
+  Future<void> insertOrUpdate(Topic topic) async {
+    final existing = await findById(topic.id!);
+    final topicToSave = topic.copyWith(
+      updatedAt: DateTime.now(),
+    );
+
+    if (existing != null) {
+      await update(topicToSave);
+    } else {
+      await insert(topicToSave);
+    }
   }
 }

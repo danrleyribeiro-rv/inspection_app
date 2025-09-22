@@ -22,7 +22,7 @@ class CloudVerificationResult {
 
 class CloudVerificationService {
   final FirebaseService _firebaseService;
-  final EnhancedOfflineDataService _offlineService;
+  final OfflineDataService _offlineService;
 
   static CloudVerificationService? _instance;
   static CloudVerificationService get instance {
@@ -34,13 +34,13 @@ class CloudVerificationService {
 
   CloudVerificationService({
     required FirebaseService firebaseService,
-    required EnhancedOfflineDataService offlineService,
+    required OfflineDataService offlineService,
   }) : _firebaseService = firebaseService,
        _offlineService = offlineService;
 
   static void initialize({
     required FirebaseService firebaseService,
-    required EnhancedOfflineDataService offlineService,
+    required OfflineDataService offlineService,
   }) {
     _instance = CloudVerificationService(
       firebaseService: firebaseService,

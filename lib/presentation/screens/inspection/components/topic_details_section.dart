@@ -41,10 +41,10 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     super.initState();
     _observationController.text = widget.topic.observation ?? '';
     _currentTopicName = widget.topic.topicName;
-    
+
     // REMOVIDO: listener para atualização a cada letra
     // _observationController.addListener(_updateTopic);
-    
+
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
   }
@@ -52,7 +52,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   @override
   void didUpdateWidget(TopicDetailsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     if (widget.topic.topicName != _currentTopicName) {
       _currentTopicName = widget.topic.topicName;
     }
@@ -68,12 +68,12 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     MediaCounterNotifier.instance.removeListener(_onCounterChanged);
     super.dispose();
   }
-  
+
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
     final cacheKey = '${widget.topic.id}_topic_only';
     _mediaCountCache.remove(cacheKey);
-    
+
     if (mounted) {
       setState(() {
         _mediaCountVersion++; // Força rebuild do FutureBuilder
@@ -89,19 +89,21 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
     try {
       // Get only media at topic level (no item or detail specified)
-      final allTopicMedias = await _serviceFactory.mediaService.getMediaByContext(
+      final allTopicMedias =
+          await _serviceFactory.mediaService.getMediaByContext(
         inspectionId: widget.inspectionId,
         topicId: widget.topic.id,
       );
-      
+
       // Filter to show only topic-level media (no item or detail)
       final topicOnlyMedias = allTopicMedias.where((media) {
         return media.itemId == null && media.detailId == null;
       }).toList();
-      
+
       final count = topicOnlyMedias.length;
       _mediaCountCache[cacheKey] = count;
-      debugPrint('TopicDetailsSection: Topic ${widget.topic.id} has $count topic-only media (filtered from ${allTopicMedias.length} total)');
+      debugPrint(
+          'TopicDetailsSection: Topic ${widget.topic.id} has $count topic-only media (filtered from ${allTopicMedias.length} total)');
       return count;
     } catch (e) {
       debugPrint('Error getting media count for topic ${widget.topic.id}: $e');
@@ -115,7 +117,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     // Update UI immediately
     final trimmedText = _observationController.text.trim();
     final observationValue = trimmedText.isEmpty ? null : trimmedText;
-    
+
     final updatedTopic = Topic(
       id: widget.topic.id,
       inspectionId: widget.topic.inspectionId,
@@ -123,21 +125,24 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       orderIndex: widget.topic.orderIndex,
       topicName: widget.topic.topicName,
       topicLabel: widget.topic.topicLabel,
-      directDetails: widget.topic.directDetails, // IMPORTANTE: Preservar directDetails
+      directDetails:
+          widget.topic.directDetails, // IMPORTANTE: Preservar directDetails
       observation: observationValue,
       isDamaged: widget.topic.isDamaged,
       tags: widget.topic.tags,
       createdAt: widget.topic.createdAt,
       updatedAt: DateTime.now(),
     );
-    
+
     widget.onTopicUpdated(updatedTopic);
 
     // Debounce the actual save operation
     _debounce = Timer(const Duration(milliseconds: 500), () async {
-      debugPrint('TopicDetailsSection: Updating topic ${updatedTopic.id} with observation: "$observationValue"');
+      debugPrint(
+          'TopicDetailsSection: Updating topic ${updatedTopic.id} with observation: "$observationValue"');
       await _serviceFactory.dataService.updateTopic(updatedTopic);
-      debugPrint('TopicDetailsSection: Topic ${updatedTopic.id} updated successfully');
+      debugPrint(
+          'TopicDetailsSection: Topic ${updatedTopic.id} updated successfully');
       // NÃO chamar onTopicAction() aqui para evitar rebuild desnecessário
     });
   }
@@ -146,21 +151,23 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final theme = Theme.of(context);
         final controller =
             TextEditingController(text: _observationController.text);
-        
+
         return AlertDialog(
-          title: const Text('Observações do Tópico', style: TextStyle(color: Colors.white, fontSize: 12)),
+          title: const Text('Observações do Tópico',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             child: TextFormField(
               controller: controller,
               maxLines: 3,
               autofocus: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
-                border: OutlineInputBorder(),
+                hintStyle: TextStyle(color: theme.hintColor, fontSize: 11),
+                border: const OutlineInputBorder(),
               ),
             ),
           ),
@@ -279,8 +286,6 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       await _serviceFactory.dataService
           .duplicateTopicWithChildren(widget.topic.id!);
 
-      // Force local database update and refresh UI
-      await _serviceFactory.dataService.markInspectionAsModifiedLocally(widget.topic.inspectionId);
       widget.onTopicAction(); // Remove await to make it non-blocking
 
       if (mounted) {
@@ -299,14 +304,15 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         if (e.toString().contains('timeout')) {
           errorMessage = 'Tempo limite excedido. Tente novamente.';
         } else if (e.toString().contains('invalid-argument')) {
-          errorMessage = 'Dados inválidos detectados. Aguarde e tente novamente.';
+          errorMessage =
+              'Dados inválidos detectados. Aguarde e tente novamente.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$errorMessage: $e'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -350,6 +356,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
           const SnackBar(
             content: Text('Tópico excluído com sucesso'),
             backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 800),
           ),
         );
       }
@@ -412,10 +419,11 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             source: 'camera',
             onMediaCaptured: (capturedFiles) async {
               try {
-                debugPrint('TopicDetailsSection: ${capturedFiles.length} media files captured for topic ${widget.topic.id}');
-                
+                debugPrint(
+                    'TopicDetailsSection: ${capturedFiles.length} media files captured for topic ${widget.topic.id}');
+
                 // Cache será invalidado automaticamente pelo MediaCounterNotifier
-                
+
                 // Chamar atualização imediatamente
                 await widget.onTopicAction();
 
@@ -456,17 +464,30 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
+
+    // Adaptive colors for light/dark theme
+    final containerColor = isDark
+        ? theme.colorScheme.surface.withAlpha((0.8 * 255).round())
+        : primaryColor.withAlpha((0.05 * 255).round());
+    final borderColor = isDark
+        ? theme.colorScheme.outline.withAlpha((0.3 * 255).round())
+        : primaryColor.withAlpha((0.2 * 255).round());
+    final textColor = isDark
+        ? theme.colorScheme.onSurface
+        : const Color(0xFF4A148C);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: const Color(0xFF6F4B99).withAlpha((255 * 0.05).round()),
+        color: containerColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-            color: const Color(0xFF6F4B99).withAlpha((255 * 0.2).round())),
+        border: Border.all(color: borderColor),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -476,7 +497,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                 _buildActionButton(
+                _buildActionButton(
                   icon: Icons.camera_alt,
                   label: 'Capturar',
                   onPressed: _captureMedia,
@@ -531,9 +552,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(
-                      color: const Color(0xFF6F4B99)
-                          .withAlpha((255 * 0.3).round())),
+                  border: Border.all(color: borderColor),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -541,20 +560,18 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.note_alt,
-                            size: 14, color: const Color(0xFF6F4B99)),
+                        Icon(Icons.note_alt, size: 14, color: textColor),
                         const SizedBox(width: 8),
                         Text(
                           'Observações',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFFBB8FEB),
+                            color: textColor,
                             fontSize: 12,
                           ),
                         ),
                         const Spacer(),
-                        Icon(Icons.edit,
-                            size: 14, color: const Color(0xFF6F4B99)),
+                        Icon(Icons.edit, size: 14, color: textColor),
                       ],
                     ),
                     Text(
@@ -562,7 +579,9 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                           ? 'Toque para adicionar observações...'
                           : _observationController.text,
                       style: TextStyle(
-                        color: const Color(0xFFBB8FEB).withAlpha((255 * 0.7).round()), // Same as topic subtitle
+                        color: _observationController.text.isEmpty
+                            ? theme.hintColor
+                            : theme.textTheme.bodyLarge?.color,
                         fontStyle: _observationController.text.isEmpty
                             ? FontStyle.italic
                             : FontStyle.normal,
@@ -585,6 +604,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     Color? color,
     int? count,
   }) {
+    final theme = Theme.of(context);
+    final buttonColor = color ?? theme.colorScheme.primary;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -596,7 +617,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
               ElevatedButton(
                 onPressed: onPressed,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: color ?? const Color(0xFF6F4B99),
+                  backgroundColor: buttonColor,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
@@ -611,8 +632,8 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                   right: -2,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF6F4B99),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(
@@ -644,5 +665,4 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       ],
     );
   }
-
 }

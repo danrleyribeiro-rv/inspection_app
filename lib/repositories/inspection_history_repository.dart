@@ -1,13 +1,27 @@
 import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/models/inspection_history.dart';
-import 'package:lince_inspecoes/repositories/base_repository.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'dart:convert';
 
-class InspectionHistoryRepository extends BaseRepository<InspectionHistory> {
-  @override
-  String get tableName => 'inspection_history';
+class InspectionHistoryRepository {
+  // Métodos básicos CRUD usando DatabaseHelper
+  Future<String> insert(InspectionHistory history) async {
+    await DatabaseHelper.insertInspectionHistory(history);
+    return history.id;
+  }
 
-  @override
+  Future<void> update(InspectionHistory history) async {
+    await DatabaseHelper.updateInspectionHistory(history);
+  }
+
+  Future<void> delete(String id) async {
+    await DatabaseHelper.deleteInspectionHistory(id);
+  }
+
+  Future<InspectionHistory?> findById(String id) async {
+    return await DatabaseHelper.getInspectionHistory(id);
+  }
+
   InspectionHistory fromMap(Map<String, dynamic> map) {
     // Parse metadata if it's a JSON string
     Map<String, dynamic>? metadata;
@@ -30,15 +44,14 @@ class InspectionHistoryRepository extends BaseRepository<InspectionHistory> {
     return InspectionHistory.fromMap(mapWithParsedMetadata);
   }
 
-  @override
   Map<String, dynamic> toMap(InspectionHistory entity) {
     final map = entity.toMap();
-    
+
     // Convert metadata to JSON string for storage
     if (map['metadata'] != null) {
       map['metadata'] = json.encode(map['metadata']);
     }
-    
+
     return map;
   }
 
@@ -46,35 +59,25 @@ class InspectionHistoryRepository extends BaseRepository<InspectionHistory> {
 
   /// Busca histórico por inspection_id ordenado por data (mais recente primeiro)
   Future<List<InspectionHistory>> findByInspectionId(String inspectionId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'inspection_id = ?',
-      whereArgs: [inspectionId],
-      orderBy: 'date DESC',
-    );
-    
-    return maps.map((map) => fromMap(map)).toList();
+    final allHistory = await DatabaseHelper.getInspectionHistoryByInspection(inspectionId);
+    allHistory.sort((a, b) => b.date.compareTo(a.date)); // DESC order
+    return allHistory;
   }
 
   /// Busca o último evento de um tipo específico para uma inspeção
   Future<InspectionHistory?> findLastEventByType(
-    String inspectionId, 
+    String inspectionId,
     HistoryStatus status
   ) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'inspection_id = ? AND status = ?',
-      whereArgs: [inspectionId, status.toString().split('.').last],
-      orderBy: 'date DESC',
-      limit: 1,
-    );
-    
-    if (maps.isNotEmpty) {
-      return fromMap(maps.first);
-    }
-    return null;
+    final allHistory = DatabaseHelper.inspectionHistory.values.toList();
+    final filtered = allHistory
+        .where((h) => h.inspectionId == inspectionId && h.status == status)
+        .toList();
+
+    if (filtered.isEmpty) return null;
+
+    filtered.sort((a, b) => b.date.compareTo(a.date)); // DESC order
+    return filtered.first;
   }
 
   /// Busca o último download da inspeção
@@ -91,10 +94,10 @@ class InspectionHistoryRepository extends BaseRepository<InspectionHistory> {
   Future<bool> hasUploadAfterLastDownload(String inspectionId) async {
     final lastDownload = await findLastDownload(inspectionId);
     final lastUpload = await findLastUpload(inspectionId);
-    
+
     if (lastDownload == null) return lastUpload != null;
     if (lastUpload == null) return false;
-    
+
     return lastUpload.date.isAfter(lastDownload.date);
   }
 
@@ -105,32 +108,28 @@ class InspectionHistoryRepository extends BaseRepository<InspectionHistory> {
 
   /// Busca histórico por inspector
   Future<List<InspectionHistory>> findByInspectorId(String inspectorId) async {
-    return await findWhere('inspector_id = ?', [inspectorId]);
+    final allHistory = DatabaseHelper.inspectionHistory.values.toList();
+    return allHistory.where((h) => h.inspectorId == inspectorId).toList();
   }
 
   /// Busca eventos de conflito
   Future<List<InspectionHistory>> findConflictEvents(String inspectionId) async {
-    final db = await database;
-    final maps = await db.query(
-      tableName,
-      where: 'inspection_id = ? AND (status = ? OR status = ?)',
-      whereArgs: [
-        inspectionId, 
-        HistoryStatus.conflictDetected.toString().split('.').last,
-        HistoryStatus.conflictResolved.toString().split('.').last,
-      ],
-      orderBy: 'date DESC',
-    );
-    
-    return maps.map((map) => fromMap(map)).toList();
+    final allHistory = DatabaseHelper.inspectionHistory.values.toList();
+    final filtered = allHistory.where((h) =>
+      h.inspectionId == inspectionId &&
+      (h.status == HistoryStatus.conflictDetected || h.status == HistoryStatus.conflictResolved)
+    ).toList();
+
+    filtered.sort((a, b) => b.date.compareTo(a.date)); // DESC order
+    return filtered;
   }
 
   /// Verifica se há conflitos não resolvidos
   Future<bool> hasUnresolvedConflicts(String inspectionId) async {
     final conflictEvents = await findConflictEvents(inspectionId);
-    
+
     if (conflictEvents.isEmpty) return false;
-    
+
     // Se o último evento é de conflito detectado, não foi resolvido
     final lastConflictEvent = conflictEvents.first;
     return lastConflictEvent.status == HistoryStatus.conflictDetected;
@@ -151,73 +150,42 @@ class InspectionHistoryRepository extends BaseRepository<InspectionHistory> {
       description: description,
       metadata: metadata,
     );
-    
+
     debugPrint('InspectionHistoryRepository: Adding history event - $status for inspection $inspectionId');
     return await insert(history);
   }
 
   /// Busca eventos que precisam ser sincronizados
-  @override
   Future<List<InspectionHistory>> findPendingSync() async {
-    return await findWhere('needs_sync = ?', [1]);
+    final allHistory = DatabaseHelper.inspectionHistory.values.toList();
+    return allHistory.where((h) => h.needsSync).toList();
   }
 
-  /// Marca evento como sincronizado
-  @override
-  Future<void> markSynced(String historyId) async {
-    final db = await database;
-    await db.update(
-      tableName,
-      {
-        'needs_sync': 0,
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      where: 'id = ?',
-      whereArgs: [historyId],
-    );
-  }
+  // REMOVED: markSynced - Always sync all data on demand
 
   /// Estatísticas de histórico
   Future<Map<String, int>> getHistoryStats(String inspectionId) async {
-    final db = await database;
-    final results = await Future.wait([
-      db.rawQuery(
-        'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ?',
-        [inspectionId],
-      ),
-      db.rawQuery(
-        'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ?',
-        [inspectionId, HistoryStatus.downloadedInspection.toString().split('.').last],
-      ),
-      db.rawQuery(
-        'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND status = ?',
-        [inspectionId, HistoryStatus.uploadedInspection.toString().split('.').last],
-      ),
-      db.rawQuery(
-        'SELECT COUNT(*) as count FROM $tableName WHERE inspection_id = ? AND (status = ? OR status = ?)',
-        [
-          inspectionId, 
-          HistoryStatus.conflictDetected.toString().split('.').last,
-          HistoryStatus.conflictResolved.toString().split('.').last,
-        ],
-      ),
-    ]);
+    final allHistory = await findByInspectionId(inspectionId);
+
+    final downloads = allHistory.where((h) => h.status == HistoryStatus.downloadedInspection).length;
+    final uploads = allHistory.where((h) => h.status == HistoryStatus.uploadedInspection).length;
+    final conflicts = allHistory.where((h) =>
+      h.status == HistoryStatus.conflictDetected || h.status == HistoryStatus.conflictResolved
+    ).length;
 
     return {
-      'total_events': results[0].first['count'] as int,
-      'downloads': results[1].first['count'] as int,
-      'uploads': results[2].first['count'] as int,
-      'conflicts': results[3].first['count'] as int,
+      'total_events': allHistory.length,
+      'downloads': downloads,
+      'uploads': uploads,
+      'conflicts': conflicts,
     };
   }
 
   /// Deleta histórico de uma inspeção (usado quando inspeção é excluída)
   Future<void> deleteByInspectionId(String inspectionId) async {
-    final db = await database;
-    await db.delete(
-      tableName,
-      where: 'inspection_id = ?',
-      whereArgs: [inspectionId],
-    );
+    final historyList = await findByInspectionId(inspectionId);
+    for (final history in historyList) {
+      await delete(history.id);
+    }
   }
 }

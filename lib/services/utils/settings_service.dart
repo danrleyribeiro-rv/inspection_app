@@ -6,14 +6,15 @@ import 'package:lince_inspecoes/services/core/firebase_service.dart';
 class SettingsService {
   final FirebaseService _firebase = FirebaseService();
 
-  Future<Map<String, bool>> loadSettings() async {
+  Future<Map<String, dynamic>> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = _firebase.currentUser?.uid;
 
-    Map<String, bool> defaultSettings = {
+    Map<String, dynamic> defaultSettings = {
       'notificationsEnabled': true,
       'locationPermission': true,
       'cameraPermission': true,
+      'isDarkTheme': true,
     };
 
     if (userId != null) {
@@ -29,6 +30,8 @@ class SettingsService {
                 defaultSettings['locationPermission']!,
             'cameraPermission': data['cameraPermission'] ??
                 defaultSettings['cameraPermission']!,
+            'isDarkTheme': data['isDarkTheme'] ??
+                defaultSettings['isDarkTheme']!,
           };
         }
       } catch (e) {
@@ -43,6 +46,8 @@ class SettingsService {
           defaultSettings['locationPermission']!,
       'cameraPermission': prefs.getBool('cameraPermission') ??
           defaultSettings['cameraPermission']!,
+      'isDarkTheme': prefs.getBool('isDarkTheme') ??
+          defaultSettings['isDarkTheme']!,
     };
   }
 
@@ -50,12 +55,14 @@ class SettingsService {
     required bool notificationsEnabled,
     required bool locationPermission,
     required bool cameraPermission,
+    required bool isDarkTheme,
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.setBool('notificationsEnabled', notificationsEnabled);
     await prefs.setBool('locationPermission', locationPermission);
     await prefs.setBool('cameraPermission', cameraPermission);
+    await prefs.setBool('isDarkTheme', isDarkTheme);
 
     final userId = _firebase.currentUser?.uid;
     if (userId != null) {
@@ -64,10 +71,26 @@ class SettingsService {
           'notificationsEnabled': notificationsEnabled,
           'locationPermission': locationPermission,
           'cameraPermission': cameraPermission,
+          'isDarkTheme': isDarkTheme,
         }, SetOptions(merge: true));
       } catch (e) {
         debugPrint('Error saving settings to Firebase: $e');
       }
     }
+  }
+
+  Future<bool> isDarkTheme() async {
+    final settings = await loadSettings();
+    return settings['isDarkTheme'] as bool;
+  }
+
+  Future<void> setTheme(bool isDark) async {
+    final currentSettings = await loadSettings();
+    await saveSettings(
+      notificationsEnabled: currentSettings['notificationsEnabled'] as bool,
+      locationPermission: currentSettings['locationPermission'] as bool,
+      cameraPermission: currentSettings['cameraPermission'] as bool,
+      isDarkTheme: isDark,
+    );
   }
 }

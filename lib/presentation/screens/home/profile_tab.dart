@@ -118,14 +118,11 @@ class _ProfileTabState extends State<ProfileTab> {
   //   );
   // }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF312456),
       appBar: AppBar(
         title: const Text('Perfil'),
-        backgroundColor: const Color(0xFF312456),
         elevation: 0,
         actions: [
           IconButton(
@@ -175,9 +172,13 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                   Text(
                     _profile?['profession'] ?? 'Not specified',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey,
+                      color: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.color
+                          ?.withAlpha((0.6 * 255).round()),
                     ),
                   ),
 
@@ -331,10 +332,14 @@ class _ProfileTabState extends State<ProfileTab> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w500,
                     fontSize: 12,
-                    color: Colors.grey,
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.color
+                        ?.withAlpha((0.6 * 255).round()),
                   ),
                 ),
                 const SizedBox(height: 2),

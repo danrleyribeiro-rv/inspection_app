@@ -3,51 +3,87 @@
 part of 'non_conformity.dart';
 
 // **************************************************************************
-// JsonSerializableGenerator
+// TypeAdapterGenerator
 // **************************************************************************
 
-NonConformity _$NonConformityFromJson(Map<String, dynamic> json) =>
-    NonConformity(
-      id: json['id'] as String,
-      inspectionId: json['inspectionId'] as String,
-      topicId: json['topicId'] as String?,
-      itemId: json['itemId'] as String?,
-      detailId: json['detailId'] as String?,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      severity: json['severity'] as String,
-      status: json['status'] as String,
-      correctiveAction: json['correctiveAction'] as String?,
-      deadline: json['deadline'] == null
-          ? null
-          : DateTime.parse(json['deadline'] as String),
-      isResolved: json['isResolved'] as bool? ?? false,
-      resolvedAt: json['resolvedAt'] == null
-          ? null
-          : DateTime.parse(json['resolvedAt'] as String),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      needsSync: json['needsSync'] as bool? ?? false,
-      isDeleted: json['isDeleted'] as bool? ?? false,
-    );
+class NonConformityAdapter extends TypeAdapter<NonConformity> {
+  @override
+  final int typeId = 4;
 
-Map<String, dynamic> _$NonConformityToJson(NonConformity instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'inspectionId': instance.inspectionId,
-      'topicId': instance.topicId,
-      'itemId': instance.itemId,
-      'detailId': instance.detailId,
-      'title': instance.title,
-      'description': instance.description,
-      'severity': instance.severity,
-      'status': instance.status,
-      'correctiveAction': instance.correctiveAction,
-      'deadline': instance.deadline?.toIso8601String(),
-      'isResolved': instance.isResolved,
-      'resolvedAt': instance.resolvedAt?.toIso8601String(),
-      'createdAt': instance.createdAt.toIso8601String(),
-      'updatedAt': instance.updatedAt.toIso8601String(),
-      'needsSync': instance.needsSync,
-      'isDeleted': instance.isDeleted,
+  @override
+  NonConformity read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+    return NonConformity(
+      id: fields[0] as String,
+      inspectionId: fields[1] as String,
+      topicId: fields[2] as String?,
+      itemId: fields[3] as String?,
+      detailId: fields[4] as String?,
+      title: fields[5] as String,
+      description: fields[6] as String,
+      severity: fields[7] as String,
+      status: fields[8] as String,
+      correctiveAction: fields[9] as String?,
+      deadline: fields[10] as DateTime?,
+      isResolved: fields[11] as bool,
+      resolvedAt: fields[12] as DateTime?,
+      createdAt: fields[13] as DateTime,
+      updatedAt: fields[14] as DateTime,
+      needsSync: fields[15] as bool,
+      isDeleted: fields[16] as bool,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, NonConformity obj) {
+    writer
+      ..writeByte(17)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.inspectionId)
+      ..writeByte(2)
+      ..write(obj.topicId)
+      ..writeByte(3)
+      ..write(obj.itemId)
+      ..writeByte(4)
+      ..write(obj.detailId)
+      ..writeByte(5)
+      ..write(obj.title)
+      ..writeByte(6)
+      ..write(obj.description)
+      ..writeByte(7)
+      ..write(obj.severity)
+      ..writeByte(8)
+      ..write(obj.status)
+      ..writeByte(9)
+      ..write(obj.correctiveAction)
+      ..writeByte(10)
+      ..write(obj.deadline)
+      ..writeByte(11)
+      ..write(obj.isResolved)
+      ..writeByte(12)
+      ..write(obj.resolvedAt)
+      ..writeByte(13)
+      ..write(obj.createdAt)
+      ..writeByte(14)
+      ..write(obj.updatedAt)
+      ..writeByte(15)
+      ..write(obj.needsSync)
+      ..writeByte(16)
+      ..write(obj.isDeleted);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NonConformityAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

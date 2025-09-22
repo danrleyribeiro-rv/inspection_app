@@ -1,22 +1,45 @@
 // lib/models/item.dart
+import 'package:hive/hive.dart';
+
+part 'item.g.dart';
+
+@HiveType(typeId: 2)
 class Item {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String inspectionId;
+  @HiveField(2)
   final String? topicId;
+  @HiveField(3)
   final String? itemId;
+  @HiveField(4)
   final int position;
+  @HiveField(5)
   final int orderIndex;
+  @HiveField(6)
   final String itemName;
+  @HiveField(7)
   final String? itemLabel;
+  @HiveField(8)
   final String? description;
+  @HiveField(9)
   final bool? evaluable;
+  @HiveField(10)
   final List<String>? evaluationOptions;
+  @HiveField(11)
   final String? evaluationValue;
+  @HiveField(12)
   final String? evaluation;
+  @HiveField(13)
   final String? observation;
+  @HiveField(14)
   final bool? isDamaged;
+  @HiveField(15)
   final List<String>? tags;
+  @HiveField(16)
   final DateTime? createdAt;
+  @HiveField(17)
   final DateTime? updatedAt;
 
   Item({

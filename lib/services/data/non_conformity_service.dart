@@ -1,15 +1,14 @@
-import 'package:lince_inspecoes/services/storage/sqlite_storage_service.dart'; // Use SQLiteStorageService
+import 'package:lince_inspecoes/repositories/inspection_repository.dart';
 import 'package:uuid/uuid.dart';
 
 class NonConformityService {
-  final SQLiteStorageService _localStorage =
-      SQLiteStorageService.instance; // Use SQLiteStorageService
+  final InspectionRepository _inspectionRepository = InspectionRepository();
   final Uuid _uuid = Uuid();
 
   Future<List<Map<String, dynamic>>> getNonConformitiesByInspection(
       String inspectionId) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics == null) return [];
 
     List<Map<String, dynamic>> nonConformities = [];
@@ -110,7 +109,7 @@ class NonConformityService {
     }
 
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -138,8 +137,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
+            await _inspectionRepository.update(
+                inspection.copyWith(topics: topics, hasLocalChanges: true));
           }
         }
       }
@@ -167,7 +166,7 @@ class NonConformityService {
     }
 
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -207,8 +206,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
+            await _inspectionRepository.update(
+                inspection.copyWith(topics: topics, hasLocalChanges: true));
           }
         }
       }
@@ -219,7 +218,7 @@ class NonConformityService {
   Future<String> addNonConformityToTopic(
       String inspectionId, String topicId, Map<String, dynamic> ncData) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics == null) throw Exception('Inspection not found');
 
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
@@ -251,8 +250,8 @@ class NonConformityService {
     topic['non_conformities'] = topicNCs;
     topics[topicIndex] = topic;
 
-    await _localStorage
-        .saveInspection(inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
+    await _inspectionRepository
+        .update(inspection.copyWith(topics: topics, hasLocalChanges: true));
 
     return '$inspectionId-topic_$topicIndex-nc_${topicNCs.length - 1}';
   }
@@ -261,7 +260,7 @@ class NonConformityService {
   Future<String> addNonConformityToItem(String inspectionId, String topicId,
       String itemId, Map<String, dynamic> ncData) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics == null) throw Exception('Inspection not found');
 
     final topicIndex = int.tryParse(topicId.replaceFirst('topic_', ''));
@@ -301,8 +300,8 @@ class NonConformityService {
     topic['items'] = items;
     topics[topicIndex] = topic;
 
-    await _localStorage
-        .saveInspection(inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
+    await _inspectionRepository
+        .update(inspection.copyWith(topics: topics, hasLocalChanges: true));
 
     return '$inspectionId-topic_$topicIndex-item_$itemIndex-nc_${itemNCs.length - 1}';
   }
@@ -327,7 +326,7 @@ class NonConformityService {
     }
 
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection?.topics != null && topicIndex < inspection!.topics!.length) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       final topic = Map<String, dynamic>.from(topics[topicIndex]);
@@ -353,8 +352,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
+            await _inspectionRepository.update(
+                inspection.copyWith(topics: topics, hasLocalChanges: true));
           }
         }
       }
@@ -368,7 +367,7 @@ class NonConformityService {
       int detailIndex,
       Map<String, dynamic> nonConformity) async {
     final inspection =
-        await _localStorage.getInspection(inspectionId); // Get from SQLite
+        await _inspectionRepository.findById(inspectionId);
     if (inspection != null && inspection.topics != null) {
       final topics = List<Map<String, dynamic>>.from(inspection.topics!);
       if (topicIndex < topics.length) {
@@ -391,8 +390,8 @@ class NonConformityService {
             topic['items'] = items;
             topics[topicIndex] = topic;
 
-            await _localStorage.saveInspection(
-                inspection.copyWith(topics: topics, hasLocalChanges: true)); // Save to SQLite
+            await _inspectionRepository.update(
+                inspection.copyWith(topics: topics, hasLocalChanges: true));
           }
         }
       }
