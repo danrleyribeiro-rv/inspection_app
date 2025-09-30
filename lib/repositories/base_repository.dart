@@ -1,22 +1,14 @@
-import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import '../storage/database_helper.dart';
 
 // Deprecated: Este padrão de repository não é mais necessário com Hive
 // Use diretamente os métodos do DatabaseHelper que já fornecem operações CRUD
-@deprecated
+@Deprecated('Use DatabaseHelper methods directly')
 abstract class BaseRepository<T> {
   String get entityType;
 
   T fromMap(Map<String, dynamic> map);
   Map<String, dynamic> toMap(T entity);
   String getId(T entity);
-
-  /// Generates a Firestore-safe UUID-based ID
-  String _generateFirestoreSafeId() {
-    const uuid = Uuid();
-    return uuid.v4();
-  }
 
   // Métodos básicos que devem ser implementados nas subclasses
   // usando diretamente o DatabaseHelper

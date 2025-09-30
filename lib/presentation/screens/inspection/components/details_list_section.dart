@@ -223,7 +223,6 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
     // Adaptive colors for light/dark theme
     final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
-    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
     final containerColor = isDark
         ? theme.colorScheme.surface.withAlpha((0.8 * 255).round())
         : detailColor.withAlpha((0.05 * 255).round());

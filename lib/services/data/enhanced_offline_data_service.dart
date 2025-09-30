@@ -218,12 +218,9 @@ class OfflineDataService {
 
   Future<void> deleteTopic(String topicId) async {
     debugPrint('DataService: Deleting topic $topicId');
-    
-    // Get topic to find inspectionId before deleting
-    final topic = await _topicRepository.findById(topicId);
-    
+
     await _topicRepository.delete(topicId);
-    
+
     debugPrint('DataService: Topic $topicId deleted successfully');
   }
 
@@ -269,12 +266,9 @@ class OfflineDataService {
 
   Future<void> deleteItem(String itemId) async {
     debugPrint('DataService: Deleting item $itemId');
-    
-    // Get item to find inspectionId before deleting
-    final item = await _itemRepository.findById(itemId);
-    
+
     await _itemRepository.delete(itemId);
-    
+
     debugPrint('DataService: Item $itemId deleted successfully');
   }
 
@@ -339,10 +333,7 @@ class OfflineDataService {
 
   Future<void> deleteDetail(String detailId) async {
     debugPrint('DataService: Deleting detail $detailId');
-    
-    // Get detail to find inspectionId before deleting
-    final detail = await _detailRepository.findById(detailId);
-    
+
     await _detailRepository.delete(detailId);
 
     debugPrint('DataService: Detail $detailId deleted successfully');
@@ -350,36 +341,20 @@ class OfflineDataService {
 
   Future<void> updateDetailValue(
       String detailId, String? value, String? observations) async {
-    // Get detail to find inspectionId
-    final detail = await _detailRepository.findById(detailId);
-    
     await _detailRepository.updateValue(detailId, value, observations);
-    
   }
 
   Future<void> markDetailCompleted(String detailId) async {
-    // Get detail to find inspectionId
-    final detail = await _detailRepository.findById(detailId);
-    
     await _detailRepository.markAsCompleted(detailId);
-    
   }
 
   Future<void> markDetailIncomplete(String detailId) async {
-    // Get detail to find inspectionId
-    final detail = await _detailRepository.findById(detailId);
-    
     await _detailRepository.markAsIncomplete(detailId);
-    
   }
 
   Future<void> setDetailNonConformity(
       String detailId, bool hasNonConformity) async {
-    // Get detail to find inspectionId
-    final detail = await _detailRepository.findById(detailId);
-    
     await _detailRepository.setNonConformity(detailId, hasNonConformity);
-    
   }
 
   Future<void> reorderDetails(String itemId, List<String> detailIds) async {
@@ -458,29 +433,17 @@ class OfflineDataService {
   }
 
   Future<void> deleteNonConformity(String nonConformityId) async {
-    // Get NC to find inspectionId
-    final nc = await _nonConformityRepository.findById(nonConformityId);
-    
     await _nonConformityRepository.delete(nonConformityId);
-    
   }
 
   Future<void> updateNonConformityStatus(
       String nonConformityId, String status) async {
-    // Get NC to find inspectionId
-    final nc = await _nonConformityRepository.findById(nonConformityId);
-    
     await _nonConformityRepository.updateStatus(nonConformityId, status);
-    
   }
 
   Future<void> updateNonConformitySeverity(
       String nonConformityId, String severity) async {
-    // Get NC to find inspectionId
-    final nc = await _nonConformityRepository.findById(nonConformityId);
-    
     await _nonConformityRepository.updateSeverity(nonConformityId, severity);
-    
   }
 
   Future<Map<String, int>> getNonConformityStats(String inspectionId) async {

@@ -21,7 +21,6 @@ class EnhancedOfflineMediaService {
   EnhancedOfflineMediaService._();
 
   late final MediaRepository _mediaRepository;
-  late final InspectionRepository _inspectionRepository;
   late final FirestoreSyncService _syncService;
 
   bool _isInitialized = false;
@@ -30,7 +29,6 @@ class EnhancedOfflineMediaService {
     if (_isInitialized) return;
 
     _mediaRepository = MediaRepository();
-    _inspectionRepository = InspectionRepository();
     _syncService = FirestoreSyncService.instance;
 
     _isInitialized = true;

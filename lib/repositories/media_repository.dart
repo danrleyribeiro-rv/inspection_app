@@ -119,7 +119,6 @@ class MediaRepository {
   }
 
   Future<List<OfflineMedia>> findUnprocessed() async {
-    final allMedia = DatabaseHelper.offlineMedia.values.toList();
     return []; // No unprocessed media with simplified model
   }
 
@@ -303,7 +302,7 @@ class MediaRepository {
   Future<List<OfflineMedia>> findByInspectionIdPaginated(
       String inspectionId, int limit, int offset) async {
     final allMedia = await findByInspectionId(inspectionId);
-    allMedia.sort((a, b) => (b.createdAt ?? DateFormatter.now()).compareTo(a.createdAt ?? DateFormatter.now()));
+    allMedia.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     final endIndex = (offset + limit).clamp(0, allMedia.length);
     if (offset >= allMedia.length) return [];
@@ -316,7 +315,7 @@ class MediaRepository {
     final filtered = allMedia.where((media) =>
         media.filename.toLowerCase().contains(query.toLowerCase())).toList();
 
-    filtered.sort((a, b) => (b.createdAt ?? DateFormatter.now()).compareTo(a.createdAt ?? DateFormatter.now()));
+    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return filtered;
   }
 

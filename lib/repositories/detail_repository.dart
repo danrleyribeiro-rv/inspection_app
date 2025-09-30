@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/utils/date_formatter.dart';

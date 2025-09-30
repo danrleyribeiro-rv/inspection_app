@@ -972,11 +972,11 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
         }
       }
 
-      if (mounted) {
-        if (zipFile == null || !(await zipFile.exists())) {
-          throw Exception('Falha ao salvar o arquivo ZIP em um local válido.');
-        }
+      if (!(await zipFile.exists())) {
+        throw Exception('Falha ao salvar o arquivo ZIP em um local válido.');
+      }
 
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Arquivo salvo em: ${zipFile.path}'),
@@ -992,7 +992,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
       }
 
       debugPrint(
-          'Inspection exported successfully as ZIP: ${zipFile?.path ?? 'unknown path'}');
+          'Inspection exported successfully as ZIP: ${zipFile.path}');
       debugPrint(
           'ZIP contains organized JSON data, database backup, and ${allMedia.length} images');
     } catch (e) {
@@ -1322,7 +1322,6 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
 
