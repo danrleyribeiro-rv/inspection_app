@@ -47,19 +47,27 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
         return _extractTopicsFromTemplate(template.toMap());
       }
 
-      // Try to get template from the inspection's nested structure
+      // Try to get topics from the inspection's Hive box
       if (widget.inspectionId != null) {
-        final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId!);
-        if (inspection != null && inspection.topics != null) {
+        final topicsFromHive = await DatabaseHelper.getTopicsByInspection(widget.inspectionId!);
+        if (topicsFromHive.isNotEmpty) {
           final availableTopics = <Map<String, dynamic>>[];
-          for (final topic in inspection.topics!) {
-            if (topic['items'] != null || topic['details'] != null) {
+          for (final topic in topicsFromHive) {
+            // Check if topic has items or direct details
+            final hasItems = DatabaseHelper.items.values.any((item) => item.topicId == topic.id);
+            final hasDirectDetails = DatabaseHelper.details.values.any((detail) => detail.topicId == topic.id && detail.itemId == null);
+
+            if (hasItems || hasDirectDetails) {
               availableTopics.add({
-                'topicData': topic,
+                'topicData': {
+                  'name': topic.topicName,
+                  'description': topic.topicLabel,
+                  'observation': topic.observation,
+                },
                 'templateId': templateId,
                 'templateName': 'Template da Inspeção',
-                'name': topic['name'] ?? 'Tópico',
-                'description': topic['description'] ?? '',
+                'name': topic.topicName,
+                'description': topic.topicLabel ?? '',
               });
             }
           }
@@ -125,27 +133,78 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
     try {
       final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId!);
 
-      // Buscar dos tópicos já existentes na inspeção que podem ser reutilizados como template
-      if (inspection?.topics != null) {
-        final topics = <Map<String, dynamic>>[];
-        for (final topic in inspection!.topics!) {
-          // Apenas incluir tópicos que têm estrutura de template (items ou details)
-          if ((topic['items'] != null && (topic['items'] as List).isNotEmpty) ||
-              (topic['details'] != null && (topic['details'] as List).isNotEmpty)) {
-            topics.add({
-              'topicData': topic,
-              'templateId': inspection.templateId ?? 'inspection',
-              'templateName': 'Tópicos Disponíveis',
-              'name': topic['name'] ?? topic['topic_name'] ?? 'Tópico',
-              'description': topic['description'] ?? '',
-            });
-          }
-        }
+      // Get topics from Hive box
+      final topicsFromHive = await DatabaseHelper.getTopicsByInspection(widget.inspectionId!);
+      if (topicsFromHive.isEmpty) return [];
 
-        if (topics.isNotEmpty) {
-          debugPrint('TemplateSelectorDialog: Found ${topics.length} topics that can be reused from inspection');
-          return topics;
+      final topics = <Map<String, dynamic>>[];
+      for (final topic in topicsFromHive) {
+        // Get items for this topic
+        final topicItems = DatabaseHelper.items.values.where((item) => item.topicId == topic.id).toList();
+
+        // Get direct details for this topic (details without itemId)
+        final topicDirectDetails = DatabaseHelper.details.values.where((detail) => detail.topicId == topic.id && detail.itemId == null).toList();
+
+        // Only include topics that have structure
+        if (topicItems.isNotEmpty || topicDirectDetails.isNotEmpty) {
+          // Build topicData with complete structure
+          final topicData = <String, dynamic>{
+            'name': topic.topicName,
+            'description': topic.topicLabel,
+            'observation': topic.observation,
+            'direct_details': topic.directDetails,
+          };
+
+          // Add items if present
+          if (topicItems.isNotEmpty) {
+            final itemsJson = <Map<String, dynamic>>[];
+            for (final item in topicItems) {
+              final itemJson = {
+                'name': item.itemName,
+                'description': item.itemLabel,
+                'evaluable': item.evaluable,
+                'evaluation_options': item.evaluationOptions,
+              };
+
+              // Get details for this item
+              final itemDetails = DatabaseHelper.details.values.where((detail) => detail.itemId == item.id).toList();
+              if (itemDetails.isNotEmpty) {
+                itemJson['details'] = itemDetails.map((d) => {
+                  'name': d.detailName,
+                  'type': d.type,
+                  'options': d.options,
+                  'isRequired': d.isRequired,
+                }).toList();
+              }
+
+              itemsJson.add(itemJson);
+            }
+            topicData['items'] = itemsJson;
+          }
+
+          // Add direct details if present
+          if (topicDirectDetails.isNotEmpty) {
+            topicData['details'] = topicDirectDetails.map((d) => {
+              'name': d.detailName,
+              'type': d.type,
+              'options': d.options,
+              'isRequired': d.isRequired,
+            }).toList();
+          }
+
+          topics.add({
+            'topicData': topicData,
+            'templateId': inspection?.templateId ?? 'inspection',
+            'templateName': 'Tópicos Disponíveis',
+            'name': topic.topicName,
+            'description': topic.topicLabel ?? '',
+          });
         }
+      }
+
+      if (topics.isNotEmpty) {
+        debugPrint('TemplateSelectorDialog: Found ${topics.length} topics that can be reused from inspection');
+        return topics;
       }
 
       return [];
@@ -283,10 +342,9 @@ Future<void> _loadTemplateItems() async {
         hasDirectDetails = items.isEmpty;
       }
 
-      // Create topic with explicit ID to avoid Hive issues
+      // Create topic with auto-generated UUID
       final topicOrder = await _getNextTopicOrder();
       final newTopic = Topic(
-        id: '${widget.inspectionId!}_topic_$topicOrder', // Explicit string ID
         inspectionId: widget.inspectionId!,
         topicName: uniqueTopicName,
         topicLabel: '',  // Simplified to avoid potential issues
@@ -302,9 +360,13 @@ Future<void> _loadTemplateItems() async {
       debugPrint('TemplateSelectorDialog: Successfully saved topic with ID: $topicId');
 
       // Create structure based on topic type
+      debugPrint('TemplateSelectorDialog: hasDirectDetails=$hasDirectDetails for topic $topicId');
+      debugPrint('TemplateSelectorDialog: sanitizedTopicData keys: ${sanitizedTopicData.keys}');
       if (hasDirectDetails) {
+        debugPrint('TemplateSelectorDialog: Creating direct details for topic');
         await _createDirectDetails(topicId, sanitizedTopicData);
       } else {
+        debugPrint('TemplateSelectorDialog: Creating items and details for topic');
         await _createItemsAndDetails(topicId, sanitizedTopicData);
       }
 
@@ -331,7 +393,6 @@ Future<void> _loadTemplateItems() async {
     final templateDetails = topicData['details'] as List<dynamic>? ?? [];
     for (int detailIndex = 0; detailIndex < templateDetails.length; detailIndex++) {
       final templateDetail = templateDetails[detailIndex] as Map<String, dynamic>;
-      final detailId = '${topicId}_detail_$detailIndex';
 
       // Sanitize template detail data
       List<String>? detailOptions;
@@ -345,11 +406,9 @@ Future<void> _loadTemplateItems() async {
       }
 
       final newDetail = Detail(
-        id: detailId,
         inspectionId: widget.inspectionId!,
         topicId: topicId,
         itemId: null,
-        detailId: detailId,
         position: detailIndex,
         detailName: (templateDetail['name'] ?? templateDetail['detailName'] ?? 'Detalhe ${detailIndex + 1}').toString(),
         detailValue: templateDetail['type'] == 'boolean' ? 'não_se_aplica' : '',
@@ -364,12 +423,16 @@ Future<void> _loadTemplateItems() async {
   }
 
   Future<void> _createItemsAndDetails(String topicId, Map<String, dynamic> topicData) async {
+    debugPrint('TemplateSelectorDialog: _createItemsAndDetails called for topic $topicId');
+    debugPrint('TemplateSelectorDialog: topicData[items] = ${topicData['items']}');
+
     if (topicData['items'] != null) {
       final templateItems = topicData['items'] as List<dynamic>;
+      debugPrint('TemplateSelectorDialog: Processing ${templateItems.length} items');
 
       for (int itemIndex = 0; itemIndex < templateItems.length; itemIndex++) {
         final templateItem = templateItems[itemIndex] as Map<String, dynamic>;
-        final itemId = '${topicId}_item_$itemIndex';
+        debugPrint('TemplateSelectorDialog: Creating item $itemIndex: ${templateItem['name']}');
 
         bool isEvaluable = templateItem['evaluable'] == true;
         List<String>? evaluationOptions;
@@ -386,10 +449,8 @@ Future<void> _loadTemplateItems() async {
         }
 
         final newItem = Item(
-          id: itemId,
           inspectionId: widget.inspectionId!,
           topicId: topicId,
-          itemId: itemId,
           position: itemIndex,
           itemName: (templateItem['name'] ?? templateItem['itemName'] ?? 'Item ${itemIndex + 1}').toString(),
           itemLabel: (templateItem['description'] ?? templateItem['itemLabel'] ?? '').toString(),
@@ -402,13 +463,18 @@ Future<void> _loadTemplateItems() async {
 
         await _serviceFactory.dataService.saveItem(newItem);
 
+        // Get the auto-generated item ID
+        final savedItemId = newItem.id;
+        debugPrint('TemplateSelectorDialog: Saved item with UUID: $savedItemId');
+
         // Create details for the item
         if (templateItem['details'] != null) {
           final templateDetails = templateItem['details'] as List<dynamic>;
+          debugPrint('TemplateSelectorDialog: Creating ${templateDetails.length} details for item');
 
           for (int detailIndex = 0; detailIndex < templateDetails.length; detailIndex++) {
             final templateDetail = templateDetails[detailIndex] as Map<String, dynamic>;
-            final detailId = '${itemId}_detail_$detailIndex';
+            debugPrint('TemplateSelectorDialog: Creating detail $detailIndex: ${templateDetail['name']}');
 
             List<String>? detailOptions;
             if (templateDetail['options'] != null) {
@@ -421,11 +487,9 @@ Future<void> _loadTemplateItems() async {
             }
 
             final newDetail = Detail(
-              id: detailId,
               inspectionId: widget.inspectionId!,
               topicId: topicId,
-              itemId: itemId,
-              detailId: detailId,
+              itemId: savedItemId,
               position: detailIndex,
               detailName: (templateDetail['name'] ?? templateDetail['detailName'] ?? 'Detalhe ${detailIndex + 1}').toString(),
               detailValue: templateDetail['type'] == 'boolean' ? 'não_se_aplica' : '',
@@ -436,9 +500,14 @@ Future<void> _loadTemplateItems() async {
             );
 
             await _serviceFactory.dataService.saveDetail(newDetail);
+            debugPrint('TemplateSelectorDialog: Saved detail with UUID: ${newDetail.id}');
           }
+        } else {
+          debugPrint('TemplateSelectorDialog: No details found for item $itemIndex');
         }
       }
+    } else {
+      debugPrint('TemplateSelectorDialog: No items found in topicData');
     }
   }
 

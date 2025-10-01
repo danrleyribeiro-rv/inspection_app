@@ -328,14 +328,7 @@ class _MediaGridState extends State<MediaGrid> {
         final thumbnailFile = File(thumbnailPath.toString());
         if (thumbnailFile.existsSync()) {
           imagePath = thumbnailPath.toString();
-          debugPrint('MediaGrid: Using thumbnail: $imagePath');
-        } else {
-          debugPrint(
-              'MediaGrid: Thumbnail path exists but file not found: $thumbnailPath');
         }
-      } else {
-        debugPrint(
-            'MediaGrid: No thumbnail path available for media ${mediaItem['id']}');
       }
 
       // 2. Se não há thumbnail, usar arquivo local principal
@@ -345,7 +338,6 @@ class _MediaGridState extends State<MediaGrid> {
         final file = File(displayPath);
         if (file.existsSync()) {
           imagePath = displayPath;
-          debugPrint('MediaGrid: Using local file: $imagePath');
         }
       }
 

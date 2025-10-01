@@ -4,6 +4,7 @@ import 'package:lince_inspecoes/models/inspection.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/utils/date_formatter.dart';
+import 'package:lince_inspecoes/utils/inspection_json_converter.dart';
 
 class InspectionRepository {
   final FirebaseService _firebaseService;
@@ -23,7 +24,9 @@ class InspectionRepository {
   }
 
   Future<void> delete(String id) async {
-    await DatabaseHelper.deleteInspection(id);
+    // Delete inspection and all related data (topics, items, details, non-conformities)
+    // but keep media files on device as per user request
+    await InspectionJsonConverter.deleteInspectionWithRelations(id);
   }
 
   Future<Inspection?> findById(String id) async {
@@ -64,16 +67,6 @@ class InspectionRepository {
     return allInspections.where((inspection) => inspection.templateId == templateId).toList();
   }
 
-  Future<List<Inspection>> getInspectionsNeedingSync() async {
-    final allInspections = DatabaseHelper.inspections.values.toList();
-    return allInspections.where((inspection) => inspection.needsSync == true).toList();
-  }
-
-  // Aliases for cloud sync compatibility
-  Future<List<Inspection>> findPendingSync() async {
-    return await getInspectionsNeedingSync();
-  }
-
   Future<void> insertOrUpdate(Inspection inspection) async {
     final existing = await findById(inspection.id);
     if (existing != null) {
@@ -96,15 +89,12 @@ class InspectionRepository {
     }
   }
 
-  // REMOVED: markSynced - Always sync all data on demand
-
   Future<void> updateProgress(String inspectionId, double progressPercentage,
       int completedItems, int totalItems) async {
     final inspection = await findById(inspectionId);
     if (inspection != null) {
       final updatedInspection = inspection.copyWith(
         updatedAt: DateFormatter.now(),
-        needsSync: true,
       );
       await update(updatedInspection);
     }
@@ -116,7 +106,6 @@ class InspectionRepository {
       final updatedInspection = inspection.copyWith(
         status: status,
         updatedAt: DateFormatter.now(),
-        needsSync: true,
       );
       await update(updatedInspection);
     }
@@ -128,26 +117,9 @@ class InspectionRepository {
     if (inspection != null) {
       final updatedInspection = inspection.copyWith(
         updatedAt: DateFormatter.now(),
-        needsSync: true,
       );
       await update(updatedInspection);
     }
-  }
-
-  Future<void> markAsSynced(String inspectionId, {String? status}) async {
-    final inspection = await findById(inspectionId);
-    if (inspection != null) {
-      final updatedInspection = inspection.copyWith(
-        hasLocalChanges: false,
-        needsSync: false,
-        isSynced: true,
-        lastSyncAt: DateTime.now(),
-        updatedAt: DateFormatter.now(),
-        status: status ?? inspection.status,
-      );
-      await update(updatedInspection);
-    }
-    debugPrint('InspectionRepository: Marked inspection $inspectionId as synced');
   }
 
   Future<int> countByStatus(String status) async {
@@ -176,14 +148,12 @@ class InspectionRepository {
     final pending = allInspections.where((i) => i.status == 'pending').length;
     final inProgress = allInspections.where((i) => i.status == 'in_progress').length;
     final completed = allInspections.where((i) => i.status == 'completed').length;
-    final needsSync = allInspections.where((i) => i.needsSync == true).length;
 
     return {
       'total': total,
       'pending': pending,
       'in_progress': inProgress,
       'completed': completed,
-      'needs_sync': needsSync,
     };
   }
 
@@ -213,7 +183,6 @@ class InspectionRepository {
         if (existingInspection == null) {
           // New inspection from cloud, save it
           await insertOrUpdate(cloudInspection);
-          // REMOVED: markSynced - Always sync all data on demand
           debugPrint(
               'InspectionRepository: Downloaded new inspection $inspectionId');
         } else {
@@ -227,7 +196,6 @@ class InspectionRepository {
           // Only update if merge produced changes
           if (mergedInspection != existingInspection) {
             await insertOrUpdate(mergedInspection);
-            // REMOVED: markSynced - Always sync all data on demand
             debugPrint(
                 'InspectionRepository: Applied intelligent merge for inspection $inspectionId');
           } else {
@@ -245,7 +213,8 @@ class InspectionRepository {
   Future<void> _uploadInspectionsToCloud() async {
     debugPrint('InspectionRepository: Uploading inspections to cloud');
     try {
-      final List<Inspection> pendingInspections = await findPendingSync();
+      // Upload all inspections without sync flags
+      final List<Inspection> pendingInspections = await findAll();
 
       for (final inspection in pendingInspections) {
         try {
@@ -258,7 +227,6 @@ class InspectionRepository {
               .doc(inspection.id)
               .set(dataToUpload, SetOptions(merge: true));
 
-          // REMOVED: markSynced - Always sync all data on demand
           debugPrint(
               'InspectionRepository: Uploaded inspection ${inspection.id} to cloud');
         } catch (e) {
@@ -327,9 +295,8 @@ class InspectionRepository {
       
       // Preserve local modification state
       updatedAt: local.updatedAt.isAfter(cloud.updatedAt) ? local.updatedAt : cloud.updatedAt,
-      
-      // Preserve nested structures (topics should be handled separately)
-      topics: local.topics?.isNotEmpty == true ? local.topics : cloud.topics,
+
+      // Topics are now stored in separate Hive boxes - no need to merge here
     );
   }
 
@@ -348,10 +315,4 @@ class InspectionRepository {
     // Both empty/null - return null
     return null;
   }
-
-  // ===============================
-  // MÉTODOS DE SINCRONIZAÇÃO ADICIONAIS
-  // ===============================
-
-  // REMOVED: markAllSynced - Always sync all data on demand
 }

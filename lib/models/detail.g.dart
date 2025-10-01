@@ -8,7 +8,7 @@ part of 'detail.dart';
 
 class DetailAdapter extends TypeAdapter<Detail> {
   @override
-  final int typeId = 3;
+  final typeId = 3;
 
   @override
   Detail read(BinaryReader reader) {
@@ -22,8 +22,8 @@ class DetailAdapter extends TypeAdapter<Detail> {
       topicId: fields[2] as String?,
       itemId: fields[3] as String?,
       detailId: fields[4] as String?,
-      position: fields[5] as int?,
-      orderIndex: fields[6] as int?,
+      position: (fields[5] as num?)?.toInt(),
+      orderIndex: (fields[6] as num?)?.toInt(),
       detailName: fields[7] as String,
       detailValue: fields[8] as String?,
       observation: fields[9] as String?,

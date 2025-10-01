@@ -103,7 +103,6 @@ class OfflineMediaService {
     }
   }
 
-
   // Obter arquivo de mídia
   Future<File?> getMediaFile(String mediaId) async {
     try {

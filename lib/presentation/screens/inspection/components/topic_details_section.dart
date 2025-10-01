@@ -34,7 +34,9 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
   String _currentTopicName = '';
   bool _isDuplicating = false; // Flag to prevent double duplication
   final Map<String, int> _mediaCountCache = {};
+  final Map<String, int> _ncCountCache = {};
   int _mediaCountVersion = 0; // Força rebuild do FutureBuilder
+  int _ncCountVersion = 0; // Força rebuild do FutureBuilder para NCs
 
   @override
   void initState() {
@@ -71,12 +73,15 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
-    final cacheKey = '${widget.topic.id}_topic_only';
-    _mediaCountCache.remove(cacheKey);
+    final mediaCacheKey = '${widget.topic.id}_topic_only';
+    final ncCacheKey = '${widget.topic.id}_nc_count';
+    _mediaCountCache.remove(mediaCacheKey);
+    _ncCountCache.remove(ncCacheKey);
 
     if (mounted) {
       setState(() {
         _mediaCountVersion++; // Força rebuild do FutureBuilder
+        _ncCountVersion++; // Força rebuild do FutureBuilder para NCs
       });
     }
   }
@@ -102,8 +107,6 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
       final count = topicOnlyMedias.length;
       _mediaCountCache[cacheKey] = count;
-      debugPrint(
-          'TopicDetailsSection: Topic ${widget.topic.id} has $count topic-only media (filtered from ${allTopicMedias.length} total)');
       return count;
     } catch (e) {
       debugPrint('Error getting media count for topic ${widget.topic.id}: $e');
@@ -111,9 +114,31 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     }
   }
 
-  void _updateTopic() {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
+  Future<int> _getTopicNonConformityCount() async {
+    final cacheKey = '${widget.topic.id}_nc_count';
+    if (_ncCountCache.containsKey(cacheKey)) {
+      return _ncCountCache[cacheKey]!;
+    }
 
+    try {
+      // Get all non-conformities for this topic
+      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+
+      // Filter to show ONLY topic-level NCs (exclude item and detail NCs)
+      final topicNCs = allNCs.where((nc) {
+        return nc.topicId == widget.topic.id && nc.itemId == null && nc.detailId == null;
+      }).toList();
+
+      final count = topicNCs.length;
+      _ncCountCache[cacheKey] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting NC count for topic ${widget.topic.id}: $e');
+      return 0;
+    }
+  }
+
+  void _updateTopic() {
     // Update UI immediately
     final trimmedText = _observationController.text.trim();
     final observationValue = trimmedText.isEmpty ? null : trimmedText;
@@ -135,16 +160,17 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     );
 
     widget.onTopicUpdated(updatedTopic);
+    _saveTopicImmediately(updatedTopic);
+  }
 
-    // Debounce the actual save operation
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      debugPrint(
-          'TopicDetailsSection: Updating topic ${updatedTopic.id} with observation: "$observationValue"');
+  Future<void> _saveTopicImmediately(Topic updatedTopic) async {
+    try {
       await _serviceFactory.dataService.updateTopic(updatedTopic);
       debugPrint(
-          'TopicDetailsSection: Topic ${updatedTopic.id} updated successfully');
-      // NÃO chamar onTopicAction() aqui para evitar rebuild desnecessário
-    });
+          'Topic saved immediately: ${updatedTopic.id} with observation: ${updatedTopic.observation}');
+    } catch (e) {
+      debugPrint('Error saving topic immediately: $e');
+    }
   }
 
   Future<void> _editObservationDialog() async {
@@ -154,35 +180,62 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         final theme = Theme.of(context);
         final controller =
             TextEditingController(text: _observationController.text);
-
-        return AlertDialog(
-          title: const Text('Observações do Tópico',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: TextFormField(
-              controller: controller,
-              maxLines: 3,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(color: theme.hintColor, fontSize: 11),
-                border: const OutlineInputBorder(),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Observações do Tópico',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: controller,
+                    maxLines: 3,
+                    autofocus: true,
+                    onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
+                    decoration: InputDecoration(
+                      hintText: 'Digite suas observações...',
+                      hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                controller.clear();
+                                setDialogState(() {}); // Atualiza apenas o dialog
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Deixe vazio para remover a observação',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.hintColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(controller.text);
-              },
-              child: const Text('Salvar'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(''), // Return empty string for clear
+                  child: const Text('Limpar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(controller.text),
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -521,11 +574,23 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                     );
                   },
                 ),
-                _buildActionButton(
-                  icon: Icons.warning_amber,
-                  label: 'NC',
-                  onPressed: _addNonConformity,
-                  color: Colors.orange,
+                ValueListenableBuilder<int>(
+                  valueListenable: ValueNotifier(_ncCountVersion),
+                  builder: (context, version, child) {
+                    return FutureBuilder<int>(
+                      future: _getTopicNonConformityCount(),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data ?? 0;
+                        return _buildActionButton(
+                          icon: Icons.warning_amber,
+                          label: 'NC',
+                          onPressed: _addNonConformity,
+                          color: Colors.orange,
+                          count: count,
+                        );
+                      },
+                    );
+                  },
                 ),
                 _buildActionButton(
                   icon: Icons.edit,

@@ -1,4 +1,4 @@
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 import 'package:lince_inspecoes/utils/date_formatter.dart';
 
@@ -44,16 +44,16 @@ class OfflineMedia {
   final DateTime createdAt;
   @HiveField(18)
   final DateTime updatedAt;
-  @HiveField(19)
-  final bool needsSync;
   @HiveField(20)
   final bool isDeleted;
   @HiveField(21)
   final String? source; // camera, gallery, import
   @HiveField(22)
-  final bool isResolutionMedia; // NEW: indicates if this media is for NC resolution (solved_media)
+  final bool
+      isResolutionMedia; // NEW: indicates if this media is for NC resolution (solved_media)
   @HiveField(23)
-  final int orderIndex; // Índice de ordenação fixa para preservar ordem cronológica
+  final int
+      orderIndex; // Índice de ordenação fixa para preservar ordem cronológica
 
   OfflineMedia({
     required this.id,
@@ -75,7 +75,6 @@ class OfflineMedia {
     this.uploadProgress = 0.0,
     required this.createdAt,
     required this.updatedAt,
-    this.needsSync = false,
     this.isDeleted = false,
     this.source,
     this.isResolutionMedia = false,
@@ -116,11 +115,12 @@ class OfflineMedia {
       duration: duration,
       createdAt: now,
       updatedAt: now,
-      needsSync: true,
       isDeleted: false,
       source: source,
       isResolutionMedia: isResolutionMedia,
-      orderIndex: orderIndex ?? DateFormatter.now().millisecondsSinceEpoch, // Use timestamp as default order
+      orderIndex: orderIndex ??
+          DateFormatter.now()
+              .millisecondsSinceEpoch, // Use timestamp as default order
     );
   }
 
@@ -131,30 +131,61 @@ class OfflineMedia {
   Map<String, dynamic> toJson() => toMap();
 
   factory OfflineMedia.fromMap(Map<String, dynamic> map) {
+    // Helper to parse datetime from multiple possible formats
+    DateTime? parseDateTime(dynamic value) {
+      if (value == null) return null;
+      if (value is String) {
+        try {
+          return DateTime.parse(value);
+        } catch (e) {
+          return null;
+        }
+      }
+      // Firestore Timestamp
+      if (value is Map && value.containsKey('_seconds')) {
+        return DateTime.fromMillisecondsSinceEpoch(value['_seconds'] * 1000);
+      }
+      // Try toDate() method (Firestore Timestamp object)
+      try {
+        return value?.toDate?.call();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Try both camelCase (Firestore) and snake_case (local DB) for dates
+    final createdAtValue = map['createdAt'] ?? map['created_at'];
+    final updatedAtValue = map['updatedAt'] ?? map['updated_at'];
+
     return OfflineMedia(
-      id: map['id'] as String,
+      id: map['id']?.toString() ?? const Uuid().v4(),
       inspectionId: map['inspection_id'] as String,
-      topicId: map['topic_id'] as String?,
-      itemId: map['item_id'] as String?,
-      detailId: map['detail_id'] as String?,
-      nonConformityId: map['non_conformity_id'] as String?,
-      type: map['type'] as String,
-      localPath: map['local_path'] as String,
+      topicId: map['topic_id']?.toString(),
+      itemId: map['item_id']?.toString(),
+      detailId: map['detail_id']?.toString(),
+      nonConformityId: map['non_conformity_id']?.toString(),
+      type: map['type'] as String? ?? 'image',
+      localPath: map['local_path'] as String? ?? '',
       cloudUrl: map['cloud_url'] as String?,
-      filename: map['filename'] as String,
+      filename: map['filename'] as String? ?? 'unknown',
       fileSize: map['file_size'] as int?,
       thumbnailPath: map['thumbnail_path'] as String?,
       duration: map['duration'] as int?,
       width: map['width'] as int?,
       height: map['height'] as int?,
-      isUploaded: (map['is_uploaded'] as int? ?? 0) == 1,
+      isUploaded: map['is_uploaded'] is bool
+          ? map['is_uploaded']
+          : (map['is_uploaded'] as int? ?? 0) == 1,
       uploadProgress: (map['upload_progress'] as num?)?.toDouble() ?? 0.0,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
-      needsSync: (map['needs_sync'] as int? ?? 0) == 1,
-      isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
+      createdAt: parseDateTime(createdAtValue) ?? DateTime.now(),
+      updatedAt: parseDateTime(updatedAtValue) ?? DateTime.now(),
+      isDeleted: map['is_deleted'] is bool
+          ? map['is_deleted']
+          : (map['is_deleted'] as int? ?? 0) == 1,
       source: map['source'] as String?,
-      isResolutionMedia: (map['is_resolution_media'] as int? ?? 0) == 1,
+      isResolutionMedia: map['is_resolution_media'] is bool
+          ? map['is_resolution_media']
+          : (map['is_resolution_media'] as int? ?? 0) == 1,
       orderIndex: (map['order_index'] as int?) ?? 0,
     );
   }
@@ -178,9 +209,9 @@ class OfflineMedia {
       'height': height,
       'is_uploaded': isUploaded ? 1 : 0,
       'upload_progress': uploadProgress,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-      'needs_sync': needsSync ? 1 : 0,
+      // Use camelCase for Firestore compatibility
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'is_deleted': isDeleted ? 1 : 0,
       'source': source,
       'is_resolution_media': isResolutionMedia ? 1 : 0,
@@ -208,7 +239,6 @@ class OfflineMedia {
     double? uploadProgress,
     DateTime? createdAt,
     DateTime? updatedAt,
-    bool? needsSync,
     bool? isDeleted,
     String? source,
     bool? isResolutionMedia,
@@ -234,7 +264,6 @@ class OfflineMedia {
       uploadProgress: uploadProgress ?? this.uploadProgress,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      needsSync: needsSync ?? this.needsSync,
       isDeleted: isDeleted ?? this.isDeleted,
       source: source ?? this.source,
       isResolutionMedia: isResolutionMedia ?? this.isResolutionMedia,
@@ -261,18 +290,19 @@ class OfflineMedia {
   bool get isVideo => type == 'video';
   bool get isReadyForUpload => !isUploaded;
   bool get isFullyUploaded => isUploaded && uploadProgress >= 100.0;
-  bool get isUploading => !isUploaded && uploadProgress > 0.0 && uploadProgress < 100.0;
-  
+  bool get isUploading =>
+      !isUploaded && uploadProgress > 0.0 && uploadProgress < 100.0;
+
   String get displayName => filename.split('.').first;
   String get extension => filename.split('.').last;
-  
+
   String get statusDisplayName {
     if (isUploaded) return 'Enviado';
     if (isUploading) return 'Enviando...';
     if (isReadyForUpload) return 'Pronto para envio';
     return 'Pendente';
   }
-  
+
   String get typeDisplayName {
     switch (type) {
       case 'image':
@@ -286,7 +316,7 @@ class OfflineMedia {
 
   String get fileSizeDisplayName {
     if (fileSize == null) return 'Tamanho desconhecido';
-    
+
     final sizeInBytes = fileSize!;
     if (sizeInBytes < 1024) {
       return '$sizeInBytes B';
@@ -299,7 +329,7 @@ class OfflineMedia {
 
   String get durationDisplayName {
     if (duration == null) return '';
-    
+
     final minutes = duration! ~/ 60;
     final seconds = duration! % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';

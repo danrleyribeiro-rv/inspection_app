@@ -7,7 +7,6 @@ import 'package:lince_inspecoes/presentation/screens/inspection/components/topic
 import 'package:lince_inspecoes/presentation/screens/inspection/components/item_details_section.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/details_list_section.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
-import 'package:lince_inspecoes/services/navigation_state_service.dart';
 
 class HierarchicalInspectionView extends StatefulWidget {
   final String inspectionId;
@@ -55,86 +54,6 @@ class _HierarchicalInspectionViewState
     super.initState();
     _topicPageController = PageController();
     _itemPageController = PageController();
-    _loadNavigationState();
-  }
-
-  /// Carrega o estado de navegação persistido
-  Future<void> _loadNavigationState() async {
-    // Só restaura o estado se for permitido (primeira vez na sessão)
-    if (!NavigationStateService.shouldRestoreState()) {
-      debugPrint(
-          'HierarchicalInspectionView: Skipping navigation state restoration - already restored in this session');
-      return;
-    }
-
-    final savedState =
-        await NavigationStateService.loadNavigationState(widget.inspectionId);
-    if (savedState != null && mounted) {
-      setState(() {
-        // Valida os índices para evitar IndexOutOfBounds
-        _currentTopicIndex =
-            savedState.currentTopicIndex.clamp(0, widget.topics.length - 1);
-
-        // Valida o item index baseado no tópico atual
-        if (_currentTopicIndex < widget.topics.length) {
-          final topicId = widget.topics[_currentTopicIndex].id;
-          final items =
-              topicId != null ? (widget.itemsCache[topicId] ?? []) : [];
-          _currentItemIndex = savedState.currentItemIndex
-              .clamp(0, (items.length - 1).clamp(0, items.length));
-        } else {
-          _currentItemIndex = 0;
-        }
-
-        _isTopicExpanded = savedState.isTopicExpanded;
-        _isItemExpanded = savedState.isItemExpanded;
-        // Details always expanded now
-        _expandedDetailId = savedState.expandedDetailId;
-      });
-
-      // Anima para a posição salva
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _topicPageController?.hasClients == true) {
-          _topicPageController?.animateToPage(
-            _currentTopicIndex,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
-        }
-
-        // Também anima para o item correto se necessário
-        if (mounted &&
-            _itemPageController?.hasClients == true &&
-            _currentItemIndex > 0) {
-          _itemPageController?.animateToPage(
-            _currentItemIndex,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
-
-      debugPrint(
-          'HierarchicalInspectionView: Restored navigation state: $savedState');
-      // Marca que o estado foi restaurado nesta sessão
-      NavigationStateService.markStateRestored();
-    } else {
-      debugPrint(
-          'HierarchicalInspectionView: No saved navigation state found or not mounted');
-    }
-  }
-
-  /// Salva o estado atual de navegação
-  Future<void> _saveNavigationState() async {
-    await NavigationStateService.saveNavigationState(
-      inspectionId: widget.inspectionId,
-      currentTopicIndex: _currentTopicIndex,
-      currentItemIndex: _currentItemIndex,
-      isTopicExpanded: _isTopicExpanded,
-      isItemExpanded: _isItemExpanded,
-      isDetailsExpanded: true, // Always expanded now
-      expandedDetailId: _expandedDetailId,
-    );
   }
 
   @override
@@ -172,17 +91,12 @@ class _HierarchicalInspectionViewState
             );
           }
         });
-
-        // Salvar o novo estado
-        _saveNavigationState();
       }
     }
   }
 
   @override
   void dispose() {
-    // Salva o estado antes de destruir o widget
-    _saveNavigationState();
     _topicPageController?.dispose();
     _itemPageController?.dispose();
     super.dispose();
@@ -203,9 +117,6 @@ class _HierarchicalInspectionViewState
       _itemPageController?.animateToPage(0,
           duration: const Duration(milliseconds: 200), curve: Curves.easeInOut);
     }
-
-    // Salva o estado quando o tópico muda
-    _saveNavigationState();
   }
 
   Future<void> _reloadCurrentData() async {
@@ -314,8 +225,6 @@ class _HierarchicalInspectionViewState
                             }
                           }
                         });
-                        // Salva o estado quando a expansão do tópico muda
-                        _saveNavigationState();
                       },
                       isExpanded:
                           _isTopicExpanded && topicIndex == _currentTopicIndex,
@@ -372,8 +281,6 @@ class _HierarchicalInspectionViewState
                           onPageChanged: topicIndex == _currentTopicIndex
                               ? (index) {
                                   setState(() => _currentItemIndex = index);
-                                  // Salva o estado quando o item muda
-                                  _saveNavigationState();
                                 }
                               : null,
                           itemBuilder: (context, itemIndex) {
@@ -382,6 +289,11 @@ class _HierarchicalInspectionViewState
                             final itemDetails =
                                 widget.detailsCache['${topicId}_$itemId'] ??
                                     <Detail>[];
+                            final isCurrentItemExpanded = _isItemExpanded &&
+                                topicIndex == _currentTopicIndex &&
+                                itemIndex == _currentItemIndex;
+                            final shouldConnectToNext =
+                                item.evaluable == true || isCurrentItemExpanded;
 
                             return SingleChildScrollView(
                               child: Column(
@@ -400,6 +312,7 @@ class _HierarchicalInspectionViewState
                                         _getCachedItemProgresses(topicItems),
                                     hasObservation: item.observation != null &&
                                         item.observation!.isNotEmpty,
+                                    connectToNext: shouldConnectToNext,
                                     onIndexChanged: (index) {
                                       if (topicIndex == _currentTopicIndex) {
                                         _itemPageController?.animateToPage(
@@ -418,21 +331,19 @@ class _HierarchicalInspectionViewState
                                           _isTopicExpanded = false;
                                         }
                                       });
-                                      _saveNavigationState();
                                     },
-                                    isExpanded: _isItemExpanded &&
-                                        topicIndex == _currentTopicIndex &&
-                                        itemIndex == _currentItemIndex,
+                                    isExpanded: isCurrentItemExpanded,
                                     level: 2,
                                     icon: Icons.list_alt,
                                   ),
-                                  if (_isItemExpanded &&
-                                      topicIndex == _currentTopicIndex &&
-                                      itemIndex == _currentItemIndex)
+                                  if (item.evaluable == true || isCurrentItemExpanded)
                                     ItemDetailsSection(
                                       item: item,
                                       topic: topic,
                                       inspectionId: widget.inspectionId,
+                                      isExpanded: _isItemExpanded &&
+                                          topicIndex == _currentTopicIndex &&
+                                          itemIndex == _currentItemIndex,
                                       onItemUpdated: (updatedItem) {
                                         final items =
                                             widget.itemsCache[topicId] ?? [];
@@ -442,9 +353,11 @@ class _HierarchicalInspectionViewState
                                           items[index] = updatedItem;
                                           widget.itemsCache[topicId] = items;
                                           // Defer setState to avoid calling during build
-                                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
                                             if (mounted) {
-                                              setState(() {}); // Atualização instantânea local
+                                              setState(
+                                                  () {}); // Atualização instantânea local
                                             }
                                           });
                                         }
@@ -504,7 +417,6 @@ class _HierarchicalInspectionViewState
                                               setState(() {
                                                 _expandedDetailId = detailId;
                                               });
-                                              _saveNavigationState();
                                             },
                                           ),
                                   if (itemDetails.isEmpty)
@@ -748,7 +660,6 @@ class _HierarchicalInspectionViewState
                     // Se nenhum detalhe está expandido, permitir que o tópico seja expandido
                   }
                 });
-                _saveNavigationState();
               },
             ),
           ],

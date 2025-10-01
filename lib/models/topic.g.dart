@@ -8,7 +8,7 @@ part of 'topic.dart';
 
 class TopicAdapter extends TypeAdapter<Topic> {
   @override
-  final int typeId = 1;
+  final typeId = 1;
 
   @override
   Topic read(BinaryReader reader) {
@@ -19,8 +19,8 @@ class TopicAdapter extends TypeAdapter<Topic> {
     return Topic(
       id: fields[0] as String?,
       inspectionId: fields[1] as String,
-      position: fields[2] as int,
-      orderIndex: fields[3] as int?,
+      position: (fields[2] as num).toInt(),
+      orderIndex: (fields[3] as num?)?.toInt(),
       topicName: fields[4] as String,
       topicLabel: fields[5] as String?,
       description: fields[6] as String?,

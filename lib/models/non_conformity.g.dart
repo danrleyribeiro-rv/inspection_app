@@ -8,7 +8,7 @@ part of 'non_conformity.dart';
 
 class NonConformityAdapter extends TypeAdapter<NonConformity> {
   @override
-  final int typeId = 4;
+  final typeId = 4;
 
   @override
   NonConformity read(BinaryReader reader) {
@@ -17,7 +17,7 @@ class NonConformityAdapter extends TypeAdapter<NonConformity> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return NonConformity(
-      id: fields[0] as String,
+      id: fields[0] as String?,
       inspectionId: fields[1] as String,
       topicId: fields[2] as String?,
       itemId: fields[3] as String?,
@@ -28,19 +28,18 @@ class NonConformityAdapter extends TypeAdapter<NonConformity> {
       status: fields[8] as String,
       correctiveAction: fields[9] as String?,
       deadline: fields[10] as DateTime?,
-      isResolved: fields[11] as bool,
+      isResolved: fields[11] == null ? false : fields[11] as bool,
       resolvedAt: fields[12] as DateTime?,
       createdAt: fields[13] as DateTime,
       updatedAt: fields[14] as DateTime,
-      needsSync: fields[15] as bool,
-      isDeleted: fields[16] as bool,
+      isDeleted: fields[15] == null ? false : fields[15] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, NonConformity obj) {
     writer
-      ..writeByte(17)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -72,8 +71,6 @@ class NonConformityAdapter extends TypeAdapter<NonConformity> {
       ..writeByte(14)
       ..write(obj.updatedAt)
       ..writeByte(15)
-      ..write(obj.needsSync)
-      ..writeByte(16)
       ..write(obj.isDeleted);
   }
 

@@ -67,12 +67,11 @@ class _NonConformityListState extends State<NonConformityList> {
   }
 
   void _clearMediaCache() {
-    debugPrint('NonConformityList: Clearing media cache');
     _mediaCountCache.clear();
 
     // Refresh all notifiers
-    for (final notifier in _mediaCountNotifiers.values) {
-      notifier.value = 0;
+    for (final entry in _mediaCountNotifiers.entries) {
+      entry.value.value = 0;
     }
 
     // Refresh all counts asynchronously
@@ -96,15 +95,12 @@ class _NonConformityListState extends State<NonConformityList> {
     super.didUpdateWidget(oldWidget);
     // If the non-conformities list changed, clear cache to ensure fresh counts
     if (oldWidget.nonConformities != widget.nonConformities) {
-      debugPrint(
-          'NonConformityList: Non-conformities list updated, clearing cache');
       _clearMediaCache();
     }
   }
 
   // Public method to be called when media changes externally
   void refreshMediaCounts() {
-    debugPrint('NonConformityList: External refresh requested');
     _clearMediaCache();
   }
 
@@ -127,24 +123,18 @@ class _NonConformityListState extends State<NonConformityList> {
 
   String _buildLocationText(String topicName, String? itemName, String? detailName) {
     final List<String> locationParts = [topicName];
-    
-    debugPrint('NonConformityList: Building location - Topic: $topicName, Item: $itemName, Detail: $detailName');
-    
+
     // Se tem item, adiciona à localização
     if (itemName != null && itemName.isNotEmpty && itemName != 'Item não especificado') {
       locationParts.add(itemName);
-      debugPrint('NonConformityList: Added item to location: $itemName');
     }
-    
+
     // Se tem detalhe, adiciona à localização
     if (detailName != null && detailName.isNotEmpty && detailName != 'Detalhe não especificado') {
       locationParts.add(detailName);
-      debugPrint('NonConformityList: Added detail to location: $detailName');
     }
-    
-    final result = locationParts.join(' > ');
-    debugPrint('NonConformityList: Final location text: $result');
-    return result;
+
+    return locationParts.join(' > ');
   }
 
   Widget _buildLocationWidget(Map<String, dynamic> item, String topicName, String? itemName, String? detailName) {
@@ -239,7 +229,8 @@ class _NonConformityListState extends State<NonConformityList> {
       // Filter out resolution medias to show only regular NC medias
       final regularMedias = medias.where((media) {
         final source = media.source ?? '';
-        return source != 'resolution_camera' && source != 'resolution_gallery';
+        final isResolution = source == 'resolution_camera' || source == 'resolution_gallery';
+        return !isResolution;
       }).toList();
 
       final count = regularMedias.length;
@@ -276,7 +267,8 @@ class _NonConformityListState extends State<NonConformityList> {
       // Filter medias that are resolution images based on source
       final resolutionMedias = medias.where((media) {
         final source = media.source ?? '';
-        return source == 'resolution_camera' || source == 'resolution_gallery';
+        final isResolution = source == 'resolution_camera' || source == 'resolution_gallery';
+        return isResolution;
       }).toList();
 
       final count = resolutionMedias.length;
@@ -286,8 +278,7 @@ class _NonConformityListState extends State<NonConformityList> {
         _mediaCountNotifiers[cacheKey]!.value = count;
       }
     } catch (e) {
-      debugPrint(
-          'Error getting resolution media count for NC $nonConformityId: $e');
+      debugPrint('Error getting resolution media count for NC $nonConformityId: $e');
       if (_mediaCountNotifiers.containsKey(cacheKey)) {
         _mediaCountNotifiers[cacheKey]!.value = 0;
       }
@@ -871,11 +862,6 @@ class _NonConformityListState extends State<NonConformityList> {
   }
 
   void _resolveNonConformity(BuildContext context, Map<String, dynamic> item) {
-    debugPrint(
-        'NonConformityList: _resolveNonConformity called for NC ${item['id']}');
-    debugPrint('NonConformityList: Item data: $item');
-    debugPrint(
-        'NonConformityList: Current status: ${item['status']}, is_resolved: ${item['is_resolved']}');
     
     // Show dialog with resolution options
     _showResolutionOptionsDialog(context, item);
@@ -1020,8 +1006,6 @@ class _NonConformityListState extends State<NonConformityList> {
 
   Future<void> _markAsResolvedWithoutPhoto(BuildContext context, Map<String, dynamic> item) async {
     try {
-      debugPrint('NonConformityList: Marking NC ${item['id']} as resolved without photo');
-      
       // Mark as resolved without resolution images
       await _markAsResolvedDirectly(item, []);
       
@@ -1039,7 +1023,6 @@ class _NonConformityListState extends State<NonConformityList> {
         );
       }
     } catch (e) {
-      debugPrint('NonConformityList: Error marking as resolved without photo: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao resolver não conformidade: $e')),
@@ -1067,7 +1050,6 @@ class _NonConformityListState extends State<NonConformityList> {
             try {
               await _handleResolutionMediaCapture(context, item, capturedFiles);
             } catch (e) {
-              debugPrint('NonConformityList: ERROR in onMediaCaptured: $e');
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Erro ao capturar mídia: $e')),
@@ -1113,13 +1095,10 @@ class _NonConformityListState extends State<NonConformityList> {
           'NonConformityList: About to mark NC ${item['id']} as resolved (regardless of context)');
       debugPrint(
           'NonConformityList: Current item status: ${item['status']}, is_resolved: ${item['is_resolved']}');
-      debugPrint('NonConformityList: Image paths to pass: $imagePaths');
 
       // Mark as resolved even if context is not mounted - this is critical for data consistency
       await _markAsResolvedDirectly(item, imagePaths);
-      debugPrint('NonConformityList: _markAsResolvedDirectly completed');
 
-      debugPrint('NonConformityList: Marked as resolved, triggering refresh');
       // Refresh the non-conformity list to update button state
       if (widget.onNonConformityUpdated != null) {
         debugPrint(
@@ -1158,8 +1137,6 @@ class _NonConformityListState extends State<NonConformityList> {
       Map<String, dynamic> item, List<String> resolutionImages) async {
     debugPrint(
         'NonConformityList: ========== _markAsResolvedDirectly STARTED ==========');
-    debugPrint('NonConformityList: Input item: $item');
-    debugPrint('NonConformityList: Resolution images: $resolutionImages');
 
     final updatedItem = Map<String, dynamic>.from(item);
 
@@ -1169,26 +1146,20 @@ class _NonConformityListState extends State<NonConformityList> {
     updatedItem['resolved_at'] = DateTime.now().toIso8601String();
     updatedItem['resolution_images'] = resolutionImages;
 
-    debugPrint('NonConformityList: Marking NC ${item['id']} as resolved');
     debugPrint(
         'NonConformityList: Original item status: ${item['status']}, is_resolved: ${item['is_resolved']}');
     debugPrint(
         'NonConformityList: Updated item status: ${updatedItem['status']}, is_resolved: ${updatedItem['is_resolved']}');
-    debugPrint('NonConformityList: Updated item: $updatedItem');
 
     try {
       // Update the non-conformity directly
-      debugPrint('NonConformityList: Calling widget.onEditNonConformity');
       widget.onEditNonConformity(updatedItem);
-      debugPrint('NonConformityList: widget.onEditNonConformity completed');
 
       // Add a delay to ensure database operation completes
       await Future.delayed(const Duration(milliseconds: 1000));
-      debugPrint('NonConformityList: Delay completed');
 
       // Force UI update with immediate state refresh
       if (mounted) {
-        debugPrint('NonConformityList: Widget still mounted, updating state');
         setState(() {
           // Force rebuild
 
@@ -1208,13 +1179,11 @@ class _NonConformityListState extends State<NonConformityList> {
             }
           }
         });
-        debugPrint('NonConformityList: State update completed');
       } else {
         debugPrint(
             'NonConformityList: Widget not mounted, skipping state update');
       }
     } catch (e) {
-      debugPrint('NonConformityList: Error during direct resolution: $e');
     }
   }
 
@@ -1424,7 +1393,6 @@ class _NonConformityListState extends State<NonConformityList> {
 
   Future<void> _markAsUnresolvedDirectly(BuildContext context, Map<String, dynamic> item) async {
     try {
-      debugPrint('NonConformityList: Marking NC ${item['id']} as unresolved');
       
       final updatedItem = Map<String, dynamic>.from(item);
       
@@ -1434,7 +1402,6 @@ class _NonConformityListState extends State<NonConformityList> {
       updatedItem['resolved_at'] = null;
       // Keep resolution images for historical record, but mark as unresolved
       
-      debugPrint('NonConformityList: Updated item: $updatedItem');
       
       // Update the non-conformity directly
       widget.onEditNonConformity(updatedItem);
@@ -1453,7 +1420,6 @@ class _NonConformityListState extends State<NonConformityList> {
         );
       }
     } catch (e) {
-      debugPrint('NonConformityList: Error marking as unresolved: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao reabrir não conformidade: $e')),

@@ -1,12 +1,13 @@
 // lib/models/detail.dart (modificado)
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:uuid/uuid.dart';
 
 part 'detail.g.dart';
 
 @HiveType(typeId: 3)
 class Detail {
   @HiveField(0)
-  final String? id;
+  final String id;
   @HiveField(1)
   final String inspectionId;
   @HiveField(2)
@@ -38,7 +39,8 @@ class Detail {
   @HiveField(15)
   final List<String>? options; // Opções para o tipo select
   @HiveField(16)
-  final bool? allowCustomOption; // Se permite opção customizada (somente para select)
+  final bool?
+      allowCustomOption; // Se permite opção customizada (somente para select)
   @HiveField(17)
   final String? customOptionValue; // Valor da opção customizada
   @HiveField(18)
@@ -46,8 +48,8 @@ class Detail {
   @HiveField(19)
   final bool? isRequired; // Se o detalhe é obrigatório
 
-  Detail(
-      {this.id,
+  Detail({
+      String? id,
       required this.inspectionId,
       this.topicId,
       this.itemId,
@@ -66,7 +68,9 @@ class Detail {
       this.allowCustomOption,
       this.customOptionValue,
       this.status,
-      this.isRequired}) : orderIndex = orderIndex ?? position ?? 0;
+      this.isRequired})
+      : id = id ?? const Uuid().v4(),
+        orderIndex = orderIndex ?? position ?? 0;
 
   factory Detail.fromJson(Map<String, dynamic> json) {
     List<String>? parseOptions(dynamic optionsData) {
@@ -77,7 +81,11 @@ class Detail {
       } else if (optionsData is String) {
         // Se for uma string separada por vírgulas
         if (optionsData.isEmpty) return [];
-        return optionsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        return optionsData
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
 
       return null;
@@ -91,7 +99,11 @@ class Detail {
       } else if (tagsData is String) {
         // Se for uma string separada por vírgulas
         if (tagsData.isEmpty) return [];
-        return tagsData.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        return tagsData
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
 
       return null;
@@ -104,11 +116,15 @@ class Detail {
       itemId: json['item_id']?.toString(),
       detailId: json['detail_id']?.toString(),
       position: json['position'] is int ? json['position'] : null,
-      orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
+      orderIndex: json['order_index'] is int
+          ? json['order_index']
+          : (json['position'] is int ? json['position'] : 0),
       detailName: json['detail_name'] ?? json['name'],
       detailValue: json['detail_value'] ?? json['value']?.toString(),
       observation: json['observation'],
-      isDamaged: json['is_damaged'] is bool ? json['is_damaged'] : (json['is_damaged'] is int ? json['is_damaged'] == 1 : null),
+      isDamaged: json['is_damaged'] is bool
+          ? json['is_damaged']
+          : (json['is_damaged'] is int ? json['is_damaged'] == 1 : null),
       tags: parseTags(json['tags']),
       createdAt: json['created_at'] != null
           ? (json['created_at'] is String
@@ -122,10 +138,18 @@ class Detail {
           : null,
       type: json['type']?.toString(),
       options: parseOptions(json['options']),
-      allowCustomOption: json['allow_custom_option'] is bool ? json['allow_custom_option'] : (json['allow_custom_option'] is int ? json['allow_custom_option'] == 1 : null),
+      allowCustomOption: json['allow_custom_option'] is bool
+          ? json['allow_custom_option']
+          : (json['allow_custom_option'] is int
+              ? json['allow_custom_option'] == 1
+              : null),
       customOptionValue: json['custom_option_value']?.toString(),
       status: json['status']?.toString(),
-      isRequired: json['is_required'] is bool ? json['is_required'] : (json['is_required'] is int ? json['is_required'] == 1 : (json['required'] is bool ? json['required'] : null)),
+      isRequired: json['is_required'] is bool
+          ? json['is_required']
+          : (json['is_required'] is int
+              ? json['is_required'] == 1
+              : (json['required'] is bool ? json['required'] : null)),
     );
   }
 
@@ -153,8 +177,6 @@ class Detail {
       'custom_option_value': customOptionValue,
       'status': status,
       'is_required': isRequired == true ? 1 : 0,
-      'needs_sync': 1,
-      'is_deleted': 0,
     };
   }
 
@@ -180,8 +202,6 @@ class Detail {
       'custom_option_value': customOptionValue,
       'status': status,
       'is_required': isRequired == true ? 1 : 0,
-      'needs_sync': 1,
-      'is_deleted': 0,
     };
   }
 

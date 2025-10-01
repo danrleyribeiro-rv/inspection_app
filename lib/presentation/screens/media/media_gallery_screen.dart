@@ -119,12 +119,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
     // THE FIX: Usa os parâmetros explícitos
     _topicOnly = widget.initialTopicOnly;
     _itemOnly = widget.initialItemOnly;
-
-    debugPrint('MediaGalleryScreen: Initial filters set');
-    debugPrint('  TopicId: $_selectedTopicId');
-    debugPrint('  ItemId: $_selectedItemId');
-    debugPrint('  DetailId: $_selectedDetailId');
-    debugPrint('  TopicOnly: $_topicOnly, ItemOnly: $_itemOnly');
   }
 
   Future<void> _loadData() async {
@@ -200,9 +194,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   /// Load media from offline storage with full functionality
   Future<List<Map<String, dynamic>>> _loadOfflineMedia() async {
     try {
-      debugPrint(
-          'MediaGalleryScreen._loadOfflineMedia: Starting media load (version: $_refreshVersion)');
-
       // Reinitialize service to ensure fresh connection
       await _serviceFactory.mediaService.initialize();
 
@@ -213,9 +204,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
       final offlineMediaList = await _serviceFactory.mediaService
           .getMediaByInspection(widget.inspectionId);
 
-      debugPrint(
-          'MediaGalleryScreen._loadOfflineMedia: Found ${offlineMediaList.length} media files (fresh from DB)');
-
       // Media IDs loaded (debug logging disabled)
 
       // Convert OfflineMedia objects to Map<String, dynamic> with additional fields
@@ -223,10 +211,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
 
       for (final media in offlineMediaList) {
         final mediaData = media.toJson();
-
-        // Debug: Log source values for camera issue debugging
-        debugPrint(
-            'MediaGalleryScreen: Media ${media.id} - source: ${media.source}');
 
         // Add missing fields that the gallery expects
         mediaData['url'] = media.cloudUrl; // For backward compatibility
@@ -272,8 +256,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         enrichedMedia.add(mediaData);
       }
 
-      debugPrint(
-          'MediaGalleryScreen._loadOfflineMedia: Enriched ${enrichedMedia.length} media files with names');
       return enrichedMedia;
     } catch (e) {
       debugPrint(

@@ -25,7 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _notificationsEnabled = true;
   bool _cameraPermission = true;
-  bool _isDarkTheme = true;
+  String _themeMode = 'system'; // 'light', 'dark', ou 'system'
   bool _isLoading = false;
 
   @override
@@ -42,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _notificationsEnabled = settings['notificationsEnabled'] ?? true;
           _cameraPermission = settings['cameraPermission'] ?? true;
-          _isDarkTheme = settings['isDarkTheme'] ?? true;
+          _themeMode = settings['themeMode'] ?? 'system';
         });
       }
     } catch (e) {
@@ -51,7 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _notificationsEnabled = true;
           _cameraPermission = true;
-          _isDarkTheme = true;
+          _themeMode = 'system';
         });
       }
     }
@@ -63,7 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         notificationsEnabled: _notificationsEnabled,
         locationPermission: true, // valor padrão
         cameraPermission: _cameraPermission,
-        isDarkTheme: _isDarkTheme,
+        themeMode: _themeMode,
       );
       debugPrint('Configurações salvas com sucesso');
     } catch (e) {
@@ -318,28 +318,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               children: [
                 _buildSectionHeader('Aparência'),
-                SwitchListTile(
-                  title: const Text('Tema Escuro'),
-                  subtitle: const Text('Ativar ou desativar o modo escuro'),
-                  value: _isDarkTheme,
-                  activeThumbColor: const Color(0xFF6F4B99),
-                  onChanged: (isDark) {
-                    // Atualiza o estado local imediatamente
-                    setState(() {
-                      _isDarkTheme = isDark;
-                    });
-
-                    // Notifica o app para mudar o tema
-                    final appState = MyApp.of(context);
-                    if (appState != null) {
-                      appState.changeTheme(isDark);
-                    }
-
-                    // Salva em background
-                    _settingsService.setTheme(isDark).catchError((e) {
-                      debugPrint('Erro ao salvar tema: $e');
-                    });
-                  },
+                ListTile(
+                  title: const Text('Tema'),
+                  subtitle: Text(_getThemeLabel(_themeMode)),
+                  leading: const Icon(Icons.brightness_6),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showThemeDialog(),
                 ),
                 _buildSectionHeader('Permissões'),
                 SwitchListTile(
@@ -406,6 +390,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
     );
+  }
+
+  String _getThemeLabel(String mode) {
+    switch (mode) {
+      case 'light':
+        return 'Claro';
+      case 'dark':
+        return 'Escuro';
+      case 'system':
+      default:
+        return 'Seguir o sistema';
+    }
+  }
+
+  Future<void> _showThemeDialog() async {
+    final selectedTheme = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Escolher Tema'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ignore: deprecated_member_use
+                RadioListTile<String>(
+                  title: const Text('Claro'),
+                  value: 'light',
+                  // ignore: deprecated_member_use
+                  groupValue: _themeMode,
+                  activeColor: const Color(0xFF6F4B99),
+                  // ignore: deprecated_member_use
+                  onChanged: (value) {
+                    if (value != null) {
+                      Navigator.of(dialogContext).pop(value);
+                    }
+                  },
+                ),
+                // ignore: deprecated_member_use
+                RadioListTile<String>(
+                  title: const Text('Escuro'),
+                  value: 'dark',
+                  // ignore: deprecated_member_use
+                  groupValue: _themeMode,
+                  activeColor: const Color(0xFF6F4B99),
+                  // ignore: deprecated_member_use
+                  onChanged: (value) {
+                    if (value != null) {
+                      Navigator.of(dialogContext).pop(value);
+                    }
+                  },
+                ),
+                // ignore: deprecated_member_use
+                RadioListTile<String>(
+                  title: const Text('Seguir o sistema'),
+                  subtitle: const Text('Usar tema do dispositivo'),
+                  value: 'system',
+                  // ignore: deprecated_member_use
+                  groupValue: _themeMode,
+                  activeColor: const Color(0xFF6F4B99),
+                  // ignore: deprecated_member_use
+                  onChanged: (value) {
+                    if (value != null) {
+                      Navigator.of(dialogContext).pop(value);
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedTheme != null && selectedTheme != _themeMode && mounted) {
+      setState(() {
+        _themeMode = selectedTheme;
+      });
+
+      // Notifica o app para mudar o tema
+      if (mounted) {
+        final appState = MyApp.of(context);
+        if (appState != null) {
+          appState.changeTheme(selectedTheme);
+        }
+      }
+
+      // Salva em background
+      _settingsService.setThemeMode(selectedTheme).catchError((e) {
+        debugPrint('Erro ao salvar tema: $e');
+      });
+    }
   }
 
   Widget _buildSectionHeader(String title) {

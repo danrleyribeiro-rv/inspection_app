@@ -9,7 +9,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
 import 'package:lince_inspecoes/repositories/media_repository.dart';
-import 'package:lince_inspecoes/repositories/inspection_repository.dart';
 import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
@@ -120,7 +119,7 @@ class EnhancedOfflineMediaService {
         height: image?.height,
         thumbnailPath: thumbnailPath,
         isUploaded: false,
-        needsSync: true,
+        
         createdAt: now,
         updatedAt: now,
         source: sourceValue,
@@ -130,7 +129,6 @@ class EnhancedOfflineMediaService {
       // Salvar no banco de dados IMEDIATAMENTE
       await _mediaRepository.insert(media);
       // Media saved to database
-
 
       // Criar thumbnail de forma assíncrona (não bloqueia o retorno)
       Future.microtask(() async {
@@ -227,7 +225,6 @@ class EnhancedOfflineMediaService {
   // ===============================
   // MÉTODOS AUXILIARES
   // ===============================
-
 
   Future<OfflineMedia> captureAndProcessMedia({
     required String inputPath,
@@ -333,7 +330,7 @@ class EnhancedOfflineMediaService {
         duration: duration,
         thumbnailPath: thumbnailPath,
         isUploaded: false,
-        needsSync: true,
+        
         createdAt: now,
         updatedAt: now,
         source: source,
@@ -461,7 +458,7 @@ class EnhancedOfflineMediaService {
         height: height,
         thumbnailPath: thumbnailPath,
         isUploaded: false,
-        needsSync: true,
+        
         createdAt: now,
         updatedAt: now,
         source: source,
@@ -479,37 +476,20 @@ class EnhancedOfflineMediaService {
             // Atualizar mídia com thumbnail
             final updatedMedia = media.copyWith(thumbnailPath: asyncThumbnailPath);
             await _mediaRepository.update(updatedMedia);
-            
-            // Segunda notificação para atualizar UI com thumbnail
-            MediaCounterNotifier.instance.notifyMediaAdded(
-              inspectionId: inspectionId,
-              topicId: topicId,
-              itemId: itemId,
-              detailId: detailId,
-            );
+            // Thumbnail updated, no need to notify again - UI will refresh on next load
           }
         } catch (e) {
           debugPrint('EnhancedOfflineMediaService: Error in async thumbnail creation: $e');
         }
       });
-      
-      // Notificar contadores sobre nova mídia IMEDIATAMENTE
+
+      // Notificar contadores sobre nova mídia APENAS UMA VEZ
       MediaCounterNotifier.instance.notifyMediaAdded(
         inspectionId: inspectionId,
         topicId: topicId,
         itemId: itemId,
         detailId: detailId,
       );
-
-      // Force extra notification after brief delay to ensure UI catches it
-      Future.delayed(const Duration(milliseconds: 50), () {
-        MediaCounterNotifier.instance.notifyMediaAdded(
-          inspectionId: inspectionId,
-          topicId: topicId,
-          itemId: itemId,
-          detailId: detailId,
-        );
-      });
       
       // Media saved successfully (debug logging disabled)
 
@@ -540,7 +520,6 @@ class EnhancedOfflineMediaService {
       rethrow;
     }
   }
-
 
   // ===============================
   // GERENCIAMENTO DE MÍDIA
@@ -740,13 +719,12 @@ class EnhancedOfflineMediaService {
         // Obter mídias que precisam ser sincronizadas
         final mediaList =
             await _mediaRepository.findByInspectionId(inspectionId);
-        final pendingSync = mediaList.where((m) => m.needsSync).toList();
+        final pendingSync = mediaList.where((m) => !m.isUploaded).toList();
 
         for (final media in pendingSync) {
           if (!media.isUploaded) {
             // Fazer upload da mídia
             // Este processo seria integrado com o FirestoreSyncService
-            // REMOVED: markSynced - Always sync all data on demand
           }
         }
 
@@ -846,7 +824,7 @@ class EnhancedOfflineMediaService {
         uploadProgress: media.uploadProgress,
         createdAt: media.createdAt,
         updatedAt: DateTime.now(),
-        needsSync: true,
+        
         isDeleted: media.isDeleted,
         source: media.source,
         isResolutionMedia: shouldKeepResolutionStatus,
@@ -884,7 +862,7 @@ class EnhancedOfflineMediaService {
     }
   }
 
-  /// Atualiza apenas a cloudUrl SEM marcar inspeção como modificada
+  /// Atualiza apenas a cloudUrl SEM marcar como uploaded
   /// Usado pelo BackgroundMediaSyncService
   Future<void> updateMediaCloudUrlSilently(String mediaId, String cloudUrl) async {
     try {
@@ -893,18 +871,16 @@ class EnhancedOfflineMediaService {
         debugPrint('EnhancedOfflineMediaService: Media not found for cloudUrl update: $mediaId');
         return;
       }
-      
-      // Atualiza cloudUrl e marca como uploaded/synced APENAS para a mídia
-      // SEM tocar nos status da inspeção
+
+      // Atualiza apenas cloudUrl, SEM marcar como uploaded
       final updatedMedia = media.copyWith(
         cloudUrl: cloudUrl,
-        isUploaded: true,
-        needsSync: false, // Mídia não precisa mais de sync
+        // isUploaded permanece false - nunca marcamos como uploaded
       );
       await _mediaRepository.update(updatedMedia);
-      
+
       debugPrint('EnhancedOfflineMediaService: CloudUrl updated silently for media $mediaId');
-      
+
     } catch (e) {
       debugPrint('EnhancedOfflineMediaService: Error updating cloudUrl silently: $e');
     }
@@ -987,7 +963,7 @@ class EnhancedOfflineMediaService {
         uploadProgress: 0,
         createdAt: now,
         updatedAt: now,
-        needsSync: true,
+        
         isDeleted: false,
         source: media.source,
         isResolutionMedia: media.isResolutionMedia,
@@ -1015,7 +991,6 @@ class EnhancedOfflineMediaService {
   // ===============================
   // GERAÇÃO DE THUMBNAILS
   // ===============================
-
 
   Future<String?> _createImageThumbnail(String imagePath) async {
     try {

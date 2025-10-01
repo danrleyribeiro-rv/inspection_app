@@ -16,6 +16,7 @@ class ItemDetailsSection extends StatefulWidget {
   final String inspectionId;
   final Function(Item) onItemUpdated;
   final Future<void> Function() onItemAction;
+  final bool isExpanded;
 
   const ItemDetailsSection({
     super.key,
@@ -24,6 +25,7 @@ class ItemDetailsSection extends StatefulWidget {
     required this.inspectionId,
     required this.onItemUpdated,
     required this.onItemAction,
+    required this.isExpanded,
   });
 
   @override
@@ -39,7 +41,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   String _currentItemName = '';
   bool _isDuplicating = false;
   final Map<String, int> _mediaCountCache = {};
+  final Map<String, int> _ncCountCache = {};
   int _mediaCountVersion = 0;
+  int _ncCountVersion = 0;
   String? _currentEvaluationValue;
 
   @override
@@ -56,7 +60,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     _observationController.text = widget.item.observation ?? '';
 
     // Add listener AFTER setting initial values
-    _observationController.addListener(_updateItemObservation);
+    _observationController.addListener(() => _updateItemObservation());
 
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -141,25 +145,25 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
-    final cacheKey = '${widget.item.id}_item_only';
-    _mediaCountCache.remove(cacheKey);
+    final mediaCacheKey = '${widget.item.id}_item_only';
+    final ncCacheKey = '${widget.item.id}_nc_count';
+    _mediaCountCache.remove(mediaCacheKey);
+    _ncCountCache.remove(ncCacheKey);
 
     if (mounted) {
       setState(() {
         _mediaCountVersion++; // Força rebuild do FutureBuilder
+        _ncCountVersion++;
       });
     }
   }
 
-  void _updateItemObservation() {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-
-    final observationText = _observationController.text;
+  void _updateItemObservation({String? customObservation}) {
+    final observationText = customObservation ?? _observationController.text;
     debugPrint('ItemDetailsSection: _updateItemObservation called with text: "$observationText"');
     debugPrint('ItemDetailsSection: Original widget.item.observation: "${widget.item.observation}"');
 
     final newObservation = observationText.isEmpty ? null : observationText;
-    debugPrint('ItemDetailsSection: newObservation calculated as: $newObservation');
 
     // Update UI immediately
     final updatedItem = widget.item.copyWith(
@@ -167,17 +171,20 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       updatedAt: DateTime.now(),
     );
 
-    debugPrint('ItemDetailsSection: After copyWith - updatedItem.observation: ${updatedItem.observation}');
     widget.onItemUpdated(updatedItem);
 
-    // Debounce the actual save operation
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      debugPrint(
-          'ItemDetailsSection: Saving item ${updatedItem.id} with observation: ${updatedItem.observation}');
+    // Save immediately to prevent data loss on refresh
+    _saveItemImmediately(updatedItem);
+  }
+
+  Future<void> _saveItemImmediately(Item updatedItem) async {
+    try {
       await _serviceFactory.dataService.updateItem(updatedItem);
       debugPrint(
-          'ItemDetailsSection: Item ${updatedItem.id} saved successfully');
-    });
+          'Item saved immediately: ${updatedItem.id} with observation: ${updatedItem.observation}');
+    } catch (e) {
+      debugPrint('Error saving item immediately: $e');
+    }
   }
 
   Future<int> _getMediaCount() async {
@@ -202,11 +209,33 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
       final count = itemOnlyMedias.length;
       _mediaCountCache[cacheKey] = count;
-      debugPrint(
-          'ItemDetailsSection: Item ${widget.item.id} has $count item-only media (filtered from ${allItemMedias.length} total)');
       return count;
     } catch (e) {
       debugPrint('Error getting media count for item ${widget.item.id}: $e');
+      return 0;
+    }
+  }
+
+  Future<int> _getItemNonConformityCount() async {
+    final cacheKey = '${widget.item.id}_nc_count';
+    if (_ncCountCache.containsKey(cacheKey)) {
+      return _ncCountCache[cacheKey]!;
+    }
+
+    try {
+      // Get all non-conformities for this item
+      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+
+      // Filter to show ONLY item-level NCs (exclude detail NCs)
+      final itemNCs = allNCs.where((nc) {
+        return nc.itemId == widget.item.id && nc.detailId == null;
+      }).toList();
+
+      final count = itemNCs.length;
+      _ncCountCache[cacheKey] = count;
+      return count;
+    } catch (e) {
+      debugPrint('Error getting NC count for item ${widget.item.id}: $e');
       return 0;
     }
   }
@@ -349,21 +378,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     if (result != null) {
       debugPrint('ItemDetailsSection: Dialog returned result: "$result"');
 
-      // Temporarily remove the listener to avoid triggering updates during manual changes
-      _observationController.removeListener(_updateItemObservation);
-
-      // Update the controller text
       setState(() {
         _observationController.text = result;
       });
 
-      debugPrint('ItemDetailsSection: Controller text set to: "${_observationController.text}"');
-
-      // Re-add the listener
-      _observationController.addListener(_updateItemObservation);
-
-      // Manually trigger the update
-      _updateItemObservation();
+      // Pass the result directly to ensure the correct value is used
+      _updateItemObservation(customObservation: result);
     }
   }
 
@@ -629,71 +649,53 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final evaluationOptions = widget.item.evaluationOptions ?? [];
-    final itemColor = isDark ? const Color(0xFFFFB74D) : Colors.orange;
+    final itemColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
     final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        border: Border.all(color: itemColor.withAlpha((0.3 * 255).round())),
-        borderRadius: BorderRadius.circular(8),
-        color: itemColor.withAlpha((0.1 * 255).round()),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.assessment, size: 16, color: textColor),
-              const SizedBox(width: 8),
-              Text(
-                'Avaliação do Item',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (evaluationOptions.isNotEmpty) ...[
-            // Dropdown para opções de avaliação
-            DropdownButtonFormField<String>(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (evaluationOptions.isNotEmpty) ...[
+          Builder(builder: (context) {
+            final allOptions = List<String>.from(evaluationOptions);
+            if (_currentEvaluationValue != null &&
+                _currentEvaluationValue!.isNotEmpty &&
+                _currentEvaluationValue != 'Outro' &&
+                !allOptions.contains(_currentEvaluationValue!)) {
+              allOptions.add(_currentEvaluationValue!);
+            }
+            return DropdownButtonFormField<String>(
               initialValue: _isValidEvaluationValue(_currentEvaluationValue)
                   ? _currentEvaluationValue
                   : null,
               decoration: InputDecoration(
+                labelText: 'Resposta',
+                labelStyle: TextStyle(color: textColor, fontSize: 12),
+                border: const OutlineInputBorder(),
                 hintText: 'Selecione uma avaliação',
-                hintStyle:
-                    TextStyle(color: theme.hintColor, fontSize: 11),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                      color: itemColor.withAlpha((0.4 * 255).round())),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                      color: itemColor.withAlpha((0.4 * 255).round())),
-                ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: itemColor, width: 2),
+                  borderSide: BorderSide(color: itemColor),
                 ),
-                fillColor: itemColor.withAlpha((0.15 * 255).round()),
-                filled: true,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               dropdownColor: theme.cardColor,
-              style: TextStyle(
-                  color: theme.textTheme.bodyLarge?.color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold),
-              menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
+              selectedItemBuilder: (context) {
+                return [
+                  Text('(Sem avaliação)',
+                      style: TextStyle(
+                          color: theme.hintColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          fontStyle: FontStyle.italic)),
+                  ...allOptions.map((option) => Text(option,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.bold))),
+                  const Text('Outro',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.bold)),
+                ];
+              },
+              menuMaxHeight: 200,
               items: [
                 DropdownMenuItem<String>(
                   value: null,
@@ -704,30 +706,19 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                           fontWeight: FontWeight.bold,
                           fontStyle: FontStyle.italic)),
                 ),
-                ...() {
-                  final allOptions = List<String>.from(evaluationOptions);
-                  // Ensure current value is in the options list
-                  if (_currentEvaluationValue != null &&
-                      _currentEvaluationValue!.isNotEmpty &&
-                      _currentEvaluationValue != 'Outro' &&
-                      !allOptions.contains(_currentEvaluationValue!)) {
-                    allOptions.add(_currentEvaluationValue!);
-                  }
-                  return allOptions.map((option) {
-                    return DropdownMenuItem<String>(
-                      value: option,
-                      child: Text(option,
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.bold)),
-                    );
-                  });
-                }(),
-                // Adicionar opção "Outro"
+                ...allOptions.map((option) {
+                  return DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(option,
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
+                  );
+                }),
                 const DropdownMenuItem<String>(
                   value: 'Outro',
                   child: Text('Outro',
-                      style:
-                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
               onChanged: (value) {
@@ -737,164 +728,179 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   _updateItemEvaluation(value);
                 }
               },
-            ),
-          ] else ...[
-            // Campo de texto livre para avaliação
-            TextFormField(
-              initialValue: _currentEvaluationValue ?? '',
-              decoration: InputDecoration(
-                hintText: 'Digite a avaliação do item',
-                hintStyle:
-                    TextStyle(color: theme.hintColor, fontSize: 11),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                      color: itemColor.withAlpha((0.4 * 255).round())),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                      color: itemColor.withAlpha((0.4 * 255).round())),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: itemColor, width: 2),
-                ),
-                fillColor: itemColor.withAlpha((0.15 * 255).round()),
-                filled: true,
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            );
+          }),
+        ] else ...[
+          // Campo de texto livre para avaliação
+          TextFormField(
+            initialValue: _currentEvaluationValue ?? '',
+            decoration: InputDecoration(
+              labelText: 'Resposta',
+              labelStyle: TextStyle(color: textColor, fontSize: 12),
+              border: const OutlineInputBorder(),
+              hintText: 'Digite a avaliação do item',
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: itemColor),
               ),
-              style: TextStyle(
-                  color: theme.textTheme.bodyLarge?.color, fontSize: 11),
-              onChanged: _updateItemEvaluation,
+              isDense: true,
             ),
-          ],
+            style: TextStyle(
+                color: theme.textTheme.bodyLarge?.color,
+                fontSize: 14,
+                fontWeight: FontWeight.bold),
+            onChanged: _updateItemEvaluation,
+          ),
         ],
-      ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // If the item is not evaluable and not expanded, don't build anything.
+    if (widget.item.evaluable != true && !widget.isExpanded) {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     // Adaptive colors for light/dark theme
-    final itemColor = isDark ? const Color(0xFFFFB74D) : Colors.orange;
+    final itemColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
     final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
-    final containerColor = isDark
-        ? theme.colorScheme.surface.withAlpha((0.8 * 255).round())
-        : itemColor.withAlpha((0.05 * 255).round());
+    final containerColor = itemColor.withAlpha((0.1 * 255).round());
     final borderColor = isDark
         ? theme.colorScheme.outline.withAlpha((0.3 * 255).round())
         : itemColor.withAlpha((0.2 * 255).round());
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
+      margin: const EdgeInsets.fromLTRB(4, 0, 4, 2),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
           color: containerColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor)),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+          border: Border(
+            left: BorderSide(color: borderColor),
+            right: BorderSide(color: borderColor),
+            bottom: BorderSide(color: borderColor),
+          )),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildActionButton(
-                  icon: Icons.camera_alt,
-                  label: 'Capturar',
-                  onPressed: _captureItemMedia,
-                  color: Colors.purple),
-              ValueListenableBuilder<int>(
-                valueListenable: ValueNotifier(_mediaCountVersion),
-                builder: (context, version, child) {
-                  return FutureBuilder<int>(
-                    future: _getMediaCount(),
-                    builder: (context, snapshot) {
-                      final count = snapshot.data ?? 0;
-                      return _buildActionButton(
-                        icon: Icons.photo_library,
-                        label: 'Galeria',
-                        onPressed: _openItemGallery,
-                        color: Colors.purple,
-                        count: count,
-                      );
-                    },
-                  );
-                },
-              ),
-              _buildActionButton(
-                  icon: Icons.warning,
-                  label: 'NC',
-                  onPressed: _addItemNonConformity,
-                  color: Colors.orange),
-              _buildActionButton(
-                  icon: Icons.edit, label: 'Renomear', onPressed: _renameItem),
-              _buildActionButton(
-                  icon: Icons.copy,
-                  label: 'Duplicar',
-                  onPressed: _duplicateItem),
-              _buildActionButton(
-                  icon: Icons.delete,
-                  label: 'Excluir',
-                  onPressed: _deleteItem,
-                  color: Colors.red),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // AVALIAÇÃO DO ITEM (se for avaliável)
+          // AVALIAÇÃO DO ITEM (se for avaliável) - always visible
           if (widget.item.evaluable == true) ...[
             _buildItemEvaluationSection(),
             const SizedBox(height: 8),
           ],
 
-          GestureDetector(
-            onTap: _editObservationDialog,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                  border: Border.all(
-                      color: itemColor.withAlpha((0.3 * 255).round())),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Icon(Icons.note_alt,
-                        size: 16, color: itemColor),
-                    const SizedBox(width: 8),
-                    Text('Observações',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: textColor)),
-                    const Spacer(),
-                    Icon(Icons.edit, size: 16, color: itemColor),
-                  ]),
-                  const SizedBox(height: 2),
-                  Text(
-                    _observationController.text.isEmpty
-                        ? 'Toque para adicionar observações...'
-                        : _observationController.text,
-                    style: TextStyle(
-                        color: _observationController.text.isEmpty
-                            ? theme.hintColor
-                            : theme.textTheme.bodyLarge?.color,
-                        fontStyle: _observationController.text.isEmpty
-                            ? FontStyle.italic
-                            : FontStyle.normal),
+          // Other actions are expandable
+          if (widget.isExpanded)
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildActionButton(
+                        icon: Icons.camera_alt,
+                        label: 'Capturar',
+                        onPressed: _captureItemMedia,
+                        color: Colors.purple),
+                    ValueListenableBuilder<int>(
+                      valueListenable: ValueNotifier(_mediaCountVersion),
+                      builder: (context, version, child) {
+                        return FutureBuilder<int>(
+                          future: _getMediaCount(),
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            return _buildActionButton(
+                              icon: Icons.photo_library,
+                              label: 'Galeria',
+                              onPressed: _openItemGallery,
+                              color: Colors.purple,
+                              count: count,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: ValueNotifier(_ncCountVersion),
+                      builder: (context, version, child) {
+                        return FutureBuilder<int>(
+                          future: _getItemNonConformityCount(),
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            return _buildActionButton(
+                              icon: Icons.warning,
+                              label: 'NC',
+                              onPressed: _addItemNonConformity,
+                              color: Colors.orange,
+                              count: count,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    _buildActionButton(
+                        icon: Icons.edit, label: 'Renomear', onPressed: _renameItem),
+                    _buildActionButton(
+                        icon: Icons.copy,
+                        label: 'Duplicar',
+                        onPressed: _duplicateItem),
+                    _buildActionButton(
+                        icon: Icons.delete,
+                        label: 'Excluir',
+                        onPressed: _deleteItem,
+                        color: Colors.red),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _editObservationDialog,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                        border: Border.all(
+                            color: itemColor.withAlpha((0.3 * 255).round())),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.note_alt,
+                              size: 16, color: itemColor),
+                          const SizedBox(width: 8),
+                          Text('Observações',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor)),
+                          const Spacer(),
+                          Icon(Icons.edit, size: 16, color: itemColor),
+                        ]),
+                        const SizedBox(height: 2),
+                        Text(
+                          _observationController.text.isEmpty
+                              ? 'Toque para adicionar observações...'
+                              : _observationController.text,
+                          style: TextStyle(
+                              color: _observationController.text.isEmpty
+                                  ? theme.hintColor
+                                  : theme.textTheme.bodyLarge?.color,
+                              fontStyle: _observationController.text.isEmpty
+                                  ? FontStyle.italic
+                                  : FontStyle.normal),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
         ],
       ),
     );

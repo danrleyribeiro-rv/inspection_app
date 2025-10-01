@@ -124,25 +124,29 @@ class MediaRepository {
 
   Future<List<OfflineMedia>> findUploaded() async {
     final allMedia = DatabaseHelper.offlineMedia.values.toList();
-    return allMedia.where((media) => media.isUploaded == true).toList();
+    // Uploaded = tem cloudUrl (não usamos mais isUploaded)
+    return allMedia.where((media) =>
+        media.cloudUrl != null && media.cloudUrl!.isNotEmpty).toList();
   }
 
   Future<List<OfflineMedia>> findNotUploaded() async {
     final allMedia = DatabaseHelper.offlineMedia.values.toList();
-    return allMedia.where((media) => media.isUploaded != true).toList();
+    // Not uploaded = não tem cloudUrl
+    return allMedia.where((media) =>
+        media.cloudUrl == null || media.cloudUrl!.isEmpty).toList();
   }
 
   Future<List<OfflineMedia>> findPendingUpload() async {
     final allMedia = DatabaseHelper.offlineMedia.values.toList();
+    // Pending upload = não tem cloudUrl e não está deletada
     return allMedia.where((media) =>
-        // media.isProcessed == true && // Field removed
-        media.isUploaded != true).toList();
+        !media.isDeleted &&
+        (media.cloudUrl == null || media.cloudUrl!.isEmpty)).toList();
   }
 
   Future<List<OfflineMedia>> findDeletedPendingSync() async {
     final allMedia = DatabaseHelper.offlineMedia.values.toList();
-    return allMedia.where((media) =>
-        media.needsSync == true).toList();
+    return allMedia.where((media) => media.isDeleted).toList();
   }
 
   Future<List<OfflineMedia>> findByInspectionIdAndType(
@@ -286,8 +290,11 @@ class MediaRepository {
     final images = allMedia.where((m) => m.type == 'image').length;
     final videos = allMedia.where((m) => m.type == 'video').length;
     final processed = allMedia.length; // All media considered processed
-    final uploaded = allMedia.where((m) => m.isUploaded == true).length;
-    final pendingUpload = allMedia.where((m) => m.isUploaded != true).length;
+    // Uploaded = tem cloudUrl (não usamos mais isUploaded)
+    final uploaded = allMedia.where((m) =>
+        m.cloudUrl != null && m.cloudUrl!.isNotEmpty).length;
+    final pendingUpload = allMedia.where((m) =>
+        m.cloudUrl == null || m.cloudUrl!.isEmpty).length;
 
     return {
       'total': total,
@@ -340,8 +347,6 @@ class MediaRepository {
   Future<List<OfflineMedia>> findAll() async {
     return DatabaseHelper.offlineMedia.values.toList();
   }
-
-  // REMOVED: markSynced - Always sync all data on demand
 
   // ===============================
   // MÉTODOS DE SINCRONIZAÇÃO ADICIONAIS

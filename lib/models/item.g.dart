@@ -8,7 +8,7 @@ part of 'item.dart';
 
 class ItemAdapter extends TypeAdapter<Item> {
   @override
-  final int typeId = 2;
+  final typeId = 2;
 
   @override
   Item read(BinaryReader reader) {
@@ -21,8 +21,8 @@ class ItemAdapter extends TypeAdapter<Item> {
       inspectionId: fields[1] as String,
       topicId: fields[2] as String?,
       itemId: fields[3] as String?,
-      position: fields[4] as int,
-      orderIndex: fields[5] as int?,
+      position: (fields[4] as num).toInt(),
+      orderIndex: (fields[5] as num?)?.toInt(),
       itemName: fields[6] as String,
       itemLabel: fields[7] as String?,
       description: fields[8] as String?,

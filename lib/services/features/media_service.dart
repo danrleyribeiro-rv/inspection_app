@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
 
 class MediaService {
   static MediaService? _instance;
@@ -90,7 +91,6 @@ class MediaService {
         throw Exception('Failed to process media file');
       }
 
-
       // Criar dados da mídia
       final mediaData = {
         'id': mediaId,
@@ -152,7 +152,6 @@ class MediaService {
       rethrow;
     }
   }
-
 
   // Obter arquivo de mídia
   Future<File?> getMediaFile(String mediaId) async {
@@ -345,114 +344,30 @@ class MediaService {
     String? nonConformityId,
   }) async {
     try {
+      // Get media from Hive
+      final media = await DatabaseHelper.getOfflineMedia(mediaId);
+      if (media == null) {
+        debugPrint('MediaService.moveMedia: Media not found: $mediaId');
+        return false;
+      }
+
+      // Update media with new relationship fields
+      final updatedMedia = media.copyWith(
+        topicId: newTopicId,
+        itemId: newItemId,
+        detailId: newDetailId,
+        nonConformityId: isNonConformity ? nonConformityId : null,
+      );
+
+      await DatabaseHelper.updateOfflineMedia(updatedMedia);
+
+      // Update inspection timestamp
       final inspection = await _dataService.getInspection(inspectionId);
-      if (inspection == null) {
-        debugPrint(
-            'MediaService.moveMedia: Inspection not found: $inspectionId');
-        return false;
+      if (inspection != null) {
+        final updated = inspection.copyWith(updatedAt: DateTime.now());
+        await _dataService.updateInspection(updated);
       }
 
-      // Find and remove media from current location
-      Map<String, dynamic>? mediaToMove;
-      List<Map<String, dynamic>> updatedTopics =
-          List<Map<String, dynamic>>.from(inspection.topics ?? []);
-
-      // Helper to find and remove media
-      void findAndRemoveMedia(List<Map<String, dynamic>> mediaList) {
-        mediaList.removeWhere((media) {
-          if (media['id'] == mediaId) {
-            mediaToMove = Map<String, dynamic>.from(media);
-            return true;
-          }
-          return false;
-        });
-      }
-
-      // Search in topics, items, details, and non-conformities
-      for (var topic in updatedTopics) {
-        if (topic['id'] == currentTopicId) {
-          findAndRemoveMedia(topic['media'] ?? []);
-          for (var item in topic['items'] ?? []) {
-            if (item['id'] == currentItemId) {
-              findAndRemoveMedia(item['media'] ?? []);
-              for (var detail in item['details'] ?? []) {
-                if (detail['id'] == currentDetailId) {
-                  findAndRemoveMedia(detail['media'] ?? []);
-                  for (var nc in detail['non_conformities'] ?? []) {
-                    if (nc['id'] == nonConformityId) {
-                      findAndRemoveMedia(nc['media'] ?? []);
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (mediaToMove == null) {
-        debugPrint(
-            'MediaService.moveMedia: Media $mediaId not found in current location.');
-        return false;
-      }
-
-      // Add media to new location
-      bool addedToNewLocation = false;
-      for (var topic in updatedTopics) {
-        if (topic['id'] == newTopicId) {
-          if (newItemId == null) {
-            // Add to topic level
-            (topic['media'] as List<dynamic>? ?? []).add(mediaToMove);
-            addedToNewLocation = true;
-            break;
-          } else {
-            for (var item in topic['items'] ?? []) {
-              if (item['id'] == newItemId) {
-                if (newDetailId == null) {
-                  // Add to item level
-                  (item['media'] as List<dynamic>? ?? []).add(mediaToMove);
-                  addedToNewLocation = true;
-                  break;
-                } else {
-                  for (var detail in item['details'] ?? []) {
-                    if (detail['id'] == newDetailId) {
-                      if (isNonConformity && nonConformityId != null) {
-                        // Add to non-conformity level
-                        for (var nc in detail['non_conformities'] ?? []) {
-                          if (nc['id'] == nonConformityId) {
-                            (nc['media'] as List<dynamic>? ?? [])
-                                .add(mediaToMove);
-                            addedToNewLocation = true;
-                            break;
-                          }
-                        }
-                      } else {
-                        // Add to detail level
-                        (detail['media'] as List<dynamic>? ?? [])
-                            .add(mediaToMove);
-                        addedToNewLocation = true;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-              if (addedToNewLocation) break;
-            }
-          }
-        }
-        if (addedToNewLocation) break;
-      }
-
-      if (!addedToNewLocation) {
-        debugPrint(
-            'MediaService.moveMedia: Failed to add media to new location.');
-        return false;
-      }
-
-      // Save updated inspection
-      await _dataService
-          .saveInspection(inspection.copyWith(topics: updatedTopics, hasLocalChanges: true));
       debugPrint('MediaService.moveMedia: Successfully moved media $mediaId');
       return true;
     } catch (e) {

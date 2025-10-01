@@ -382,7 +382,7 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> {
-  bool _isDarkTheme = true;
+  ThemeMode _themeMode = ThemeMode.system;
   final SettingsService _settingsService = SettingsService();
 
   @override
@@ -393,20 +393,32 @@ class MyAppState extends State<MyApp> {
 
   void _loadSavedTheme() async {
     try {
-      final isDark = await _settingsService.isDarkTheme();
+      final themeModeStr = await _settingsService.getThemeMode();
       setState(() {
-        _isDarkTheme = isDark;
+        _themeMode = _getThemeModeFromString(themeModeStr);
       });
     } catch (e) {
       debugPrint('Erro ao carregar tema: $e');
     }
   }
 
-  void changeTheme(bool isDark) {
+  ThemeMode _getThemeModeFromString(String mode) {
+    switch (mode) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      case 'system':
+      default:
+        return ThemeMode.system;
+    }
+  }
+
+  void changeTheme(String themeModeStr) {
     setState(() {
-      _isDarkTheme = isDark;
+      _themeMode = _getThemeModeFromString(themeModeStr);
     });
-    _settingsService.setTheme(isDark);
+    _settingsService.setThemeMode(themeModeStr);
   }
 
   @override
@@ -416,7 +428,7 @@ class MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
-      themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
+      themeMode: _themeMode,
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),

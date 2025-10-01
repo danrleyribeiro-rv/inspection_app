@@ -23,9 +23,9 @@ class BackgroundMediaSyncService {
   bool _isRunning = false;
   bool _isSyncing = false;
   
-  // Configurações melhoradas
+  // Configurações
   static const Duration _syncInterval = Duration(minutes: 1); // Upload a cada 1 minuto
-  static const int _maxImagesPerBatch = 7; // Máximo 7 imagens por minuto
+  static const int _maxImagesPerSync = 7; // Máximo 7 imagens por ciclo
   
   /// Inicia o serviço de background
   void startBackgroundSync() {
@@ -63,14 +63,13 @@ class BackgroundMediaSyncService {
         return;
       }
       
-      // Busca todas as inspeções (filtraremos as que têm mudanças locais)
+      // Busca todas as inspeções (sincroniza todas)
       final allInspections = await _serviceFactory.dataService.getAllInspections();
-      final inspections = allInspections.where((i) => i.hasLocalChanges == true).toList();
+      final inspections = allInspections;
       
       if (inspections.isEmpty) {
           return;
       }
-      
       
       // Processa cada inspeção
       for (final inspection in inspections) {
@@ -96,19 +95,18 @@ class BackgroundMediaSyncService {
         return;
       }
       
-      
-      // Processa em lotes otimizados para performance
-      final batch = pendingMedia.take(_maxImagesPerBatch).toList();
-      
-      // Upload paralelo para melhor performance (máx 5 simultâneos)
+      // Processa limitado por ciclo
+      final mediaToUpload = pendingMedia.take(_maxImagesPerSync).toList();
+
+      // Upload paralelo (máx 5 simultâneos)
       const int maxConcurrent = 5;
       int successCount = 0;
-      
-      // Processa em chunks paralelos
-      for (int i = 0; i < batch.length; i += maxConcurrent) {
-        final chunk = batch.skip(i).take(maxConcurrent).toList();
-        
-        // Upload paralelo do chunk
+
+      // Processa em chunks
+      for (int i = 0; i < mediaToUpload.length; i += maxConcurrent) {
+        final chunk = mediaToUpload.skip(i).take(maxConcurrent).toList();
+
+        // Upload paralelo
         final futures = chunk.map((media) async {
           try {
             return await _uploadMediaOnly(media, inspectionId);
@@ -116,17 +114,14 @@ class BackgroundMediaSyncService {
             return false;
           }
         });
-        
+
         final results = await Future.wait(futures);
         successCount += results.where((success) => success).length;
-        
-        // Pequena pausa entre chunks para não sobrecarregar
-        if (i + maxConcurrent < batch.length) {
+
+        // Pequena pausa entre chunks
+        if (i + maxConcurrent < mediaToUpload.length) {
           await Future.delayed(const Duration(milliseconds: 200));
         }
-      }
-      
-      if (successCount > 0) {
       }
       
     } catch (e) {
@@ -151,7 +146,6 @@ class BackgroundMediaSyncService {
       if (!file.existsSync()) {
         return false;
       }
-      
       
       // Upload direto para Firebase Storage
       final cloudUrl = await _uploadToFirebaseStorage(file, media, inspectionId);
@@ -253,7 +247,7 @@ class BackgroundMediaSyncService {
       'isRunning': _isRunning,
       'isSyncing': _isSyncing,
       'syncInterval': _syncInterval.inMinutes,
-      'maxImagesPerBatch': _maxImagesPerBatch,
+      'maxImagesPerSync': _maxImagesPerSync,
     };
   }
   

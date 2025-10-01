@@ -14,8 +14,6 @@ class InspectionCard extends StatelessWidget {
   final String googleMapsApiKey;
   final bool isFullyDownloaded; // Status de download completo
   final double downloadProgress; // Progresso de download (0.0 a 1.0)
-  final bool
-      needsSync; // Se a inspeção tem mudanças que precisam ser sincronizadas
   final bool hasConflicts; // Se a inspeção tem conflitos com a versão na nuvem
   final bool isSyncing; // Se está sincronizando no momento
   final bool isVerified; // Se foi verificado na nuvem
@@ -33,7 +31,6 @@ class InspectionCard extends StatelessWidget {
     required this.googleMapsApiKey, // <<< Make it required in the constructor
     this.isFullyDownloaded = false,
     this.downloadProgress = 0.0,
-    this.needsSync = false,
     this.hasConflicts = false,
     this.isSyncing = false,
     this.isVerified = false,
@@ -144,20 +141,6 @@ class InspectionCard extends StatelessWidget {
                         Icons.warning_rounded,
                         size: 12,
                         color: Colors.deepOrange,
-                      ),
-                    ),
-                  if (needsSync && !hasConflicts)
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withAlpha(51),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange, width: 1),
-                      ),
-                      child: const Icon(
-                        Icons.cloud_sync,
-                        size: 12,
-                        color: Colors.orange,
                       ),
                     ),
                   // Remove button in top-right corner
@@ -539,8 +522,6 @@ class InspectionCard extends StatelessWidget {
         ? 'Endereço não disponível'
         : address; // Changed fallback message
   }
-
-  // REMOVED: _formatDate and _formatDateTime - Using centralized DateFormatter utility
 
   // --- Remove Dialog ---
   Future<void> _showRemoveDialog(BuildContext context) async {

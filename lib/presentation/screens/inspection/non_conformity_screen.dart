@@ -8,6 +8,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_form.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_list.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class NonConformityScreen extends StatefulWidget {
   final String inspectionId;
@@ -380,6 +381,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       await _serviceFactory.dataService
           .updateNonConformityStatus(id, newStatus);
 
+      // Notify counter change to update NC badges
+      MediaCounterNotifier.instance.invalidateAll();
+
       await _loadNonConformities();
 
       if (mounted) {
@@ -464,12 +468,14 @@ class _NonConformityScreenState extends State<NonConformityScreen>
         resolvedAt: parsedResolvedAt,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        needsSync: true,
         isDeleted: false,
       );
       debugPrint('NonConformityScreen: About to call updateNonConformity on data service');
       await _serviceFactory.dataService.updateNonConformity(nonConformity);
       debugPrint('NonConformityScreen: updateNonConformity completed successfully');
+
+      // Notify counter change to update NC badges
+      MediaCounterNotifier.instance.invalidateAll();
 
       debugPrint('NonConformityScreen: About to reload non-conformities');
       await _loadNonConformities();

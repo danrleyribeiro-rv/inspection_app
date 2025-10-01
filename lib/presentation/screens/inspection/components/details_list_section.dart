@@ -170,7 +170,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       // Use the repository's efficient reorder method
       final itemId = widget.item?.id;
       if (itemId != null) {
-        final detailIds = _localDetails.map((detail) => detail.id!).toList();
+        final detailIds = _localDetails.map((detail) => detail.id).toList();
 
         debugPrint(
             'DetailsListSection: Reordering details with IDs: $detailIds');
@@ -178,13 +178,13 @@ class _DetailsListSectionState extends State<DetailsListSection> {
             .reorderDetails(itemId, detailIds);
         debugPrint(
             'DetailsListSection: Details reordered successfully in database');
-      } else if (widget.isDirectDetails && widget.topic.id != null) {
+      } else if (widget.isDirectDetails) {
         // For direct details, use topic-based reordering
-        final detailIds = _localDetails.map((detail) => detail.id!).toList();
+        final detailIds = _localDetails.map((detail) => detail.id).toList();
         debugPrint(
             'DetailsListSection: Reordering direct details with IDs: $detailIds');
         await EnhancedOfflineServiceFactory.instance.dataService
-            .reorderDirectDetails(widget.topic.id!, detailIds);
+            .reorderDirectDetails(widget.topic.id, detailIds);
         debugPrint(
             'DetailsListSection: Direct details reordered successfully in database');
       }
@@ -397,9 +397,10 @@ class _DetailsListSectionState extends State<DetailsListSection> {
       }
 
       // Use the new enhanced service method for duplication
+      final detailId = detail.id;
       final duplicatedDetail = await EnhancedOfflineServiceFactory
           .instance.dataService
-          .duplicateDetailWithChildren(detail.id!);
+          .duplicateDetailWithChildren(detailId);
 
       debugPrint(
           'DetailsListSection: Detail duplicated successfully with ID: ${duplicatedDetail.id}');
@@ -484,6 +485,9 @@ class _DetailListItemState extends State<DetailListItem> {
   String _booleanValue = 'não_se_aplica';
   String _currentDetailName = '';
   final Map<String, int> _mediaCountCache = {};
+  final Map<String, int> _ncCountCache = {};
+  int _mediaCountVersion = 0;
+  int _ncCountVersion = 0;
   String? _currentSelectValue;
 
   @override
@@ -501,13 +505,20 @@ class _DetailListItemState extends State<DetailListItem> {
 
   void _onCounterChanged() {
     // Invalidar cache quando contadores mudam
-    final cacheKey = '${widget.detail.id}';
-    _mediaCountCache.remove(cacheKey);
+    final mediaCacheKey = widget.detail.id;
+    final ncCacheKey = '${widget.detail.id}_nc_count';
+    _mediaCountCache.remove(mediaCacheKey);
+    _ncCountCache.remove(ncCacheKey);
 
     // Only setState if widget is expanded (visible) to avoid unnecessary rebuilds
     if (mounted && widget.isExpanded) {
-      // Load new count and only rebuild if it changed
+      // Load new counts and only rebuild if they changed
       _loadMediaCountOnce();
+      _loadNCCountOnce();
+      setState(() {
+        _mediaCountVersion++;
+        _ncCountVersion++;
+      });
     }
   }
 
@@ -582,6 +593,26 @@ class _DetailListItemState extends State<DetailListItem> {
               newValue == '0' ||
               newValue?.toLowerCase() == 'Não Conforme') {
             newBooleanValue = 'Não Conforme';
+          } else {
+            newBooleanValue = 'não_se_aplica';
+          }
+
+          if (_booleanValue != newBooleanValue) {
+            setState(() {
+              _booleanValue = newBooleanValue;
+            });
+          }
+          break;
+        case 'boolean01':
+          String newBooleanValue;
+          if (newValue?.toLowerCase() == 'true' ||
+              newValue == '1' ||
+              newValue?.toLowerCase() == 'aprovado') {
+            newBooleanValue = 'Aprovado';
+          } else if (newValue?.toLowerCase() == 'false' ||
+              newValue == '0' ||
+              newValue?.toLowerCase() == 'reprovado') {
+            newBooleanValue = 'Reprovado';
           } else {
             newBooleanValue = 'não_se_aplica';
           }
@@ -722,6 +753,19 @@ class _DetailListItemState extends State<DetailListItem> {
       } else {
         _booleanValue = 'não_se_aplica';
       }
+    } else if (widget.detail.type == 'boolean01') {
+      // Suporte para três estados: Aprovado, Reprovado, não_se_aplica
+      if (detailValue.toLowerCase() == 'true' ||
+          detailValue == '1' ||
+          detailValue.toLowerCase() == 'aprovado') {
+        _booleanValue = 'Aprovado';
+      } else if (detailValue.toLowerCase() == 'false' ||
+          detailValue == '0' ||
+          detailValue.toLowerCase() == 'reprovado') {
+        _booleanValue = 'Reprovado';
+      } else {
+        _booleanValue = 'não_se_aplica';
+      }
     } else {
       _valueController.text = detailValue;
       // For select types, also initialize _currentSelectValue
@@ -778,6 +822,8 @@ class _DetailListItemState extends State<DetailListItem> {
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue;
+    } else if (widget.detail.type == 'boolean01') {
+      value = _booleanValue;
     } else if (widget.detail.type == 'boolean02') {
       value = _booleanValue;
     } else if (widget.detail.type == 'select') {
@@ -828,6 +874,8 @@ class _DetailListItemState extends State<DetailListItem> {
       if (value == ',,') value = '';
     } else if (widget.detail.type == 'boolean') {
       value = _booleanValue;
+    } else if (widget.detail.type == 'boolean01') {
+      value = _booleanValue;
     } else if (widget.detail.type == 'boolean02') {
       value = _booleanValue;
     } else if (widget.detail.type == 'select') {
@@ -872,6 +920,7 @@ class _DetailListItemState extends State<DetailListItem> {
             'Detail select updated in database: ${updatedDetail.id} = ${updatedDetail.detailValue}');
       });
     } else if (widget.detail.type == 'boolean' ||
+        widget.detail.type == 'boolean01' ||
         widget.detail.type == 'boolean02') {
       _booleanDebounce?.cancel();
       _booleanDebounce = Timer(const Duration(milliseconds: 100), () async {
@@ -906,32 +955,62 @@ class _DetailListItemState extends State<DetailListItem> {
         final theme = Theme.of(context);
         final controller =
             TextEditingController(text: _observationController.text);
-        return AlertDialog(
-          title: const Text('Observações do Detalhe',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: TextFormField(
-              controller: controller,
-              maxLines: 3,
-              autofocus: false,
-              decoration: InputDecoration(
-                hintText: 'Digite suas observações...',
-                hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
-                border: const OutlineInputBorder(),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Observações do Detalhe',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: controller,
+                    maxLines: 3,
+                    autofocus: true,
+                    onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
+                    decoration: InputDecoration(
+                      hintText: 'Digite suas observações...',
+                      hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                controller.clear();
+                                setDialogState(() {}); // Atualiza apenas o dialog
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Deixe vazio para remover a observação',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.hintColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Salvar'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(''), // Return empty string for clear
+                  child: const Text('Limpar'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(controller.text),
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1091,7 +1170,7 @@ class _DetailListItemState extends State<DetailListItem> {
   }
 
   Widget _buildMediaCountButton() {
-    final cacheKey = '${widget.detail.id}';
+    final cacheKey = widget.detail.id;
 
     // Check cache first and use it directly
     if (_mediaCountCache.containsKey(cacheKey)) {
@@ -1119,7 +1198,7 @@ class _DetailListItemState extends State<DetailListItem> {
   }
 
   void _loadMediaCountOnce() async {
-    final cacheKey = '${widget.detail.id}';
+    final cacheKey = widget.detail.id;
     if (_mediaCountCache.containsKey(cacheKey)) return;
 
     try {
@@ -1139,6 +1218,59 @@ class _DetailListItemState extends State<DetailListItem> {
     } catch (e) {
       debugPrint('Error getting media count for detail ${widget.detail.id}: $e');
       _mediaCountCache[cacheKey] = 0;
+    }
+  }
+
+  Widget _buildNCCountButton() {
+    final cacheKey = '${widget.detail.id}_nc_count';
+
+    // Check cache first
+    if (_ncCountCache.containsKey(cacheKey)) {
+      final count = _ncCountCache[cacheKey]!;
+      return _buildDetailActionButton(
+        icon: Icons.warning_amber_rounded,
+        label: 'NC',
+        color: Colors.orange,
+        onPressed: () => _addDetailNonConformity(),
+        count: count,
+      );
+    }
+
+    // Load NC count if not in cache
+    _loadNCCountOnce();
+
+    // Return button with 0 count while loading
+    return _buildDetailActionButton(
+      icon: Icons.warning_amber_rounded,
+      label: 'NC',
+      color: Colors.orange,
+      onPressed: () => _addDetailNonConformity(),
+      count: 0,
+    );
+  }
+
+  void _loadNCCountOnce() async {
+    final cacheKey = '${widget.detail.id}_nc_count';
+    if (_ncCountCache.containsKey(cacheKey)) return;
+
+    try {
+      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+
+      // Filter to show only detail-level NCs
+      final detailNCs = allNCs.where((nc) {
+        return nc.detailId == widget.detail.id;
+      }).toList();
+
+      final count = detailNCs.length;
+      _ncCountCache[cacheKey] = count;
+
+      // Only setState if mounted and count > 0 to show the badge
+      if (mounted && count > 0) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error getting NC count for detail ${widget.detail.id}: $e');
+      _ncCountCache[cacheKey] = 0;
     }
   }
 
@@ -1216,7 +1348,6 @@ class _DetailListItemState extends State<DetailListItem> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final displayValue = _getDisplayValue();
     final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
     final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
 
@@ -1234,116 +1365,99 @@ class _DetailListItemState extends State<DetailListItem> {
       ),
       child: Column(
         children: [
-          InkWell(
-            onTap: widget.onExpansionChanged,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _isDamaged
-                    ? Colors.red.withAlpha((0.1 * 255).round())
-                    : null,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(8)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      if (_isDamaged)
-                        const Icon(Icons.warning, color: Colors.red, size: 18),
-                      if (_isDamaged) const SizedBox(width: 8),
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _currentDetailName,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: _isDamaged ? Colors.red : textColor,
-                                ),
-                              ),
-                            ),
-                            if (_observationController.text.isNotEmpty) ...[
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.note_alt,
-                                color: Colors.amber,
-                                size: 14,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      ReorderableDragStartListener(
-                        index: widget.index,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: Icon(Icons.drag_handle,
-                              size: 20, color: theme.disabledColor),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 14),
-                        onPressed: _renameDetail,
-                        tooltip: 'Renomear',
-                        style: IconButton.styleFrom(
-                            minimumSize: const Size(32, 32),
-                            padding: const EdgeInsets.all(3)),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.copy, size: 14),
-                        onPressed: widget.onDetailDuplicated,
-                        tooltip: 'Duplicar',
-                        style: IconButton.styleFrom(
-                            minimumSize: const Size(32, 32),
-                            padding: const EdgeInsets.all(3)),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete,
-                            size: 14, color: Colors.red),
-                        onPressed: widget.onDetailDeleted,
-                        tooltip: 'Excluir',
-                        style: IconButton.styleFrom(
-                            minimumSize: const Size(32, 32),
-                            padding: const EdgeInsets.all(3)),
-                      ),
-                      Icon(
-                          widget.isExpanded
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          color: textColor,
-                          size: 20),
-                    ],
-                  ),
-                  if (displayValue.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(
-                                color:
-                                    detailColor.withAlpha((0.1 * 255).round()),
-                                borderRadius: BorderRadius.circular(4)),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: _isDamaged
+                  ? Colors.red.withAlpha((0.1 * 255).round())
+                  : null,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    if (_isDamaged)
+                      const Icon(Icons.warning, color: Colors.red, size: 18),
+                    if (_isDamaged) const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
                             child: Text(
-                              displayValue,
+                              _currentDetailName,
                               style: TextStyle(
-                                  fontSize: 11,
-                                  color: isDark ? theme.colorScheme.onSurface : Colors.green.shade700,
-                                  fontWeight: FontWeight.w500),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: _isDamaged ? Colors.red : textColor,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          if (_observationController.text.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.note_alt,
+                              color: Colors.amber,
+                              size: 14,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    ReorderableDragStartListener(
+                      index: widget.index,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: Icon(Icons.drag_handle,
+                            size: 20, color: theme.disabledColor),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 14),
+                      onPressed: _renameDetail,
+                      tooltip: 'Renomear',
+                      style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          padding: const EdgeInsets.all(3)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 14),
+                      onPressed: widget.onDetailDuplicated,
+                      tooltip: 'Duplicar',
+                      style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          padding: const EdgeInsets.all(3)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete,
+                          size: 14, color: Colors.red),
+                      onPressed: widget.onDetailDeleted,
+                      tooltip: 'Excluir',
+                      style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          padding: const EdgeInsets.all(3)),
+                    ),
+                    InkWell(
+                      onTap: widget.onExpansionChanged,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Icon(
+                            widget.isExpanded
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                            color: textColor,
+                            size: 20),
+                      ),
                     ),
                   ],
-                ],
-              ),
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                  child: _buildValueInput(),
+                ),
+              ],
             ),
           ),
           if (widget.isExpanded) ...[
@@ -1353,9 +1467,7 @@ class _DetailListItemState extends State<DetailListItem> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildValueInput(),
-                  const SizedBox(height: 2),
-                  // Botões de ação para detalhes
+                  // Ações e Observações agora estão aqui
                   if (widget.detail.id != null &&
                       widget.detail.topicId != null) ...[
                     Row(
@@ -1370,17 +1482,12 @@ class _DetailListItemState extends State<DetailListItem> {
                         ),
                         // Botão Galeria com contador de mídia
                         _buildMediaCountButton(),
-                        // Botão Não Conformidade
-                        _buildDetailActionButton(
-                          icon: Icons.warning_amber_rounded,
-                          label: 'NC',
-                          color: Colors.orange,
-                          onPressed: () => _addDetailNonConformity(),
-                        ),
+                        // Botão Não Conformidade com contador
+                        _buildNCCountButton(),
                       ],
                     ),
+                    const SizedBox(height: 10),
                   ],
-                  const SizedBox(height: 2),
                   GestureDetector(
                     onTap: _editObservationDialog,
                     child: Container(
@@ -1448,6 +1555,17 @@ class _DetailListItemState extends State<DetailListItem> {
           default:
             return 'Não se aplica';
         }
+      case 'boolean01':
+        switch (_booleanValue) {
+          case 'Aprovado':
+            return 'Aprovado';
+          case 'Reprovado':
+            return 'Reprovado';
+          case 'não_se_aplica':
+            return 'Não se aplica';
+          default:
+            return 'Não se aplica';
+        }
       case 'boolean02':
         switch (_booleanValue) {
           case 'Conforme':
@@ -1484,8 +1602,16 @@ class _DetailListItemState extends State<DetailListItem> {
     final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
     switch (widget.detail.type) {
       case 'select':
-        if (widget.detail.options != null &&
-            widget.detail.options!.isNotEmpty) {
+        if (widget.detail.options!.isNotEmpty) {
+          final allOptions = List<String>.from(widget.detail.options!);
+          // Ensure current value is in the options list for the dropdown
+          if (_currentSelectValue != null &&
+              _currentSelectValue!.isNotEmpty &&
+              _currentSelectValue != 'Outro' &&
+              !allOptions.contains(_currentSelectValue!)) {
+            allOptions.add(_currentSelectValue!);
+          }
+
           return DropdownButtonFormField<String>(
             initialValue: _isValidSelectValue(_currentSelectValue)
                 ? _currentSelectValue
@@ -1501,8 +1627,30 @@ class _DetailListItemState extends State<DetailListItem> {
               isDense: true,
             ),
             dropdownColor: theme.cardColor,
-            style: TextStyle(
-                color: theme.textTheme.bodyLarge?.color, fontSize: 11),
+            selectedItemBuilder: (BuildContext context) {
+              // This list of widgets must correspond to the 'items' list below.
+              return <Widget>[
+                // For the 'null' value
+                Text(
+                  '(Sem resposta)',
+                  style: TextStyle(
+                      color: theme.hintColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontStyle: FontStyle.italic),
+                ),
+                // For each option in allOptions
+                ...allOptions.map<Widget>((String item) {
+                  return Text(item,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.bold));
+                }),
+                // For the 'Outro' option
+                const Text('Outro',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ];
+            },
             menuMaxHeight: 200, // Limita altura do menu para mostrar ~4 items
             items: [
               DropdownMenuItem<String>(
@@ -1513,24 +1661,14 @@ class _DetailListItemState extends State<DetailListItem> {
                         fontSize: 11,
                         fontStyle: FontStyle.italic)),
               ),
-              ...() {
-                final allOptions = List<String>.from(widget.detail.options!);
-                // Ensure current value is in the options list
-                if (_currentSelectValue != null &&
-                    _currentSelectValue!.isNotEmpty &&
-                    _currentSelectValue != 'Outro' &&
-                    !allOptions.contains(_currentSelectValue!)) {
-                  allOptions.add(_currentSelectValue!);
-                }
-                return allOptions.map((option) {
-                  return DropdownMenuItem<String>(
-                    value: option,
-                    child: Text(option,
-                        style: const TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.bold)),
-                  );
-                });
-              }(),
+              ...allOptions.map((option) {
+                return DropdownMenuItem<String>(
+                  value: option,
+                  child: Text(option,
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.bold)),
+                );
+              }),
               // Adicionar opção "Outro"
               const DropdownMenuItem<String>(
                 value: 'Outro',
@@ -1664,6 +1802,131 @@ class _DetailListItemState extends State<DetailListItem> {
           ],
         );
 
+      case 'boolean01':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => _updateBooleanValue('Aprovado'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'Aprovado'
+                            ? Colors.green
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'Aprovado'
+                              ? Colors.green
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Aprovado',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'Aprovado'
+                              ? Colors.white
+                              : theme.textTheme.bodyLarge?.color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => _updateBooleanValue('Reprovado'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'Reprovado'
+                            ? Colors.red
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'Reprovado'
+                              ? Colors.red
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'Reprovado',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'Reprovado'
+                              ? Colors.white
+                              : theme.textTheme.bodyLarge?.color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 1,
+                  child: GestureDetector(
+                    onTap: () => _updateBooleanValue('não_se_aplica'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _booleanValue == 'não_se_aplica'
+                            ? Colors.yellowAccent
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _booleanValue == 'não_se_aplica'
+                              ? Colors.yellowAccent
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        'N/A',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _booleanValue == 'não_se_aplica'
+                              ? Colors.black
+                              : theme.textTheme.bodyLarge?.color,
+                          fontSize: 11,
+                          fontWeight: _booleanValue == 'não_se_aplica'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
       case 'boolean02':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -19,6 +19,7 @@ class SwipeableLevelHeader extends StatefulWidget {
   final VoidCallback? onDelete;
   final Function(int oldIndex, int newIndex)? onReorder;
   final List<double>? itemProgresses;
+  final bool connectToNext;
 
   const SwipeableLevelHeader({
     super.key,
@@ -39,6 +40,7 @@ class SwipeableLevelHeader extends StatefulWidget {
     this.onDelete,
     this.onReorder,
     this.itemProgresses,
+    this.connectToNext = false,
   });
 
   @override
@@ -286,12 +288,26 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius = widget.connectToNext
+        ? const BorderRadius.vertical(top: Radius.circular(12))
+        : BorderRadius.circular(12);
+    final border = widget.connectToNext
+        ? Border(
+            top: BorderSide(color: _levelColor.withAlpha((0.3 * 255).round())),
+            left: BorderSide(color: _levelColor.withAlpha((0.3 * 255).round())),
+            right: BorderSide(color: _levelColor.withAlpha((0.3 * 255).round())),
+          )
+        : Border.all(color: _levelColor.withAlpha((0.3 * 255).round()));
+    final margin = widget.connectToNext
+        ? const EdgeInsets.fromLTRB(4, 2, 4, 0)
+        : const EdgeInsets.symmetric(horizontal: 4, vertical: 2);
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      margin: margin,
       decoration: BoxDecoration(
         color: _backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _levelColor.withAlpha((0.3 * 255).round())),
+        borderRadius: borderRadius,
+        border: border,
       ),
       child: Material(
         color: Colors.transparent,

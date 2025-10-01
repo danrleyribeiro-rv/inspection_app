@@ -46,8 +46,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
   // Track inspections currently downloading
   final Set<String> _downloadingInspections = <String>{};
 
-  // REMOVED: _inspectionSyncStatus - Always sync all data on demand
-
   // Track inspections currently syncing
   final Map<String, bool> _syncingStatus = <String, bool>{};
 
@@ -77,7 +75,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
             // Remove syncing status
             _syncingStatus[progress.inspectionId] = false;
 
-            // REMOVED: _inspectionSyncStatus - Always sync all data on demand
             // Remove from conflicts if it was resolved
             _inspectionsWithConflicts.remove(progress.inspectionId);
 
@@ -150,9 +147,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
       // OFFLINE-FIRST: Always load cached inspections only
       await _loadCachedInspections();
 
-      // Atualizar status de sincronização baseado no histórico
-      await _updateSyncStatusForAllInspections();
-
       // In offline-first mode, we don't automatically sync from cloud
       // Users must explicitly download inspections they want to work on
     } catch (e) {
@@ -170,35 +164,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  Future<void> _updateSyncStatusForAllInspections() async {
-    try {
-      // Updating sync status for all inspections
-
-      final inspectionIds =
-          _inspections.map((inspection) => inspection['id'] as String).toList();
-
-      for (final inspectionId in inspectionIds) {
-        final hasConflicts = await _hasConflictsWithHistory(inspectionId);
-
-        if (mounted) {
-          setState(() {
-            // REMOVED: _inspectionSyncStatus checking - Always sync all data on demand
-
-            if (hasConflicts) {
-              _inspectionsWithConflicts.add(inspectionId);
-            } else {
-              _inspectionsWithConflicts.remove(inspectionId);
-            }
-          });
-        }
-      }
-
-      // Updated sync status for all inspections
-    } catch (e) {
-      debugPrint('Error updating sync status: $e');
-    }
-  }
-
   Future<void> _loadCachedInspections() async {
     try {
       // Loading cached inspections only
@@ -206,25 +171,25 @@ class _InspectionsTabState extends State<InspectionsTab> {
       final cachedInspections = await _getCachedInspections();
 
       if (mounted) {
-        // Ordenar por data de última modificação (updated_at) em ordem decrescente
+        // Ordenar por data de última sincronização (last_sync_at) em ordem decrescente
         cachedInspections.sort((a, b) {
           try {
-            final aUpdatedAt = a['updated_at'];
-            final bUpdatedAt = b['updated_at'];
+            final aLastSyncAt = a['last_sync_at'];
+            final bLastSyncAt = b['last_sync_at'];
 
-            // Se ambos têm updated_at, comparar
-            if (aUpdatedAt != null && bUpdatedAt != null) {
+            // Se ambos têm last_sync_at, comparar
+            if (aLastSyncAt != null && bLastSyncAt != null) {
               DateTime aDate;
               DateTime bDate;
 
-              if (aUpdatedAt is String) {
-                aDate = DateTime.parse(aUpdatedAt);
+              if (aLastSyncAt is String) {
+                aDate = DateTime.parse(aLastSyncAt);
               } else {
                 aDate = DateTime.now(); // fallback
               }
 
-              if (bUpdatedAt is String) {
-                bDate = DateTime.parse(bUpdatedAt);
+              if (bLastSyncAt is String) {
+                bDate = DateTime.parse(bLastSyncAt);
               } else {
                 bDate = DateTime.now(); // fallback
               }
@@ -233,14 +198,36 @@ class _InspectionsTabState extends State<InspectionsTab> {
                   aDate); // Ordem decrescente (mais recente primeiro)
             }
 
-            // Se apenas um tem updated_at, priorizar o que tem
-            if (aUpdatedAt != null) return -1;
-            if (bUpdatedAt != null) return 1;
+            // Se apenas um tem last_sync_at, priorizar o que tem
+            if (aLastSyncAt != null) return -1;
+            if (bLastSyncAt != null) return 1;
 
-            // Se nenhum tem updated_at, manter ordem original
+            // Fallback: ordenar por updated_at se não houver last_sync_at
+            final aUpdatedAt = a['updated_at'];
+            final bUpdatedAt = b['updated_at'];
+
+            if (aUpdatedAt != null && bUpdatedAt != null) {
+              DateTime aDate;
+              DateTime bDate;
+
+              if (aUpdatedAt is String) {
+                aDate = DateTime.parse(aUpdatedAt);
+              } else {
+                aDate = DateTime.now();
+              }
+
+              if (bUpdatedAt is String) {
+                bDate = DateTime.parse(bUpdatedAt);
+              } else {
+                bDate = DateTime.now();
+              }
+
+              return bDate.compareTo(aDate);
+            }
+
             return 0;
           } catch (e) {
-            debugPrint('Error sorting inspections by updated_at: $e');
+            debugPrint('Error sorting inspections by last_sync_at: $e');
             return 0;
           }
         });
@@ -322,15 +309,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
           // Check if there are actual local changes that need sync
           final hasRealChanges = await _checkForRealLocalChanges(inspection.id);
           inspectionMap['has_local_changes'] = hasRealChanges;
-
-          // Log para debug
-          if (inspection.id == 'PgepInIdfFdw47YnRqO3') {
-            debugPrint('InspectionTab: Loading inspection ${inspection.id}:');
-            debugPrint(
-                '  - inspection.hasLocalChanges: ${inspection.hasLocalChanges}');
-            debugPrint('  - hasRealChanges (calculated): $hasRealChanges');
-            debugPrint('  - inspection.status: ${inspection.status}');
-          }
 
           cachedInspections.add(inspectionMap);
         } catch (e) {
@@ -483,49 +461,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
         _syncingStatus[inspectionId] = true;
       });
 
-      // Check for conflicts before syncing
-      final hasConflicts = await _hasConflictsWithHistory(inspectionId);
-
-      if (hasConflicts) {
-        // Show conflict alert dialog
-        if (!mounted) return;
-        final shouldProceed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Conflito Detectado'),
-            content: const Text(
-                'A inspeção foi modificada na nuvem desde o último download. '
-                'Suas alterações podem sobrescrever as alterações feitas por outros usuários.\n\n'
-                'Deseja continuar com a sincronização?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Continuar'),
-              ),
-            ],
-          ),
-        );
-
-        if (shouldProceed != true) {
-          // User cancelled, remove syncing status
-          setState(() {
-            _syncingStatus[inspectionId] = false;
-          });
-          return;
-        }
-      }
-
       // Use native sync service for background sync
       await NativeSyncService.instance.startInspectionSync(inspectionId);
-
-      // DON'T update sync status immediately - wait for actual sync completion
-      // The sync status will be updated when we receive the sync result
-
       // Refresh the list to show updated sync status
       _loadInspections();
     } catch (e) {
@@ -555,7 +492,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
           await _serviceFactory.dataService.getInspection(inspectionId);
       if (inspection == null) return false;
 
-      // REMOVED: needsSync checking - Always sync all data on demand
       // Since we removed markSynced system, always return true to enable sync
       return true;
     } catch (e) {
@@ -564,26 +500,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  // REMOVED: _checkInspectionRelatedEntitiesNeedSync - Always sync all data on demand
-
-  // REMOVED: _isInspectionSyncedWithHistory - Always sync all data on demand
-
-  // Detecta conflitos baseado no histórico
-  Future<bool> _hasConflictsWithHistory(String inspectionId) async {
-    try {
-      final hasConflicts = await _serviceFactory.dataService
-          .hasUnresolvedConflicts(inspectionId);
-      return hasConflicts;
-    } catch (e) {
-      debugPrint('Error checking conflicts: $e');
-      return false;
-    }
-  }
-
   // Marca a inspeção como sincronizada, removendo flags de mudanças locais
   Future<void> _markInspectionAsSynced(String inspectionId) async {
     try {
-      // REMOVED: _inspectionSyncStatus - Always sync all data on demand
 
       // Encontrar a inspeção na lista e limpar flags locais
       final inspectionIndex = _inspections.indexWhere(
@@ -597,31 +516,15 @@ class _InspectionsTabState extends State<InspectionsTab> {
             'InspectionTab: Marked inspection $inspectionId as synced - local flags cleared in memory');
       }
 
-      // IMPORTANTE: Também limpar no banco de dados para persistir o estado
-      try {
-        final inspection =
-            await _serviceFactory.dataService.getInspection(inspectionId);
-        if (inspection != null) {
-          // REMOVED: markInspectionSynced - Always sync all data on demand
-          debugPrint(
-              'InspectionTab: Skipping markSynced - Always sync all data on demand');
-        }
-      } catch (dbError) {
-        debugPrint('Error marking inspection as synced in database: $dbError');
-      }
-
-      // Força atualização da lista após marcar como sincronizado
+      // Força atualização da lista
       if (mounted) {
         setState(() {
-          // Força rebuild da UI com os novos valores
+          // Força rebuild da UI
         });
-        // Recarrega a lista do banco para garantir consistência
         await _loadCachedInspections();
-        debugPrint(
-            'InspectionTab: Reloaded inspections after marking $inspectionId as synced');
       }
     } catch (e) {
-      debugPrint('Error marking inspection as synced: $e');
+      debugPrint('InspectionTab: Error in _markInspectionSynced: $e');
     }
   }
 
@@ -637,7 +540,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
         _filteredInspections
             .removeWhere((inspection) => inspection['id'] == inspectionId);
         _downloadingInspections.remove(inspectionId);
-        // REMOVED: _inspectionSyncStatus - Always sync all data on demand
         _syncingStatus.remove(inspectionId);
         _inspectionsWithConflicts.remove(inspectionId);
         _inspectionsWithCloudUpdates.remove(inspectionId);
@@ -666,88 +568,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
-  // Escuta modificações em dados da inspeção
   void _listenToDataModifications() {
-    // OFFLINE-FIRST: Disabled automatic sync check timer
-    // Changes are stored locally only and sync only when the sync button is manually clicked
-    // Timer.periodic(const Duration(seconds: 2), (timer) async {
-    //   if (!mounted) {
-    //     timer.cancel();
-    //     return;
-    //   }
-    //   await _checkForDataModifications();
-    // });
+    // No-op: Changes are stored locally and synced only when sync button is manually clicked
   }
-
-  // OFFLINE-FIRST: This method is no longer used since automatic sync checks are disabled
-  // Future<void> _checkForDataModifications() async {
-  //   try {
-  //     for (final inspection in _inspections) {
-  //       final inspectionId = inspection['id'] as String;
-  //
-  //       // Se esta inspeção foi marcada como recentemente sincronizada, verifica se houve modificação
-  //       if (_inspectionSyncStatus[inspectionId] == true) {
-  //         // Verifica se há entidades não sincronizadas para esta inspeção
-  //         final hasUnsyncedData = await _hasRealUnsyncedData(inspectionId);
-  //         if (hasUnsyncedData) {
-  //           debugPrint('InspectionTab: Detected modification for $inspectionId - clearing recent sync status');
-  //           setState(() {
-  //             _inspectionSyncStatus[inspectionId] = false;
-  //           });
-  //         }
-  //       }
-  //     }
-  //   } catch (e) {
-  //     debugPrint('InspectionTab: Error checking data modifications: $e');
-  //   }
-  // }
-
-  // OFFLINE-FIRST: This method is no longer used since automatic sync checks are disabled
-  // Future<bool> _hasRealUnsyncedData(String inspectionId) async {
-  //   try {
-  //     // PRIMEIRO: Verificar se a própria inspeção tem mudanças locais
-  //     final inspection = await _serviceFactory.dataService.getInspection(inspectionId);
-  //     if (inspection != null && inspection.hasLocalChanges) {
-  //       debugPrint('InspectionTab: Inspection $inspectionId has hasLocalChanges=true');
-  //       return true;
-  //     }
-
-  //     // Verificar se há entidades que precisam ser sincronizadas
-  //     final topicsNeedingSync = await _serviceFactory.dataService.getTopicsNeedingSync();
-  //     final inspectionTopics = topicsNeedingSync.where((t) => t.inspectionId == inspectionId).toList();
-  //     if (inspectionTopics.isNotEmpty) {
-  //       debugPrint('InspectionTab: Found ${inspectionTopics.length} topics needing sync for $inspectionId');
-  //       return true;
-  //     }
-
-  //     final itemsNeedingSync = await _serviceFactory.dataService.getItemsNeedingSync();
-  //     final inspectionItems = itemsNeedingSync.where((i) => i.inspectionId == inspectionId).toList();
-  //     if (inspectionItems.isNotEmpty) {
-  //       debugPrint('InspectionTab: Found ${inspectionItems.length} items needing sync for $inspectionId');
-  //       return true;
-  //     }
-
-  //     final detailsNeedingSync = await _serviceFactory.dataService.getDetailsNeedingSync();
-  //     final inspectionDetails = detailsNeedingSync.where((d) => d.inspectionId == inspectionId).toList();
-  //     if (inspectionDetails.isNotEmpty) {
-  //       debugPrint('InspectionTab: Found ${inspectionDetails.length} details needing sync for $inspectionId');
-  //       return true;
-  //     }
-
-  //     // Verificar mídias que precisam ser sincronizadas
-  //     final mediaNeedingSync = await _serviceFactory.dataService.getMediaNeedingSync();
-  //     final inspectionMedia = mediaNeedingSync.where((m) => m.inspectionId == inspectionId).toList();
-  //     if (inspectionMedia.isNotEmpty) {
-  //       debugPrint('InspectionTab: Found ${inspectionMedia.length} media files needing sync for $inspectionId');
-  //       return true;
-  //     }
-
-  //     return false;
-  //   } catch (e) {
-  //     debugPrint('InspectionTab: Error checking real unsynced data: $e');
-  //     return false;
-  //   }
-  // }
 
   bool _isInspectionFullyDownloaded(String inspectionId) {
     try {
@@ -772,10 +595,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       return false;
     }
   }
-
-  // Method removed - not used anywhere
-
-  // Method removed - not used anywhere
+  
 
   void _startCloudUpdateChecks() {
     // Check for cloud updates every 15 seconds when online
@@ -819,18 +639,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           await _serviceFactory.dataService.getInspection(inspectionId);
       if (localInspection == null) return;
 
-      // Check if local inspection has changes
-      if (!localInspection.hasLocalChanges) {
-        // No local changes, no conflicts possible
-        setState(() {
-          _inspectionsWithConflicts.remove(inspectionId);
-        });
-        return;
-      }
-
-      // REMOVED: needsSync debug messages - Always sync all data on demand
-
-      // Remove from conflicts list since we're not checking cloud conflicts automatically
+      // Always assume no conflicts since we sync all data on demand
       setState(() {
         _inspectionsWithConflicts.remove(inspectionId);
       });
@@ -992,9 +801,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
                             final inspection = _filteredInspections[index];
                             final inspectionId = inspection['id'] as String;
 
-                            // REMOVED: Checking hasLocalChanges, isSyncedByHistory - Always sync all data
-                            final needsSync = true; // Always show sync button
-
                             // Get last sync date from inspection data
                             DateTime? lastSyncDate;
                             try {
@@ -1013,7 +819,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
                               googleMapsApiKey: _googleMapsApiKey ?? '',
                               isFullyDownloaded:
                                   _isInspectionFullyDownloaded(inspectionId),
-                              needsSync: needsSync,
                               hasConflicts: _inspectionsWithConflicts
                                   .contains(inspectionId),
                               isSyncing: _syncingStatus[inspectionId] ?? false,

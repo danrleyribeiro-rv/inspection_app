@@ -1,4 +1,4 @@
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
 import 'package:lince_inspecoes/utils/date_formatter.dart';
 
@@ -37,12 +37,10 @@ class NonConformity {
   @HiveField(14)
   final DateTime updatedAt;
   @HiveField(15)
-  final bool needsSync;
-  @HiveField(16)
   final bool isDeleted;
 
   NonConformity({
-    required this.id,
+    String? id,
     required this.inspectionId,
     this.topicId,
     this.itemId,
@@ -57,9 +55,8 @@ class NonConformity {
     this.resolvedAt,
     required this.createdAt,
     required this.updatedAt,
-    this.needsSync = false,
     this.isDeleted = false,
-  });
+  }) : id = id ?? const Uuid().v4();
 
   factory NonConformity.create({
     required String inspectionId,
@@ -92,7 +89,6 @@ class NonConformity {
       resolvedAt: resolvedAt,
       createdAt: now,
       updatedAt: now,
-      needsSync: true,
       isDeleted: false,
     );
   }
@@ -115,13 +111,28 @@ class NonConformity {
       severity: map['severity'] as String,
       status: map['status'] as String,
       correctiveAction: map['corrective_action'] as String?,
-      deadline: map['deadline'] != null ? DateTime.parse(map['deadline'] as String) : null,
-      isResolved: (map['is_resolved'] as int? ?? 0) == 1,
-      resolvedAt: map['resolved_at'] != null ? DateTime.parse(map['resolved_at'] as String) : null,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
-      needsSync: (map['needs_sync'] as int? ?? 0) == 1,
-      isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
+      deadline: map['deadline'] != null
+          ? DateTime.parse(map['deadline'] as String)
+          : null,
+      isResolved: map['is_resolved'] is bool
+          ? map['is_resolved']
+          : (map['is_resolved'] as int? ?? 0) == 1,
+      resolvedAt: map['resolved_at'] != null
+          ? DateTime.parse(map['resolved_at'] as String)
+          : null,
+      createdAt: map['created_at'] != null
+          ? (map['created_at'] is String
+              ? DateTime.parse(map['created_at'])
+              : map['created_at']?.toDate?.call())
+          : DateTime.now(),
+      updatedAt: map['updated_at'] != null
+          ? (map['updated_at'] is String
+              ? DateTime.parse(map['updated_at'])
+              : map['updated_at']?.toDate?.call())
+          : DateTime.now(),
+      isDeleted: map['is_deleted'] is bool
+          ? map['is_deleted']
+          : (map['is_deleted'] as int? ?? 0) == 1,
     );
   }
 
@@ -142,7 +153,6 @@ class NonConformity {
       'resolved_at': resolvedAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
-      'needs_sync': needsSync ? 1 : 0,
       'is_deleted': isDeleted ? 1 : 0,
     };
   }
@@ -163,7 +173,6 @@ class NonConformity {
     DateTime? resolvedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
-    bool? needsSync,
     bool? isDeleted,
   }) {
     return NonConformity(
@@ -182,7 +191,6 @@ class NonConformity {
       resolvedAt: resolvedAt ?? this.resolvedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      needsSync: needsSync ?? this.needsSync,
       isDeleted: isDeleted ?? this.isDeleted,
     );
   }
@@ -205,7 +213,7 @@ class NonConformity {
   bool get isOpen => status == 'open';
   bool get isClosed => status == 'closed';
   bool get isInProgress => status == 'in_progress';
-  
+
   bool get isLowSeverity => severity == 'low';
   bool get isMediumSeverity => severity == 'medium';
   bool get isHighSeverity => severity == 'high';

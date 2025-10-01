@@ -221,11 +221,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SvgPicture.asset(
-                          'assets/images/logo.svg',
-                          height:
-                              MediaQuery.of(context).size.height * 0.6 * 0.15,
-                        ),
+                        Theme.of(context).brightness == Brightness.light
+                            ? Image.asset(
+                                'assets/images/LINCE_Marca-Roxa.png',
+                                height: MediaQuery.of(context).size.height *
+                                    0.6 *
+                                    0.15,
+                              )
+                            : SvgPicture.asset(
+                                'assets/images/logo.svg',
+                                height: MediaQuery.of(context).size.height *
+                                    0.6 *
+                                    0.15,
+                              ),
                         const SizedBox(height: 43),
                         TextFormField(
                           controller: _emailController,

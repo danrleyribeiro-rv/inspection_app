@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public read access for validation site
+    match /inspectors/{inspectorId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    match /inspections/{inspectionId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Inspection history collection (sync logs)
+    match /inspection_history/{inspectionId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Authenticated access for other collections
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /chat_messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /managers/{managerId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /users/{userId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /projects/{projectId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /templates/{templateId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /user_settings/{userId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /inspection_checkpoints/{checkpointId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /inspection_releases/{releaseId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // NOVAS REGRAS PARA SISTEMA DE VERSIONAMENTO V2
+    // Coleção para dados de inspeções gerenciadas pelos managers (versão atual)
+    match /inspections_data/{inspectionId} {
+      allow read, write: if request.auth != null
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+
+      // Subcoleção para chunks de tópicos (quando documento é muito grande)
+      match /topic_chunks/{chunkId} {
+        allow read, write: if request.auth != null
+          && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+      }
+    }
+
+    // Coleção para histórico completo de versões
+    match /inspection_versions/{versionId} {
+      allow read, write: if request.auth != null
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+
+      // Subcoleção para chunks de tópicos no histórico
+      match /topic_chunks/{chunkId} {
+        allow read, write: if request.auth != null
+          && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+      }
+    }
+
+    // COLEÇÕES DE TESTE PARA VALIDAÇÃO DE CHUNKING
+    // Coleção de teste para dados de inspeções (espelho da inspections_data)
+    match /inspections_data_test/{inspectionId} {
+      allow read, write: if request.auth != null
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+
+      // Subcoleção para chunks de tópicos na coleção de teste
+      match /topic_chunks/{chunkId} {
+        allow read, write: if request.auth != null
+          && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+      }
+    }
+
+    // Coleção de teste para histórico de versões
+    match /inspection_versions_test/{versionId} {
+      allow read, write: if request.auth != null
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+
+      // Subcoleção para chunks de tópicos no histórico de teste
+      match /topic_chunks/{chunkId} {
+        allow read, write: if request.auth != null
+          && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+      }
+    }
+    
+    // Coleção para histórico de pulls/importações (compatibilidade)
+    match /inspection_pull_history/{historyId} {
+      allow read, write: if request.auth != null 
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+    }
+    
+    // Coleção para log de entregas
+    match /inspection_delivery_log/{logId} {
+      allow read, write: if request.auth != null 
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+    }
+    
+    // Coleção para relatórios versionados
+    match /reports/{reportId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Coleção para códigos e numeração
+    match /codes/{codeId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Coleção para vistorias unificadas (referências)
+    match /unified_inspections/{unifiedId} {
+      allow read, write: if request.auth != null 
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+    }
+  }
+}

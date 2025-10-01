@@ -1,12 +1,13 @@
 // lib/models/topic.dart (adaptado)
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:uuid/uuid.dart';
 
 part 'topic.g.dart';
 
 @HiveType(typeId: 1)
 class Topic {
   @HiveField(0)
-  final String? id;
+  final String id;
   @HiveField(1)
   final String inspectionId;
   @HiveField(2)
@@ -33,7 +34,7 @@ class Topic {
   final DateTime? updatedAt;
 
   Topic({
-    this.id,
+    String? id,
     required this.inspectionId,
     required this.position,
     int? orderIndex,
@@ -46,7 +47,8 @@ class Topic {
     this.tags,
     this.createdAt,
     this.updatedAt,
-  }) : orderIndex = orderIndex ?? position;
+  }) : id = id ?? const Uuid().v4(),
+       orderIndex = orderIndex ?? position;
 
   factory Topic.fromJson(Map<String, dynamic> json) {
     // Converter boolean corretamente
@@ -60,7 +62,7 @@ class Topic {
         isDamaged = json['is_damaged'].toLowerCase() == 'true';
       }
     }
-    
+
     // Converter directDetails corretamente
     bool? directDetails;
     if (json['direct_details'] != null) {
@@ -72,7 +74,7 @@ class Topic {
         directDetails = json['direct_details'].toLowerCase() == 'true';
       }
     }
-    
+
     // Converter tags corretamente
     List<String>? tags;
     if (json['tags'] != null) {
@@ -83,12 +85,14 @@ class Topic {
         tags = tagsString.isEmpty ? [] : tagsString.split(',');
       }
     }
-    
+
     return Topic(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
       position: json['position'] is int ? json['position'] : 0,
-      orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
+      orderIndex: json['order_index'] is int
+          ? json['order_index']
+          : (json['position'] is int ? json['position'] : 0),
       topicName: json['topic_name'] ?? json['name'],
       topicLabel: json['topic_label'],
       description: json['description'],
@@ -124,8 +128,6 @@ class Topic {
       'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
-      'needs_sync': 1,
-      'is_deleted': 0,
     };
   }
 

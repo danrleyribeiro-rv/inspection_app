@@ -187,12 +187,10 @@ class NonConformityRepository {
   // ===============================
 
   /// Buscar não conformidades que precisam ser sincronizadas
+  /// Deprecated - sync flags removed, always sync all data
   Future<List<NonConformity>> findPendingSync() async {
     final allNcs = DatabaseHelper.nonConformities.values.toList();
-    return allNcs.where((nc) => nc.needsSync == true).toList();
+    return allNcs.where((nc) => !nc.isDeleted).toList();
   }
 
-  // REMOVED: markSynced - Always sync all data on demand
-
-  // REMOVED: markAllSynced - Always sync all data on demand
 }

@@ -8,7 +8,7 @@ part of 'offline_media.dart';
 
 class OfflineMediaAdapter extends TypeAdapter<OfflineMedia> {
   @override
-  final int typeId = 5;
+  final typeId = 5;
 
   @override
   OfflineMedia read(BinaryReader reader) {
@@ -27,27 +27,26 @@ class OfflineMediaAdapter extends TypeAdapter<OfflineMedia> {
       localPath: fields[7] as String,
       cloudUrl: fields[8] as String?,
       filename: fields[9] as String,
-      fileSize: fields[10] as int?,
+      fileSize: (fields[10] as num?)?.toInt(),
       thumbnailPath: fields[11] as String?,
-      duration: fields[12] as int?,
-      width: fields[13] as int?,
-      height: fields[14] as int?,
-      isUploaded: fields[15] as bool? ?? false,
-      uploadProgress: fields[16] as double? ?? 0.0,
-      createdAt: fields[17] as DateTime? ?? DateTime.now(),
-      updatedAt: fields[18] as DateTime? ?? DateTime.now(),
-      needsSync: fields[19] as bool? ?? false,
-      isDeleted: fields[20] as bool? ?? false,
+      duration: (fields[12] as num?)?.toInt(),
+      width: (fields[13] as num?)?.toInt(),
+      height: (fields[14] as num?)?.toInt(),
+      isUploaded: fields[15] == null ? false : fields[15] as bool,
+      uploadProgress: fields[16] == null ? 0.0 : (fields[16] as num).toDouble(),
+      createdAt: fields[17] as DateTime,
+      updatedAt: fields[18] as DateTime,
+      isDeleted: fields[20] == null ? false : fields[20] as bool,
       source: fields[21] as String?,
-      isResolutionMedia: fields[22] as bool? ?? false,
-      orderIndex: fields[23] as int? ?? 0,
+      isResolutionMedia: fields[22] == null ? false : fields[22] as bool,
+      orderIndex: fields[23] == null ? 0 : (fields[23] as num).toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, OfflineMedia obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -86,8 +85,6 @@ class OfflineMediaAdapter extends TypeAdapter<OfflineMedia> {
       ..write(obj.createdAt)
       ..writeByte(18)
       ..write(obj.updatedAt)
-      ..writeByte(19)
-      ..write(obj.needsSync)
       ..writeByte(20)
       ..write(obj.isDeleted)
       ..writeByte(21)

@@ -8,7 +8,7 @@ part of 'template.dart';
 
 class TemplateAdapter extends TypeAdapter<Template> {
   @override
-  final int typeId = 8;
+  final typeId = 8;
 
   @override
   Template read(BinaryReader reader) {
@@ -25,15 +25,14 @@ class TemplateAdapter extends TypeAdapter<Template> {
       structure: fields[5] as String,
       createdAt: fields[6] as DateTime,
       updatedAt: fields[7] as DateTime,
-      isActive: fields[8] as bool,
-      needsSync: fields[9] as bool,
+      isActive: fields[8] == null ? true : fields[8] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, Template obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -51,9 +50,7 @@ class TemplateAdapter extends TypeAdapter<Template> {
       ..writeByte(7)
       ..write(obj.updatedAt)
       ..writeByte(8)
-      ..write(obj.isActive)
-      ..writeByte(9)
-      ..write(obj.needsSync);
+      ..write(obj.isActive);
   }
 
   @override

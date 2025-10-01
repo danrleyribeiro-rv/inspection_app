@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:lince_inspecoes/utils/date_formatter.dart';
 
 part 'inspection.g.dart';
@@ -46,22 +46,12 @@ class Inspection {
   final bool isTemplated;
   @HiveField(19)
   final String? templateId;
-  @HiveField(20)
-  final bool isSynced;
-  @HiveField(21)
-  final DateTime? lastSyncAt;
-  @HiveField(22)
-  final bool hasLocalChanges;
-  @HiveField(23)
-  final List<Map<String, dynamic>>? topics;
-  @HiveField(24)
-  final bool needsSync;
-  @HiveField(25)
-  final List<Map<String, dynamic>>? syncHistory;
   @HiveField(26)
   final String? area;
   @HiveField(27)
   final DateTime? deletedAt;
+  @HiveField(28)
+  final DateTime? lastSyncAt;
 
   Inspection({
     required this.id,
@@ -84,14 +74,9 @@ class Inspection {
     this.inspectorId,
     this.isTemplated = false,
     this.templateId,
-    this.isSynced = true,
-    this.lastSyncAt,
-    this.hasLocalChanges = false,
-    this.topics,
-    this.needsSync = false,
-    this.syncHistory,
     this.area,
     this.deletedAt,
+    this.lastSyncAt,
   });
 
   Inspection copyWith({
@@ -115,14 +100,9 @@ class Inspection {
     String? inspectorId,
     bool? isTemplated,
     String? templateId,
-    bool? isSynced,
-    DateTime? lastSyncAt,
-    bool? hasLocalChanges,
-    List<Map<String, dynamic>>? topics,
-    bool? needsSync,
-    List<Map<String, dynamic>>? syncHistory,
     String? area,
     DateTime? deletedAt,
+    DateTime? lastSyncAt,
   }) {
     return Inspection(
       id: id ?? this.id,
@@ -145,14 +125,9 @@ class Inspection {
       inspectorId: inspectorId ?? this.inspectorId,
       isTemplated: isTemplated ?? this.isTemplated,
       templateId: templateId ?? this.templateId,
-      isSynced: isSynced ?? this.isSynced,
-      lastSyncAt: lastSyncAt ?? this.lastSyncAt,
-      hasLocalChanges: hasLocalChanges ?? this.hasLocalChanges,
-      topics: topics ?? this.topics,
-      needsSync: needsSync ?? this.needsSync,
-      syncHistory: syncHistory ?? this.syncHistory,
       area: area ?? this.area,
       deletedAt: deletedAt ?? this.deletedAt,
+      lastSyncAt: lastSyncAt ?? this.lastSyncAt,
     );
   }
 
@@ -178,15 +153,11 @@ class Inspection {
       'inspector_id': inspectorId,
       'is_templated': isTemplated ? 1 : 0,
       'template_id': templateId,
-      'is_synced': isSynced ? 1 : 0,
-      'last_sync_at': lastSyncAt?.toIso8601String(),
-      'has_local_changes': hasLocalChanges ? 1 : 0,
-      'topics': topics?.toString(), // Convert to string for local DB
-      'needs_sync': needsSync ? 1 : 0,
-      'sync_history': syncHistory?.toString(), // Convert to string for local DB
       'area': area,
       'deleted_at': deletedAt?.toIso8601String(),
-      'is_deleted': deletedAt != null ? 1 : 0, // Se tem deleted_at, está deletada
+      'is_deleted':
+          deletedAt != null ? 1 : 0, // Se tem deleted_at, está deletada
+      'last_sync_at': lastSyncAt?.toIso8601String(),
     };
 
     return data;
@@ -195,7 +166,6 @@ class Inspection {
   Map<String, dynamic> toMap() => toJson();
 
   factory Inspection.fromJson(Map<String, dynamic> json) {
-
     bool isTemplated = false;
     if (json.containsKey('is_templated')) {
       if (json['is_templated'] is bool) {
@@ -204,87 +174,6 @@ class Inspection {
         isTemplated = json['is_templated'].toLowerCase() == 'true';
       } else if (json['is_templated'] == 1) {
         isTemplated = true;
-      }
-    }
-
-    bool isSynced = true;
-    if (json.containsKey('is_synced')) {
-      if (json['is_synced'] is bool) {
-        isSynced = json['is_synced'];
-      } else if (json['is_synced'] is String) {
-        isSynced = json['is_synced'].toLowerCase() == 'true';
-      } else if (json['is_synced'] == 1) {
-        isSynced = true;
-      } else if (json['is_synced'] == 0) {
-        isSynced = false;
-      }
-    }
-
-    bool hasLocalChanges = false;
-    if (json.containsKey('has_local_changes')) {
-      if (json['has_local_changes'] is bool) {
-        hasLocalChanges = json['has_local_changes'];
-      } else if (json['has_local_changes'] is String) {
-        hasLocalChanges = json['has_local_changes'].toLowerCase() == 'true';
-      } else if (json['has_local_changes'] == 1) {
-        hasLocalChanges = true;
-      }
-    }
-
-    bool needsSync = false;
-    if (json.containsKey('needs_sync')) {
-      if (json['needs_sync'] is bool) {
-        needsSync = json['needs_sync'];
-      } else if (json['needs_sync'] is String) {
-        needsSync = json['needs_sync'].toLowerCase() == 'true';
-      } else if (json['needs_sync'] == 1) {
-        needsSync = true;
-      }
-    }
-
-    List<Map<String, dynamic>>? topics;
-    if (json['topics'] != null) {
-      if (json['topics'] is List) {
-        topics = List<Map<String, dynamic>>.from(json['topics'].map((item) {
-          if (item is Map) {
-            return Map<String, dynamic>.from(item);
-          }
-          return item;
-        }));
-      } else if (json['topics'] is String) {
-        // Tentar parsear string JSON se necessário
-        try {
-          final parsed = json['topics'];
-          if (parsed.startsWith('[')) {
-            // É um array JSON em string - mas não fazer parse aqui, deixar como string
-            topics = null; // Será processado depois
-          }
-        } catch (e) {
-          // Se não conseguir parsear, ignorar
-        }
-      }
-    }
-
-    List<Map<String, dynamic>>? syncHistory;
-    if (json['sync_history'] != null) {
-      if (json['sync_history'] is List) {
-        syncHistory = List<Map<String, dynamic>>.from(json['sync_history'].map((item) {
-          if (item is Map) {
-            return Map<String, dynamic>.from(item);
-          }
-          return item;
-        }));
-      } else if (json['sync_history'] is String) {
-        // Tentar parsear string JSON se necessário
-        try {
-          final parsed = json['sync_history'];
-          if (parsed.startsWith('[')) {
-            // É um array JSON em string - mas não fazer parse aqui, deixar como string
-            syncHistory = null; // Será processado depois
-          }
-        } catch (e) {
-          // Se não conseguir parsear, ignorar
-        }
       }
     }
 
@@ -311,14 +200,9 @@ class Inspection {
       inspectorId: json['inspector_id']?.toString(),
       isTemplated: isTemplated,
       templateId: json['template_id']?.toString(),
-      isSynced: isSynced,
-      lastSyncAt: _parseDateTime(json['last_sync_at']),
-      hasLocalChanges: hasLocalChanges,
-      topics: topics,
-      needsSync: needsSync,
-      syncHistory: syncHistory,
       area: json['area']?.toString(),
       deletedAt: _parseDateTime(json['deleted_at']),
+      lastSyncAt: _parseDateTime(json['last_sync_at']),
     );
   }
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/services/data/enhanced_offline_data_service.dart';
 import 'package:lince_inspecoes/services/features/enhanced_offline_media_service.dart';
@@ -159,11 +160,11 @@ class EnhancedOfflineServiceFactory {
 
       debugPrint('EnhancedOfflineServiceFactory: Clearing all data...');
 
+      // Limpar arquivos de mídia físicos primeiro
+      await _clearAllMediaFiles();
+
       // Limpar dados do banco
       await _dataService!.clearAllData();
-
-      // Limpar arquivos de mídia - implementar método clearAllMedia no futuro
-      // await _mediaService!.clearAllMedia();
 
       // Limpar Hive storage via DatabaseHelper
       await DatabaseHelper.clearAllData();
@@ -172,6 +173,47 @@ class EnhancedOfflineServiceFactory {
     } catch (e) {
       debugPrint('EnhancedOfflineServiceFactory: Error clearing data: $e');
       rethrow;
+    }
+  }
+
+  /// Limpar todos os arquivos de mídia físicos
+  Future<void> _clearAllMediaFiles() async {
+    try {
+      final allMedia = DatabaseHelper.offlineMedia.values.toList();
+      int deletedFiles = 0;
+      int deletedThumbs = 0;
+
+      for (final media in allMedia) {
+        // Delete physical file
+        if (media.localPath.isNotEmpty) {
+          try {
+            final file = File(media.localPath);
+            if (await file.exists()) {
+              await file.delete();
+              deletedFiles++;
+            }
+          } catch (e) {
+            debugPrint('EnhancedOfflineServiceFactory: Error deleting file ${media.filename}: $e');
+          }
+        }
+
+        // Delete thumbnail
+        if (media.thumbnailPath != null && media.thumbnailPath!.isNotEmpty) {
+          try {
+            final thumbFile = File(media.thumbnailPath!);
+            if (await thumbFile.exists()) {
+              await thumbFile.delete();
+              deletedThumbs++;
+            }
+          } catch (e) {
+            debugPrint('EnhancedOfflineServiceFactory: Error deleting thumbnail ${media.filename}: $e');
+          }
+        }
+      }
+
+      debugPrint('EnhancedOfflineServiceFactory: Deleted $deletedFiles media files and $deletedThumbs thumbnails');
+    } catch (e) {
+      debugPrint('EnhancedOfflineServiceFactory: Error clearing media files: $e');
     }
   }
 
@@ -235,11 +277,9 @@ class EnhancedOfflineServiceFactory {
       _checkInitialization();
 
       final isConnected = await _syncService!.isConnected();
-      final isSyncing = _syncService!.isSyncing;
 
       return {
         'is_connected': isConnected,
-        'is_syncing': isSyncing,
         'timestamp': DateTime.now().toIso8601String(),
       };
     } catch (e) {
@@ -259,7 +299,7 @@ class EnhancedOfflineServiceFactory {
 
       debugPrint('EnhancedOfflineServiceFactory: Starting full sync...');
 
-      await _syncService!.fullSync();
+      await _syncService!.performFullSync();
 
       debugPrint('EnhancedOfflineServiceFactory: Full sync completed');
     } catch (e) {

@@ -5,6 +5,7 @@ import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class NonConformityForm extends StatefulWidget {
   final List<Topic> topics;
@@ -246,6 +247,9 @@ class _NonConformityFormState extends State<NonConformityForm> {
       );
 
       await _serviceFactory.dataService.saveNonConformity(nonConformity);
+
+      // Notify counter change to update NC badges
+      MediaCounterNotifier.instance.invalidateAll();
 
       _resetForm();
       widget.onNonConformitySaved();

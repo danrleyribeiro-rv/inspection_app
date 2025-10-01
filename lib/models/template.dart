@@ -1,4 +1,4 @@
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 part 'template.g.dart';
 
@@ -22,8 +22,6 @@ class Template {
   final DateTime updatedAt;
   @HiveField(8)
   final bool isActive;
-  @HiveField(9)
-  final bool needsSync;
 
   Template({
     required this.id,
@@ -35,7 +33,6 @@ class Template {
     required this.createdAt,
     required this.updatedAt,
     this.isActive = true,
-    this.needsSync = false,
   });
 
   factory Template.fromJson(Map<String, dynamic> json) {
@@ -49,7 +46,6 @@ class Template {
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
       isActive: json['is_active'] == 1 || json['is_active'] == true,
-      needsSync: json['needs_sync'] == 1 || json['needs_sync'] == true,
     );
   }
 
@@ -64,7 +60,6 @@ class Template {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_active': isActive ? 1 : 0,
-      'needs_sync': needsSync ? 1 : 0,
     };
   }
 
@@ -81,7 +76,6 @@ class Template {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isActive,
-    bool? needsSync,
   }) {
     return Template(
       id: id ?? this.id,
@@ -93,7 +87,6 @@ class Template {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
-      needsSync: needsSync ?? this.needsSync,
     );
   }
 }

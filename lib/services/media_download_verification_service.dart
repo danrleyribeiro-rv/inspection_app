@@ -51,7 +51,8 @@ class MediaDownloadVerificationService {
       List<String> missingMedia = [];
       
       for (final media in allMedia) {
-        if (media.isUploaded && media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+        // Verificar se tem cloudUrl (não usamos mais isUploaded)
+        if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
           // Verificar se o arquivo existe localmente
           if (media.localPath.isNotEmpty) {
             try {
@@ -75,8 +76,8 @@ class MediaDownloadVerificationService {
             debugPrint('MediaDownloadVerificationService: Media ${media.filename} has no local path');
           }
         } else {
-          // Mídia não foi enviada ainda ou não tem URL da nuvem
-          debugPrint('MediaDownloadVerificationService: Media ${media.filename} not uploaded or no cloud URL');
+          // Mídia ainda não tem cloudUrl
+          debugPrint('MediaDownloadVerificationService: Media ${media.filename} has no cloud URL yet');
         }
       }
       

@@ -5,6 +5,7 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_edit_dialog.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
 
 class NonConformityMediaWidget extends StatefulWidget {
   final String inspectionId;
@@ -193,7 +194,6 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
             status: result['status'] ?? 'open',
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            needsSync: true,
             isDeleted: false,
           );
           await _serviceFactory.dataService.updateNonConformity(nonConformity);
@@ -395,49 +395,52 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
 
   Future<Map<String, String?>> _getHierarchyIds() async {
     try {
-      final inspection =
-          await _serviceFactory.dataService.getInspection(widget.inspectionId);
-      if (inspection?.topics == null) {
-        return {
-          'topicId': 'topic_${widget.topicIndex}',
-          'itemId': 'item_${widget.itemIndex}',
-          'detailId': 'detail_${widget.detailIndex}'
-        };
-      }
+      // Get topics from Hive and find by position
+      final topics = await DatabaseHelper.getTopicsByInspection(widget.inspectionId);
+      topics.sort((a, b) => a.position.compareTo(b.position));
 
       String? topicId;
       String? itemId;
       String? detailId;
 
-      if (widget.topicIndex < inspection!.topics!.length) {
-        final topic = inspection.topics![widget.topicIndex];
-        topicId = topic['id'] ?? 'topic_${widget.topicIndex}';
+      if (widget.topicIndex < topics.length) {
+        final topic = topics[widget.topicIndex];
+        topicId = topic.id;
 
-        final items = List<Map<String, dynamic>>.from(topic['items'] ?? []);
+        // Get items for this topic and find by position
+        final items = DatabaseHelper.items.values
+            .where((item) => item.topicId == topicId)
+            .toList();
+        items.sort((a, b) => a.position.compareTo(b.position));
+
         if (widget.itemIndex < items.length) {
           final item = items[widget.itemIndex];
-          itemId = item['id'] ?? 'item_${widget.itemIndex}';
+          itemId = item.id;
 
-          final details =
-              List<Map<String, dynamic>>.from(item['details'] ?? []);
+          // Get details for this item and find by position
+          final details = DatabaseHelper.details.values
+              .where((detail) => detail.itemId == itemId)
+              .toList();
+          details.sort((a, b) => (a.position ?? 0).compareTo(b.position ?? 0));
+
           if (widget.detailIndex < details.length) {
             final detail = details[widget.detailIndex];
-            detailId = detail['id'] ?? 'detail_${widget.detailIndex}';
+            detailId = detail.id;
           }
         }
       }
 
       return {
-        'topicId': topicId ?? 'topic_${widget.topicIndex}',
-        'itemId': itemId ?? 'item_${widget.itemIndex}',
-        'detailId': detailId ?? 'detail_${widget.detailIndex}',
+        'topicId': topicId,
+        'itemId': itemId,
+        'detailId': detailId,
       };
     } catch (e) {
       debugPrint('Error getting hierarchy IDs: $e');
       return {
-        'topicId': 'topic_${widget.topicIndex}',
-        'itemId': 'item_${widget.itemIndex}',
-        'detailId': 'detail_${widget.detailIndex}'
+        'topicId': null,
+        'itemId': null,
+        'detailId': null,
       };
     }
   }

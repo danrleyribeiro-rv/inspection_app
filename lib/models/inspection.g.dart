@@ -8,7 +8,7 @@ part of 'inspection.dart';
 
 class InspectionAdapter extends TypeAdapter<Inspection> {
   @override
-  final int typeId = 0;
+  final typeId = 0;
 
   @override
   Inspection read(BinaryReader reader) {
@@ -35,27 +35,18 @@ class InspectionAdapter extends TypeAdapter<Inspection> {
       updatedAt: fields[15] as DateTime,
       projectId: fields[16] as String?,
       inspectorId: fields[17] as String?,
-      isTemplated: fields[18] as bool,
+      isTemplated: fields[18] == null ? false : fields[18] as bool,
       templateId: fields[19] as String?,
-      isSynced: fields[20] as bool,
-      lastSyncAt: fields[21] as DateTime?,
-      hasLocalChanges: fields[22] as bool,
-      topics: (fields[23] as List?)
-          ?.map((dynamic e) => (e as Map).cast<String, dynamic>())
-          ?.toList(),
-      needsSync: fields[24] as bool,
-      syncHistory: (fields[25] as List?)
-          ?.map((dynamic e) => (e as Map).cast<String, dynamic>())
-          ?.toList(),
       area: fields[26] as String?,
       deletedAt: fields[27] as DateTime?,
+      lastSyncAt: fields[28] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Inspection obj) {
     writer
-      ..writeByte(28)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -96,22 +87,12 @@ class InspectionAdapter extends TypeAdapter<Inspection> {
       ..write(obj.isTemplated)
       ..writeByte(19)
       ..write(obj.templateId)
-      ..writeByte(20)
-      ..write(obj.isSynced)
-      ..writeByte(21)
-      ..write(obj.lastSyncAt)
-      ..writeByte(22)
-      ..write(obj.hasLocalChanges)
-      ..writeByte(23)
-      ..write(obj.topics)
-      ..writeByte(24)
-      ..write(obj.needsSync)
-      ..writeByte(25)
-      ..write(obj.syncHistory)
       ..writeByte(26)
       ..write(obj.area)
       ..writeByte(27)
-      ..write(obj.deletedAt);
+      ..write(obj.deletedAt)
+      ..writeByte(28)
+      ..write(obj.lastSyncAt);
   }
 
   @override

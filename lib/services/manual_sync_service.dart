@@ -62,18 +62,14 @@ class ManualSyncService {
     }
   }
 
-  /// Verifica quantas inspeções precisam ser sincronizadas (agora via repositório)
   Future<int> getPendingSyncCount() async {
-    final pendingInspections =
-        await _inspectionRepository.getInspectionsNeedingSync();
-    return pendingInspections.length;
+    final allInspections = await _inspectionRepository.findAll();
+    return allInspections.length;
   }
 
-  /// Obtém a lista de IDs de inspeções que precisam ser sincronizadas (agora via repositório)
   Future<List<String>> getPendingInspectionIds() async {
-    final pendingInspections =
-        await _inspectionRepository.getInspectionsNeedingSync();
-    return pendingInspections.map((i) => i.id).toList();
+    final allInspections = await _inspectionRepository.findAll();
+    return allInspections.map((i) => i.id).toList();
   }
 
   /// Verifica se há conectividade para sincronização

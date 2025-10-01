@@ -206,11 +206,10 @@ class TopicRepository {
   // ===============================
 
   /// Buscar tópicos que precisam ser sincronizados
+  /// Deprecated - sync flags removed, always sync all data
   Future<List<Topic>> findPendingSync() async {
-    final List<Map<String, dynamic>> results = await DatabaseHelper.rawQuery(
-      'SELECT * FROM topics WHERE needs_sync = 1'
-    );
-    return results.map((map) => Topic.fromMap(map)).toList();
+    final allTopics = DatabaseHelper.topics.values.toList();
+    return allTopics;
   }
 
   /// Inserir ou atualizar tópico vindo da nuvem

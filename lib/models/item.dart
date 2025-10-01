@@ -1,12 +1,13 @@
 // lib/models/item.dart
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:uuid/uuid.dart';
 
 part 'item.g.dart';
 
 @HiveType(typeId: 2)
 class Item {
   @HiveField(0)
-  final String? id;
+  final String id;
   @HiveField(1)
   final String inspectionId;
   @HiveField(2)
@@ -43,7 +44,7 @@ class Item {
   final DateTime? updatedAt;
 
   Item({
-    this.id,
+    String? id,
     required this.inspectionId,
     this.topicId,
     this.itemId,
@@ -61,7 +62,8 @@ class Item {
     this.tags,
     this.createdAt,
     this.updatedAt,
-  }) : orderIndex = orderIndex ?? position;
+  }) : id = id ?? const Uuid().v4(),
+       orderIndex = orderIndex ?? position;
 
   factory Item.fromJson(Map<String, dynamic> json) {
     // Converter boolean corretamente
@@ -75,7 +77,7 @@ class Item {
         isDamaged = json['is_damaged'].toLowerCase() == 'true';
       }
     }
-    
+
     // Converter evaluable corretamente
     bool? evaluable;
     if (json['evaluable'] != null) {
@@ -87,7 +89,7 @@ class Item {
         evaluable = json['evaluable'].toLowerCase() == 'true';
       }
     }
-    
+
     // Converter evaluation_options corretamente
     List<String>? evaluationOptions;
     if (json['evaluation_options'] != null) {
@@ -95,10 +97,11 @@ class Item {
         evaluationOptions = List<String>.from(json['evaluation_options']);
       } else if (json['evaluation_options'] is String) {
         final optionsString = json['evaluation_options'] as String;
-        evaluationOptions = optionsString.isEmpty ? [] : optionsString.split(',');
+        evaluationOptions =
+            optionsString.isEmpty ? [] : optionsString.split(',');
       }
     }
-    
+
     // Converter tags corretamente
     List<String>? tags;
     if (json['tags'] != null) {
@@ -109,14 +112,16 @@ class Item {
         tags = tagsString.isEmpty ? [] : tagsString.split(',');
       }
     }
-    
+
     return Item(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
       topicId: json['topic_id']?.toString(),
       itemId: json['item_id']?.toString(),
       position: json['position'] is int ? json['position'] : 0,
-      orderIndex: json['order_index'] is int ? json['order_index'] : (json['position'] is int ? json['position'] : 0),
+      orderIndex: json['order_index'] is int
+          ? json['order_index']
+          : (json['position'] is int ? json['position'] : 0),
       itemName: json['item_name'] ?? json['name'],
       itemLabel: json['item_label'],
       description: json['description'],
@@ -128,12 +133,12 @@ class Item {
       isDamaged: isDamaged,
       tags: tags,
       createdAt: json['created_at'] != null
-          ? (json['created_at'] is String 
+          ? (json['created_at'] is String
               ? DateTime.parse(json['created_at'])
               : (json['created_at']?.toDate?.call()))
           : null,
       updatedAt: json['updated_at'] != null
-          ? (json['updated_at'] is String 
+          ? (json['updated_at'] is String
               ? DateTime.parse(json['updated_at'])
               : (json['updated_at']?.toDate?.call()))
           : null,
@@ -141,7 +146,7 @@ class Item {
   }
 
   static Item fromMap(Map<String, dynamic> map) => Item.fromJson(map);
-  
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -162,8 +167,6 @@ class Item {
       'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
-      'needs_sync': 1,
-      'is_deleted': 0,
     };
   }
 

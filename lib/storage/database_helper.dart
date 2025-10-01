@@ -1,4 +1,4 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
 import '../models/inspection.dart';
 import '../models/topic.dart';
 import '../models/item.dart';
@@ -6,8 +6,6 @@ import '../models/detail.dart';
 import '../models/non_conformity.dart';
 import '../models/offline_media.dart';
 import '../models/template.dart';
-import '../models/sync_queue.dart';
-import '../models/inspection_history.dart';
 
 class DatabaseHelper {
   static bool _initialized = false;
@@ -20,8 +18,6 @@ class DatabaseHelper {
   static const String _nonConformitiesBox = 'non_conformities';
   static const String _offlineMediaBox = 'offline_media';
   static const String _templatesBox = 'templates';
-  static const String _syncQueueBox = 'sync_queue';
-  static const String _inspectionHistoryBox = 'inspection_history';
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -36,9 +32,6 @@ class DatabaseHelper {
     Hive.registerAdapter(NonConformityAdapter());
     Hive.registerAdapter(OfflineMediaAdapter());
     Hive.registerAdapter(TemplateAdapter());
-    Hive.registerAdapter(SyncQueueAdapter());
-    Hive.registerAdapter(InspectionHistoryAdapter());
-    Hive.registerAdapter(HistoryStatusAdapter());
 
     // Open boxes
     await Hive.openBox<Inspection>(_inspectionsBox);
@@ -57,22 +50,21 @@ class DatabaseHelper {
     }
 
     await Hive.openBox<Template>(_templatesBox);
-    await Hive.openBox<SyncQueue>(_syncQueueBox);
-    await Hive.openBox<InspectionHistory>(_inspectionHistoryBox);
 
     _initialized = true;
   }
 
   // Get boxes (private)
-  static Box<Inspection> get _inspections => Hive.box<Inspection>(_inspectionsBox);
+  static Box<Inspection> get _inspections =>
+      Hive.box<Inspection>(_inspectionsBox);
   static Box<Topic> get _topics => Hive.box<Topic>(_topicsBox);
   static Box<Item> get _items => Hive.box<Item>(_itemsBox);
   static Box<Detail> get _details => Hive.box<Detail>(_detailsBox);
-  static Box<NonConformity> get _nonConformities => Hive.box<NonConformity>(_nonConformitiesBox);
-  static Box<OfflineMedia> get _offlineMedia => Hive.box<OfflineMedia>(_offlineMediaBox);
+  static Box<NonConformity> get _nonConformities =>
+      Hive.box<NonConformity>(_nonConformitiesBox);
+  static Box<OfflineMedia> get _offlineMedia =>
+      Hive.box<OfflineMedia>(_offlineMediaBox);
   static Box<Template> get _templates => Hive.box<Template>(_templatesBox);
-  static Box<SyncQueue> get _syncQueue => Hive.box<SyncQueue>(_syncQueueBox);
-  static Box<InspectionHistory> get _inspectionHistory => Hive.box<InspectionHistory>(_inspectionHistoryBox);
 
   // Public accessors for repositories
   static Box<Inspection> get inspections => _inspections;
@@ -82,8 +74,6 @@ class DatabaseHelper {
   static Box<NonConformity> get nonConformities => _nonConformities;
   static Box<OfflineMedia> get offlineMedia => _offlineMedia;
   static Box<Template> get templates => _templates;
-  static Box<SyncQueue> get syncQueue => _syncQueue;
-  static Box<InspectionHistory> get inspectionHistory => _inspectionHistory;
 
   // Utility methods
   static Future<void> closeDatabase() async {
@@ -97,20 +87,25 @@ class DatabaseHelper {
   }
 
   // Raw query methods (for compatibility)
-  static Future<List<Map<String, dynamic>>> rawQuery(String sql, [List<dynamic>? arguments]) async {
-    throw UnimplementedError('Raw queries not supported in Hive. Use specific methods instead.');
+  static Future<List<Map<String, dynamic>>> rawQuery(String sql,
+      [List<dynamic>? arguments]) async {
+    throw UnimplementedError(
+        'Raw queries not supported in Hive. Use specific methods instead.');
   }
 
   static Future<int> rawInsert(String sql, [List<dynamic>? arguments]) async {
-    throw UnimplementedError('Raw inserts not supported in Hive. Use specific methods instead.');
+    throw UnimplementedError(
+        'Raw inserts not supported in Hive. Use specific methods instead.');
   }
 
   static Future<int> rawUpdate(String sql, [List<dynamic>? arguments]) async {
-    throw UnimplementedError('Raw updates not supported in Hive. Use specific methods instead.');
+    throw UnimplementedError(
+        'Raw updates not supported in Hive. Use specific methods instead.');
   }
 
   static Future<int> rawDelete(String sql, [List<dynamic>? arguments]) async {
-    throw UnimplementedError('Raw deletes not supported in Hive. Use specific methods instead.');
+    throw UnimplementedError(
+        'Raw deletes not supported in Hive. Use specific methods instead.');
   }
 
   // Transaction methods (for compatibility)
@@ -128,8 +123,6 @@ class DatabaseHelper {
     await _nonConformities.clear();
     await _offlineMedia.clear();
     await _templates.clear();
-    await _syncQueue.clear();
-    await _inspectionHistory.clear();
   }
 
   // Clear only offline media data to fix schema issues
@@ -146,8 +139,6 @@ class DatabaseHelper {
       'details': _details.length,
       'media': _offlineMedia.length,
       'non_conformities': _nonConformities.length,
-      'inspections_pending_sync': _inspections.values.where((i) => i.needsSync).length,
-      'media_pending_sync': _offlineMedia.values.where((m) => m.needsSync).length,
     };
   }
 
@@ -182,7 +173,9 @@ class DatabaseHelper {
   }
 
   static Future<List<Topic>> getTopicsByInspection(String inspectionId) async {
-    return _topics.values.where((topic) => topic.inspectionId == inspectionId).toList();
+    return _topics.values
+        .where((topic) => topic.inspectionId == inspectionId)
+        .toList();
   }
 
   static Future<void> updateTopic(Topic topic) async {
@@ -244,8 +237,11 @@ class DatabaseHelper {
     return _nonConformities.get(id);
   }
 
-  static Future<List<NonConformity>> getNonConformitiesByInspection(String inspectionId) async {
-    return _nonConformities.values.where((nc) => nc.inspectionId == inspectionId).toList();
+  static Future<List<NonConformity>> getNonConformitiesByInspection(
+      String inspectionId) async {
+    return _nonConformities.values
+        .where((nc) => nc.inspectionId == inspectionId)
+        .toList();
   }
 
   static Future<void> updateNonConformity(NonConformity nonConformity) async {
@@ -265,8 +261,16 @@ class DatabaseHelper {
     return _offlineMedia.get(id);
   }
 
-  static Future<List<OfflineMedia>> getOfflineMediaByInspection(String inspectionId) async {
-    return _offlineMedia.values.where((media) => media.inspectionId == inspectionId).toList();
+  static Future<List<OfflineMedia>> getOfflineMediaByInspection(
+      String inspectionId) async {
+    final mediaList = _offlineMedia.values
+        .where((media) => media.inspectionId == inspectionId)
+        .toList();
+
+    // Sort by creation date (newest first)
+    mediaList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return mediaList;
   }
 
   static Future<void> updateOfflineMedia(OfflineMedia media) async {
@@ -298,47 +302,4 @@ class DatabaseHelper {
     await _templates.delete(id);
   }
 
-  // SyncQueue CRUD operations
-  static Future<void> insertSyncQueue(SyncQueue syncQueue) async {
-    final key = syncQueue.id?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
-    await _syncQueue.put(key, syncQueue);
-  }
-
-  static Future<SyncQueue?> getSyncQueue(String id) async {
-    return _syncQueue.get(id);
-  }
-
-  static Future<List<SyncQueue>> getAllSyncQueue() async {
-    return _syncQueue.values.toList();
-  }
-
-  static Future<void> updateSyncQueue(SyncQueue syncQueue) async {
-    final key = syncQueue.id?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
-    await _syncQueue.put(key, syncQueue);
-  }
-
-  static Future<void> deleteSyncQueue(String id) async {
-    await _syncQueue.delete(id);
-  }
-
-  // InspectionHistory CRUD operations
-  static Future<void> insertInspectionHistory(InspectionHistory history) async {
-    await _inspectionHistory.put(history.id, history);
-  }
-
-  static Future<InspectionHistory?> getInspectionHistory(String id) async {
-    return _inspectionHistory.get(id);
-  }
-
-  static Future<List<InspectionHistory>> getInspectionHistoryByInspection(String inspectionId) async {
-    return _inspectionHistory.values.where((h) => h.inspectionId == inspectionId).toList();
-  }
-
-  static Future<void> updateInspectionHistory(InspectionHistory history) async {
-    await _inspectionHistory.put(history.id, history);
-  }
-
-  static Future<void> deleteInspectionHistory(String id) async {
-    await _inspectionHistory.delete(id);
-  }
 }

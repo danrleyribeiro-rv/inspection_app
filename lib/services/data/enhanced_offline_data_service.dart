@@ -13,8 +13,6 @@ import 'package:lince_inspecoes/repositories/detail_repository.dart';
 import 'package:lince_inspecoes/repositories/non_conformity_repository.dart';
 import 'package:lince_inspecoes/repositories/media_repository.dart';
 import 'package:lince_inspecoes/services/sync/firestore_sync_service.dart';
-import 'package:lince_inspecoes/repositories/inspection_history_repository.dart';
-import 'package:lince_inspecoes/models/inspection_history.dart';
 import 'package:lince_inspecoes/models/template.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,7 +31,6 @@ class OfflineDataService {
   late final DetailRepository _detailRepository;
   late final NonConformityRepository _nonConformityRepository;
   late final MediaRepository _mediaRepository;
-  late final InspectionHistoryRepository _historyRepository;
 
   bool _isInitialized = false;
 
@@ -50,7 +47,6 @@ class OfflineDataService {
     _detailRepository = DetailRepository();
     _nonConformityRepository = NonConformityRepository();
     _mediaRepository = MediaRepository();
-    _historyRepository = InspectionHistoryRepository();
 
     _isInitialized = true;
     debugPrint(
@@ -115,31 +111,9 @@ class OfflineDataService {
     await _itemRepository.insertOrUpdateFromCloud(item);
   }
 
-  // REMOVED: markInspectionSynced - Always sync all data on demand
-
-  // Método para adicionar entrada no histórico de sincronização
   Future<void> addSyncHistoryEntry(String inspectionId, String inspectorId, String action, {Map<String, dynamic>? metadata}) async {
-    final inspection = await getInspection(inspectionId);
-    if (inspection == null) return;
-    
-    final currentHistory = inspection.syncHistory ?? [];
-    final newEntry = {
-      'inspector_id': inspectorId,
-      'action': action, // 'upload', 'download', 'conflict_resolved'
-      'timestamp': DateTime.now().toIso8601String(),
-      'metadata': metadata ?? {},
-    };
-    
-    final updatedHistory = [...currentHistory, newEntry];
-    
-    final updatedInspection = inspection.copyWith(
-      syncHistory: updatedHistory,
-      lastSyncAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-    
-    await _inspectionRepository.update(updatedInspection);
-    debugPrint('DataService: Added sync history entry for inspection $inspectionId: $action');
+    // Deprecated - sync history removed from Inspection model
+    debugPrint('DataService: Sync history entry ignored (feature removed): $action for inspection $inspectionId');
   }
 
   // Método público para forçar upload com debugging
@@ -147,7 +121,6 @@ class OfflineDataService {
     final syncService = FirestoreSyncService.instance;
     await syncService.forceUploadInspection(inspectionId);
   }
-
 
   Future<void> insertOrUpdateDetailFromCloud(Detail detail) async {
     await _detailRepository.insertOrUpdateFromCloud(detail);
@@ -184,8 +157,6 @@ class OfflineDataService {
   Future<List<Topic>> getTopics(String inspectionId) async {
     final result =
         await _topicRepository.findByInspectionIdOrdered(inspectionId);
-    debugPrint(
-        'DataService: Found ${result.length} topics for inspection $inspectionId');
     return result;
   }
 
@@ -260,8 +231,6 @@ class OfflineDataService {
 
   Future<void> updateItem(Item item) async {
     await _itemRepository.update(item);
-    
-    debugPrint('DataService: Item ${item.id} updated successfully');
   }
 
   Future<void> deleteItem(String itemId) async {
@@ -501,8 +470,6 @@ class OfflineDataService {
     await _mediaRepository.delete(mediaId);
   }
 
-  // REMOVED: markMediaSynced - Always sync all data on demand
-
   Future<List<OfflineMedia>> getMediaByFilename(String filename) async {
     return await _mediaRepository.findByFilename(filename);
   }
@@ -596,7 +563,6 @@ class OfflineDataService {
   Future<void> updateMediaCloudUrl(String mediaId, String cloudUrl) async {
     await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
   }
-
 
   Future<void> setMediaThumbnail(String mediaId, String thumbnailPath) async {
     await _mediaRepository.setThumbnail(mediaId, thumbnailPath);
@@ -747,73 +713,6 @@ class OfflineDataService {
   Future<List<OfflineMedia>> getMediaNeedingSync() async {
     return await _mediaRepository.findAll(); // Always return all media for sync
   }
-
-  // REMOVED: All markSynced methods - Always sync all data on demand
-
-  // REMOVED: All markAllSynced methods - Always sync all data on demand
-
-  // ===============================
-  // OPERAÇÕES DE HISTÓRICO DE INSPEÇÃO
-  // ===============================
-
-  /// Adiciona evento de histórico para uma inspeção
-  Future<String> addInspectionHistory({
-    required String inspectionId,
-    required HistoryStatus status,
-    required String inspectorId,
-    String? description,
-    Map<String, dynamic>? metadata,
-  }) async {
-    return await _historyRepository.addHistoryEvent(
-      inspectionId: inspectionId,
-      status: status,
-      inspectorId: inspectorId,
-      description: description,
-      metadata: metadata,
-    );
-  }
-
-  /// Busca histórico de uma inspeção
-  Future<List<InspectionHistory>> getInspectionHistory(String inspectionId) async {
-    return await _historyRepository.findByInspectionId(inspectionId);
-  }
-
-  /// Verifica se a inspeção está sincronizada
-  Future<bool> isInspectionSynced(String inspectionId) async {
-    return await _historyRepository.isInspectionSynced(inspectionId);
-  }
-
-  /// Busca o último download de uma inspeção
-  Future<InspectionHistory?> getLastInspectionDownload(String inspectionId) async {
-    return await _historyRepository.findLastDownload(inspectionId);
-  }
-
-  /// Busca o último upload de uma inspeção
-  Future<InspectionHistory?> getLastInspectionUpload(String inspectionId) async {
-    return await _historyRepository.findLastUpload(inspectionId);
-  }
-
-  /// Verifica se há conflitos não resolvidos
-  Future<bool> hasUnresolvedConflicts(String inspectionId) async {
-    return await _historyRepository.hasUnresolvedConflicts(inspectionId);
-  }
-
-  /// Busca eventos de conflito
-  Future<List<InspectionHistory>> getConflictEvents(String inspectionId) async {
-    return await _historyRepository.findConflictEvents(inspectionId);
-  }
-
-  /// Estatísticas de histórico de uma inspeção
-  Future<Map<String, int>> getInspectionHistoryStats(String inspectionId) async {
-    return await _historyRepository.getHistoryStats(inspectionId);
-  }
-
-  /// Busca histórico que precisa ser sincronizado
-  Future<List<InspectionHistory>> getHistoryPendingSync() async {
-    return await _historyRepository.findPendingSync();
-  }
-
-  // REMOVED: markHistorySynced - Always sync all data on demand
 
   // ===============================
   // HIERARQUIAS FLEXÍVEIS - OPERAÇÕES ESPECIALIZADAS
@@ -1270,8 +1169,6 @@ class OfflineDataService {
         await _downloadTemplate(inspection.templateId!);
       }
 
-      // REMOVED: markInspectionSynced call - Always sync all data on demand
-
       debugPrint('OfflineDataService: Successfully downloaded inspection $inspectionId');
     } catch (e) {
       debugPrint('OfflineDataService: Error downloading inspection $inspectionId: $e');
@@ -1314,7 +1211,6 @@ class OfflineDataService {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isActive: true,
-        needsSync: false,
       );
       await DatabaseHelper.insertTemplate(template);
 
@@ -1763,7 +1659,6 @@ class OfflineDataService {
     
     // 3. Salvar detalhe duplicado
     final newDetailId = await saveDetail(duplicatedDetail);
-    
     
     // 4. Buscar e retornar o detalhe completo salvo
     final savedDetail = await getDetail(newDetailId);

@@ -3,6 +3,7 @@ import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/repositories/inspection_repository.dart';
 import 'package:lince_inspecoes/models/template.dart';
+import 'package:lince_inspecoes/utils/inspection_json_converter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TemplateService {
@@ -283,7 +284,9 @@ class TemplateService {
         return false;
       }
 
-      if (inspection.topics != null && inspection.topics!.isNotEmpty) {
+      // Check if inspection already has topics in Hive
+      final existingTopics = await DatabaseHelper.getTopicsByInspection(inspectionId);
+      if (existingTopics.isNotEmpty) {
         debugPrint(
             'TemplateService: Inspection $inspectionId already has topics. Cannot apply template safely.');
         return false;
@@ -311,13 +314,15 @@ class TemplateService {
         return false;
       }
 
-      final templateTopics = template['topics'] as List? ?? [];
-      final topics = templateTopics
-          .map((topic) => Map<String, dynamic>.from(topic))
-          .toList();
+      // Build nested JSON structure with inspection data and template topics
+      final inspectionData = inspection.toJson();
+      inspectionData['topics'] = template['topics'] ?? [];
 
+      // Use InspectionJsonConverter to populate Hive boxes from template structure
+      await InspectionJsonConverter.fromNestedJson(inspectionData);
+
+      // Update inspection with template ID
       final updatedInspection = inspection.copyWith(
-        topics: topics,
         templateId: templateId,
         updatedAt: DateTime.now(),
       );
@@ -404,7 +409,9 @@ class TemplateService {
         return false;
       }
 
-      if (inspection.topics != null && inspection.topics!.isNotEmpty) {
+      // Check if inspection already has topics in Hive
+      final existingTopics = await DatabaseHelper.getTopicsByInspection(inspectionId);
+      if (existingTopics.isNotEmpty) {
         debugPrint(
             'TemplateService: Inspection $inspectionId already has topics. Cannot apply template safely offline.');
         return false;
@@ -425,13 +432,15 @@ class TemplateService {
         'topics': [], // Will need to be populated from structure if needed
       };
 
-      final templateTopics = template['topics'] as List? ?? [];
-      final topics = templateTopics
-          .map((topic) => Map<String, dynamic>.from(topic))
-          .toList();
+      // Build nested JSON structure with inspection data and template topics
+      final inspectionData = inspection.toJson();
+      inspectionData['topics'] = template['topics'] ?? [];
 
+      // Use InspectionJsonConverter to populate Hive boxes from template structure
+      await InspectionJsonConverter.fromNestedJson(inspectionData);
+
+      // Update inspection with template ID
       final updatedInspection = inspection.copyWith(
-        topics: topics,
         templateId: templateId,
         updatedAt: DateTime.now(),
       );

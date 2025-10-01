@@ -54,12 +54,9 @@ class InspectionService {
     return inspection != null;
   }
 
-  /// Verifica se uma inspeção precisa ser sincronizada
   Future<bool> needsSync(String inspectionId) async {
-    // Made async
-    final inspection = await _inspectionRepository.findById(inspectionId);
-    return (inspection?.hasLocalChanges ?? false) ||
-        !(inspection?.isSynced ?? true);
+    // Deprecated - sync flags removed
+    return false;
   }
 
   /// Obtém o status de uma inspeção (this logic might need to be re-evaluated based on your status definitions)
@@ -87,14 +84,5 @@ class InspectionService {
   Future<Map<String, int>> getStorageStats() async {
     // Made async
     return await DatabaseHelper.getStatistics();
-  }
-
-  /// MÉTODO DEPRECATED - mantido para compatibilidade
-  /// Use DownloadService.downloadInspection() para baixar inspeções
-  @Deprecated('Use DownloadService.downloadInspection() instead')
-  Future<void> refreshFromFirestore(String inspectionId) async {
-    debugPrint(
-        'InspectionService.refreshFromFirestore: Method deprecated - use DownloadService instead');
-    // Não faz nada - operação offline apenas
   }
 }

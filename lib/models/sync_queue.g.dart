@@ -8,7 +8,7 @@ part of 'sync_queue.dart';
 
 class SyncQueueAdapter extends TypeAdapter<SyncQueue> {
   @override
-  final int typeId = 9;
+  final typeId = 9;
 
   @override
   SyncQueue read(BinaryReader reader) {
@@ -17,16 +17,16 @@ class SyncQueueAdapter extends TypeAdapter<SyncQueue> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return SyncQueue(
-      id: fields[0] as int?,
+      id: (fields[0] as num?)?.toInt(),
       entityType: fields[1] as String,
       entityId: fields[2] as String,
       action: fields[3] as String,
       data: fields[4] as String?,
       createdAt: fields[5] as DateTime,
-      attempts: fields[6] as int,
+      attempts: fields[6] == null ? 0 : (fields[6] as num).toInt(),
       lastAttemptAt: fields[7] as DateTime?,
       errorMessage: fields[8] as String?,
-      isProcessed: fields[9] as bool,
+      isProcessed: fields[9] == null ? false : fields[9] as bool,
     );
   }
 

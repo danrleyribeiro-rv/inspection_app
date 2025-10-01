@@ -14,7 +14,7 @@ class SettingsService {
       'notificationsEnabled': true,
       'locationPermission': true,
       'cameraPermission': true,
-      'isDarkTheme': true,
+      'themeMode': 'system', // 'light', 'dark', ou 'system'
     };
 
     if (userId != null) {
@@ -30,8 +30,8 @@ class SettingsService {
                 defaultSettings['locationPermission']!,
             'cameraPermission': data['cameraPermission'] ??
                 defaultSettings['cameraPermission']!,
-            'isDarkTheme': data['isDarkTheme'] ??
-                defaultSettings['isDarkTheme']!,
+            'themeMode': data['themeMode'] ??
+                defaultSettings['themeMode']!,
           };
         }
       } catch (e) {
@@ -46,8 +46,8 @@ class SettingsService {
           defaultSettings['locationPermission']!,
       'cameraPermission': prefs.getBool('cameraPermission') ??
           defaultSettings['cameraPermission']!,
-      'isDarkTheme': prefs.getBool('isDarkTheme') ??
-          defaultSettings['isDarkTheme']!,
+      'themeMode': prefs.getString('themeMode') ??
+          defaultSettings['themeMode']!,
     };
   }
 
@@ -55,14 +55,14 @@ class SettingsService {
     required bool notificationsEnabled,
     required bool locationPermission,
     required bool cameraPermission,
-    required bool isDarkTheme,
+    required String themeMode,
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.setBool('notificationsEnabled', notificationsEnabled);
     await prefs.setBool('locationPermission', locationPermission);
     await prefs.setBool('cameraPermission', cameraPermission);
-    await prefs.setBool('isDarkTheme', isDarkTheme);
+    await prefs.setString('themeMode', themeMode);
 
     final userId = _firebase.currentUser?.uid;
     if (userId != null) {
@@ -71,7 +71,7 @@ class SettingsService {
           'notificationsEnabled': notificationsEnabled,
           'locationPermission': locationPermission,
           'cameraPermission': cameraPermission,
-          'isDarkTheme': isDarkTheme,
+          'themeMode': themeMode,
         }, SetOptions(merge: true));
       } catch (e) {
         debugPrint('Error saving settings to Firebase: $e');
@@ -79,18 +79,18 @@ class SettingsService {
     }
   }
 
-  Future<bool> isDarkTheme() async {
+  Future<String> getThemeMode() async {
     final settings = await loadSettings();
-    return settings['isDarkTheme'] as bool;
+    return settings['themeMode'] as String;
   }
 
-  Future<void> setTheme(bool isDark) async {
+  Future<void> setThemeMode(String themeMode) async {
     final currentSettings = await loadSettings();
     await saveSettings(
       notificationsEnabled: currentSettings['notificationsEnabled'] as bool,
       locationPermission: currentSettings['locationPermission'] as bool,
       cameraPermission: currentSettings['cameraPermission'] as bool,
-      isDarkTheme: isDark,
+      themeMode: themeMode,
     );
   }
 }
