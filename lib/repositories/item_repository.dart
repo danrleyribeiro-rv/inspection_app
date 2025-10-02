@@ -6,7 +6,7 @@ class ItemRepository {
   // Métodos básicos CRUD usando DatabaseHelper
   Future<String> insert(Item item) async {
     await DatabaseHelper.insertItem(item);
-    return item.id!;
+    return item.id;
   }
 
   Future<void> update(Item item) async {
@@ -93,14 +93,14 @@ class ItemRepository {
   Future<void> deleteByTopicId(String topicId) async {
     final items = await findByTopicId(topicId);
     for (final item in items) {
-      await delete(item.id!);
+      await delete(item.id);
     }
   }
 
   Future<void> deleteByInspectionId(String inspectionId) async {
     final items = await findByInspectionId(inspectionId);
     for (final item in items) {
-      await delete(item.id!);
+      await delete(item.id);
     }
   }
 
@@ -130,7 +130,7 @@ class ItemRepository {
 
   /// Inserir ou atualizar item vindo da nuvem
   Future<void> insertOrUpdateFromCloud(Item item) async {
-    final existing = await findById(item.id!);
+    final existing = await findById(item.id);
     final itemToSave = item.copyWith(
       updatedAt: DateTime.now(),
     );
@@ -144,7 +144,7 @@ class ItemRepository {
 
   /// Inserir ou atualizar item local
   Future<void> insertOrUpdate(Item item) async {
-    final existing = await findById(item.id!);
+    final existing = await findById(item.id);
     final itemToSave = item.copyWith(
       updatedAt: DateTime.now(),
     );

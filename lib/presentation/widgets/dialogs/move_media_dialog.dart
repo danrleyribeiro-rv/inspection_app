@@ -664,7 +664,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                     });
 
                     if (topic != null) {
-                      await _loadItems(topic.id!);
+                      await _loadItems(topic.id);
                     }
                   },
                 ),
@@ -745,7 +745,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       });
 
                       if (item != null) {
-                        await _loadDetails(item.id!);
+                        await _loadDetails(item.id);
                       }
                     },
                   ),

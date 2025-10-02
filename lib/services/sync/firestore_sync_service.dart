@@ -869,7 +869,7 @@ class FirestoreSyncService {
     for (final topic in topics) {
       
       // Validate topic data before processing
-      if (topic.id?.isEmpty ?? true) {
+      if (topic.id.isEmpty) {
         debugPrint('FirestoreSyncService: Skipping topic with empty ID: ${topic.topicName}');
         continue;
       }
@@ -885,7 +885,7 @@ class FirestoreSyncService {
       }
       
       // Get topic-level media
-      final topicMedia = await _offlineService.getMediaByTopic(topic.id ?? '');
+      final topicMedia = await _offlineService.getMediaByTopic(topic.id);
       final topicMediaList = <Map<String, dynamic>>[];
       
       // Add direct topic media (sorted by orderIndex and createdAt)
@@ -920,7 +920,7 @@ class FirestoreSyncService {
       final topicMediaData = topicMediaList;
       
       // Get topic-level non-conformities with hierarchical media structure
-      final allTopicNCs = await _offlineService.getNonConformitiesByTopic(topic.id ?? '');
+      final allTopicNCs = await _offlineService.getNonConformitiesByTopic(topic.id);
       // IMPORTANT: Filter to only topic-level NCs (exclude item and detail NCs)
       final topicNCs = allTopicNCs.where((nc) => nc.itemId == null && nc.detailId == null).toList();
       final topicNonConformitiesData = <Map<String, dynamic>>[];
@@ -944,13 +944,13 @@ class FirestoreSyncService {
         topicData['direct_details'] = true;
         
         // Get all details for this topic (no items)
-        final details = await _offlineService.getDetailsByTopic(topic.id ?? '');
+        final details = await _offlineService.getDetailsByTopic(topic.id);
         final detailsData = <Map<String, dynamic>>[];
 
         for (final detail in details) {
           // Get media for this detail
-          final detailMedia = await _offlineService.getMediaByDetail(detail.id ?? '');
-          
+          final detailMedia = await _offlineService.getMediaByDetail(detail.id);
+
           final mediaData = detailMedia.map((media) => {
             'filename': media.filename,
             'type': media.type,
@@ -962,9 +962,9 @@ class FirestoreSyncService {
             'isUploaded': media.isUploaded,
             'createdAt': media.createdAt.toIso8601String(),
           }).toList();
-          
+
           // Get non-conformities for this detail with hierarchical media structure
-          final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id ?? '');
+          final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id);
           final nonConformitiesData = <Map<String, dynamic>>[];
           
           for (final nc in detailNCs) {
@@ -989,12 +989,12 @@ class FirestoreSyncService {
       } else {
         // For regular topics, get all items
         topicData['direct_details'] = false; // PRESERVE direct_details as false for regular topics
-        final items = await _offlineService.getItems(topic.id ?? '');
+        final items = await _offlineService.getItems(topic.id);
         final itemsData = <Map<String, dynamic>>[];
 
         for (final item in items) {
         // Get item-level media
-        final itemMedia = await _offlineService.getMediaByItem(item.id ?? '');
+        final itemMedia = await _offlineService.getMediaByItem(item.id);
         
         final itemMediaData = itemMedia.map((media) => {
           'filename': media.filename,
@@ -1009,7 +1009,7 @@ class FirestoreSyncService {
         }).toList();
         
         // Get item-level non-conformities with hierarchical media structure
-        final allItemNCs = await _offlineService.getNonConformitiesByItem(item.id ?? '');
+        final allItemNCs = await _offlineService.getNonConformitiesByItem(item.id);
         // IMPORTANT: Filter to only item-level NCs (exclude detail NCs)
         final itemNCs = allItemNCs.where((nc) => nc.detailId == null).toList();
         final itemNonConformitiesData = <Map<String, dynamic>>[];
@@ -1032,13 +1032,13 @@ class FirestoreSyncService {
         };
         
         // Get all details for this item
-        final details = await _offlineService.getDetails(item.id ?? '');
+        final details = await _offlineService.getDetails(item.id);
         final detailsData = <Map<String, dynamic>>[];
 
         for (final detail in details) {
           // Get media for this detail
-          final detailMedia = await _offlineService.getMediaByDetail(detail.id ?? '');
-          
+          final detailMedia = await _offlineService.getMediaByDetail(detail.id);
+
           final mediaData = detailMedia.map((media) => {
             'filename': media.filename,
             'type': media.type,
@@ -1050,9 +1050,9 @@ class FirestoreSyncService {
             'isUploaded': media.isUploaded,
             'createdAt': media.createdAt.toIso8601String(),
           }).toList();
-          
+
           // Get non-conformities for this detail with hierarchical media structure
-          final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id ?? '');
+          final detailNCs = await _offlineService.getNonConformitiesByDetail(detail.id);
           final nonConformitiesData = <Map<String, dynamic>>[];
           
           for (final nc in detailNCs) {

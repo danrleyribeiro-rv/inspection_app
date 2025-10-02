@@ -165,7 +165,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
       // Load items and details for all topics
       for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
         final topic = topics[topicIndex];
-        final topicId = topic.id ?? 'topic_$topicIndex';
+        final topicId = topic.id;
 
         // Always reload to ensure we have the latest data
         if (topic.directDetails == true) {
@@ -179,7 +179,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
 
           for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
             final item = items[itemIndex];
-            final itemId = item.id ?? 'item_$itemIndex';
+            final itemId = item.id;
             final details =
                 await _serviceFactory.dataService.getDetails(itemId);
             _detailsCache['${topicId}_$itemId'] = details;
@@ -398,7 +398,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
     int completedUnits = 0;
 
     for (final topic in _topics) {
-      final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
+      final topicId = topic.id;
 
       if (topic.directDetails == true) {
         final directDetailsKey = '${topicId}_direct';
@@ -414,7 +414,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
         final items = _itemsCache[topicId] ?? [];
 
         for (final item in items) {
-          final itemId = item.id ?? 'item_${items.indexOf(item)}';
+          final itemId = item.id;
 
           if (item.evaluable == true) {
             totalUnits++;
@@ -674,12 +674,12 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
 
           for (final topic in _topics) {
             if (!mounted) return;
-            final topicId = topic.id ?? 'topic_${_topics.indexOf(topic)}';
+            final topicId = topic.id;
             final items = _itemsCache[topicId] ?? [];
             totalItems += items.length;
             for (final item in items) {
               if (!mounted) return;
-              final itemId = item.id ?? 'item_${items.indexOf(item)}';
+              final itemId = item.id;
               final details = _detailsCache['${topicId}_$itemId'] ?? [];
               totalDetails += details.length;
             }

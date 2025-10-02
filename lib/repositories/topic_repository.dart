@@ -6,7 +6,7 @@ class TopicRepository {
   // Métodos básicos CRUD usando DatabaseHelper
   Future<String> insert(Topic topic) async {
     await DatabaseHelper.insertTopic(topic);
-    return topic.id!; // Use ! since we expect id to be non-null after insertion
+    return topic.id;
   }
 
   Future<void> update(Topic topic) async {
@@ -83,9 +83,7 @@ class TopicRepository {
   Future<void> deleteByInspectionId(String inspectionId) async {
     final topics = await findByInspectionId(inspectionId);
     for (final topic in topics) {
-      if (topic.id != null) {
-        await delete(topic.id!);
-      }
+      await delete(topic.id);
     }
   }
 
@@ -193,9 +191,7 @@ class TopicRepository {
         final topicItems = allItems.where((item) => item.topicId == topicId).toList();
 
         for (final item in topicItems) {
-          if (item.id != null) {
-            await DatabaseHelper.deleteItem(item.id!);
-          }
+          await DatabaseHelper.deleteItem(item.id);
         }
       }
     }
@@ -214,7 +210,7 @@ class TopicRepository {
 
   /// Inserir ou atualizar tópico vindo da nuvem
   Future<void> insertOrUpdateFromCloud(Topic topic) async {
-    final existing = await findById(topic.id!);
+    final existing = await findById(topic.id);
     final topicToSave = topic.copyWith(
       updatedAt: DateTime.now(),
     );
@@ -228,7 +224,7 @@ class TopicRepository {
 
   /// Inserir ou atualizar tópico local
   Future<void> insertOrUpdate(Topic topic) async {
-    final existing = await findById(topic.id!);
+    final existing = await findById(topic.id);
     final topicToSave = topic.copyWith(
       updatedAt: DateTime.now(),
     );

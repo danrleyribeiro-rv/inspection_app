@@ -135,7 +135,7 @@ class _HierarchicalInspectionViewState
 
     // Persiste a mudança - pass the reordered topic IDs
     final topicIds = widget.topics
-        .map((t) => t.id ?? 'topic_${widget.topics.indexOf(t)}')
+        .map((t) => t.id)
         .toList();
     await _serviceFactory.dataService
         .reorderTopics(widget.inspectionId, topicIds);
@@ -159,7 +159,7 @@ class _HierarchicalInspectionViewState
 
     // Persiste a mudança - pass the reordered item IDs
     final itemIds =
-        items.map((i) => i.id ?? 'item_${items.indexOf(i)}').toList();
+        items.map((i) => i.id).toList();
     await _serviceFactory.dataService.reorderItems(topicId, itemIds);
 
     // Light refresh without triggering parent cache updates
@@ -190,7 +190,7 @@ class _HierarchicalInspectionViewState
               onPageChanged: _onTopicChanged,
               itemBuilder: (context, topicIndex) {
                 final topic = widget.topics[topicIndex];
-                final topicId = topic.id ?? 'topic_$topicIndex';
+                final topicId = topic.id;
                 final topicItems = widget.itemsCache[topicId] ?? <Item>[];
 
                 return Column(
@@ -286,7 +286,7 @@ class _HierarchicalInspectionViewState
                               : null,
                           itemBuilder: (context, itemIndex) {
                             final item = topicItems[itemIndex];
-                            final itemId = item.id ?? 'item_$itemIndex';
+                            final itemId = item.id;
                             final itemDetails =
                                 widget.detailsCache['${topicId}_$itemId'] ??
                                     <Detail>[];
@@ -463,7 +463,7 @@ class _HierarchicalInspectionViewState
 
   /// Verifica se o tópico deve usar detalhes diretos
   bool _shouldUseDirectDetails(Topic topic, int topicIndex) {
-    final topicId = topic.id ?? 'topic_$topicIndex';
+    final topicId = topic.id;
     final directDetailsKey = '${topicId}_direct';
     final hasDirectDetailsInCache =
         widget.detailsCache.containsKey(directDetailsKey) &&
@@ -476,7 +476,6 @@ class _HierarchicalInspectionViewState
 
   // Progress calculation methods
   double _calculateTopicProgress(Topic topic) {
-    if (topic.id == null) return 0.0;
 
     // Hierarquia flexível: Verificar se tem detalhes diretos
     if (topic.directDetails == true) {
@@ -501,15 +500,13 @@ class _HierarchicalInspectionViewState
     int completedItems = 0;
 
     for (final item in items) {
-      if (item.id != null) {
-        final details = widget.detailsCache['${topic.id}_${item.id}'] ?? [];
-        if (details.isNotEmpty) {
-          final completedDetails = details
-              .where((d) => d.detailValue != null && d.detailValue!.isNotEmpty)
-              .toList();
-          if (completedDetails.isNotEmpty) {
-            completedItems++;
-          }
+      final details = widget.detailsCache['${topic.id}_${item.id}'] ?? [];
+      if (details.isNotEmpty) {
+        final completedDetails = details
+            .where((d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+            .toList();
+        if (completedDetails.isNotEmpty) {
+          completedItems++;
         }
       }
     }
@@ -518,7 +515,6 @@ class _HierarchicalInspectionViewState
   }
 
   double _calculateItemProgressSync(Item item) {
-    if (item.id == null || item.topicId == null) return 0.0;
 
     final cacheKey = '${item.topicId}_${item.id}';
     if (_progressCache.containsKey(cacheKey)) {
@@ -575,7 +571,7 @@ class _HierarchicalInspectionViewState
   /// Constrói a view para tópicos com detalhes diretos (sem itens intermediários)
   Widget _buildDirectDetailsView(Topic topic, int topicIndex) {
     final theme = Theme.of(context);
-    final topicId = topic.id ?? 'topic_$topicIndex';
+    final topicId = topic.id;
     // Usar chave especial para detalhes diretos
     final directDetailsKey = '${topicId}_direct';
     final topicDetails = widget.detailsCache[directDetailsKey] ?? <Detail>[];

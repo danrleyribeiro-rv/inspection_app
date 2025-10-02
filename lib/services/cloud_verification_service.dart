@@ -294,16 +294,12 @@ class CloudVerificationService {
       
       // Contar itens e detalhes
       for (final topic in topics) {
-        if (topic.id != null) {
-          final items = await _offlineService.getItems(topic.id!);
-          totalStructureItems += items.length;
-          
-          for (final item in items) {
-            if (item.id != null) {
-              final details = await _offlineService.getDetails(item.id!);
-              totalStructureItems += details.length;
-            }
-          }
+        final items = await _offlineService.getItems(topic.id);
+        totalStructureItems += items.length;
+
+        for (final item in items) {
+          final details = await _offlineService.getDetails(item.id);
+          totalStructureItems += details.length;
         }
       }
 

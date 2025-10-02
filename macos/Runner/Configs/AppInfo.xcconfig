@@ -12,3 +12,6 @@ PRODUCT_BUNDLE_IDENTIFIER = com.corp.inspectionApp
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2025 com.corp. All rights reserved.
+
+// macOS deployment target
+MACOSX_DEPLOYMENT_TARGET = 13.0

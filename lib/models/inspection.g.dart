@@ -46,7 +46,7 @@ class InspectionAdapter extends TypeAdapter<Inspection> {
   @override
   void write(BinaryWriter writer, Inspection obj) {
     writer
-      ..writeByte(23)
+      ..writeByte(20)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)

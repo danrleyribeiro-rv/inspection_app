@@ -320,10 +320,6 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       debugPrint(
           'TopicDetailsSection: Duplicating topic ${widget.topic.id} with name ${widget.topic.topicName}');
 
-      if (widget.topic.id == null || widget.topic.id!.isEmpty) {
-        throw Exception('Tópico sem ID válido');
-      }
-
       // Validate topic data before duplication
       if (widget.topic.topicName.isEmpty) {
         throw Exception('Nome do tópico não pode estar vazio');
@@ -335,7 +331,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
 
       // Use the new recursive duplication method
       await _serviceFactory.dataService
-          .duplicateTopicWithChildren(widget.topic.id!);
+          .duplicateTopicWithChildren(widget.topic.id);
 
       widget.onTopicAction(); // Remove await to make it non-blocking
 
@@ -399,7 +395,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
     if (confirmed != true) return;
 
     try {
-      await _serviceFactory.dataService.deleteTopic(widget.topic.id ?? '');
+      await _serviceFactory.dataService.deleteTopic(widget.topic.id);
       await widget.onTopicAction();
 
       if (mounted) {

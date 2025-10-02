@@ -34,7 +34,7 @@ class TopicAdapter extends TypeAdapter<Topic> {
   @override
   void write(BinaryWriter writer, Topic obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)

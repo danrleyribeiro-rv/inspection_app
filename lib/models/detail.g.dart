@@ -40,7 +40,7 @@ class DetailAdapter extends TypeAdapter<Detail> {
   @override
   void write(BinaryWriter writer, Detail obj) {
     writer
-      ..writeByte(20)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)

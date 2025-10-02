@@ -112,8 +112,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       if (widget.preSelectedTopic != null) {
         Topic? selectedTopic;
         for (var topic in _topics) {
-          if (topic.id != null &&
-              topic.id.toString() == widget.preSelectedTopic.toString()) {
+          if (topic.id.toString() == widget.preSelectedTopic.toString()) {
             selectedTopic = topic;
             break;
           }
@@ -127,8 +126,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             debugPrint('NonConformityScreen: Handling direct detail preselection for topic ${selectedTopic.topicName}');
             Detail? selectedDetail;
             for (var detail in _details) {
-              if (detail.id != null &&
-                  detail.id.toString() == widget.preSelectedDetail.toString()) {
+              if (detail.id.toString() == widget.preSelectedDetail.toString()) {
                 selectedDetail = detail;
                 break;
               }
@@ -146,8 +144,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
           else if (widget.preSelectedItem != null && _items.isNotEmpty) {
             Item? selectedItem;
             for (var item in _items) {
-              if (item.id != null &&
-                  item.id.toString() == widget.preSelectedItem.toString()) {
+              if (item.id.toString() == widget.preSelectedItem.toString()) {
                 selectedItem = item;
                 break;
               }
@@ -162,8 +159,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             if (widget.preSelectedDetail != null && _details.isNotEmpty) {
               Detail? selectedDetail;
               for (var detail in _details) {
-                if (detail.id != null &&
-                    detail.id.toString() == widget.preSelectedDetail.toString()) {
+                if (detail.id.toString() == widget.preSelectedDetail.toString()) {
                   selectedDetail = detail;
                   break;
                 }
@@ -332,22 +328,20 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       _details = [];
     });
 
-    if (topic.id != null) {
-      try {
-        if (topic.directDetails == true) {
-          // Load direct details for topics with direct details
-          final directDetails = await _serviceFactory.dataService.getDirectDetails(topic.id!);
-          setState(() => _details = directDetails);
-          debugPrint('NonConformityScreen: _topicSelected - Loaded ${directDetails.length} direct details for topic ${topic.topicName}');
-        } else {
-          // Load items for topics with normal hierarchy
-          final items = await _serviceFactory.dataService.getItems(topic.id!);
-          setState(() => _items = items);
-          debugPrint('NonConformityScreen: _topicSelected - Loaded ${items.length} items for topic ${topic.topicName}');
-        }
-      } catch (e) {
-        debugPrint('Erro ao carregar dados para tópico ${topic.topicName}: $e');
+    try {
+      if (topic.directDetails == true) {
+        // Load direct details for topics with direct details
+        final directDetails = await _serviceFactory.dataService.getDirectDetails(topic.id);
+        setState(() => _details = directDetails);
+        debugPrint('NonConformityScreen: _topicSelected - Loaded ${directDetails.length} direct details for topic ${topic.topicName}');
+      } else {
+        // Load items for topics with normal hierarchy
+        final items = await _serviceFactory.dataService.getItems(topic.id);
+        setState(() => _items = items);
+        debugPrint('NonConformityScreen: _topicSelected - Loaded ${items.length} items for topic ${topic.topicName}');
       }
+    } catch (e) {
+      debugPrint('Erro ao carregar dados para tópico ${topic.topicName}: $e');
     }
   }
 
@@ -358,13 +352,11 @@ class _NonConformityScreenState extends State<NonConformityScreen>
       _details = [];
     });
 
-    if (item.id != null && item.topicId != null) {
-      try {
-        final details = await _serviceFactory.dataService.getDetails(item.id!);
-        setState(() => _details = details);
-      } catch (e) {
-        debugPrint('Erro ao carregar detalhes: $e');
-      }
+    try {
+      final details = await _serviceFactory.dataService.getDetails(item.id);
+      setState(() => _details = details);
+    } catch (e) {
+      debugPrint('Erro ao carregar detalhes: $e');
     }
   }
 

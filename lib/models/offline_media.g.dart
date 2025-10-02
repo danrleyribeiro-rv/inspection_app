@@ -46,7 +46,7 @@ class OfflineMediaAdapter extends TypeAdapter<OfflineMedia> {
   @override
   void write(BinaryWriter writer, OfflineMedia obj) {
     writer
-      ..writeByte(23)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)

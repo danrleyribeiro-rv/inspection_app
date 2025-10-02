@@ -71,7 +71,7 @@ class InspectionExportService {
       sortedTopics.sort((a, b) => a.position.compareTo(b.position));
 
       for (final topic in sortedTopics) {
-        final topicId = topic.id ?? 'topic_${sortedTopics.indexOf(topic)}';
+        final topicId = topic.id;
 
         Map<String, dynamic> topicData;
         if (topic.directDetails == true) {

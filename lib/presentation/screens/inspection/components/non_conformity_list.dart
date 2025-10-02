@@ -1201,11 +1201,6 @@ class _NonConformityListState extends State<NonConformityList> {
     } catch (e, stack) {
       debugPrint('NonConformityList: Error in _markAsResolvedDirectly: $e');
       debugPrint(stack.toString());
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar não conformidade: $e')),
-        );
-      }
     }
   }
 

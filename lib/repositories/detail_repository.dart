@@ -6,7 +6,7 @@ class DetailRepository {
   // Métodos básicos CRUD usando DatabaseHelper
   Future<String> insert(Detail detail) async {
     await DatabaseHelper.insertDetail(detail);
-    return detail.id!;
+    return detail.id;
   }
 
   Future<void> update(Detail detail) async {
@@ -108,21 +108,21 @@ class DetailRepository {
   Future<void> deleteByItemId(String itemId) async {
     final details = await findByItemId(itemId);
     for (final detail in details) {
-      await delete(detail.id!);
+      await delete(detail.id);
     }
   }
 
   Future<void> deleteByTopicId(String topicId) async {
     final details = await findByTopicId(topicId);
     for (final detail in details) {
-      await delete(detail.id!);
+      await delete(detail.id);
     }
   }
 
   Future<void> deleteByInspectionId(String inspectionId) async {
     final details = await findByInspectionId(inspectionId);
     for (final detail in details) {
-      await delete(detail.id!);
+      await delete(detail.id);
     }
   }
 
@@ -266,7 +266,7 @@ class DetailRepository {
 
   /// Inserir ou atualizar detalhe vindo da nuvem
   Future<void> insertOrUpdateFromCloud(Detail detail) async {
-    final existing = await findById(detail.id!);
+    final existing = await findById(detail.id);
     final detailToSave = detail.copyWith(
       updatedAt: DateTime.now(),
     );
@@ -280,7 +280,7 @@ class DetailRepository {
 
   /// Inserir ou atualizar detalhe local
   Future<void> insertOrUpdate(Detail detail) async {
-    final existing = await findById(detail.id!);
+    final existing = await findById(detail.id);
     final detailToSave = detail.copyWith(
       updatedAt: DateTime.now(),
     );

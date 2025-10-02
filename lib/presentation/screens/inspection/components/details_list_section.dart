@@ -315,7 +315,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
 
     try {
       await EnhancedOfflineServiceFactory.instance.dataService.deleteDetail(
-        detail.id ?? '',
+        detail.id,
       );
 
       setState(() {

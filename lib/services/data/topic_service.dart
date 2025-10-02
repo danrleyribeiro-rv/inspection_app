@@ -152,8 +152,6 @@ class TopicService {
       final newPosition = existingTopics.length;
 
       final topicData = topicTemplate['topicData'] as Map<String, dynamic>;
-      final templateId = topicTemplate['templateId'] as String;
-      final templateName = topicTemplate['templateName'] as String;
 
       String topicName = topicData['name'] as String;
 

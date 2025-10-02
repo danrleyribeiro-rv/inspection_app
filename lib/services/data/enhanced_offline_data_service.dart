@@ -174,7 +174,7 @@ class OfflineDataService {
   }
 
   Future<void> insertOrUpdateTopic(Topic topic) async {
-    final existing = await _topicRepository.findById(topic.id!);
+    final existing = await _topicRepository.findById(topic.id);
     if (existing != null) {
       await _topicRepository.update(topic);
     } else {
@@ -670,10 +670,8 @@ class OfflineDataService {
     final allTopics = await getTopicsNeedingSync();
     final List<Item> allItems = [];
     for (final topic in allTopics) {
-      if (topic.id != null) {
-        final items = await getItems(topic.id!);
-        allItems.addAll(items);
-      }
+      final items = await getItems(topic.id);
+      allItems.addAll(items);
     }
     return allItems; // Always return all items for sync
   }
@@ -683,10 +681,8 @@ class OfflineDataService {
     final allItems = await getItemsNeedingSync();
     final List<Detail> allDetails = [];
     for (final item in allItems) {
-      if (item.id != null) {
-        final details = await getDetails(item.id!);
-        allDetails.addAll(details);
-      }
+      final details = await getDetails(item.id);
+      allDetails.addAll(details);
     }
     return allDetails; // Always return all details for sync
   }
@@ -1021,7 +1017,7 @@ class OfflineDataService {
 
       if (hasDirectDetails) {
         // Tópico com detalhes diretos - contar detalhes
-        final details = await getDirectDetails(topic.id ?? '');
+        final details = await getDirectDetails(topic.id);
         totalUnits += details.length;
 
         for (final detail in details) {
@@ -1035,11 +1031,11 @@ class OfflineDataService {
         }
       } else {
         // Tópico com itens - contar itens
-        final items = await getItems(topic.id ?? '');
+        final items = await getItems(topic.id);
         totalUnits += items.length;
 
         for (final item in items) {
-          final details = await getDetails(item.id ?? '');
+          final details = await getDetails(item.id);
           final completedDetails =
               details.where((d) => d.status == 'completed').toList();
           if (completedDetails.isNotEmpty) {
@@ -1079,7 +1075,7 @@ class OfflineDataService {
       final items = await getItems(topicId);
 
       for (final item in items) {
-        final details = await getDetails(item.id ?? '');
+        final details = await getDetails(item.id);
         totalUnits += details.length;
         completedUnits += details.where((d) => d.status == 'completed').length;
       }
@@ -1454,7 +1450,7 @@ class OfflineDataService {
   Future<Item> _duplicateItemWithDetails(
       Item originalItem, String newTopicId) async {
     // Validar dados do item original
-    if (originalItem.id?.isEmpty ?? true) {
+    if (originalItem.id.isEmpty) {
       throw ArgumentError('ID do item original não pode estar vazio');
     }
 
@@ -1499,11 +1495,11 @@ class OfflineDataService {
     // Item foi salvo, continuar com duplicação dos detalhes
 
     // 4. Buscar todos os detalhes do item original
-    final originalDetails = await getDetails(originalItem.id!);
+    final originalDetails = await getDetails(originalItem.id);
 
     // 5. Duplicar detalhes em paralelo para maior performance
     final detailFutures = originalDetails
-        .where((detail) => detail.id?.isNotEmpty ?? false)
+        .where((detail) => detail.id.isNotEmpty)
         .map((originalDetail) async {
       final duplicatedDetail = Detail(
         id: null, // Será gerado automaticamente usando UUID
@@ -1541,7 +1537,7 @@ class OfflineDataService {
   Future<Detail> _duplicateDetailDirect(
       Detail originalDetail, String newTopicId) async {
     // Validar dados do detalhe original
-    if (originalDetail.id?.isEmpty ?? true) {
+    if (originalDetail.id.isEmpty) {
       throw ArgumentError('ID do detalhe original não pode estar vazio');
     }
 

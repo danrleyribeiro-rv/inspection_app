@@ -100,7 +100,6 @@ class BackgroundMediaSyncService {
 
       // Upload paralelo (máx 5 simultâneos)
       const int maxConcurrent = 5;
-      int successCount = 0;
 
       // Processa em chunks
       for (int i = 0; i < mediaToUpload.length; i += maxConcurrent) {
@@ -115,8 +114,7 @@ class BackgroundMediaSyncService {
           }
         });
 
-        final results = await Future.wait(futures);
-        successCount += results.where((success) => success).length;
+        await Future.wait(futures);
 
         // Pequena pausa entre chunks
         if (i + maxConcurrent < mediaToUpload.length) {
