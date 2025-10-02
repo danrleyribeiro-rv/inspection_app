@@ -18,6 +18,7 @@ import 'package:lince_inspecoes/services/background_media_sync_service.dart';
 import 'package:lince_inspecoes/services/utils/settings_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lince_inspecoes/firebase_options.dart';
+import 'package:lince_inspecoes/presentation/widgets/common/toast_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -439,6 +440,14 @@ class MyAppState extends State<MyApp> {
         '/reset-password': (context) => const ResetPasswordScreen(),
         '/home': (context) => const HomeScreen(),
         '/settings': (context) => const SettingsScreen(),
+      },
+      builder: (context, child) {
+        return Stack(
+          children: [
+            child ?? const SizedBox.shrink(),
+            const ToastOverlay(),
+          ],
+        );
       },
     );
   }

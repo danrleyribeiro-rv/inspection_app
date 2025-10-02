@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:lince_inspecoes/services/app_toast_service.dart';
 
 class SimpleNotificationService {
   static SimpleNotificationService? _instance;
@@ -18,7 +19,7 @@ class SimpleNotificationService {
   bool _isInitialized = false;
   
   static const String _channelId = 'lince_sync_channel';
-  static const String _channelName = 'Lince Sincronização';
+  static const String _channelName = 'Lince - Sincronização';
   static const String _channelDescription = 'Notificações de sincronização de inspeções';
   
   // Notification IDs
@@ -29,45 +30,52 @@ class SimpleNotificationService {
   
   Future<bool> initialize() async {
     if (_isInitialized) return true;
-    
+
     try {
       debugPrint('SimpleNotificationService: Initializing...');
-      
+
+      // Use in-app toasts for desktop platforms
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        debugPrint('SimpleNotificationService: Desktop platform detected, using in-app toast notifications');
+        _isInitialized = true;
+        return true;
+      }
+
       // Request permissions first
       final permissionGranted = await _requestPermissions();
       if (!permissionGranted) {
         debugPrint('SimpleNotificationService: Permissions not granted');
         return false;
       }
-      
+
       // Android initialization
       const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-      
+
       // iOS initialization
       const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: false,
       );
-      
+
       const InitializationSettings initializationSettings = InitializationSettings(
         android: initializationSettingsAndroid,
         iOS: initializationSettingsIOS,
       );
-      
+
       await _flutterLocalNotificationsPlugin.initialize(
         initializationSettings,
       );
-      
+
       // Create notification channel for Android
       if (Platform.isAndroid) {
         await _createNotificationChannel();
       }
-      
+
       _isInitialized = true;
       debugPrint('SimpleNotificationService: Initialized successfully');
       return true;
-      
+
     } catch (e) {
       debugPrint('SimpleNotificationService: Error initializing: $e');
       return false;
@@ -185,8 +193,20 @@ class SimpleNotificationService {
       debugPrint('SimpleNotificationService: Not initialized, cannot show progress notification');
       return;
     }
-    
-    try {
+
+    // Use in-app toasts for desktop platforms
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      AppToastService.instance.showProgress(
+        title: title,
+        message: message,
+        progress: progress,
+        maxProgress: maxProgress,
+        indeterminate: indeterminate,
+      );
+      return;
+    }
+
+    try{
       final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         _channelId,
         _channelName,
@@ -202,32 +222,32 @@ class SimpleNotificationService {
         showWhen: false,
         icon: '@mipmap/ic_launcher',
       );
-      
+
       // Para iOS, incluir o progresso no texto da mensagem
       String iOSMessage = message;
       if (Platform.isIOS && !indeterminate && progress != null && maxProgress != null) {
         final percentage = ((progress / maxProgress) * 100).round();
         iOSMessage = '$message ($percentage%)';
       }
-      
+
       const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: false,
       );
-      
+
       final NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );
-      
+
       await _flutterLocalNotificationsPlugin.show(
         id,
         title,
         Platform.isIOS ? iOSMessage : message,
         platformChannelSpecifics,
       );
-      
+
       debugPrint('SimpleNotificationService: Progress notification shown: $title - ${Platform.isIOS ? iOSMessage : message}');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing progress notification: $e');
@@ -243,7 +263,17 @@ class SimpleNotificationService {
       debugPrint('SimpleNotificationService: Not initialized, cannot show completion notification');
       return;
     }
-    
+
+    // Use in-app toasts for desktop platforms
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      AppToastService.instance.showCompletion(
+        title: title,
+        message: message,
+        isSuccess: isSuccess,
+      );
+      return;
+    }
+
     try {
       final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         _channelId,
@@ -257,25 +287,25 @@ class SimpleNotificationService {
         showWhen: true,
         icon: '@mipmap/ic_launcher',
       );
-      
+
       const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: false,
       );
-      
+
       final NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );
-      
+
       await _flutterLocalNotificationsPlugin.show(
         _completionId,
         title,
         message,
         platformChannelSpecifics,
       );
-      
+
       debugPrint('SimpleNotificationService: Completion notification shown: $title - $message');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing completion notification: $e');
@@ -290,7 +320,16 @@ class SimpleNotificationService {
       debugPrint('SimpleNotificationService: Not initialized, cannot show error notification');
       return;
     }
-    
+
+    // Use in-app toasts for desktop platforms
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      AppToastService.instance.showError(
+        title: title,
+        message: message,
+      );
+      return;
+    }
+
     try {
       final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         _channelId,
@@ -304,25 +343,25 @@ class SimpleNotificationService {
         showWhen: true,
         icon: '@mipmap/ic_launcher',
       );
-      
+
       const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: false,
       );
-      
+
       final NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );
-      
+
       await _flutterLocalNotificationsPlugin.show(
         _errorId,
         title,
         message,
         platformChannelSpecifics,
       );
-      
+
       debugPrint('SimpleNotificationService: Error notification shown: $title - $message');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing error notification: $e');
@@ -331,7 +370,11 @@ class SimpleNotificationService {
   
   Future<void> hideAllNotifications() async {
     try {
-      await _flutterLocalNotificationsPlugin.cancelAll();
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        AppToastService.instance.hideAll();
+      } else {
+        await _flutterLocalNotificationsPlugin.cancelAll();
+      }
       debugPrint('SimpleNotificationService: All notifications hidden');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error hiding notifications: $e');
