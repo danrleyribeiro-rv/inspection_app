@@ -248,13 +248,11 @@ class TopicService {
           detailName: detailData['name'] ?? 'Detalhe sem nome',
           detailValue: detailData['value'],
           observation: detailData['observation'],
-          isDamaged: detailData['is_damaged'] == true || detailData['is_damaged'] == 1,
           type: detailData['type'],
           options: options,
           allowCustomOption: detailData['allow_custom_option'] == true || detailData['allow_custom_option'] == 1,
           customOptionValue: detailData['custom_option_value'],
           status: detailData['status'],
-          isRequired: detailData['required'] == true || detailData['required'] == 1 || detailData['is_required'] == true || detailData['is_required'] == 1,
           createdAt: now,
           updatedAt: now,
         );
@@ -311,8 +309,6 @@ class TopicService {
       position: newPosition,
       observation: sourceTopic.observation,
       directDetails: sourceTopic.directDetails,
-      isDamaged: sourceTopic.isDamaged,
-      tags: sourceTopic.tags,
       createdAt: now,
       updatedAt: now,
     );
@@ -340,8 +336,6 @@ class TopicService {
         evaluationValue: null,
         evaluation: null,
         observation: null,
-        isDamaged: false,
-        tags: sourceItem.tags,
         createdAt: now,
         updatedAt: now,
       );
@@ -364,14 +358,11 @@ class TopicService {
           // Clear values for copy
           detailValue: null,
           observation: null,
-          isDamaged: false,
-          tags: sourceDetail.tags,
           type: sourceDetail.type,
           options: sourceDetail.options,
           allowCustomOption: sourceDetail.allowCustomOption,
           customOptionValue: null,
           status: sourceDetail.status,
-          isRequired: sourceDetail.isRequired,
           createdAt: now,
           updatedAt: now,
         );
@@ -394,14 +385,11 @@ class TopicService {
         detailName: sourceDetail.detailName,
         detailValue: null,
         observation: null,
-        isDamaged: false,
-        tags: sourceDetail.tags,
         type: sourceDetail.type,
         options: sourceDetail.options,
         allowCustomOption: sourceDetail.allowCustomOption,
         customOptionValue: null,
         status: sourceDetail.status,
-        isRequired: sourceDetail.isRequired,
         createdAt: now,
         updatedAt: now,
       );
@@ -540,8 +528,6 @@ class TopicService {
         final String detailName = _extractStringValue(detailFields, 'name');
         final String detailType =
             _extractStringValue(detailFields, 'type', defaultValue: 'text');
-        final bool isRequired =
-            _extractBooleanValue(detailFields, 'required', defaultValue: false);
 
         List<String>? options;
         if (detailType == 'select') {
@@ -568,7 +554,6 @@ class TopicService {
         processedDetails.add({
           'name': detailName,
           'type': detailType,
-          'required': isRequired,
           'options': options,
           'value': null,
           'observation': null,
@@ -592,78 +577,6 @@ class TopicService {
     };
   }
 
-  /// Process offline template items
-  List<Map<String, dynamic>> _processTemplateItems(List<dynamic> itemsData) {
-    final processedItems = <Map<String, dynamic>>[];
-
-    for (final itemTemplate in itemsData) {
-      final itemFields = _extractFieldsFromTemplate(itemTemplate);
-      if (itemFields == null) continue;
-
-      final String itemName = _extractStringValue(itemFields, 'name',
-          defaultValue: 'Item sem nome');
-      final String? itemDescription =
-          _extractStringValue(itemFields, 'description').isNotEmpty
-              ? _extractStringValue(itemFields, 'description')
-              : null;
-
-      final detailsData = _extractArrayFromTemplate(itemFields, 'details');
-      final processedDetails = <Map<String, dynamic>>[];
-
-      for (final detailTemplate in detailsData) {
-        final detailFields = _extractFieldsFromTemplate(detailTemplate);
-        if (detailFields == null) continue;
-
-        final String detailName = _extractStringValue(detailFields, 'name',
-            defaultValue: 'Detalhe sem nome');
-        final String detailType =
-            _extractStringValue(detailFields, 'type', defaultValue: 'text');
-        final bool isRequired =
-            _extractBooleanValue(detailFields, 'required', defaultValue: false);
-
-        List<String>? options;
-        if (detailType == 'select') {
-          final optionsArray =
-              _extractArrayFromTemplate(detailFields, 'options');
-          options = <String>[];
-          for (var option in optionsArray) {
-            if (option is Map && option.containsKey('stringValue')) {
-              options.add(option['stringValue']);
-            } else if (option is String) {
-              options.add(option);
-            }
-          }
-
-          if (options.isEmpty && detailFields.containsKey('optionsText')) {
-            final String optionsText =
-                _extractStringValue(detailFields, 'optionsText');
-            if (optionsText.isNotEmpty) {
-              options = optionsText.split(',').map((e) => e.trim()).toList();
-            }
-          }
-        }
-
-        processedDetails.add({
-          'name': detailName,
-          'type': detailType,
-          'required': isRequired,
-          'options': options,
-          'value': null,
-          'observation': null,
-          'is_damaged': false,
-        });
-      }
-
-      processedItems.add({
-        'name': itemName,
-        'description': itemDescription,
-        'observation': null,
-        'details': processedDetails,
-      });
-    }
-
-    return processedItems;
-  }
 
   // Template parsing helper methods
   List<dynamic> _extractArrayFromTemplate(dynamic data, String key) {
@@ -699,16 +612,6 @@ class TopicService {
     if (data[key] is String) return data[key];
     if (data[key] is Map && data[key].containsKey('stringValue')) {
       return data[key]['stringValue'];
-    }
-    return defaultValue;
-  }
-
-  bool _extractBooleanValue(dynamic data, String key,
-      {bool defaultValue = false}) {
-    if (data == null) return defaultValue;
-    if (data[key] is bool) return data[key];
-    if (data[key] is Map && data[key].containsKey('booleanValue')) {
-      return data[key]['booleanValue'];
     }
     return defaultValue;
   }

@@ -34,10 +34,6 @@ class Item {
   final String? evaluation;
   @HiveField(13)
   final String? observation;
-  @HiveField(14)
-  final bool? isDamaged;
-  @HiveField(15)
-  final List<String>? tags;
   @HiveField(16)
   final DateTime? createdAt;
   @HiveField(17)
@@ -58,25 +54,12 @@ class Item {
     this.evaluationValue,
     this.evaluation,
     this.observation,
-    this.isDamaged,
-    this.tags,
     this.createdAt,
     this.updatedAt,
   }) : id = id ?? const Uuid().v4(),
        orderIndex = orderIndex ?? position;
 
   factory Item.fromJson(Map<String, dynamic> json) {
-    // Converter boolean corretamente
-    bool? isDamaged;
-    if (json['is_damaged'] != null) {
-      if (json['is_damaged'] is bool) {
-        isDamaged = json['is_damaged'];
-      } else if (json['is_damaged'] is int) {
-        isDamaged = json['is_damaged'] == 1;
-      } else if (json['is_damaged'] is String) {
-        isDamaged = json['is_damaged'].toLowerCase() == 'true';
-      }
-    }
 
     // Converter evaluable corretamente
     bool? evaluable;
@@ -102,17 +85,6 @@ class Item {
       }
     }
 
-    // Converter tags corretamente
-    List<String>? tags;
-    if (json['tags'] != null) {
-      if (json['tags'] is List) {
-        tags = List<String>.from(json['tags']);
-      } else if (json['tags'] is String) {
-        final tagsString = json['tags'] as String;
-        tags = tagsString.isEmpty ? [] : tagsString.split(',');
-      }
-    }
-
     return Item(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
@@ -130,8 +102,6 @@ class Item {
       evaluationValue: json['evaluation_value'],
       evaluation: json['evaluation'],
       observation: json['observation'],
-      isDamaged: isDamaged,
-      tags: tags,
       createdAt: json['created_at'] != null
           ? (json['created_at'] is String
               ? DateTime.parse(json['created_at'])
@@ -163,8 +133,6 @@ class Item {
       'evaluation_value': evaluationValue,
       'evaluation': evaluation,
       'observation': observation,
-      'is_damaged': isDamaged == true ? 1 : 0,
-      'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -187,8 +155,6 @@ class Item {
     String? evaluationValue,
     String? evaluation,
     String? observation,
-    bool? isDamaged,
-    List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -207,8 +173,6 @@ class Item {
       evaluationValue: evaluationValue ?? this.evaluationValue,
       evaluation: evaluation ?? this.evaluation,
       observation: observation ?? this.observation,
-      isDamaged: isDamaged ?? this.isDamaged,
-      tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

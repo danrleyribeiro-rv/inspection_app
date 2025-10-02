@@ -31,8 +31,6 @@ class ItemAdapter extends TypeAdapter<Item> {
       evaluationValue: fields[11] as String?,
       evaluation: fields[12] as String?,
       observation: fields[13] as String?,
-      isDamaged: fields[14] as bool?,
-      tags: (fields[15] as List?)?.cast<String>(),
       createdAt: fields[16] as DateTime?,
       updatedAt: fields[17] as DateTime?,
     );
@@ -70,10 +68,6 @@ class ItemAdapter extends TypeAdapter<Item> {
       ..write(obj.evaluation)
       ..writeByte(13)
       ..write(obj.observation)
-      ..writeByte(14)
-      ..write(obj.isDamaged)
-      ..writeByte(15)
-      ..write(obj.tags)
       ..writeByte(16)
       ..write(obj.createdAt)
       ..writeByte(17)

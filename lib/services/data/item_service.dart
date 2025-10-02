@@ -123,8 +123,6 @@ class ItemService {
       evaluationValue: null,
       evaluation: null,
       observation: null,
-      isDamaged: false,
-      tags: sourceItem.tags,
       createdAt: now,
       updatedAt: now,
     );
@@ -147,14 +145,11 @@ class ItemService {
         // Clear values for copy
         detailValue: null,
         observation: null,
-        isDamaged: false,
-        tags: sourceDetail.tags,
         type: sourceDetail.type,
         options: sourceDetail.options,
         allowCustomOption: sourceDetail.allowCustomOption,
         customOptionValue: null,
         status: sourceDetail.status,
-        isRequired: sourceDetail.isRequired,
         createdAt: now,
         updatedAt: now,
       );

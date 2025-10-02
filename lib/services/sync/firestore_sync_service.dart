@@ -978,8 +978,6 @@ class FirestoreSyncService {
             'options': detail.options ?? [],
             'value': detail.detailValue,
             'observation': detail.observation,
-            'required': detail.isRequired == true,
-            'is_damaged': detail.isDamaged == true,
             'media': mediaData,
             'non_conformities': nonConformitiesData,
           };
@@ -1068,8 +1066,6 @@ class FirestoreSyncService {
             'options': detail.options ?? [],
             'value': detail.detailValue,
             'observation': detail.observation,
-            'required': detail.isRequired == true,
-            'is_damaged': detail.isDamaged == true,
             'media': mediaData,
             'non_conformities': nonConformitiesData,
           };
@@ -1121,7 +1117,7 @@ class FirestoreSyncService {
       if (value is String && value.isEmpty) {
         final shouldBeNullFields = {
           'observation', 'description', 'evaluation_value', 'evaluation', 
-          'custom_option_value', 'value', 'tags', 'options'
+          'custom_option_value', 'value', 'options'
         };
         if (shouldBeNullFields.contains(key)) {
           validatedData[key] = null;

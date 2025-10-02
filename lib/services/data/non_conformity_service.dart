@@ -1,5 +1,4 @@
 // lib/services/data/non_conformity_service.dart - Refactored for Hive boxes
-import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/repositories/inspection_repository.dart';

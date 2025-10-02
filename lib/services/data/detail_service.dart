@@ -1,5 +1,4 @@
 // lib/services/data/detail_service.dart - Refactored for Hive boxes
-import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/repositories/inspection_repository.dart';
@@ -39,8 +38,6 @@ class DetailService {
     List<String>? options,
     String? detailValue,
     String? observation,
-    bool? isDamaged,
-    bool? isRequired,
   }) async {
     final inspection = await _inspectionRepository.findById(inspectionId);
     if (inspection == null) {
@@ -61,8 +58,6 @@ class DetailService {
       options: options,
       detailValue: detailValue,
       observation: observation,
-      isDamaged: isDamaged ?? false,
-      isRequired: isRequired ?? false,
       createdAt: DateFormatter.now(),
       updatedAt: DateFormatter.now(),
     );
@@ -87,8 +82,6 @@ class DetailService {
     List<String>? options,
     String? detailValue,
     String? observation,
-    bool? isDamaged,
-    bool? isRequired,
   }) async {
     final inspection = await _inspectionRepository.findById(inspectionId);
     if (inspection == null) {
@@ -109,8 +102,6 @@ class DetailService {
       options: options,
       detailValue: detailValue,
       observation: observation,
-      isDamaged: isDamaged ?? false,
-      isRequired: isRequired ?? false,
       createdAt: DateFormatter.now(),
       updatedAt: DateFormatter.now(),
     );
@@ -165,12 +156,9 @@ class DetailService {
       options: sourceDetail.options,
       detailValue: sourceDetail.detailValue,
       observation: sourceDetail.observation,
-      isDamaged: sourceDetail.isDamaged,
-      tags: sourceDetail.tags,
       allowCustomOption: sourceDetail.allowCustomOption,
       customOptionValue: sourceDetail.customOptionValue,
       status: sourceDetail.status,
-      isRequired: sourceDetail.isRequired,
       createdAt: now,
       updatedAt: now,
     );

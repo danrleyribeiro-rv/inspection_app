@@ -153,8 +153,6 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
       directDetails:
           widget.topic.directDetails, // IMPORTANTE: Preservar directDetails
       observation: observationValue,
-      isDamaged: widget.topic.isDamaged,
-      tags: widget.topic.tags,
       createdAt: widget.topic.createdAt,
       updatedAt: DateTime.now(),
     );

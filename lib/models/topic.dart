@@ -24,10 +24,6 @@ class Topic {
   final bool? directDetails;
   @HiveField(8)
   final String? observation;
-  @HiveField(9)
-  final bool? isDamaged;
-  @HiveField(10)
-  final List<String>? tags;
   @HiveField(11)
   final DateTime? createdAt;
   @HiveField(12)
@@ -43,25 +39,12 @@ class Topic {
     this.description,
     this.directDetails,
     this.observation,
-    this.isDamaged,
-    this.tags,
     this.createdAt,
     this.updatedAt,
   }) : id = id ?? const Uuid().v4(),
        orderIndex = orderIndex ?? position;
 
   factory Topic.fromJson(Map<String, dynamic> json) {
-    // Converter boolean corretamente
-    bool? isDamaged;
-    if (json['is_damaged'] != null) {
-      if (json['is_damaged'] is bool) {
-        isDamaged = json['is_damaged'];
-      } else if (json['is_damaged'] is int) {
-        isDamaged = json['is_damaged'] == 1;
-      } else if (json['is_damaged'] is String) {
-        isDamaged = json['is_damaged'].toLowerCase() == 'true';
-      }
-    }
 
     // Converter directDetails corretamente
     bool? directDetails;
@@ -72,17 +55,6 @@ class Topic {
         directDetails = json['direct_details'] == 1;
       } else if (json['direct_details'] is String) {
         directDetails = json['direct_details'].toLowerCase() == 'true';
-      }
-    }
-
-    // Converter tags corretamente
-    List<String>? tags;
-    if (json['tags'] != null) {
-      if (json['tags'] is List) {
-        tags = List<String>.from(json['tags']);
-      } else if (json['tags'] is String) {
-        final tagsString = json['tags'] as String;
-        tags = tagsString.isEmpty ? [] : tagsString.split(',');
       }
     }
 
@@ -98,8 +70,6 @@ class Topic {
       description: json['description'],
       directDetails: directDetails,
       observation: json['observation'],
-      isDamaged: isDamaged,
-      tags: tags,
       createdAt: json['created_at'] != null
           ? (json['created_at'] is String
               ? DateTime.parse(json['created_at'])
@@ -124,8 +94,6 @@ class Topic {
       'description': description,
       'direct_details': directDetails == true ? 1 : 0,
       'observation': observation,
-      'is_damaged': isDamaged == true ? 1 : 0,
-      'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -144,8 +112,6 @@ class Topic {
     String? description,
     bool? directDetails,
     String? observation,
-    bool? isDamaged,
-    List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -159,8 +125,6 @@ class Topic {
       description: description ?? this.description,
       directDetails: directDetails ?? this.directDetails,
       observation: observation ?? this.observation,
-      isDamaged: isDamaged ?? this.isDamaged,
-      tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

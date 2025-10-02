@@ -27,8 +27,6 @@ class DetailAdapter extends TypeAdapter<Detail> {
       detailName: fields[7] as String,
       detailValue: fields[8] as String?,
       observation: fields[9] as String?,
-      isDamaged: fields[10] as bool?,
-      tags: (fields[11] as List?)?.cast<String>(),
       createdAt: fields[12] as DateTime?,
       updatedAt: fields[13] as DateTime?,
       type: fields[14] as String?,
@@ -36,7 +34,6 @@ class DetailAdapter extends TypeAdapter<Detail> {
       allowCustomOption: fields[16] as bool?,
       customOptionValue: fields[17] as String?,
       status: fields[18] as String?,
-      isRequired: fields[19] as bool?,
     );
   }
 
@@ -64,10 +61,6 @@ class DetailAdapter extends TypeAdapter<Detail> {
       ..write(obj.detailValue)
       ..writeByte(9)
       ..write(obj.observation)
-      ..writeByte(10)
-      ..write(obj.isDamaged)
-      ..writeByte(11)
-      ..write(obj.tags)
       ..writeByte(12)
       ..write(obj.createdAt)
       ..writeByte(13)
@@ -81,9 +74,7 @@ class DetailAdapter extends TypeAdapter<Detail> {
       ..writeByte(17)
       ..write(obj.customOptionValue)
       ..writeByte(18)
-      ..write(obj.status)
-      ..writeByte(19)
-      ..write(obj.isRequired);
+      ..write(obj.status);
   }
 
   @override

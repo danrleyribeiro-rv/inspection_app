@@ -45,6 +45,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
   int _mediaCountVersion = 0;
   int _ncCountVersion = 0;
   String? _currentEvaluationValue;
+  String? _lastSavedObservation;
+
+  // Named listener so we can add/remove it reliably
+  void _onObservationControllerChanged() => _updateItemObservation();
 
   @override
   void initState() {
@@ -58,9 +62,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
     // Set observation text BEFORE adding listener to avoid accidental triggers
     _observationController.text = widget.item.observation ?? '';
+    _lastSavedObservation = widget.item.observation;
 
-    // Add listener AFTER setting initial values
-    _observationController.addListener(() => _updateItemObservation());
+    // Add named listener AFTER setting initial values
+    _observationController.addListener(_onObservationControllerChanged);
 
     // Escutar mudanças nos contadores
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
@@ -92,9 +97,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       if (currentObservation != controllerText &&
           !(currentObservation.isEmpty && controllerText.isEmpty)) {
         // Temporarily remove listener to avoid triggering updates
-        _observationController.removeListener(_updateItemObservation);
+        _observationController.removeListener(_onObservationControllerChanged);
         _observationController.text = currentObservation;
-        _observationController.addListener(_updateItemObservation);
+        _observationController.addListener(_onObservationControllerChanged);
       }
     }
 
@@ -127,10 +132,25 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     if (_debounce?.isActive == true) {
       _debounce?.cancel();
       // Save current state immediately
-      final updatedItem = widget.item.copyWith(
+      // Build an explicit Item so that setting observation to null is reliable
+      final updatedItem = Item(
+        id: widget.item.id,
+        inspectionId: widget.item.inspectionId,
+        topicId: widget.item.topicId,
+        itemId: widget.item.itemId,
+        position: widget.item.position,
+        orderIndex: widget.item.orderIndex,
+        itemName: widget.item.itemName,
+        itemLabel: widget.item.itemLabel,
+        description: widget.item.description,
+        evaluable: widget.item.evaluable,
+        evaluationOptions: widget.item.evaluationOptions,
+        evaluationValue: widget.item.evaluationValue,
+        evaluation: widget.item.evaluation,
         observation: _observationController.text.isEmpty
             ? null
             : _observationController.text,
+        createdAt: widget.item.createdAt,
         updatedAt: DateTime.now(),
       );
       // Synchronous save to ensure it completes before dispose
@@ -138,7 +158,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         debugPrint(
             'ItemDetailsSection: Forced save on dispose for item ${updatedItem.id} with observation: ${updatedItem.observation}');
       }).catchError((error) {
-        debugPrint('ItemDetailsSection: Error in forced save on dispose: $error');
+        debugPrint(
+            'ItemDetailsSection: Error in forced save on dispose: $error');
       });
     }
   }
@@ -158,23 +179,49 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     }
   }
 
-  void _updateItemObservation({String? customObservation}) {
+  Future<void> _updateItemObservation({String? customObservation}) async {
     final observationText = customObservation ?? _observationController.text;
-    debugPrint('ItemDetailsSection: _updateItemObservation called with text: "$observationText"');
-    debugPrint('ItemDetailsSection: Original widget.item.observation: "${widget.item.observation}"');
+    debugPrint(
+        'ItemDetailsSection: _updateItemObservation called with text: "$observationText"');
+    debugPrint(
+        'ItemDetailsSection: Original widget.item.observation: "${widget.item.observation}"');
 
     final newObservation = observationText.isEmpty ? null : observationText;
 
-    // Update UI immediately
-    final updatedItem = widget.item.copyWith(
+    // Avoid duplicate saves if we already persisted this exact value
+    if (newObservation == _lastSavedObservation) {
+      debugPrint('ItemDetailsSection: Observation unchanged (skipping save)');
+      return;
+    }
+
+    // Update last saved cache immediately to prevent races
+    _lastSavedObservation = newObservation;
+
+    // Update UI immediately. Use explicit constructor so we can set observation
+    // to null when needed (copyWith would keep old value when passed null).
+    final updatedItem = Item(
+      id: widget.item.id,
+      inspectionId: widget.item.inspectionId,
+      topicId: widget.item.topicId,
+      itemId: widget.item.itemId,
+      position: widget.item.position,
+      orderIndex: widget.item.orderIndex,
+      itemName: widget.item.itemName,
+      itemLabel: widget.item.itemLabel,
+      description: widget.item.description,
+      evaluable: widget.item.evaluable,
+      evaluationOptions: widget.item.evaluationOptions,
+      evaluationValue: widget.item.evaluationValue,
+      evaluation: widget.item.evaluation,
       observation: newObservation,
+      createdAt: widget.item.createdAt,
       updatedAt: DateTime.now(),
     );
 
     widget.onItemUpdated(updatedItem);
 
     // Save immediately to prevent data loss on refresh
-    _saveItemImmediately(updatedItem);
+    await _saveItemImmediately(updatedItem);
   }
 
   Future<void> _saveItemImmediately(Item updatedItem) async {
@@ -224,7 +271,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
 
     try {
       // Get all non-conformities for this item
-      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+      final allNCs = await _serviceFactory.dataService
+          .getNonConformities(widget.inspectionId);
 
       // Filter to show ONLY item-level NCs (exclude detail NCs)
       final itemNCs = allNCs.where((nc) {
@@ -327,17 +375,20 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                     controller: controller,
                     maxLines: 3,
                     autofocus: true,
-                    onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
+                    onChanged: (_) =>
+                        setDialogState(() {}), // Atualiza apenas o dialog
                     decoration: InputDecoration(
                       hintText: 'Digite suas observações...',
-                      hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                      hintStyle:
+                          TextStyle(fontSize: 11, color: theme.hintColor),
                       border: const OutlineInputBorder(),
                       suffixIcon: controller.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 20),
                               onPressed: () {
                                 controller.clear();
-                                setDialogState(() {}); // Atualiza apenas o dialog
+                                setDialogState(
+                                    () {}); // Atualiza apenas o dialog
                               },
                             )
                           : null,
@@ -360,7 +411,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                   child: const Text('Cancelar'),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(''), // Return empty string for clear
+                  onPressed: () => Navigator.of(context)
+                      .pop(''), // Return empty string for clear
                   child: const Text('Limpar'),
                 ),
                 TextButton(
@@ -378,12 +430,19 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     if (result != null) {
       debugPrint('ItemDetailsSection: Dialog returned result: "$result"');
 
-      setState(() {
-        _observationController.text = result;
-      });
+      // Prevent the controller listener from firing while we programmatically
+      // change the text; then perform a single update/save call.
+      _observationController.removeListener(_onObservationControllerChanged);
+      _observationController.text = result;
+      // Ensure UI updates if necessary
+      if (mounted) setState(() {});
 
-      // Pass the result directly to ensure the correct value is used
-      _updateItemObservation(customObservation: result);
+      // Pass the result directly to ensure the correct value is used and await
+      // the save to keep ordering predictable.
+      await _updateItemObservation(customObservation: result);
+
+      // Re-attach the listener
+      _observationController.addListener(_onObservationControllerChanged);
     }
   }
 
@@ -431,13 +490,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       debugPrint(
           'ItemDetailsSection: Duplicating item ${widget.item.id} with name ${widget.item.itemName}');
 
-      if (widget.item.id == null) {
-        throw Exception('Item sem ID válido');
-      }
-
       // Use the new recursive duplication method
       await _serviceFactory.dataService
-          .duplicateItemWithChildren(widget.item.id!);
+          .duplicateItemWithChildren(widget.item.id);
 
       // Chamar atualização imediatamente para mostrar nova estrutura
       await widget.onItemAction();
@@ -500,14 +555,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                 ]));
     if (confirmed != true) return;
     try {
-      if (widget.item.id != null) {
-        await _serviceFactory.dataService.deleteItem(widget.item.id!);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Item excluído com sucesso'),
-              backgroundColor: Colors.green,
-              duration: Duration(milliseconds: 800)));
-        }
+      await _serviceFactory.dataService.deleteItem(widget.item.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Item excluído com sucesso'),
+            backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 800)));
       }
     } catch (e) {
       if (mounted) {
@@ -551,8 +604,6 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
       evaluationValue: processedValue,
       evaluation: widget.item.evaluation,
       observation: widget.item.observation,
-      isDamaged: widget.item.isDamaged,
-      tags: widget.item.tags,
       createdAt: widget.item.createdAt,
       updatedAt: DateTime.now(),
     );
@@ -626,8 +677,6 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
           evaluationValue: result, // Force new evaluation value
           evaluation: widget.item.evaluation,
           observation: widget.item.observation,
-          isDamaged: widget.item.isDamaged,
-          tags: widget.item.tags,
           createdAt: widget.item.createdAt,
           updatedAt: DateTime.now(),
         );
@@ -649,8 +698,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final evaluationOptions = widget.item.evaluationOptions ?? [];
-    final itemColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
-    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
+    final itemColor =
+        isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
+    final textColor =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -691,8 +742,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                       style: const TextStyle(
                           fontSize: 14, fontWeight: FontWeight.bold))),
                   const Text('Outro',
-                      style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 ];
               },
               menuMaxHeight: 200,
@@ -717,8 +768,8 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                 const DropdownMenuItem<String>(
                   value: 'Outro',
                   child: Text('Outro',
-                      style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               ],
               onChanged: (value) {
@@ -766,8 +817,10 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
     final isDark = theme.brightness == Brightness.dark;
 
     // Adaptive colors for light/dark theme
-    final itemColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
-    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
+    final itemColor =
+        isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);
+    final textColor =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFFE65100);
     final containerColor = itemColor.withAlpha((0.1 * 255).round());
     final borderColor = isDark
         ? theme.colorScheme.outline.withAlpha((0.3 * 255).round())
@@ -845,7 +898,9 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                       },
                     ),
                     _buildActionButton(
-                        icon: Icons.edit, label: 'Renomear', onPressed: _renameItem),
+                        icon: Icons.edit,
+                        label: 'Renomear',
+                        onPressed: _renameItem),
                     _buildActionButton(
                         icon: Icons.copy,
                         label: 'Duplicar',
@@ -871,8 +926,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Icon(Icons.note_alt,
-                              size: 16, color: itemColor),
+                          Icon(Icons.note_alt, size: 16, color: itemColor),
                           const SizedBox(width: 8),
                           Text('Observações',
                               style: TextStyle(

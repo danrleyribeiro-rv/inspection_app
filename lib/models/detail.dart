@@ -26,10 +26,6 @@ class Detail {
   final String? detailValue;
   @HiveField(9)
   final String? observation;
-  @HiveField(10)
-  final bool? isDamaged;
-  @HiveField(11)
-  final List<String>? tags;
   @HiveField(12)
   final DateTime? createdAt;
   @HiveField(13)
@@ -45,8 +41,6 @@ class Detail {
   final String? customOptionValue; // Valor da opção customizada
   @HiveField(18)
   final String? status; // Status do detalhe (pending, completed, etc)
-  @HiveField(19)
-  final bool? isRequired; // Se o detalhe é obrigatório
 
   Detail({
       String? id,
@@ -59,16 +53,13 @@ class Detail {
       required this.detailName,
       this.detailValue,
       this.observation,
-      this.isDamaged,
-      this.tags,
       this.createdAt,
       this.updatedAt,
       this.type,
       this.options,
       this.allowCustomOption,
       this.customOptionValue,
-      this.status,
-      this.isRequired})
+      this.status})
       : id = id ?? const Uuid().v4(),
         orderIndex = orderIndex ?? position ?? 0;
 
@@ -91,24 +82,6 @@ class Detail {
       return null;
     }
 
-    List<String>? parseTags(dynamic tagsData) {
-      if (tagsData == null) return null;
-
-      if (tagsData is List) {
-        return List<String>.from(tagsData);
-      } else if (tagsData is String) {
-        // Se for uma string separada por vírgulas
-        if (tagsData.isEmpty) return [];
-        return tagsData
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      }
-
-      return null;
-    }
-
     return Detail(
       id: json['id']?.toString(),
       inspectionId: json['inspection_id'],
@@ -122,10 +95,6 @@ class Detail {
       detailName: json['detail_name'] ?? json['name'],
       detailValue: json['detail_value'] ?? json['value']?.toString(),
       observation: json['observation'],
-      isDamaged: json['is_damaged'] is bool
-          ? json['is_damaged']
-          : (json['is_damaged'] is int ? json['is_damaged'] == 1 : null),
-      tags: parseTags(json['tags']),
       createdAt: json['created_at'] != null
           ? (json['created_at'] is String
               ? DateTime.parse(json['created_at'])
@@ -145,11 +114,6 @@ class Detail {
               : null),
       customOptionValue: json['custom_option_value']?.toString(),
       status: json['status']?.toString(),
-      isRequired: json['is_required'] is bool
-          ? json['is_required']
-          : (json['is_required'] is int
-              ? json['is_required'] == 1
-              : (json['required'] is bool ? json['required'] : null)),
     );
   }
 
@@ -167,8 +131,6 @@ class Detail {
       'detail_name': detailName,
       'detail_value': detailValue,
       'observation': observation,
-      'is_damaged': isDamaged == true ? 1 : 0,
-      'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'type': type,
@@ -176,7 +138,6 @@ class Detail {
       'allow_custom_option': allowCustomOption == true ? 1 : 0,
       'custom_option_value': customOptionValue,
       'status': status,
-      'is_required': isRequired == true ? 1 : 0,
     };
   }
 
@@ -192,8 +153,6 @@ class Detail {
       'detail_name': detailName,
       'detail_value': detailValue,
       'observation': observation,
-      'is_damaged': isDamaged == true ? 1 : 0,
-      'tags': tags?.join(',') ?? '',
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'type': type,
@@ -201,7 +160,6 @@ class Detail {
       'allow_custom_option': allowCustomOption == true ? 1 : 0,
       'custom_option_value': customOptionValue,
       'status': status,
-      'is_required': isRequired == true ? 1 : 0,
     };
   }
 
@@ -216,8 +174,6 @@ class Detail {
     String? detailName,
     String? detailValue,
     String? observation,
-    bool? isDamaged,
-    List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? type,
@@ -225,7 +181,6 @@ class Detail {
     bool? allowCustomOption,
     String? customOptionValue,
     String? status,
-    bool? isRequired,
   }) {
     return Detail(
       id: id ?? this.id,
@@ -238,8 +193,6 @@ class Detail {
       detailName: detailName ?? this.detailName,
       detailValue: detailValue ?? this.detailValue,
       observation: observation ?? this.observation,
-      isDamaged: isDamaged ?? this.isDamaged,
-      tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       type: type ?? this.type,
@@ -247,7 +200,6 @@ class Detail {
       allowCustomOption: allowCustomOption ?? this.allowCustomOption,
       customOptionValue: customOptionValue ?? this.customOptionValue,
       status: status ?? this.status,
-      isRequired: isRequired ?? this.isRequired,
     );
   }
 

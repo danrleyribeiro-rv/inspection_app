@@ -26,8 +26,6 @@ class TopicAdapter extends TypeAdapter<Topic> {
       description: fields[6] as String?,
       directDetails: fields[7] as bool?,
       observation: fields[8] as String?,
-      isDamaged: fields[9] as bool?,
-      tags: (fields[10] as List?)?.cast<String>(),
       createdAt: fields[11] as DateTime?,
       updatedAt: fields[12] as DateTime?,
     );
@@ -55,10 +53,6 @@ class TopicAdapter extends TypeAdapter<Topic> {
       ..write(obj.directDetails)
       ..writeByte(8)
       ..write(obj.observation)
-      ..writeByte(9)
-      ..write(obj.isDamaged)
-      ..writeByte(10)
-      ..write(obj.tags)
       ..writeByte(11)
       ..write(obj.createdAt)
       ..writeByte(12)

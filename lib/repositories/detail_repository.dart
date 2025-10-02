@@ -92,17 +92,6 @@ class DetailRepository {
     }
   }
 
-  Future<void> setNonConformity(String detailId, bool hasNonConformity) async {
-    final detail = await findById(detailId);
-    if (detail != null) {
-      final updatedDetail = detail.copyWith(
-        isDamaged: hasNonConformity,
-        updatedAt: DateFormatter.now(),
-      );
-      await update(updatedDetail);
-    }
-  }
-
   Future<void> reorderDetails(String itemId, List<String> detailIds) async {
     for (int i = 0; i < detailIds.length; i++) {
       final detail = await findById(detailIds[i]);
@@ -147,16 +136,6 @@ class DetailRepository {
     return allDetails.where((detail) => detail.type == type).toList();
   }
 
-  Future<List<Detail>> findRequired() async {
-    final allDetails = DatabaseHelper.details.values.toList();
-    return allDetails.where((detail) => detail.isRequired == true).toList();
-  }
-
-  Future<List<Detail>> findWithNonConformity() async {
-    final allDetails = DatabaseHelper.details.values.toList();
-    return allDetails.where((detail) => detail.isDamaged == true).toList();
-  }
-
   Future<List<Detail>> findWithValue() async {
     final allDetails = DatabaseHelper.details.values.toList();
     return allDetails.where((detail) =>
@@ -173,17 +152,6 @@ class DetailRepository {
     final details = await findByItemId(itemId);
     return details.where((d) => d.status == 'completed').length;
   }
-
-  Future<int> countRequiredByItemId(String itemId) async {
-    final details = await findByItemId(itemId);
-    return details.where((d) => d.isRequired == true).length;
-  }
-
-  Future<int> countRequiredCompletedByItemId(String itemId) async {
-    final details = await findByItemId(itemId);
-    return details.where((d) => d.isRequired == true && d.status == 'completed').length;
-  }
-
   // =================================
   // MÉTODOS PARA HIERARQUIAS FLEXÍVEIS
   // =================================

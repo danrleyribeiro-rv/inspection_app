@@ -173,7 +173,6 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
                   'name': d.detailName,
                   'type': d.type,
                   'options': d.options,
-                  'isRequired': d.isRequired,
                 }).toList();
               }
 
@@ -188,7 +187,6 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
               'name': d.detailName,
               'type': d.type,
               'options': d.options,
-              'isRequired': d.isRequired,
             }).toList();
           }
 
@@ -415,7 +413,6 @@ Future<void> _loadTemplateItems() async {
         observation: '',
         type: (templateDetail['type'] ?? 'text').toString(),
         options: detailOptions,
-        isRequired: templateDetail['isRequired'] == true,
       );
 
       await _serviceFactory.dataService.saveDetail(newDetail);
@@ -496,7 +493,6 @@ Future<void> _loadTemplateItems() async {
               observation: '',
               type: (templateDetail['type'] ?? 'text').toString(),
               options: detailOptions,
-              isRequired: templateDetail['isRequired'] == true,
             );
 
             await _serviceFactory.dataService.saveDetail(newDetail);

@@ -247,7 +247,8 @@ class _HierarchicalInspectionViewState
                               // Defer setState to avoid calling during build
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted) {
-                                  setState(() {}); // Atualização instantânea local
+                                  setState(
+                                      () {}); // Atualização instantânea local
                                 }
                               });
                             }
@@ -336,7 +337,8 @@ class _HierarchicalInspectionViewState
                                     level: 2,
                                     icon: Icons.list_alt,
                                   ),
-                                  if (item.evaluable == true || isCurrentItemExpanded)
+                                  if (item.evaluable == true ||
+                                      isCurrentItemExpanded)
                                     ItemDetailsSection(
                                       item: item,
                                       topic: topic,
@@ -373,52 +375,50 @@ class _HierarchicalInspectionViewState
                                     ),
                                   if (itemDetails.isNotEmpty)
                                     DetailsListSection(
-                                            key: ValueKey(
-                                                '${topic.id}_${item.id}_details'),
-                                            details: itemDetails,
-                                            item: item,
-                                            topic: topic,
-                                            inspectionId: widget.inspectionId,
-                                            topicIndex: topicIndex,
-                                            itemIndex: itemIndex,
-                                            expandedDetailId:
-                                                _expandedDetailId, // Passa o ID do detalhe expandido
-                                            onDetailUpdated: (updatedDetail) {
-                                              final cacheKey =
-                                                  '${topicId}_$itemId';
-                                              final details = widget
-                                                      .detailsCache[cacheKey] ??
-                                                  [];
-                                              final index = details.indexWhere(
-                                                  (d) =>
-                                                      d.id == updatedDetail.id);
-                                              if (index >= 0) {
-                                                details[index] = updatedDetail;
-                                                widget.detailsCache[cacheKey] =
-                                                    details;
-                                              }
-                                              // Defer setState to avoid calling during build
-                                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                                if (mounted) {
-                                                  setState(() {});
-                                                }
-                                              });
-                                            },
-                                            onDetailAction: () async {
-                                              _invalidateProgressCache();
-                                              await widget.onUpdateCache();
-                                              // Force UI update after cache reload
-                                              if (mounted) {
-                                                setState(() {});
-                                              }
-                                            },
-                                            onDetailExpanded: (detailId) {
-                                              // Salva qual detalhe foi expandido
-                                              setState(() {
-                                                _expandedDetailId = detailId;
-                                              });
-                                            },
-                                          ),
+                                      key: ValueKey(
+                                          '${topic.id}_${item.id}_details'),
+                                      details: itemDetails,
+                                      item: item,
+                                      topic: topic,
+                                      inspectionId: widget.inspectionId,
+                                      topicIndex: topicIndex,
+                                      itemIndex: itemIndex,
+                                      expandedDetailId:
+                                          _expandedDetailId, // Passa o ID do detalhe expandido
+                                      onDetailUpdated: (updatedDetail) {
+                                        final cacheKey = '${topicId}_$itemId';
+                                        final details =
+                                            widget.detailsCache[cacheKey] ?? [];
+                                        final index = details.indexWhere(
+                                            (d) => d.id == updatedDetail.id);
+                                        if (index >= 0) {
+                                          details[index] = updatedDetail;
+                                          widget.detailsCache[cacheKey] =
+                                              details;
+                                        }
+                                        // Defer setState to avoid calling during build
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            setState(() {});
+                                          }
+                                        });
+                                      },
+                                      onDetailAction: () async {
+                                        _invalidateProgressCache();
+                                        await widget.onUpdateCache();
+                                        // Force UI update after cache reload
+                                        if (mounted) {
+                                          setState(() {});
+                                        }
+                                      },
+                                      onDetailExpanded: (detailId) {
+                                        // Salva qual detalhe foi expandido
+                                        setState(() {
+                                          _expandedDetailId = detailId;
+                                        });
+                                      },
+                                    ),
                                   if (itemDetails.isEmpty)
                                     Padding(
                                       padding: const EdgeInsets.all(32.0),
@@ -504,26 +504,11 @@ class _HierarchicalInspectionViewState
       if (item.id != null) {
         final details = widget.detailsCache['${topic.id}_${item.id}'] ?? [];
         if (details.isNotEmpty) {
-          final requiredDetails =
-              details.where((d) => d.isRequired == true).toList();
-          if (requiredDetails.isNotEmpty) {
-            // Se tem detalhes obrigatórios, todos devem estar completos
-            final completedRequired = requiredDetails
-                .where(
-                    (d) => d.detailValue != null && d.detailValue!.isNotEmpty)
-                .toList();
-            if (completedRequired.length == requiredDetails.length) {
-              completedItems++;
-            }
-          } else {
-            // Se não tem detalhes obrigatórios, considera completo se tem pelo menos um detalhe preenchido
-            final completedDetails = details
-                .where(
-                    (d) => d.detailValue != null && d.detailValue!.isNotEmpty)
-                .toList();
-            if (completedDetails.isNotEmpty) {
-              completedItems++;
-            }
+          final completedDetails = details
+              .where((d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+              .toList();
+          if (completedDetails.isNotEmpty) {
+            completedItems++;
           }
         }
       }

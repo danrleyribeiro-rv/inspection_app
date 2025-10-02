@@ -481,13 +481,11 @@ class _DetailListItemState extends State<DetailListItem> {
   Timer? _debounce;
   Timer? _selectDebounce;
   Timer? _booleanDebounce;
-  bool _isDamaged = false;
   String _booleanValue = 'não_se_aplica';
   String _currentDetailName = '';
   final Map<String, int> _mediaCountCache = {};
   final Map<String, int> _ncCountCache = {};
-  int _mediaCountVersion = 0;
-  int _ncCountVersion = 0;
+  // Version counters removed - unused and caused analyzer warnings
   String? _currentSelectValue;
 
   @override
@@ -516,8 +514,7 @@ class _DetailListItemState extends State<DetailListItem> {
       _loadMediaCountOnce();
       _loadNCCountOnce();
       setState(() {
-        _mediaCountVersion++;
-        _ncCountVersion++;
+        // version counters removed - invalidation handled by cache removal and setState
       });
     }
   }
@@ -776,7 +773,6 @@ class _DetailListItemState extends State<DetailListItem> {
     }
 
     _observationController.text = widget.detail.observation ?? '';
-    _isDamaged = widget.detail.isDamaged ?? false;
     _currentDetailName = widget.detail.detailName;
   }
 
@@ -844,14 +840,11 @@ class _DetailListItemState extends State<DetailListItem> {
       observation: _observationController.text.isEmpty
           ? null
           : _observationController.text,
-      isDamaged: _isDamaged,
-      tags: widget.detail.tags,
       createdAt: widget.detail.createdAt,
       updatedAt: DateTime.now(),
       type: widget.detail.type,
       options: widget.detail.options,
       status: widget.detail.status,
-      isRequired: widget.detail.isRequired,
     );
 
     widget.onDetailUpdated(updatedDetail);
@@ -896,14 +889,11 @@ class _DetailListItemState extends State<DetailListItem> {
       observation: _observationController.text.isEmpty
           ? null
           : _observationController.text,
-      isDamaged: _isDamaged,
-      tags: widget.detail.tags,
       createdAt: widget.detail.createdAt,
       updatedAt: DateTime.now(),
       type: widget.detail.type,
       options: widget.detail.options,
       status: widget.detail.status,
-      isRequired: widget.detail.isRequired,
     );
     // Atualizar imediatamente o estado visual
     widget.onDetailUpdated(updatedDetail);
@@ -968,17 +958,20 @@ class _DetailListItemState extends State<DetailListItem> {
                     controller: controller,
                     maxLines: 3,
                     autofocus: true,
-                    onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
+                    onChanged: (_) =>
+                        setDialogState(() {}), // Atualiza apenas o dialog
                     decoration: InputDecoration(
                       hintText: 'Digite suas observações...',
-                      hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                      hintStyle:
+                          TextStyle(fontSize: 11, color: theme.hintColor),
                       border: const OutlineInputBorder(),
                       suffixIcon: controller.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 20),
                               onPressed: () {
                                 controller.clear();
-                                setDialogState(() {}); // Atualiza apenas o dialog
+                                setDialogState(
+                                    () {}); // Atualiza apenas o dialog
                               },
                             )
                           : null,
@@ -1001,7 +994,8 @@ class _DetailListItemState extends State<DetailListItem> {
                   child: const Text('Cancelar'),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(''), // Return empty string for clear
+                  onPressed: () => Navigator.of(context)
+                      .pop(''), // Return empty string for clear
                   child: const Text('Limpar'),
                 ),
                 TextButton(
@@ -1044,8 +1038,6 @@ class _DetailListItemState extends State<DetailListItem> {
         detailName: newName,
         detailValue: widget.detail.detailValue,
         observation: widget.detail.observation,
-        isDamaged: widget.detail.isDamaged,
-        tags: widget.detail.tags,
         createdAt: widget.detail.createdAt,
         updatedAt: DateTime.now(),
         type: widget.detail.type,
@@ -1143,7 +1135,6 @@ class _DetailListItemState extends State<DetailListItem> {
     }
   }
 
-
   void _openDetailGallery() {
     try {
       Navigator.of(context).push(
@@ -1216,7 +1207,8 @@ class _DetailListItemState extends State<DetailListItem> {
         setState(() {});
       }
     } catch (e) {
-      debugPrint('Error getting media count for detail ${widget.detail.id}: $e');
+      debugPrint(
+          'Error getting media count for detail ${widget.detail.id}: $e');
       _mediaCountCache[cacheKey] = 0;
     }
   }
@@ -1254,7 +1246,8 @@ class _DetailListItemState extends State<DetailListItem> {
     if (_ncCountCache.containsKey(cacheKey)) return;
 
     try {
-      final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+      final allNCs = await _serviceFactory.dataService
+          .getNonConformities(widget.inspectionId);
 
       // Filter to show only detail-level NCs
       final detailNCs = allNCs.where((nc) {
@@ -1341,46 +1334,27 @@ class _DetailListItemState extends State<DetailListItem> {
     );
   }
 
-  // Métodos _buildValueInput e _getDisplayValue permanecem os mesmos
-  // ...
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
-    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
+    final textColor =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
-      elevation: _isDamaged ? 2 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: _isDamaged
-              ? Colors.red
-              : detailColor.withAlpha((0.3 * 255).round()),
-          width: _isDamaged ? 2 : 1,
-        ),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _isDamaged
-                  ? Colors.red.withAlpha((0.1 * 255).round())
-                  : null,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
-            ),
             child: Column(
               children: [
                 Row(
                   children: [
-                    if (_isDamaged)
-                      const Icon(Icons.warning, color: Colors.red, size: 18),
-                    if (_isDamaged) const SizedBox(width: 8),
                     Expanded(
                       child: Row(
                         children: [
@@ -1390,7 +1364,7 @@ class _DetailListItemState extends State<DetailListItem> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: _isDamaged ? Colors.red : textColor,
+                                color: textColor,
                               ),
                             ),
                           ),
@@ -1430,8 +1404,8 @@ class _DetailListItemState extends State<DetailListItem> {
                           padding: const EdgeInsets.all(3)),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete,
-                          size: 14, color: Colors.red),
+                      icon:
+                          const Icon(Icons.delete, size: 14, color: Colors.red),
                       onPressed: widget.onDetailDeleted,
                       tooltip: 'Excluir',
                       style: IconButton.styleFrom(
@@ -1468,8 +1442,7 @@ class _DetailListItemState extends State<DetailListItem> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Ações e Observações agora estão aqui
-                  if (widget.detail.id != null &&
-                      widget.detail.topicId != null) ...[
+                  if (widget.detail.topicId != null) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -1542,64 +1515,12 @@ class _DetailListItemState extends State<DetailListItem> {
     );
   }
 
-  String _getDisplayValue() {
-    switch (widget.detail.type) {
-      case 'boolean':
-        switch (_booleanValue) {
-          case 'sim':
-            return 'Sim';
-          case 'não':
-            return 'Não';
-          case 'não_se_aplica':
-            return 'Não se aplica';
-          default:
-            return 'Não se aplica';
-        }
-      case 'boolean01':
-        switch (_booleanValue) {
-          case 'Aprovado':
-            return 'Aprovado';
-          case 'Reprovado':
-            return 'Reprovado';
-          case 'não_se_aplica':
-            return 'Não se aplica';
-          default:
-            return 'Não se aplica';
-        }
-      case 'boolean02':
-        switch (_booleanValue) {
-          case 'Conforme':
-            return 'Conforme';
-          case 'Não Conforme':
-            return 'Não Conforme';
-          case 'não_se_aplica':
-            return 'Não se aplica';
-          default:
-            return 'Não se aplica';
-        }
-      case 'measure':
-        final altura = _heightController.text.trim();
-        final largura = _widthController.text.trim();
-        final profundidade = _depthController.text.trim();
-
-        final parts = <String>[];
-        if (altura.isNotEmpty) parts.add(altura);
-        if (largura.isNotEmpty) parts.add(largura);
-        if (profundidade.isNotEmpty) parts.add(profundidade);
-
-        return parts.join(' x '); // Formato mais limpo: "2 x 1 x 5"
-      case 'select':
-        return _currentSelectValue ?? '';
-      default:
-        return _valueController.text;
-    }
-  }
-
   Widget _buildValueInput() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;
-    final textColor = isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
+    final textColor =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF1B5E20);
     switch (widget.detail.type) {
       case 'select':
         if (widget.detail.options!.isNotEmpty) {
@@ -1702,12 +1623,16 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'sim'
                             ? Colors.green
-                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'sim'
                               ? Colors.green
-                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1737,12 +1662,16 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'não'
                             ? Colors.red
-                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'não'
                               ? Colors.red
-                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1772,12 +1701,16 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'não_se_aplica'
                             ? Colors.yellowAccent
-                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'não_se_aplica'
                               ? Colors.yellowAccent
-                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1943,12 +1876,16 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'Conforme'
                             ? Colors.green
-                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'Conforme'
                               ? Colors.green
-                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -1977,12 +1914,16 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'Não Conforme'
                             ? Colors.red
-                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'Não Conforme'
                               ? Colors.red
-                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -2011,12 +1952,16 @@ class _DetailListItemState extends State<DetailListItem> {
                       decoration: BoxDecoration(
                         color: _booleanValue == 'não_se_aplica'
                             ? Colors.yellowAccent
-                            : isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                            : isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _booleanValue == 'não_se_aplica'
                               ? Colors.yellowAccent
-                              : isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              : isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                           width: 1.5,
                         ),
                       ),
@@ -2206,14 +2151,11 @@ class _DetailListItemState extends State<DetailListItem> {
           detailName: widget.detail.detailName,
           detailValue: result, // Definir o valor customizado
           observation: widget.detail.observation,
-          isDamaged: widget.detail.isDamaged,
-          tags: widget.detail.tags,
           createdAt: widget.detail.createdAt,
           updatedAt: DateTime.now(),
           type: widget.detail.type,
           options: currentOptions, // Novas opções incluindo a personalizada
           status: widget.detail.status,
-          isRequired: widget.detail.isRequired,
         );
         widget.onDetailUpdated(updatedDetail);
 

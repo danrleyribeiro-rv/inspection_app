@@ -49,8 +49,7 @@ class OfflineDataService {
     _mediaRepository = MediaRepository();
 
     _isInitialized = true;
-    debugPrint(
-        'OfflineDataService: Initialized with repository pattern');
+    debugPrint('OfflineDataService: Initialized with repository pattern');
   }
 
   // ===============================
@@ -91,16 +90,15 @@ class OfflineDataService {
   }
 
   Future<void> insertOrUpdateInspectionFromCloud(Inspection inspection) async {
-    
     await _inspectionRepository.insertOrUpdateFromCloud(inspection);
-    
+
     // Verificar se foi salvo corretamente
     final savedInspection = await _inspectionRepository.findById(inspection.id);
     if (savedInspection != null) {
     } else {
-      debugPrint('OfflineDataService: ❌ ERRO: Vistoria ${inspection.id} NÃO foi encontrada após salvamento!');
+      debugPrint(
+          'OfflineDataService: ❌ ERRO: Vistoria ${inspection.id} NÃO foi encontrada após salvamento!');
     }
-    
   }
 
   Future<void> insertOrUpdateTopicFromCloud(Topic topic) async {
@@ -111,9 +109,12 @@ class OfflineDataService {
     await _itemRepository.insertOrUpdateFromCloud(item);
   }
 
-  Future<void> addSyncHistoryEntry(String inspectionId, String inspectorId, String action, {Map<String, dynamic>? metadata}) async {
+  Future<void> addSyncHistoryEntry(
+      String inspectionId, String inspectorId, String action,
+      {Map<String, dynamic>? metadata}) async {
     // Deprecated - sync history removed from Inspection model
-    debugPrint('DataService: Sync history entry ignored (feature removed): $action for inspection $inspectionId');
+    debugPrint(
+        'DataService: Sync history entry ignored (feature removed): $action for inspection $inspectionId');
   }
 
   // Método público para forçar upload com debugging
@@ -141,7 +142,7 @@ class OfflineDataService {
     debugPrint(
         'DataService: Updating inspection $inspectionId status to $status');
     await _inspectionRepository.updateStatus(inspectionId, status);
-    
+
     debugPrint(
         'DataService: Inspection $inspectionId status updated to $status');
   }
@@ -183,7 +184,7 @@ class OfflineDataService {
 
   Future<void> updateTopic(Topic topic) async {
     await _topicRepository.update(topic);
-    
+
     debugPrint('DataService: Topic ${topic.id} updated successfully');
   }
 
@@ -296,7 +297,7 @@ class OfflineDataService {
     debugPrint(
         'DataService: Updating detail ${detail.id} - ${detail.detailName} with value: ${detail.detailValue}');
     await _detailRepository.update(detail);
-    
+
     debugPrint('DataService: Detail ${detail.id} updated successfully');
   }
 
@@ -321,11 +322,6 @@ class OfflineDataService {
     await _detailRepository.markAsIncomplete(detailId);
   }
 
-  Future<void> setDetailNonConformity(
-      String detailId, bool hasNonConformity) async {
-    await _detailRepository.setNonConformity(detailId, hasNonConformity);
-  }
-
   Future<void> reorderDetails(String itemId, List<String> detailIds) async {
     await _detailRepository.reorderDetails(itemId, detailIds);
   }
@@ -338,21 +334,14 @@ class OfflineDataService {
     return await _detailRepository.countCompletedByItemId(itemId);
   }
 
-  Future<int> getRequiredDetailCount(String itemId) async {
-    return await _detailRepository.countRequiredByItemId(itemId);
-  }
-
-  Future<int> getRequiredCompletedDetailCount(String itemId) async {
-    return await _detailRepository.countRequiredCompletedByItemId(itemId);
-  }
-
   // Contadores para detalhes diretos de tópico
   Future<int> getDirectDetailCount(String topicId) async {
     return await _detailRepository.countDirectDetailsByTopicId(topicId);
   }
 
   Future<int> getDirectDetailCompletedCount(String topicId) async {
-    return await _detailRepository.countDirectDetailsCompletedByTopicId(topicId);
+    return await _detailRepository
+        .countDirectDetailsCompletedByTopicId(topicId);
   }
 
   // ===============================
@@ -382,13 +371,12 @@ class OfflineDataService {
 
   Future<String> saveNonConformity(NonConformity nonConformity) async {
     final result = await _nonConformityRepository.insert(nonConformity);
-    
+
     return result;
   }
 
   Future<void> updateNonConformity(NonConformity nonConformity) async {
     await _nonConformityRepository.update(nonConformity);
-    
   }
 
   Future<void> insertOrUpdateNonConformity(NonConformity nonConformity) async {
@@ -398,7 +386,6 @@ class OfflineDataService {
     } else {
       await _nonConformityRepository.insert(nonConformity);
     }
-
   }
 
   Future<void> deleteNonConformity(String nonConformityId) async {
@@ -437,7 +424,8 @@ class OfflineDataService {
     return await _mediaRepository.findByTopicId(topicId);
   }
 
-  Future<List<OfflineMedia>> getMediaByTopicDirectDetails(String topicId) async {
+  Future<List<OfflineMedia>> getMediaByTopicDirectDetails(
+      String topicId) async {
     return await _mediaRepository.findByTopicDirectDetails(topicId);
   }
 
@@ -521,7 +509,7 @@ class OfflineDataService {
       createdAt: originalCreatedAt ?? now,
       updatedAt: originalUpdatedAt ?? now,
     );
-    
+
     return await _mediaRepository.insert(media);
   }
 
@@ -612,7 +600,8 @@ class OfflineDataService {
   }
 
   /// Buscar mídias por inspeção como mapas (compatibilidade)
-  Future<List<Map<String, dynamic>>> getMediaFilesByInspection(String inspectionId) async {
+  Future<List<Map<String, dynamic>>> getMediaFilesByInspection(
+      String inspectionId) async {
     final mediaList = await _mediaRepository.findByInspectionId(inspectionId);
     return mediaList.map((media) => media.toMap()).toList();
   }
@@ -641,11 +630,14 @@ class OfflineDataService {
   }
 
   /// Atualizar mídia de detalhe (compatibilidade com estrutura JSON legacy)
-  Future<void> updateDetailMedia(String inspectionId, String topicId, String itemId, String detailId, Map<String, dynamic> mediaData) async {
+  Future<void> updateDetailMedia(String inspectionId, String topicId,
+      String itemId, String detailId, Map<String, dynamic> mediaData) async {
     // Para compatibilidade, vamos apenas salvar a mídia associada ao detalhe
     // Esta funcionalidade era específica da estrutura JSON embedded antiga
-    debugPrint('OfflineDataService: updateDetailMedia called but not implemented in new architecture');
-    debugPrint('OfflineDataService: Use saveOfflineMedia with detailId parameter instead');
+    debugPrint(
+        'OfflineDataService: updateDetailMedia called but not implemented in new architecture');
+    debugPrint(
+        'OfflineDataService: Use saveOfflineMedia with detailId parameter instead');
   }
 
   /// Buscar estatísticas gerais (compatibilidade)
@@ -748,7 +740,8 @@ class OfflineDataService {
   }
 
   // Reordenar detalhes (automaticamente detecta se é de item ou tópico direto)
-  Future<void> reorderDetailsByContext(String contextId, List<String> detailIds, {String? itemId}) async {
+  Future<void> reorderDetailsByContext(String contextId, List<String> detailIds,
+      {String? itemId}) async {
     if (itemId != null) {
       // Reordenar detalhes de item
       await _detailRepository.reorderDetails(itemId, detailIds);
@@ -759,7 +752,8 @@ class OfflineDataService {
   }
 
   // Reordenar detalhes diretos de tópico
-  Future<void> reorderDirectDetails(String topicId, List<String> detailIds) async {
+  Future<void> reorderDirectDetails(
+      String topicId, List<String> detailIds) async {
     await _detailRepository.reorderDirectDetails(topicId, detailIds);
   }
 
@@ -769,7 +763,8 @@ class OfflineDataService {
   }
 
   // Converter tópico entre hierarquias
-  Future<void> convertTopicHierarchy(String topicId, bool toDirectDetails) async {
+  Future<void> convertTopicHierarchy(
+      String topicId, bool toDirectDetails) async {
     await _topicRepository.convertTopicHierarchy(topicId, toDirectDetails);
   }
 
@@ -796,13 +791,15 @@ class OfflineDataService {
         await _processTopicFromJson(inspectionId, topicData, topicIndex);
       }
 
-      debugPrint('DataService: Inspection created from JSON with ID: $inspectionId');
+      debugPrint(
+          'DataService: Inspection created from JSON with ID: $inspectionId');
       return inspectionId;
     });
   }
 
   // Processar tópico individual do JSON
-  Future<String> _processTopicFromJson(String inspectionId, Map<String, dynamic> topicData, int position) async {
+  Future<String> _processTopicFromJson(
+      String inspectionId, Map<String, dynamic> topicData, int position) async {
     // Criar tópico
     final topic = Topic(
       inspectionId: inspectionId,
@@ -816,17 +813,21 @@ class OfflineDataService {
     );
 
     final topicId = await _topicRepository.insert(topic);
-    debugPrint('DataService: Topic created: ${topic.topicName} (${topic.directDetails == true ? 'direct details' : 'with items'})');
+    debugPrint(
+        'DataService: Topic created: ${topic.topicName} (${topic.directDetails == true ? 'direct details' : 'with items'})');
 
     // Determinar se tem detalhes diretos ou itens
     final hasDirectDetails = topicData['direct_details'] == true;
-    
+
     if (hasDirectDetails) {
       // Processar detalhes diretos
       final detailsData = topicData['details'] as List<dynamic>? ?? [];
-      for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
+      for (int detailIndex = 0;
+          detailIndex < detailsData.length;
+          detailIndex++) {
         final detailData = detailsData[detailIndex] as Map<String, dynamic>;
-        await _processDetailFromJson(inspectionId, topicId, null, detailData, detailIndex);
+        await _processDetailFromJson(
+            inspectionId, topicId, null, detailData, detailIndex);
       }
     } else {
       // Processar itens
@@ -841,7 +842,8 @@ class OfflineDataService {
   }
 
   // Processar item individual do JSON
-  Future<String> _processItemFromJson(String inspectionId, String topicId, Map<String, dynamic> itemData, int position) async {
+  Future<String> _processItemFromJson(String inspectionId, String topicId,
+      Map<String, dynamic> itemData, int position) async {
     // Criar item
     final item = Item(
       inspectionId: inspectionId,
@@ -851,8 +853,8 @@ class OfflineDataService {
       itemName: itemData['name'] ?? '',
       description: itemData['description'],
       evaluable: itemData['evaluable'] ?? false,
-      evaluationOptions: itemData['evaluation_options'] != null 
-          ? List<String>.from(itemData['evaluation_options']) 
+      evaluationOptions: itemData['evaluation_options'] != null
+          ? List<String>.from(itemData['evaluation_options'])
           : null,
       evaluationValue: itemData['evaluation_value'],
       createdAt: DateTime.now(),
@@ -860,20 +862,23 @@ class OfflineDataService {
     );
 
     final itemId = await _itemRepository.insert(item);
-    debugPrint('DataService: Item created: ${item.itemName} (evaluable: ${item.evaluable})');
+    debugPrint(
+        'DataService: Item created: ${item.itemName} (evaluable: ${item.evaluable})');
 
     // Processar detalhes do item
     final detailsData = itemData['details'] as List<dynamic>? ?? [];
     for (int detailIndex = 0; detailIndex < detailsData.length; detailIndex++) {
       final detailData = detailsData[detailIndex] as Map<String, dynamic>;
-      await _processDetailFromJson(inspectionId, topicId, itemId, detailData, detailIndex);
+      await _processDetailFromJson(
+          inspectionId, topicId, itemId, detailData, detailIndex);
     }
 
     return itemId;
   }
 
   // Processar detalhe individual do JSON
-  Future<String> _processDetailFromJson(String inspectionId, String topicId, String? itemId, Map<String, dynamic> detailData, int position) async {
+  Future<String> _processDetailFromJson(String inspectionId, String topicId,
+      String? itemId, Map<String, dynamic> detailData, int position) async {
     // Determinar opções
     List<String>? options;
     if (detailData['options'] != null) {
@@ -890,7 +895,6 @@ class OfflineDataService {
       detailName: detailData['name'] ?? '',
       type: detailData['type'] ?? 'text',
       options: options,
-      isRequired: detailData['required'] ?? false,
       detailValue: detailData['value']?.toString(),
       observation: detailData['observation'],
       allowCustomOption: false, // Será implementado posteriormente
@@ -899,7 +903,8 @@ class OfflineDataService {
     );
 
     final detailId = await _detailRepository.insert(detail);
-    debugPrint('DataService: Detail created: ${detail.detailName} (${detail.type}) ${itemId != null ? 'for item' : 'direct'}');
+    debugPrint(
+        'DataService: Detail created: ${detail.detailName} (${detail.type}) ${itemId != null ? 'for item' : 'direct'}');
 
     return detailId;
   }
@@ -1013,23 +1018,19 @@ class OfflineDataService {
 
     for (final topic in topics) {
       final hasDirectDetails = topic.directDetails == true;
-      
+
       if (hasDirectDetails) {
         // Tópico com detalhes diretos - contar detalhes
         final details = await getDirectDetails(topic.id ?? '');
         totalUnits += details.length;
-        
+
         for (final detail in details) {
-          if (detail.isRequired == true) {
-            // Se é obrigatório, deve estar completo
-            if (detail.status == 'completed') {
-              completedUnits++;
-            }
-          } else {
-            // Se não é obrigatório, considera completo se tem valor
-            if (detail.detailValue != null && detail.detailValue!.isNotEmpty) {
-              completedUnits++;
-            }
+          // Treat completion based on the detail status or presence of a value.
+          if (detail.status == 'completed') {
+            completedUnits++;
+          } else if (detail.detailValue != null &&
+              detail.detailValue!.isNotEmpty) {
+            completedUnits++;
           }
         }
       } else {
@@ -1039,20 +1040,16 @@ class OfflineDataService {
 
         for (final item in items) {
           final details = await getDetails(item.id ?? '');
-          final requiredDetails =
-              details.where((d) => d.isRequired == true).toList();
-
-          if (requiredDetails.isNotEmpty) {
-            final completedRequiredDetails =
-                requiredDetails.where((d) => d.status == 'completed').toList();
-            if (completedRequiredDetails.length == requiredDetails.length) {
-              completedUnits++;
-            }
+          final completedDetails =
+              details.where((d) => d.status == 'completed').toList();
+          if (completedDetails.isNotEmpty) {
+            completedUnits++;
           } else {
-            // Se não há detalhes obrigatórios, considerar o item como completo se tem ao menos um detalhe preenchido
-            final completedDetails =
-                details.where((d) => d.status == 'completed').toList();
-            if (completedDetails.isNotEmpty) {
+            final filledDetails = details
+                .where(
+                    (d) => d.detailValue != null && d.detailValue!.isNotEmpty)
+                .toList();
+            if (filledDetails.isNotEmpty) {
               completedUnits++;
             }
           }
@@ -1068,7 +1065,7 @@ class OfflineDataService {
   Future<void> recalculateTopicProgress(String topicId) async {
     // Verificar se é tópico com detalhes diretos ou com itens
     final hasDirectDetails = await this.hasDirectDetails(topicId);
-    
+
     int totalUnits = 0;
     int completedUnits = 0;
 
@@ -1140,7 +1137,8 @@ class OfflineDataService {
   /// Download completo de inspeção do Firestore
   Future<void> downloadInspectionFromCloud(String inspectionId) async {
     try {
-      debugPrint('OfflineDataService: Downloading inspection $inspectionId from cloud');
+      debugPrint(
+          'OfflineDataService: Downloading inspection $inspectionId from cloud');
 
       // Buscar inspeção no Firestore
       final inspectionDoc = await FirebaseFirestore.instance
@@ -1169,9 +1167,11 @@ class OfflineDataService {
         await _downloadTemplate(inspection.templateId!);
       }
 
-      debugPrint('OfflineDataService: Successfully downloaded inspection $inspectionId');
+      debugPrint(
+          'OfflineDataService: Successfully downloaded inspection $inspectionId');
     } catch (e) {
-      debugPrint('OfflineDataService: Error downloading inspection $inspectionId: $e');
+      debugPrint(
+          'OfflineDataService: Error downloading inspection $inspectionId: $e');
       rethrow;
     }
   }
@@ -1193,7 +1193,8 @@ class OfflineDataService {
           .get();
 
       if (!templateDoc.exists) {
-        debugPrint('OfflineDataService: Template $templateId not found in cloud');
+        debugPrint(
+            'OfflineDataService: Template $templateId not found in cloud');
         return;
       }
 
@@ -1216,7 +1217,8 @@ class OfflineDataService {
 
       debugPrint('OfflineDataService: Downloaded template $templateId');
     } catch (e) {
-      debugPrint('OfflineDataService: Error downloading template $templateId: $e');
+      debugPrint(
+          'OfflineDataService: Error downloading template $templateId: $e');
     }
   }
 
@@ -1228,7 +1230,8 @@ class OfflineDataService {
       if (value is Timestamp) {
         converted[key] = value.toDate();
       } else if (value is Map) {
-        converted[key] = _convertFirestoreTimestamps(Map<String, dynamic>.from(value));
+        converted[key] =
+            _convertFirestoreTimestamps(Map<String, dynamic>.from(value));
       } else if (value is List) {
         converted[key] = value.map((item) {
           if (item is Map) {
@@ -1283,16 +1286,18 @@ class OfflineDataService {
   // OPERAÇÕES DE DUPLICAÇÃO RECURSIVA
   // ===============================
 
-  Future<String> _generateUniqueTopicName(String baseName, String inspectionId) async {
+  Future<String> _generateUniqueTopicName(
+      String baseName, String inspectionId) async {
     // Get all existing topics for this inspection
-    final existingTopics = await _topicRepository.findByInspectionId(inspectionId);
+    final existingTopics =
+        await _topicRepository.findByInspectionId(inspectionId);
     final existingNames = existingTopics.map((t) => t.topicName).toSet();
-    
+
     // If base name doesn't exist, use it
     if (!existingNames.contains(baseName)) {
       return baseName;
     }
-    
+
     // Find next available number (starting from 2)
     int counter = 2;
     String candidateName;
@@ -1300,7 +1305,7 @@ class OfflineDataService {
       candidateName = '$baseName $counter';
       counter++;
     } while (existingNames.contains(candidateName));
-    
+
     return candidateName;
   }
 
@@ -1322,13 +1327,14 @@ class OfflineDataService {
     if (originalTopic.topicName.isEmpty) {
       throw Exception('Nome do tópico original não pode estar vazio');
     }
-    
+
     if (originalTopic.inspectionId.isEmpty) {
       throw Exception('ID da inspeção não pode estar vazio');
     }
 
     // 2. Generate unique name for duplicated topic
-    final uniqueName = await _generateUniqueTopicName(originalTopic.topicName, originalTopic.inspectionId);
+    final uniqueName = await _generateUniqueTopicName(
+        originalTopic.topicName, originalTopic.inspectionId);
 
     // 3. Criar tópico duplicado com validações
     final duplicatedTopic = Topic(
@@ -1340,15 +1346,13 @@ class OfflineDataService {
       topicLabel: originalTopic.topicLabel,
       directDetails: originalTopic.directDetails, // Preservar estrutura
       observation: null, // Reset observation
-      isDamaged: false, // Reset damage status
-      tags: originalTopic.tags ?? [],
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
 
     // 3. Salvar tópico duplicado
     final newTopicId = await saveTopic(duplicatedTopic);
-    
+
     if (newTopicId.isEmpty) {
       throw Exception('Falha ao gerar ID para tópico duplicado');
     }
@@ -1359,30 +1363,33 @@ class OfflineDataService {
         getItems(topicId),
         if (originalTopic.directDetails == true) getDetailsByTopic(topicId),
       ];
-      
+
       final results = await Future.wait(futures);
       final originalItems = results[0] as List;
-      final originalDetails = originalTopic.directDetails == true && results.length > 1 
-          ? results[1] as List 
-          : <dynamic>[];
+      final originalDetails =
+          originalTopic.directDetails == true && results.length > 1
+              ? results[1] as List
+              : <dynamic>[];
 
       // 5. Duplicar itens e detalhes em paralelo quando possível
       final duplicationFutures = <Future>[];
-      
+
       // Duplicar cada item com seus detalhes
       for (final originalItem in originalItems) {
         if (originalItem.id != null && originalItem.id!.isNotEmpty) {
-          duplicationFutures.add(_duplicateItemWithDetails(originalItem, newTopicId));
+          duplicationFutures
+              .add(_duplicateItemWithDetails(originalItem, newTopicId));
         }
       }
 
       // Duplicar detalhes diretos se existirem
       for (final originalDetail in originalDetails) {
         if (originalDetail.id != null && originalDetail.id!.isNotEmpty) {
-          duplicationFutures.add(_duplicateDetailDirect(originalDetail, newTopicId));
+          duplicationFutures
+              .add(_duplicateDetailDirect(originalDetail, newTopicId));
         }
       }
-      
+
       // Executar todas as duplicações em paralelo
       if (duplicationFutures.isNotEmpty) {
         await Future.wait(duplicationFutures);
@@ -1396,7 +1403,8 @@ class OfflineDataService {
       return savedTopic!;
     } catch (e) {
       // Se algo falhar durante a duplicação dos filhos, limpar o tópico criado
-      debugPrint('OfflineDataService: Error during duplication, cleaning up: $e');
+      debugPrint(
+          'OfflineDataService: Error during duplication, cleaning up: $e');
       try {
         await deleteTopic(newTopicId);
       } catch (cleanupError) {
@@ -1420,16 +1428,17 @@ class OfflineDataService {
         originalItem, originalItem.topicId ?? '');
   }
 
-  Future<String> _generateUniqueItemName(String baseName, String topicId) async {
+  Future<String> _generateUniqueItemName(
+      String baseName, String topicId) async {
     // Get all existing items for this topic
     final existingItems = await getItems(topicId);
     final existingNames = existingItems.map((i) => i.itemName).toSet();
-    
+
     // If base name doesn't exist, use it
     if (!existingNames.contains(baseName)) {
       return baseName;
     }
-    
+
     // Find next available number (starting from 2)
     int counter = 2;
     String candidateName;
@@ -1437,30 +1446,30 @@ class OfflineDataService {
       candidateName = '$baseName $counter';
       counter++;
     } while (existingNames.contains(candidateName));
-    
+
     return candidateName;
   }
 
   /// Método auxiliar para duplicar um item e seus detalhes
   Future<Item> _duplicateItemWithDetails(
       Item originalItem, String newTopicId) async {
-    
     // Validar dados do item original
     if (originalItem.id?.isEmpty ?? true) {
       throw ArgumentError('ID do item original não pode estar vazio');
     }
-    
+
     if (originalItem.itemName.trim().isEmpty) {
       throw ArgumentError('Nome do item original não pode estar vazio');
     }
-    
+
     if (originalItem.inspectionId.isEmpty) {
       throw ArgumentError('ID da inspeção não pode estar vazio');
     }
-    
+
     // 1. Generate unique name for duplicated item
-    final uniqueName = await _generateUniqueItemName(originalItem.itemName, newTopicId);
-    
+    final uniqueName =
+        await _generateUniqueItemName(originalItem.itemName, newTopicId);
+
     // 2. Criar item duplicado com validações
     final duplicatedItem = Item(
       id: null, // Será gerado automaticamente usando UUID
@@ -1472,8 +1481,6 @@ class OfflineDataService {
       itemName: uniqueName, // Use unique name
       itemLabel: originalItem.itemLabel,
       observation: null, // Reset observation
-      isDamaged: false, // Reset damage status
-      tags: originalItem.tags ?? [],
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       evaluable: originalItem.evaluable,
@@ -1484,7 +1491,7 @@ class OfflineDataService {
 
     // 2. Salvar item duplicado
     final newItemId = await saveItem(duplicatedItem);
-    
+
     if (newItemId.isEmpty) {
       throw Exception('Falha ao gerar ID para item duplicado');
     }
@@ -1509,14 +1516,11 @@ class OfflineDataService {
         detailName: originalDetail.detailName,
         detailValue: originalDetail.detailValue,
         observation: null, // Reset observation
-        isDamaged: false, // Reset damage status
-        tags: originalDetail.tags ?? [],
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         type: originalDetail.type,
         options: originalDetail.options,
         status: originalDetail.status,
-        isRequired: originalDetail.isRequired,
       );
 
       return await saveDetail(duplicatedDetail);
@@ -1534,28 +1538,29 @@ class OfflineDataService {
   }
 
   /// Método auxiliar para duplicar um detalhe direto do tópico
-  Future<Detail> _duplicateDetailDirect(Detail originalDetail, String newTopicId) async {
-    
+  Future<Detail> _duplicateDetailDirect(
+      Detail originalDetail, String newTopicId) async {
     // Validar dados do detalhe original
     if (originalDetail.id?.isEmpty ?? true) {
       throw ArgumentError('ID do detalhe original não pode estar vazio');
     }
-    
+
     if (originalDetail.detailName.trim().isEmpty) {
       throw ArgumentError('Nome do detalhe original não pode estar vazio');
     }
-    
+
     if (originalDetail.inspectionId.isEmpty) {
       throw ArgumentError('ID da inspeção não pode estar vazio');
     }
-    
+
     if (newTopicId.isEmpty) {
       throw ArgumentError('ID do novo tópico não pode estar vazio');
     }
-    
+
     // Gerar nome único para o detalhe duplicado
-    final uniqueName = await _generateUniqueDetailName(originalDetail.detailName, newTopicId, null);
-    
+    final uniqueName = await _generateUniqueDetailName(
+        originalDetail.detailName, newTopicId, null);
+
     // Criar detalhe duplicado com validações
     final duplicatedDetail = Detail(
       id: null, // Será gerado automaticamente usando UUID
@@ -1568,30 +1573,29 @@ class OfflineDataService {
       detailName: uniqueName, // Use unique name
       detailValue: originalDetail.detailValue,
       observation: null, // Reset observation
-      isDamaged: false, // Reset damage status
-      tags: originalDetail.tags ?? [],
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       type: originalDetail.type,
       options: originalDetail.options,
       status: originalDetail.status,
-      isRequired: originalDetail.isRequired,
     );
 
     // Salvar detalhe duplicado
     final newDetailId = await saveDetail(duplicatedDetail);
-    
+
     if (newDetailId.isEmpty) {
       throw Exception('Falha ao gerar ID para detalhe duplicado');
     }
-    
+
     // Retornar o detalhe duplicado (sem verificações redundantes)
-    debugPrint('OfflineDataService: Successfully duplicated direct detail ${originalDetail.id} -> $newDetailId');
-    
+    debugPrint(
+        'OfflineDataService: Successfully duplicated direct detail ${originalDetail.id} -> $newDetailId');
+
     return duplicatedDetail.copyWith(id: newDetailId);
   }
 
-  Future<String> _generateUniqueDetailName(String baseName, String? topicId, String? itemId) async {
+  Future<String> _generateUniqueDetailName(
+      String baseName, String? topicId, String? itemId) async {
     // Get all existing details for this topic/item context
     List<Detail> existingDetails;
     if (itemId != null) {
@@ -1599,18 +1603,19 @@ class OfflineDataService {
     } else if (topicId != null) {
       // For direct details (without item) - get all details for the topic and filter those without itemId
       final allTopicDetails = await _detailRepository.findByTopicId(topicId);
-      existingDetails = allTopicDetails.where((detail) => detail.itemId == null).toList();
+      existingDetails =
+          allTopicDetails.where((detail) => detail.itemId == null).toList();
     } else {
       return baseName; // Fallback
     }
-    
+
     final existingNames = existingDetails.map((d) => d.detailName).toSet();
-    
+
     // If base name doesn't exist, use it
     if (!existingNames.contains(baseName)) {
       return baseName;
     }
-    
+
     // Find next available number (starting from 2)
     int counter = 2;
     String candidateName;
@@ -1618,23 +1623,26 @@ class OfflineDataService {
       candidateName = '$baseName $counter';
       counter++;
     } while (existingNames.contains(candidateName));
-    
+
     return candidateName;
   }
 
   /// Duplica um detalhe simples
   Future<Detail> duplicateDetailWithChildren(String detailId) async {
     await initialize();
-    
+
     // 1. Buscar o detalhe original
     final originalDetail = await _detailRepository.findById(detailId);
     if (originalDetail == null) {
       throw Exception('Detalhe não encontrado: $detailId');
     }
-    
+
     // 2. Generate unique name for duplicated detail
-    final uniqueName = await _generateUniqueDetailName(originalDetail.detailName, originalDetail.topicId, originalDetail.itemId);
-    
+    final uniqueName = await _generateUniqueDetailName(
+        originalDetail.detailName,
+        originalDetail.topicId,
+        originalDetail.itemId);
+
     // 3. Criar detalhe duplicado
     final duplicatedDetail = Detail(
       id: null, // Será gerado automaticamente
@@ -1647,39 +1655,39 @@ class OfflineDataService {
       detailName: uniqueName,
       detailValue: originalDetail.detailValue,
       observation: originalDetail.observation,
-      isDamaged: originalDetail.isDamaged ?? false,
-      tags: originalDetail.tags ?? [],
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       type: originalDetail.type,
       options: originalDetail.options,
       status: originalDetail.status,
-      isRequired: originalDetail.isRequired,
     );
-    
+
     // 3. Salvar detalhe duplicado
     final newDetailId = await saveDetail(duplicatedDetail);
-    
+
     // 4. Buscar e retornar o detalhe completo salvo
     final savedDetail = await getDetail(newDetailId);
     return savedDetail!;
   }
 
   /// Reordena detalhes mantendo a consistência com índices
-  Future<void> reorderDetailsByIndex(String itemId, int oldIndex, int newIndex) async {
+  Future<void> reorderDetailsByIndex(
+      String itemId, int oldIndex, int newIndex) async {
     await initialize();
-    
+
     // 1. Buscar todos os detalhes do item
     final details = await _detailRepository.findByItemId(itemId);
-    if (details.isEmpty || oldIndex >= details.length || newIndex >= details.length) {
+    if (details.isEmpty ||
+        oldIndex >= details.length ||
+        newIndex >= details.length) {
       throw Exception('Índices inválidos para reordenação');
     }
-    
+
     // 2. Reordenar a lista
     final reorderedDetails = List<Detail>.from(details);
     final detailToMove = reorderedDetails.removeAt(oldIndex);
     reorderedDetails.insert(newIndex, detailToMove);
-    
+
     // 3. Atualizar orderIndex de todos os detalhes
     for (int i = 0; i < reorderedDetails.length; i++) {
       final detail = reorderedDetails[i];
@@ -1694,17 +1702,13 @@ class OfflineDataService {
         detailName: detail.detailName,
         detailValue: detail.detailValue,
         observation: detail.observation,
-        isDamaged: detail.isDamaged,
-        tags: detail.tags,
         createdAt: detail.createdAt,
         updatedAt: DateTime.now(),
         type: detail.type,
         options: detail.options,
         status: detail.status,
-        isRequired: detail.isRequired,
       );
       await _detailRepository.update(updatedDetail);
     }
-    
   }
 }

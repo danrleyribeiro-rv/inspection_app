@@ -121,27 +121,33 @@ class _NonConformityListState extends State<NonConformityList> {
     }
   }
 
-  String _buildLocationText(String topicName, String? itemName, String? detailName) {
+  String _buildLocationText(
+      String topicName, String? itemName, String? detailName) {
     final List<String> locationParts = [topicName];
 
     // Se tem item, adiciona à localização
-    if (itemName != null && itemName.isNotEmpty && itemName != 'Item não especificado') {
+    if (itemName != null &&
+        itemName.isNotEmpty &&
+        itemName != 'Item não especificado') {
       locationParts.add(itemName);
     }
 
     // Se tem detalhe, adiciona à localização
-    if (detailName != null && detailName.isNotEmpty && detailName != 'Detalhe não especificado') {
+    if (detailName != null &&
+        detailName.isNotEmpty &&
+        detailName != 'Detalhe não especificado') {
       locationParts.add(detailName);
     }
 
     return locationParts.join(' > ');
   }
 
-  Widget _buildLocationWidget(Map<String, dynamic> item, String topicName, String? itemName, String? detailName) {
+  Widget _buildLocationWidget(Map<String, dynamic> item, String topicName,
+      String? itemName, String? detailName) {
     final locationText = _buildLocationText(topicName, itemName, detailName);
     final nonConformityId = item['id'] ?? '';
     final isExpanded = _expandedLocationCards.contains(nonConformityId);
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -168,7 +174,7 @@ class _NonConformityListState extends State<NonConformityList> {
               // Em vez de TextPainter complexo
               final estimatedLines = (locationText.length * 0.1).ceil();
               final hasOverflow = estimatedLines > 5;
-              
+
               if (hasOverflow) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -203,7 +209,7 @@ class _NonConformityListState extends State<NonConformityList> {
                   ),
                 );
               }
-              
+
               return const SizedBox.shrink();
             },
           ),
@@ -229,7 +235,8 @@ class _NonConformityListState extends State<NonConformityList> {
       // Filter out resolution medias to show only regular NC medias
       final regularMedias = medias.where((media) {
         final source = media.source ?? '';
-        final isResolution = source == 'resolution_camera' || source == 'resolution_gallery';
+        final isResolution =
+            source == 'resolution_camera' || source == 'resolution_gallery';
         return !isResolution;
       }).toList();
 
@@ -267,7 +274,8 @@ class _NonConformityListState extends State<NonConformityList> {
       // Filter medias that are resolution images based on source
       final resolutionMedias = medias.where((media) {
         final source = media.source ?? '';
-        final isResolution = source == 'resolution_camera' || source == 'resolution_gallery';
+        final isResolution =
+            source == 'resolution_camera' || source == 'resolution_gallery';
         return isResolution;
       }).toList();
 
@@ -278,7 +286,8 @@ class _NonConformityListState extends State<NonConformityList> {
         _mediaCountNotifiers[cacheKey]!.value = count;
       }
     } catch (e) {
-      debugPrint('Error getting resolution media count for NC $nonConformityId: $e');
+      debugPrint(
+          'Error getting resolution media count for NC $nonConformityId: $e');
       if (_mediaCountNotifiers.containsKey(cacheKey)) {
         _mediaCountNotifiers[cacheKey]!.value = 0;
       }
@@ -358,7 +367,8 @@ class _NonConformityListState extends State<NonConformityList> {
     // Extract names directly from the item data structure
     final topicName = item['topic_name'] ?? 'Tópico não especificado';
     final itemName = item['item_name']; // Don't use ?? here, keep null values
-    final detailName = item['detail_name']; // Don't use ?? here, keep null values
+    final detailName =
+        item['detail_name']; // Don't use ?? here, keep null values
 
     final severity = item['severity'];
     final status = item['status'] ?? 'pendente';
@@ -385,7 +395,9 @@ class _NonConformityListState extends State<NonConformityList> {
                 'alta' => const Color(0xFF4A1E1E), // Vermelho escuro
                 'média' || 'media' => const Color(0xFF4A3B1E), // Laranja escuro
                 'baixa' => const Color(0xFF4A4A1E), // Amarelo escuro
-                'crítica' || 'critica' => const Color(0xFF3A1E4A), // Roxo escuro
+                'crítica' ||
+                'critica' =>
+                  const Color(0xFF3A1E4A), // Roxo escuro
                 _ => const Color(0xFF3A3A3A), // Cinza escuro
               };
 
@@ -429,7 +441,8 @@ class _NonConformityListState extends State<NonConformityList> {
               children: [
                 _buildStatusChip(statusText, statusColor),
                 const SizedBox(width: 4),
-                if (severity != null && severity.isNotEmpty) _buildSeverityChip(severity),
+                if (severity != null && severity.isNotEmpty)
+                  _buildSeverityChip(severity),
                 const Spacer(),
                 if (!isResolved)
                   Container(
@@ -862,12 +875,12 @@ class _NonConformityListState extends State<NonConformityList> {
   }
 
   void _resolveNonConformity(BuildContext context, Map<String, dynamic> item) {
-    
     // Show dialog with resolution options
     _showResolutionOptionsDialog(context, item);
   }
 
-  void _showResolutionOptionsDialog(BuildContext context, Map<String, dynamic> item) {
+  void _showResolutionOptionsDialog(
+      BuildContext context, Map<String, dynamic> item) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -987,7 +1000,8 @@ class _NonConformityListState extends State<NonConformityList> {
                 onPressed: () => Navigator.of(dialogContext).pop(),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey[600],
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
                 child: const Text(
                   'Cancelar',
@@ -1004,11 +1018,12 @@ class _NonConformityListState extends State<NonConformityList> {
     );
   }
 
-  Future<void> _markAsResolvedWithoutPhoto(BuildContext context, Map<String, dynamic> item) async {
+  Future<void> _markAsResolvedWithoutPhoto(
+      BuildContext context, Map<String, dynamic> item) async {
     try {
       // Mark as resolved without resolution images
       await _markAsResolvedDirectly(item, []);
-      
+
       // Refresh the non-conformity list to update button state
       if (widget.onNonConformityUpdated != null) {
         widget.onNonConformityUpdated!();
@@ -1183,7 +1198,14 @@ class _NonConformityListState extends State<NonConformityList> {
         debugPrint(
             'NonConformityList: Widget not mounted, skipping state update');
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('NonConformityList: Error in _markAsResolvedDirectly: $e');
+      debugPrint(stack.toString());
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar não conformidade: $e')),
+        );
+      }
     }
   }
 
@@ -1264,7 +1286,8 @@ class _NonConformityListState extends State<NonConformityList> {
         );
 
         // Navegar para a galeria após captura
-        Navigator.of(context).pop(); // Fechar o dialog de captura se ainda estiver aberto
+        Navigator.of(context)
+            .pop(); // Fechar o dialog de captura se ainda estiver aberto
         _showMediaGallery(context, item);
 
         // Refresh the non-conformity list
@@ -1364,12 +1387,14 @@ class _NonConformityListState extends State<NonConformityList> {
     }
   }
 
-  void _unresolveNonConformity(BuildContext context, Map<String, dynamic> item) {
+  void _unresolveNonConformity(
+      BuildContext context, Map<String, dynamic> item) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Reabrir Não Conformidade'),
-        content: const Text('Tem certeza que deseja reabrir esta não conformidade? Ela voltará ao status pendente.'),
+        content: const Text(
+            'Tem certeza que deseja reabrir esta não conformidade? Ela voltará ao status pendente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
@@ -1391,21 +1416,20 @@ class _NonConformityListState extends State<NonConformityList> {
     );
   }
 
-  Future<void> _markAsUnresolvedDirectly(BuildContext context, Map<String, dynamic> item) async {
+  Future<void> _markAsUnresolvedDirectly(
+      BuildContext context, Map<String, dynamic> item) async {
     try {
-      
       final updatedItem = Map<String, dynamic>.from(item);
-      
+
       // Mark as unresolved
       updatedItem['status'] = 'open';
       updatedItem['is_resolved'] = false;
       updatedItem['resolved_at'] = null;
       // Keep resolution images for historical record, but mark as unresolved
-      
-      
+
       // Update the non-conformity directly
       widget.onEditNonConformity(updatedItem);
-      
+
       // Refresh the non-conformity list to update button state
       if (widget.onNonConformityUpdated != null) {
         widget.onNonConformityUpdated!();
@@ -1448,7 +1472,8 @@ class _NonConformityListState extends State<NonConformityList> {
                 await serviceFactory.mediaService.captureAndProcessMediaSimple(
                   inputPath: filePath,
                   inspectionId: widget.inspectionId,
-                  type: 'image', // Default to image, will be detected by service
+                  type:
+                      'image', // Default to image, will be detected by service
                   topicId: item['topic_id'],
                   itemId: item['item_id'],
                   detailId: item['detail_id'],

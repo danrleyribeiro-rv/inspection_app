@@ -92,7 +92,6 @@ class InspectionExportService {
             detailsData.add({
               'name': detail.detailName,
               'type': detail.type ?? 'text',
-              'required': detail.isRequired ?? false,
               'options': detail.options ?? [],
               'value': detail.detailValue,
               'observation': detail.observation,
@@ -147,7 +146,6 @@ class InspectionExportService {
               detailsData.add({
                 'name': detail.detailName,
                 'type': detail.type ?? 'text',
-                'required': detail.isRequired ?? false,
                 'options': detail.options ?? [],
                 'value': detail.detailValue,
                 'observation': detail.observation,
