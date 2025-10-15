@@ -54,6 +54,7 @@ dependencies:
   video_player: ^2.8.7
   hive_ce: ^2.14.0
   hive_ce_flutter: ^2.3.2
+  camera_android: ^0.10.10+9
 
   
 

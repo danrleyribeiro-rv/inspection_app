@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -102,13 +103,16 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
         throw Exception('Erro ao decodificar imagem');
       }
 
-      // Aplicar rotação baseada na orientação do dispositivo
-      img.Image rotatedImage = _rotateImageBasedOnDeviceOrientation(originalImage);
+      // Rotaciona a imagem para corresponder à orientação do dispositivo no momento da captura.
+      // A imagem decodificada (originalImage) já vem orientada em pé (retrato).
+      // `deviceRotation` nos dá a orientação do aparelho, então rotacionamos para corresponder.
+      final angle = deviceRotation * 180 / math.pi;
+      final correctedImage = img.copyRotate(originalImage, angle: angle);
 
       // Salvar a imagem corrigida
       final path = await getMediaPath("jpg");
       final file = File(path);
-      await file.writeAsBytes(img.encodeJpg(rotatedImage));
+      await file.writeAsBytes(img.encodeJpg(correctedImage));
 
       // Salvar automaticamente na vistoria
       await _saveMediaToInspection(path, 'image');
@@ -128,10 +132,27 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     }
   }
 
+  DeviceOrientation _getOrientationFromRotation(double rotation) {
+    final degrees = rotation * 180 / math.pi;
+    // The video was being saved inverted, so we swap the landscape orientations
+    // to correct the final output.
+    if (degrees > 45 && degrees < 135) { // deviceRotation is pi/2 (Landscape Left)
+      return DeviceOrientation.landscapeRight; // Return opposite
+    } else if (degrees < -45 && degrees > -135) { // deviceRotation is -pi/2 (Landscape Right)
+      return DeviceOrientation.landscapeLeft; // Return opposite
+    } else if (degrees >= 135 || degrees <= -135) {
+      return DeviceOrientation.portraitDown;
+    } else {
+      return DeviceOrientation.portraitUp;
+    }
+  }
+
   Future<void> startVideoRecording() async {
     if (cameraController?.value.isInitialized != true || cameraController!.value.isRecordingVideo) return;
 
     try {
+      final orientation = _getOrientationFromRotation(deviceRotation);
+      await cameraController!.lockCaptureOrientation(orientation);
       await cameraController!.startVideoRecording();
       isRecording = true;
       startRecordingTimer();
@@ -160,6 +181,9 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       // Mostrar feedback visual
     } catch (e) {
       _showCaptureError('Erro ao gravar vídeo: $e');
+    } finally {
+      // Always unlock orientation
+      await cameraController?.unlockCaptureOrientation();
     }
   }
 
@@ -308,44 +332,6 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
         });
       }
     });
-  }
-
-  img.Image _rotateImageBasedOnDeviceOrientation(img.Image originalImage) {
-    // Converter radianos para graus
-    double rotationDegrees = deviceRotation * 180 / math.pi;
-    
-    debugPrint('Camera: Device rotation: ${rotationDegrees.toStringAsFixed(1)}°');
-    
-    // Invertendo a lógica: manter paisagem em paisagem e retrato em retrato
-    int finalRotation = 0;
-    String orientationName = '';
-    
-    if (rotationDegrees.abs() < 45) {
-      // Retrato normal (0°) - não rotacionar (manter retrato)
-      finalRotation = 0;
-      orientationName = 'Retrato normal';
-    } else if (rotationDegrees >= 45 && rotationDegrees < 135) {
-      // Paisagem esquerda (-90°) - rotacionar 90° para manter paisagem
-      finalRotation = 90;
-      orientationName = 'Paisagem esquerda';
-    } else if (rotationDegrees.abs() >= 135) {
-      // Retrato invertido (180°) - rotacionar 180° para manter retrato invertido
-      finalRotation = 180;
-      orientationName = 'Retrato invertido';
-    } else if (rotationDegrees <= -45 && rotationDegrees > -135) {
-      // Paisagem direita (90°) - rotacionar 270° para manter paisagem
-      finalRotation = 270;
-      orientationName = 'Paisagem direita';
-    }
-    
-    debugPrint('Camera: $orientationName -> Aplicando rotação de $finalRotation°');
-    
-    // Aplicar rotação se necessário
-    if (finalRotation == 0) {
-      return originalImage;
-    } else {
-      return img.copyRotate(originalImage, angle: finalRotation);
-    }
   }
 
   @override
@@ -594,6 +580,14 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     final orientation = MediaQuery.of(context).orientation;
     final isPortrait = orientation == Orientation.portrait;
 
+    // Calculate rotation for the preview when recording in landscape
+    int quarterTurns = 0;
+    if (isRecording && deviceRotation.abs() > 0.1) {
+      // We rotate the preview to match the UI orientation, which should be upright for the user.
+      // The UI elements rotate by -deviceRotation, so the preview should too.
+      quarterTurns = -(deviceRotation / (math.pi / 2)).round();
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -645,7 +639,10 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                     fit: BoxFit.cover,
                     child: SizedBox(
                       width: 100,
-                      child: CameraPreview(cameraController!),
+                      child: RotatedBox(
+                        quarterTurns: quarterTurns,
+                        child: CameraPreview(cameraController!),
+                      ),
                     ),
                   ),
                 );
