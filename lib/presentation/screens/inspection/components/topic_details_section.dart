@@ -536,122 +536,120 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildActionButton(
-                  icon: Icons.camera_alt,
-                  label: 'Capturar',
-                  onPressed: _captureMedia,
-                  color: Colors.purple,
-                ),
-                ValueListenableBuilder<int>(
-                  valueListenable: ValueNotifier(_mediaCountVersion),
-                  builder: (context, version, child) {
-                    return FutureBuilder<int>(
-                      future: _getTopicMediaCount(),
-                      builder: (context, snapshot) {
-                        final count = snapshot.data ?? 0;
-                        return _buildActionButton(
-                          icon: Icons.photo_library,
-                          label: 'Galeria',
-                          onPressed: _showMediaGallery,
-                          color: Colors.purple,
-                          count: count,
-                        );
-                      },
-                    );
-                  },
-                ),
-                ValueListenableBuilder<int>(
-                  valueListenable: ValueNotifier(_ncCountVersion),
-                  builder: (context, version, child) {
-                    return FutureBuilder<int>(
-                      future: _getTopicNonConformityCount(),
-                      builder: (context, snapshot) {
-                        final count = snapshot.data ?? 0;
-                        return _buildActionButton(
-                          icon: Icons.warning_amber,
-                          label: 'NC',
-                          onPressed: _addNonConformity,
-                          color: Colors.orange,
-                          count: count,
-                        );
-                      },
-                    );
-                  },
-                ),
-                _buildActionButton(
-                  icon: Icons.edit,
-                  label: 'Renomear',
-                  onPressed: _renameTopic,
-                ),
-                _buildActionButton(
-                  icon: Icons.copy,
-                  label: 'Duplicar',
-                  onPressed: _duplicateTopic,
-                ),
-                _buildActionButton(
-                  icon: Icons.delete,
-                  label: 'Excluir',
-                  onPressed: _deleteTopic,
-                  color: Colors.red,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _editObservationDialog,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: borderColor),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.note_alt, size: 14, color: textColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Observações',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                            fontSize: 12,
-                          ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildActionButton(
+                icon: Icons.camera_alt,
+                label: 'Capturar',
+                onPressed: _captureMedia,
+                color: Colors.purple,
+              ),
+              ValueListenableBuilder<int>(
+                valueListenable: ValueNotifier(_mediaCountVersion),
+                builder: (context, version, child) {
+                  return FutureBuilder<int>(
+                    future: _getTopicMediaCount(),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return _buildActionButton(
+                        icon: Icons.photo_library,
+                        label: 'Galeria',
+                        onPressed: _showMediaGallery,
+                        color: Colors.purple,
+                        count: count,
+                      );
+                    },
+                  );
+                },
+              ),
+              ValueListenableBuilder<int>(
+                valueListenable: ValueNotifier(_ncCountVersion),
+                builder: (context, version, child) {
+                  return FutureBuilder<int>(
+                    future: _getTopicNonConformityCount(),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return _buildActionButton(
+                        icon: Icons.warning_amber,
+                        label: 'NC',
+                        onPressed: _addNonConformity,
+                        color: Colors.orange,
+                        count: count,
+                      );
+                    },
+                  );
+                },
+              ),
+              _buildActionButton(
+                icon: Icons.edit,
+                label: 'Renomear',
+                onPressed: _renameTopic,
+              ),
+              _buildActionButton(
+                icon: Icons.copy,
+                label: 'Duplicar',
+                onPressed: _duplicateTopic,
+              ),
+              _buildActionButton(
+                icon: Icons.delete,
+                label: 'Excluir',
+                onPressed: _deleteTopic,
+                color: Colors.red,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _editObservationDialog,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: borderColor),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.note_alt, size: 14, color: textColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Observações',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                          fontSize: 12,
                         ),
-                        const Spacer(),
-                        Icon(Icons.edit, size: 14, color: textColor),
-                      ],
-                    ),
-                    Text(
-                      _observationController.text.isEmpty
-                          ? 'Toque para adicionar observações...'
-                          : _observationController.text,
-                      style: TextStyle(
-                        color: _observationController.text.isEmpty
-                            ? theme.hintColor
-                            : theme.textTheme.bodyLarge?.color,
-                        fontStyle: _observationController.text.isEmpty
-                            ? FontStyle.italic
-                            : FontStyle.normal,
                       ),
+                      const Spacer(),
+                      Icon(Icons.edit, size: 14, color: textColor),
+                    ],
+                  ),
+                  Text(
+                    _observationController.text.isEmpty
+                        ? 'Toque para adicionar observações...'
+                        : _observationController.text,
+                    style: TextStyle(
+                      color: _observationController.text.isEmpty
+                          ? theme.hintColor
+                          : theme.textTheme.bodyLarge?.color,
+                      fontStyle: _observationController.text.isEmpty
+                          ? FontStyle.italic
+                          : FontStyle.normal,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

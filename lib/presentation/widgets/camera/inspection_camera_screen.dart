@@ -181,16 +181,6 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     }
   }
 
-  void _showCaptureSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
   void _showCaptureError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

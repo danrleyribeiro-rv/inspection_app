@@ -233,35 +233,33 @@ class _HierarchicalInspectionViewState
                     ),
 
                     if (_isTopicExpanded && topicIndex == _currentTopicIndex)
-                      Flexible(
-                        child: TopicDetailsSection(
-                          topic: topic,
-                          inspectionId: widget.inspectionId,
-                          onTopicUpdated: (updatedTopic) {
-                            final index = widget.topics
-                                .indexWhere((t) => t.id == updatedTopic.id);
-                            if (index >= 0) {
-                              widget.topics[index] = updatedTopic;
-                              debugPrint(
-                                  'HierarchicalInspectionView: Topic ${updatedTopic.id} updated locally, triggering setState');
-                              // Defer setState to avoid calling during build
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) {
-                                  setState(
-                                      () {}); // Atualização instantânea local
-                                }
-                              });
-                            }
-                          },
-                          onTopicAction: () async {
-                            _invalidateProgressCache();
-                            await widget.onUpdateCache();
-                            // Force UI update after cache reload
-                            if (mounted) {
-                              setState(() {});
-                            }
-                          },
-                        ),
+                      TopicDetailsSection(
+                        topic: topic,
+                        inspectionId: widget.inspectionId,
+                        onTopicUpdated: (updatedTopic) {
+                          final index = widget.topics
+                              .indexWhere((t) => t.id == updatedTopic.id);
+                          if (index >= 0) {
+                            widget.topics[index] = updatedTopic;
+                            debugPrint(
+                                'HierarchicalInspectionView: Topic ${updatedTopic.id} updated locally, triggering setState');
+                            // Defer setState to avoid calling during build
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(
+                                    () {}); // Atualização instantânea local
+                              }
+                            });
+                          }
+                        },
+                        onTopicAction: () async {
+                          _invalidateProgressCache();
+                          await widget.onUpdateCache();
+                          // Force UI update after cache reload
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
                       ),
 
                     // HIERARQUIA FLEXÍVEL: Verificar se tópico tem detalhes diretos
