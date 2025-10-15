@@ -76,14 +76,57 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   }
 
   Widget _buildVideoWidget(String path, int index) {
-    // Simplified video widget - you can enhance this later
-    return const Center(
-      child: Text(
-        'Vídeo Player\n(Em desenvolvimento)',
-        style: TextStyle(color: Colors.white),
-        textAlign: TextAlign.center,
-      ),
-    );
+    VideoPlayerController? controller = _videoControllers[index];
+
+    if (controller == null) {
+      // Create and initialize controller
+      controller = path.startsWith('http')
+          ? VideoPlayerController.networkUrl(Uri.parse(path))
+          : VideoPlayerController.file(File(path));
+      _videoControllers[index] = controller;
+
+      controller.initialize().then((_) {
+        if (mounted) {
+          setState(() {
+            // Start playing only if it's the current page
+            if (_currentIndex == index) {
+              controller?.play();
+            }
+          });
+        }
+      });
+      controller.setLooping(true);
+    }
+
+    if (controller.value.isInitialized) {
+      return GestureDetector(
+        onTap: () {
+          if (controller!.value.isPlaying) {
+            controller.pause();
+          } else {
+            controller.play();
+          }
+          setState(() {});
+        },
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              VideoPlayer(controller),
+              if (!controller.value.isPlaying)
+                Icon(
+                  Icons.play_arrow,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 80,
+                ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return _buildLoadingWidget();
+    }
   }
 
   Widget _buildLoadingWidget() {
@@ -173,9 +216,22 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         controller: _pageController,
         itemCount: widget.mediaItems.length,
         onPageChanged: (index) {
+          // Pause previous video if it was a video
+          if (widget.mediaItems[_currentIndex]['type'] != 'image') {
+            _videoControllers[_currentIndex]?.pause();
+          }
+
           setState(() {
             _currentIndex = index;
           });
+
+          // Play the new video if it's a video.
+          // The _buildVideoWidget will handle initialization and playing.
+          if (widget.mediaItems[index]['type'] != 'image') {
+            // This setState will trigger a rebuild if the controller is already created
+            // and ensures the play icon is correctly shown/hidden.
+            setState(() {});
+          }
         },
         itemBuilder: (context, index) {
           return Center(
