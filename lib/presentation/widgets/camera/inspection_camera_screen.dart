@@ -39,6 +39,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
   bool isFlashOn = false;
   bool isRecording = false;
   bool isVideoMode = false;
+  bool _isButtonTapped = false;
   List<String> capturedFiles = [];
   Timer? recordingTimer;
   int recordingDuration = 0;
@@ -114,7 +115,6 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
 
       if (mounted) {
         setState(() => capturedFiles.add(path));
-        _showCaptureSuccess('Foto capturada!');
       }
 
       debugPrint('Camera: Photo captured successfully: $path');
@@ -158,7 +158,6 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       setState(() => capturedFiles.add(path));
       
       // Mostrar feedback visual
-      _showCaptureSuccess('Vídeo gravado!');
     } catch (e) {
       _showCaptureError('Erro ao gravar vídeo: $e');
     }
@@ -806,21 +805,36 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                     // Center: Camera Button
                     GestureDetector(
                       onTap: () async {
+                        setState(() {
+                          _isButtonTapped = true;
+                        });
+                        Future.delayed(const Duration(milliseconds: 100), () {
+                          if (mounted) {
+                            setState(() {
+                              _isButtonTapped = false;
+                            });
+                          }
+                        });
+
                         if (isVideoMode) {
                           isRecording ? await stopVideoRecording() : await startVideoRecording();
                         } else {
                           await takePhoto();
                         }
                       },
-                      child: Container(
-                        width: 70,
-                        height: 70,
-                        decoration: const BoxDecoration(
-                          color: Colors.white70,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: buildCameraButton(),
+                      child: AnimatedScale(
+                        scale: _isButtonTapped ? 0.9 : 1.0,
+                        duration: const Duration(milliseconds: 100),
+                        child: Container(
+                          width: 70,
+                          height: 70,
+                          decoration: const BoxDecoration(
+                            color: Colors.white70,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: buildCameraButton(),
+                          ),
                         ),
                       ),
                     ),

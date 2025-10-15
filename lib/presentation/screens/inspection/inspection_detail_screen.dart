@@ -15,6 +15,8 @@ import 'package:lince_inspecoes/presentation/screens/inspection/inspection_info_
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/sync/sync_progress_overlay.dart';
 import 'package:lince_inspecoes/services/utils/inspection_export_service.dart';
+import 'package:lince_inspecoes/services/utils/inspection_import_service.dart';
+import 'package:file_picker/file_picker.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
   final String inspectionId;
@@ -30,6 +32,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
   final EnhancedOfflineServiceFactory _serviceFactory =
       EnhancedOfflineServiceFactory.instance;
   final InspectionExportService _exportService = InspectionExportService();
+  final InspectionImportService _importService = InspectionImportService();
 
   bool _isLoading = true;
   final bool _isSyncing = false;
@@ -460,168 +463,66 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
     if (!mounted) return;
 
     try {
-      // Criar um diálogo de seleção de arquivo
-      final confirmed = await showDialog<bool>(
+      // Selecionar arquivo usando file_picker
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['tar'],
+        dialogTitle: 'Selecione o arquivo .tar de inspeção',
+      );
+
+      if (result == null || result.files.isEmpty) {
+        debugPrint('No file selected for import');
+        return;
+      }
+
+      final filePath = result.files.first.path;
+      if (filePath == null) {
+        throw Exception('Caminho do arquivo não disponível');
+      }
+
+      // Mostrar diálogo de progresso
+      if (!mounted) return;
+      showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Importar Inspeção'),
-          content: const Text(
-              'Esta funcionalidade permite importar uma inspeção exportada anteriormente.\n\nDeseja continuar?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Importar'),
-            ),
-          ],
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          title: Text('Importando Inspeção'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Por favor, aguarde...'),
+            ],
+          ),
         ),
       );
 
-      if (confirmed != true) return;
+      // Importar inspeção para a inspeção atual (substitui os dados existentes)
+      // Se passarmos null para currentInspectionId, criará uma nova inspeção com o ID exportado
+      final success = await _importService.importInspection(
+        context: context,
+        filePath: filePath,
+        currentInspectionId: widget.inspectionId, // Substitui dados da inspeção atual
+      );
 
-      // Implementar importação usando createInspectionFromJson
-      await _importFromVistoriaFlexivel();
+      // Fechar diálogo de progresso
+      if (mounted) Navigator.of(context).pop();
+
+      if (success) {
+        // Recarregar a inspeção para mostrar os dados importados
+        await _loadInspection();
+      }
     } catch (e) {
       debugPrint('Error importing inspection: $e');
+      // Fechar diálogo de progresso se ainda estiver aberto
       if (mounted) {
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao importar inspeção: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _importFromVistoriaFlexivel() async {
-    if (!mounted) return;
-
-    try {
-      // Dados do Vistoria_Flexivel.json
-      const vistoriaFlexivelData = {
-        "title": "Flexível",
-        "observation": null,
-        "project_id": "DQOFavelUHcuwdEuPE4I",
-        "template_id": "KrzoTXUdv1yRcYDWBND2",
-        "inspector_id": "bSTmE0Ix6WbBMueqvZWfpKc3Ngy2",
-        "status": "pending",
-        "address": {
-          "cep": "88062110",
-          "street": "Rua Crisógono Vieira da Cruz",
-          "number": "233",
-          "complement": "",
-          "neighborhood": "Lagoa da Conceição",
-          "city": "Florianópolis",
-          "state": "SC"
-        },
-        "address_string":
-            "Rua Crisógono Vieira da Cruz, 233, Lagoa da Conceição, Florianópolis - SC",
-        "is_templated": true,
-        "area": "0",
-        "topics": [
-          {
-            "name": "Novo Tópico 1",
-            "description": null,
-            "observation": null,
-            "direct_details": false,
-            "items": [
-              {
-                "name": "Novo Item 1",
-                "description": null,
-                "observation": null,
-                "evaluable": true,
-                "evaluation_options": ["a", "b", "c"],
-                "evaluation_value": null,
-                "details": [
-                  {
-                    "name": "Novo Detalhe 1",
-                    "type": "text",
-                    "required": false,
-                    "options": [],
-                    "value": null,
-                    "observation": null,
-                    "is_damaged": false,
-                    "media": [],
-                    "non_conformities": []
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "name": "Novo Tópico 2",
-            "description": null,
-            "observation": null,
-            "direct_details": true,
-            "details": [
-              {
-                "name": "Novo Detalhe 1",
-                "type": "select",
-                "required": false,
-                "options": ["a", "b", "c"],
-                "value": null,
-                "observation": null,
-                "is_damaged": false,
-                "media": [],
-                "non_conformities": []
-              }
-            ]
-          },
-          {
-            "name": "Novo Tópico 3",
-            "description": null,
-            "observation": null,
-            "direct_details": true,
-            "details": [
-              {
-                "name": "Novo Detalhe 1",
-                "type": "boolean",
-                "required": false,
-                "options": [],
-                "value": null,
-                "observation": null,
-                "is_damaged": false,
-                "media": [],
-                "non_conformities": []
-              }
-            ]
-          }
-        ],
-        "cod": "INSP250715-001.TP0004",
-        "deleted_at": null,
-        "updated_at": {"_seconds": 1752625367, "_nanoseconds": 469000000},
-        "created_at": {"_seconds": 1752625367, "_nanoseconds": 469000000}
-      };
-
-      // Usar o serviço de dados para processar a estrutura aninhada
-      await _serviceFactory.dataService
-          .createInspectionFromJson(vistoriaFlexivelData);
-
-      // Recarregar a inspeção após importação
-      await _loadInspection();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vistoria_Flexivel.json importado com sucesso!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error importing Vistoria_Flexivel.json: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao importar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 5),
           ),
         );
       }

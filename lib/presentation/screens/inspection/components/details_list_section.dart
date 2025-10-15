@@ -1096,16 +1096,16 @@ class _DetailListItemState extends State<DetailListItem> {
 
                 if (mounted && context.mounted) {
                   // Mostrar mensagem de sucesso e navegar para galeria
-                  final message = capturedFiles.length == 1
-                      ? 'Mídia salva!'
-                      : '${capturedFiles.length} mídias salvas!';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(message),
-                      backgroundColor: Colors.green,
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  // final message = capturedFiles.length == 1
+                  //     ? 'Mídia salva!'
+                  //     : '${capturedFiles.length} mídias salvas!';
+                  // ScaffoldMessenger.of(context).showSnackBar(
+                  //   SnackBar(
+                  //     content: Text(message),
+                  //     backgroundColor: Colors.green,
+                  //     duration: const Duration(seconds: 1),
+                  //   ),
+                  // );
 
                   // Navegar para a galeria após captura com delay para evitar conflitos de BufferQueue
                   Future.delayed(const Duration(milliseconds: 500), () {

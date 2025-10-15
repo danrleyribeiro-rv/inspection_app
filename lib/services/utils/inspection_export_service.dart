@@ -210,27 +210,99 @@ class InspectionExportService {
           ArchiveFile('inspection.json', jsonBytes.length, jsonBytes);
       archive.addFile(jsonFile);
 
-      // Database backup - Hive databases are stored in a different format
+      // Criar arquivo .tar com dados do Hive apenas desta inspeção
       try {
-        // For Hive, we export the data as JSON instead of raw database files
-        final backupInfo = {
-          'message': 'Using Hive database - JSON export format',
-          'timestamp': DateTime.now().toIso8601String(),
+        final tarArchive = Archive();
+
+        // Exportar dados do Hive apenas desta inspeção
+        final Map<String, dynamic> hiveData = {
           'inspection_id': inspectionId,
-          'database_type': 'Hive',
+          'timestamp': DateTime.now().toIso8601String(),
+          'version': '1.0',
         };
-        final backupBytes = utf8.encode(jsonEncode(backupInfo));
-        final backupFile = ArchiveFile(
-            'database/backup_info.json', backupBytes.length, backupBytes);
-        archive.addFile(backupFile);
+
+        // Exportar Inspeção
+        final inspectionBox = await _serviceFactory.dataService.getInspection(inspectionId);
+        if (inspectionBox != null) {
+          hiveData['inspection'] = inspectionBox.toMap();
+        }
+
+        // Exportar Topics
+        final topicsBox = await _serviceFactory.dataService.getTopics(inspectionId);
+        final topicsList = <Map<String, dynamic>>[];
+        for (final t in topicsBox) {
+          topicsList.add(t.toMap());
+        }
+        hiveData['topics'] = topicsList;
+
+        // Exportar Items
+        final allItems = <Map<String, dynamic>>[];
+        for (final topic in topicsBox) {
+          final items = await _serviceFactory.dataService.getItems(topic.id);
+          for (final i in items) {
+            allItems.add(i.toMap());
+          }
+        }
+        hiveData['items'] = allItems;
+
+        // Exportar Details
+        final allDetails = <Map<String, dynamic>>[];
+        for (final topic in topicsBox) {
+          if (topic.directDetails == true) {
+            final details = await _serviceFactory.dataService.getDirectDetails(topic.id);
+            for (final d in details) {
+              allDetails.add(d.toMap());
+            }
+          } else {
+            final items = await _serviceFactory.dataService.getItems(topic.id);
+            for (final item in items) {
+              final details = await _serviceFactory.dataService.getDetails(item.id);
+              for (final d in details) {
+                allDetails.add(d.toMap());
+              }
+            }
+          }
+        }
+        hiveData['details'] = allDetails;
+
+        // Exportar NonConformities
+        final allNcs = <Map<String, dynamic>>[];
+        for (final topic in topicsBox) {
+          final topicNcs = await _serviceFactory.dataService.getNonConformitiesByTopic(topic.id);
+          for (final nc in topicNcs) {
+            allNcs.add(nc.toMap());
+          }
+        }
+        hiveData['non_conformities'] = allNcs;
+
+        // Exportar OfflineMedia
+        final mediaList = await _serviceFactory.mediaService.getMediaByInspection(inspectionId);
+        final mediaListData = <Map<String, dynamic>>[];
+        for (final m in mediaList) {
+          mediaListData.add(m.toMap());
+        }
+        hiveData['offline_media'] = mediaListData;
+
+        // Criar arquivo hive_data.json
+        final hiveJsonString = jsonEncode(hiveData);
+        final hiveJsonBytes = utf8.encode(hiveJsonString);
+        final hiveJsonFile = ArchiveFile('hive_data.json', hiveJsonBytes.length, hiveJsonBytes);
+        tarArchive.addFile(hiveJsonFile);
+
+        // Codificar como .tar com nome baseado no código da inspeção
+        final tarBytes = TarEncoder().encode(tarArchive);
+        final tarFileName = '${inspection?.cod ?? 'inspection'}.tar';
+        final tarFile = ArchiveFile(tarFileName, tarBytes.length, tarBytes);
+        archive.addFile(tarFile);
+
+        debugPrint('Hive database backup created successfully');
       } catch (e) {
-        debugPrint('Error adding database to export: $e');
-        // Garantir que sempre tenha algo mesmo com erro
+        debugPrint('Error creating Hive backup: $e');
+        // Criar arquivo de erro
         final errorInfo = {
-          'error': 'Failed to backup database: $e',
+          'error': 'Failed to backup Hive database: $e',
           'timestamp': DateTime.now().toIso8601String(),
           'inspection_id': inspectionId,
-          'fallback': 'Using JSON export as primary backup'
         };
         final errorBytes = utf8.encode(jsonEncode(errorInfo));
         final errorFile = ArchiveFile(
@@ -267,12 +339,14 @@ class InspectionExportService {
       // Gerar o arquivo ZIP
       final zipBytes = ZipEncoder().encode(archive);
 
-      // MODIFICADO: Forçar salvamento na pasta Downloads
+      // SALVAMENTO EM DOWNLOADS
+      // Estratégia: Tentar múltiplos caminhos para garantir salvamento em Downloads
+      // Requer permissão MANAGE_EXTERNAL_STORAGE no AndroidManifest.xml
       Directory? directory;
 
       try {
         if (Platform.isAndroid) {
-          // FORÇAR Downloads - tentar múltiplos caminhos
+          // Tentar múltiplos caminhos possíveis da pasta Downloads no Android
           final downloadPaths = [
             '/storage/emulated/0/Download',
             '/storage/emulated/0/Downloads',
@@ -364,11 +438,60 @@ class InspectionExportService {
         throw Exception('Falha ao salvar o arquivo ZIP em um local válido.');
       }
 
+      // Notificar o MediaScanner do Android para indexar o arquivo
+      if (Platform.isAndroid) {
+        try {
+          // Usar o canal de método para notificar o MediaScanner
+          // Isso tornará o arquivo visível imediatamente no gerenciador de arquivos
+          final process = await Process.run('am', [
+            'broadcast',
+            '-a',
+            'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+            '-d',
+            'file://${zipFile.path}',
+          ]);
+
+          if (process.exitCode == 0) {
+            debugPrint('MediaScanner notified successfully');
+          } else {
+            debugPrint('Failed to notify MediaScanner: ${process.stderr}');
+          }
+        } catch (e) {
+          debugPrint('Error notifying MediaScanner: $e');
+          // Não é crítico, continuar mesmo se falhar
+        }
+      }
+
       if (context.mounted) {
+        // Extrair caminho simplificado para mostrar ao usuário
+        final simplePath = zipFile.path.replaceAll('/storage/emulated/0/', '');
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Arquivo salvo em: ${zipFile.path}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Exportação concluída com sucesso!',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text('Local: $simplePath'),
+                const SizedBox(height: 4),
+                const Text(
+                  'Use o compartilhamento abaixo ou acesse o Gerenciador de Arquivos',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
         );
 
