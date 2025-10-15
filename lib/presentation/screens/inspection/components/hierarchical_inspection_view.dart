@@ -49,16 +49,27 @@ class _HierarchicalInspectionViewState
   final Map<String, double> _progressCache = {};
   final Map<String, List<double>> _itemProgressCache = {};
 
+  // Caches for indicators
+  final Map<String, bool> _topicHasPhoto = {};
+  final Map<String, bool> _topicHasNC = {};
+  final Map<String, bool> _itemHasPhoto = {};
+  final Map<String, bool> _itemHasNC = {};
+
   @override
   void initState() {
     super.initState();
     _topicPageController = PageController();
     _itemPageController = PageController();
+    _updateIndicatorCaches();
   }
 
   @override
   void didUpdateWidget(HierarchicalInspectionView oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.topics != widget.topics || oldWidget.itemsCache != widget.itemsCache) {
+        _updateIndicatorCaches();
+    }
 
     // Verificar se a lista de tópicos mudou (ex: após deleção)
     if (oldWidget.topics.length != widget.topics.length) {
@@ -92,6 +103,48 @@ class _HierarchicalInspectionViewState
           }
         });
       }
+    }
+  }
+
+  Future<void> _updateIndicatorCaches() async {
+    final List<dynamic>? allMedia = await _serviceFactory.mediaService
+        .getMediaByContext(inspectionId: widget.inspectionId);
+    final List<dynamic>? allNCs = await _serviceFactory.dataService
+        .getNonConformities(widget.inspectionId);
+
+    final newTopicHasPhoto = <String, bool>{};
+    final newTopicHasNC = <String, bool>{};
+    final newItemHasPhoto = <String, bool>{};
+    final newItemHasNC = <String, bool>{};
+
+    for (final topic in widget.topics) {
+      // Topic level
+      newTopicHasPhoto[topic.id] = (allMedia ?? [])
+          .any((m) => m.topicId == topic.id && m.itemId == null && m.detailId == null);
+      newTopicHasNC[topic.id] = (allNCs ?? []).any(
+          (nc) => nc.topicId == topic.id && nc.itemId == null && nc.detailId == null);
+
+      final items = widget.itemsCache[topic.id] ?? [];
+      for (final item in items) {
+        // Item level
+        newItemHasPhoto[item.id] =
+            (allMedia ?? []).any((m) => m.itemId == item.id && m.detailId == null);
+        newItemHasNC[item.id] =
+            (allNCs ?? []).any((nc) => nc.itemId == item.id && nc.detailId == null);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _topicHasPhoto.clear();
+        _topicHasPhoto.addAll(newTopicHasPhoto);
+        _topicHasNC.clear();
+        _topicHasNC.addAll(newTopicHasNC);
+        _itemHasPhoto.clear();
+        _itemHasPhoto.addAll(newItemHasPhoto);
+        _itemHasNC.clear();
+        _itemHasNC.addAll(newItemHasNC);
+      });
     }
   }
 
@@ -208,6 +261,8 @@ class _HierarchicalInspectionViewState
                           .toList(),
                       hasObservation: topic.observation != null &&
                           topic.observation!.isNotEmpty,
+                      hasPhoto: _topicHasPhoto[topic.id] ?? false,
+                      hasNonConformity: _topicHasNC[topic.id] ?? false,
                       onIndexChanged: (index) {
                         _topicPageController?.animateToPage(index,
                             duration: const Duration(milliseconds: 300),
@@ -311,6 +366,8 @@ class _HierarchicalInspectionViewState
                                         _getCachedItemProgresses(topicItems),
                                     hasObservation: item.observation != null &&
                                         item.observation!.isNotEmpty,
+                                    hasPhoto: _itemHasPhoto[item.id] ?? false,
+                                    hasNonConformity: _itemHasNC[item.id] ?? false,
                                     connectToNext: shouldConnectToNext,
                                     onIndexChanged: (index) {
                                       if (topicIndex == _currentTopicIndex) {

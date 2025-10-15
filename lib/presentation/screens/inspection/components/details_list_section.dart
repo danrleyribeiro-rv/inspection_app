@@ -488,6 +488,9 @@ class _DetailListItemState extends State<DetailListItem> {
   // Version counters removed - unused and caused analyzer warnings
   String? _currentSelectValue;
 
+  bool _hasMedia = false;
+  bool _hasNCs = false;
+
   @override
   void initState() {
     super.initState();
@@ -499,6 +502,30 @@ class _DetailListItemState extends State<DetailListItem> {
 
     // Escutar mudanças nos contadores de mídia
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
+    _updateIndicatorCounts();
+  }
+
+  Future<void> _updateIndicatorCounts() async {
+    final media = await _serviceFactory.mediaService.getMediaByContext(
+      inspectionId: widget.inspectionId,
+      topicId: widget.detail.topicId,
+      itemId: widget.detail.itemId,
+      detailId: widget.detail.id,
+    );
+
+    final allNCs = await _serviceFactory.dataService.getNonConformities(widget.inspectionId);
+    final detailNCs = allNCs.where((nc) => nc.detailId == widget.detail.id);
+
+    if (mounted) {
+      final newHasMedia = media.isNotEmpty;
+      final newHasNCs = detailNCs.isNotEmpty;
+      if (newHasMedia != _hasMedia || newHasNCs != _hasNCs) {
+        setState(() {
+          _hasMedia = newHasMedia;
+          _hasNCs = newHasNCs;
+        });
+      }
+    }
   }
 
   void _onCounterChanged() {
@@ -507,6 +534,8 @@ class _DetailListItemState extends State<DetailListItem> {
     final ncCacheKey = '${widget.detail.id}_nc_count';
     _mediaCountCache.remove(mediaCacheKey);
     _ncCountCache.remove(ncCacheKey);
+
+    _updateIndicatorCounts();
 
     // Only setState if widget is expanded (visible) to avoid unnecessary rebuilds
     if (mounted && widget.isExpanded) {
@@ -1368,6 +1397,22 @@ class _DetailListItemState extends State<DetailListItem> {
                               ),
                             ),
                           ),
+                          if (_hasNCs) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.orange,
+                              size: 14,
+                            ),
+                          ],
+                          if (_hasMedia) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.photo_camera,
+                              color: Colors.purple,
+                              size: 14,
+                            ),
+                          ],
                           if (_observationController.text.isNotEmpty) ...[
                             const SizedBox(width: 4),
                             const Icon(

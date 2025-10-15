@@ -14,6 +14,8 @@ class SwipeableLevelHeader extends StatefulWidget {
   final int level;
   final IconData icon;
   final bool hasObservation;
+  final bool hasPhoto;
+  final bool hasNonConformity;
   final VoidCallback? onRename;
   final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
@@ -35,6 +37,8 @@ class SwipeableLevelHeader extends StatefulWidget {
     required this.level,
     required this.icon,
     this.hasObservation = false,
+    this.hasPhoto = false,
+    this.hasNonConformity = false,
     this.onRename,
     this.onDuplicate,
     this.onDelete,
@@ -364,6 +368,22 @@ class _SwipeableLevelHeaderState extends State<SwipeableLevelHeader> {
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
+                                            if (widget.hasNonConformity) ...[
+                                              const SizedBox(width: 4),
+                                              const Icon(
+                                                Icons.warning_amber_rounded,
+                                                color: Colors.orange,
+                                                size: 14,
+                                              ),
+                                            ],
+                                            if (widget.hasPhoto) ...[
+                                              const SizedBox(width: 4),
+                                              const Icon(
+                                                Icons.photo_camera,
+                                                color: Colors.purple,
+                                                size: 14,
+                                              ),
+                                            ],
                                             if (widget.hasObservation) ...[
                                               const SizedBox(width: 4),
                                               const Icon(
