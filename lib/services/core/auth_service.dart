@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class AuthService {
   final FirebaseService _firebase = FirebaseService();
@@ -38,7 +41,46 @@ class AuthService {
       );
     }
 
+    await _saveLoginHistory(userCredential.user!.uid);
+
     return userCredential;
+  }
+
+  Future<void> _saveLoginHistory(String userId) async {
+    final deviceInfoPlugin = DeviceInfoPlugin();
+    Map<String, dynamic> deviceData = {};
+
+    try {
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfoPlugin.androidInfo;
+        deviceData = {
+          'model': androidInfo.model,
+          'osVersion': androidInfo.version.release,
+          'sdkVersion': androidInfo.version.sdkInt,
+        };
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfoPlugin.iosInfo;
+        deviceData = {
+          'model': iosInfo.model,
+          'osVersion': iosInfo.systemVersion,
+          'sdkVersion': iosInfo.systemVersion, // No direct SDK int on iOS
+        };
+      }
+    } catch (e) {
+      debugPrint('Error getting device info: $e');
+      // Save what we can, or default values
+      deviceData = {
+        'model': 'Unknown',
+        'osVersion': 'Unknown',
+        'sdkVersion': 0,
+      };
+    }
+
+    await _firebase.firestore.collection('login_history_data').add({
+      'uid': userId,
+      'timestamp': FieldValue.serverTimestamp(),
+      'device': deviceData,
+    });
   }
 
   Future<UserCredential> registerWithEmailAndPassword(

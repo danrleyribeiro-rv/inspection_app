@@ -48,14 +48,6 @@ Future<void> main() async {
 
   debugPrint('Main: All services initialized successfully');
 
-  // Firebase network enabled for online operation
-  try {
-    await FirebaseService().enableNetwork();
-    debugPrint('Main: Firestore network enabled for online operation');
-  } catch (e) {
-    debugPrint('Main: Error enabling Firestore network: $e');
-  }
-
   // Configuração da UI
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

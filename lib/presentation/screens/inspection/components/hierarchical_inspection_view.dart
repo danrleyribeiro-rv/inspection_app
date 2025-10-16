@@ -107,9 +107,9 @@ class _HierarchicalInspectionViewState
   }
 
   Future<void> _updateIndicatorCaches() async {
-    final List<dynamic>? allMedia = await _serviceFactory.mediaService
+    final List<dynamic> allMedia = await _serviceFactory.mediaService
         .getMediaByContext(inspectionId: widget.inspectionId);
-    final List<dynamic>? allNCs = await _serviceFactory.dataService
+    final List<dynamic> allNCs = await _serviceFactory.dataService
         .getNonConformities(widget.inspectionId);
 
     final newTopicHasPhoto = <String, bool>{};
@@ -119,18 +119,18 @@ class _HierarchicalInspectionViewState
 
     for (final topic in widget.topics) {
       // Topic level
-      newTopicHasPhoto[topic.id] = (allMedia ?? [])
+      newTopicHasPhoto[topic.id] = allMedia
           .any((m) => m.topicId == topic.id && m.itemId == null && m.detailId == null);
-      newTopicHasNC[topic.id] = (allNCs ?? []).any(
+      newTopicHasNC[topic.id] = allNCs.any(
           (nc) => nc.topicId == topic.id && nc.itemId == null && nc.detailId == null);
 
       final items = widget.itemsCache[topic.id] ?? [];
       for (final item in items) {
         // Item level
         newItemHasPhoto[item.id] =
-            (allMedia ?? []).any((m) => m.itemId == item.id && m.detailId == null);
+            allMedia.any((m) => m.itemId == item.id && m.detailId == null);
         newItemHasNC[item.id] =
-            (allNCs ?? []).any((nc) => nc.itemId == item.id && nc.detailId == null);
+            allNCs.any((nc) => nc.itemId == item.id && nc.detailId == null);
       }
     }
 

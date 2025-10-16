@@ -117,7 +117,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
               if (!controller.value.isPlaying)
                 Icon(
                   Icons.play_arrow,
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withAlpha(178),
                   size: 80,
                 ),
             ],
@@ -203,7 +203,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black.withValues(alpha: 0.8),
+        backgroundColor: Colors.black.withAlpha(204),
         foregroundColor: Colors.white,
         title: Text(
           '${_currentIndex + 1} de ${widget.mediaItems.length}',
