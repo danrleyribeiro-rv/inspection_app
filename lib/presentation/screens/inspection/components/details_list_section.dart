@@ -6,10 +6,12 @@ import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/detail_helper_service.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/rename_dialog.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/non_conformity_screen.dart';
 import 'package:lince_inspecoes/presentation/screens/media/media_gallery_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
+import 'package:lince_inspecoes/presentation/widgets/inputs/multi_select_field.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 // O widget DetailsListSection e seu State permanecem os mesmos.
@@ -500,6 +502,7 @@ class _DetailListItemState extends State<DetailListItem> {
   final Map<String, int> _ncCountCache = {};
   // Version counters removed - unused and caused analyzer warnings
   String? _currentSelectValue;
+  Set<String> _selectedMultiSelectValues = {}; // Para multi-select
 
   bool _hasMedia = false;
   bool _hasNCs = false;
@@ -665,6 +668,17 @@ class _DetailListItemState extends State<DetailListItem> {
         case 'measure':
           _initializeControllers(); // Para measure, sempre reinicializar
           break;
+        case 'multi-select':
+          // Parse multi-select values usando helper service
+          final newMultiSelectValues = DetailHelperService.parseMultiSelectValue(newValue);
+
+          if (_selectedMultiSelectValues != newMultiSelectValues) {
+            setState(() {
+              _selectedMultiSelectValues = newMultiSelectValues;
+              _valueController.text = newValue ?? '';
+            });
+          }
+          break;
         default:
           if (_valueController.text != (newValue ?? '')) {
             setState(() {
@@ -721,90 +735,20 @@ class _DetailListItemState extends State<DetailListItem> {
         'Initializing controllers for detail ${widget.detail.id} with value: "$detailValue"');
 
     if (widget.detail.type == 'measure') {
-      // Parse measurements - support both JSON format and CSV format
-      String altura = '';
-      String largura = '';
-      String profundidade = '';
-
-      if (detailValue.startsWith('{') && detailValue.endsWith('}')) {
-        // New JSON format: {largura: 2, altura: 1, profundidade: 5}
-        try {
-          // Remove braces and split by comma
-          final content = detailValue.substring(1, detailValue.length - 1);
-          final pairs = content.split(',');
-
-          for (final pair in pairs) {
-            final keyValue = pair.split(':');
-            if (keyValue.length == 2) {
-              final key = keyValue[0].trim();
-              final value = keyValue[1].trim();
-
-              switch (key) {
-                case 'altura':
-                  altura = value;
-                  break;
-                case 'largura':
-                  largura = value;
-                  break;
-                case 'profundidade':
-                  profundidade = value;
-                  break;
-              }
-            }
-          }
-        } catch (e) {
-          debugPrint('Error parsing JSON measurement format: $e');
-        }
-      } else {
-        // Old CSV format: "2,1,5"
-        final measurements = detailValue.split(',');
-        altura = measurements.isNotEmpty ? measurements[0].trim() : '';
-        largura = measurements.length > 1 ? measurements[1].trim() : '';
-        profundidade = measurements.length > 2 ? measurements[2].trim() : '';
-      }
-
-      _heightController.text = altura;
-      _widthController.text = largura;
-      _depthController.text = profundidade;
-    } else if (widget.detail.type == 'boolean') {
-      // Suporte para três estados: sim, não, não_se_aplica
-      if (detailValue.toLowerCase() == 'true' ||
-          detailValue == '1' ||
-          detailValue.toLowerCase() == 'sim') {
-        _booleanValue = 'sim';
-      } else if (detailValue.toLowerCase() == 'false' ||
-          detailValue == '0' ||
-          detailValue.toLowerCase() == 'não') {
-        _booleanValue = 'não';
-      } else {
-        _booleanValue = 'não_se_aplica';
-      }
-    } else if (widget.detail.type == 'boolean02') {
-      // Suporte para três estados: Conforme, Não Conforme, não_se_aplica
-      if (detailValue.toLowerCase() == 'true' ||
-          detailValue == '1' ||
-          detailValue.toLowerCase() == 'conforme') {
-        _booleanValue = 'Conforme';
-      } else if (detailValue.toLowerCase() == 'false' ||
-          detailValue == '0' ||
-          detailValue.toLowerCase() == 'não conforme') {
-        _booleanValue = 'Não Conforme';
-      } else {
-        _booleanValue = 'não_se_aplica';
-      }
-    } else if (widget.detail.type == 'boolean01') {
-      // Suporte para três estados: Aprovado, Reprovado, não_se_aplica
-      if (detailValue.toLowerCase() == 'true' ||
-          detailValue == '1' ||
-          detailValue.toLowerCase() == 'aprovado') {
-        _booleanValue = 'Aprovado';
-      } else if (detailValue.toLowerCase() == 'false' ||
-          detailValue == '0' ||
-          detailValue.toLowerCase() == 'reprovado') {
-        _booleanValue = 'Reprovado';
-      } else {
-        _booleanValue = 'não_se_aplica';
-      }
+      // Parse measurements usando helper service
+      final measurements = DetailHelperService.parseMeasureValue(detailValue);
+      _heightController.text = measurements['altura']!;
+      _widthController.text = measurements['largura']!;
+      _depthController.text = measurements['profundidade']!;
+    } else if (widget.detail.type == 'boolean' ||
+               widget.detail.type == 'boolean01' ||
+               widget.detail.type == 'boolean02') {
+      // Parse boolean usando helper service
+      _booleanValue = DetailHelperService.parseBooleanValue(detailValue, widget.detail.type);
+    } else if (widget.detail.type == 'multi-select') {
+      // Parse multi-select usando helper service
+      _selectedMultiSelectValues = DetailHelperService.parseMultiSelectValue(detailValue);
+      _valueController.text = detailValue;
     } else {
       _valueController.text = detailValue;
       // For select types, also initialize _currentSelectValue
@@ -852,23 +796,17 @@ class _DetailListItemState extends State<DetailListItem> {
   }
 
   void _updateDetailSync() {
-    String value = '';
-
-    if (widget.detail.type == 'measure') {
-      value =
-          '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
-      if (value == ',,') value = '';
-    } else if (widget.detail.type == 'boolean') {
-      value = _booleanValue;
-    } else if (widget.detail.type == 'boolean01') {
-      value = _booleanValue;
-    } else if (widget.detail.type == 'boolean02') {
-      value = _booleanValue;
-    } else if (widget.detail.type == 'select') {
-      value = _currentSelectValue ?? '';
-    } else {
-      value = _valueController.text;
-    }
+    // Usar helper service para obter valor formatado
+    final value = DetailHelperService.getFormattedValue(
+      type: widget.detail.type,
+      textValue: _valueController.text,
+      selectValue: _currentSelectValue,
+      multiSelectValues: _selectedMultiSelectValues,
+      booleanValue: _booleanValue,
+      altura: _heightController.text,
+      largura: _widthController.text,
+      profundidade: _depthController.text,
+    );
 
     final updatedDetail = Detail(
       id: widget.detail.id,
@@ -901,23 +839,17 @@ class _DetailListItemState extends State<DetailListItem> {
   }
 
   void _updateDetail() {
-    String value = '';
-
-    if (widget.detail.type == 'measure') {
-      value =
-          '${_heightController.text.trim()},${_widthController.text.trim()},${_depthController.text.trim()}';
-      if (value == ',,') value = '';
-    } else if (widget.detail.type == 'boolean') {
-      value = _booleanValue;
-    } else if (widget.detail.type == 'boolean01') {
-      value = _booleanValue;
-    } else if (widget.detail.type == 'boolean02') {
-      value = _booleanValue;
-    } else if (widget.detail.type == 'select') {
-      value = _currentSelectValue ?? '';
-    } else {
-      value = _valueController.text;
-    }
+    // Usar helper service para obter valor formatado
+    final value = DetailHelperService.getFormattedValue(
+      type: widget.detail.type,
+      textValue: _valueController.text,
+      selectValue: _currentSelectValue,
+      multiSelectValues: _selectedMultiSelectValues,
+      booleanValue: _booleanValue,
+      altura: _heightController.text,
+      largura: _widthController.text,
+      profundidade: _depthController.text,
+    );
 
     final updatedDetail = Detail(
       id: widget.detail.id,
@@ -1666,6 +1598,52 @@ class _DetailListItemState extends State<DetailListItem> {
           );
         }
         break;
+
+      case 'multi-select':
+        if (widget.detail.options != null && widget.detail.options!.isNotEmpty) {
+          return MultiSelectField(
+            options: widget.detail.options!,
+            selectedValues: _selectedMultiSelectValues,
+            accentColor: detailColor,
+            textColor: textColor,
+            onChanged: (selectedValues, updatedOptions, optionsModified) {
+              if (optionsModified) {
+                // Opções foram modificadas, salvar com novas opções
+                _updateDetailWithNewOptions(updatedOptions, selectedValues);
+              } else {
+                // Apenas seleções mudaram
+                setState(() {
+                  _selectedMultiSelectValues = selectedValues;
+                });
+                _updateDetail();
+              }
+            },
+          );
+        }
+        break;
+
+      case 'number':
+        return TextFormField(
+          controller: _valueController,
+          decoration: InputDecoration(
+            labelText: 'Número',
+            border: const OutlineInputBorder(),
+            hintText: 'Digite um número',
+            labelStyle: TextStyle(color: textColor, fontSize: 12),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: detailColor),
+            ),
+            isDense: true,
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: theme.textTheme.bodyLarge,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+          ],
+          onChanged: (_) => _updateDetail(),
+          onEditingComplete: () => _updateDetail(),
+        );
+
       case 'boolean':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2150,6 +2128,23 @@ class _DetailListItemState extends State<DetailListItem> {
       onEditingComplete: () =>
           _updateDetail(), // Garantir salvamento ao terminar edição
     );
+  }
+
+  Future<void> _updateDetailWithNewOptions(List<String> newOptions, Set<String> selectedValues) async {
+    final value = DetailHelperService.formatMultiSelectValue(selectedValues);
+
+    final updatedDetail = DetailHelperService.createUpdatedDetail(
+      original: widget.detail,
+      newValue: value,
+      newOptions: newOptions,
+    );
+
+    setState(() {
+      _selectedMultiSelectValues = selectedValues;
+    });
+
+    widget.onDetailUpdated(updatedDetail);
+    await _serviceFactory.dataService.updateDetail(updatedDetail);
   }
 
   Future<void> _showCustomOptionDialog() async {
