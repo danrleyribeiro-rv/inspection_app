@@ -1,9 +1,10 @@
-// lib/presentation/screens/inspection/components/non_conformity_form.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
+import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
@@ -52,12 +53,35 @@ class _NonConformityFormState extends State<NonConformityForm> {
 
   bool _isCreating = false;
   String? _severity; // Agora opcional
+  final List<String> _stagedMediaPaths = [];
+  bool _shouldCleanupOnDispose = true;
+  bool _isOptionsExpanded = false;
 
   @override
   void dispose() {
     _descriptionController.dispose();
     _correctiveActionController.dispose();
+    // Só limpa as fotos se não foram salvas (usuário saiu sem salvar)
+    if (_shouldCleanupOnDispose && _stagedMediaPaths.isNotEmpty) {
+      _cleanupStagedMedia();
+    }
     super.dispose();
+  }
+
+  // Limpa as fotos não salvas do dispositivo
+  Future<void> _cleanupStagedMedia() async {
+    debugPrint('Limpando ${_stagedMediaPaths.length} fotos não salvas...');
+    for (final path in _stagedMediaPaths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint('Arquivo deletado: $path');
+        }
+      } catch (e) {
+        debugPrint('Erro ao deletar arquivo $path: $e');
+      }
+    }
   }
 
   Future<void> _editDescriptionDialog() async {
@@ -163,7 +187,7 @@ class _NonConformityFormState extends State<NonConformityForm> {
 
     // Detectar se é hierarquia direta baseado no tópico selecionado
     final isDirectHierarchy = widget.selectedTopic?.directDetails == true;
-    
+
     // Validação baseada no nível
     if (widget.level == 'topic') {
       if (widget.selectedTopic == null) {
@@ -238,7 +262,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
       final nonConformity = NonConformity.create(
         inspectionId: widget.inspectionId,
         topicId: topicId,
-        itemId: isDirectHierarchy ? null : (widget.level != 'topic' ? itemId : null),
+        itemId:
+            isDirectHierarchy ? null : (widget.level != 'topic' ? itemId : null),
         detailId: widget.level == 'detail' ? detailId : null,
         title: _descriptionController.text.trim(),
         description: _descriptionController.text.trim(),
@@ -247,6 +272,22 @@ class _NonConformityFormState extends State<NonConformityForm> {
       );
 
       await _serviceFactory.dataService.saveNonConformity(nonConformity);
+
+      // Process staged media
+      if (_stagedMediaPaths.isNotEmpty) {
+        for (final imagePath in _stagedMediaPaths) {
+          await _serviceFactory.mediaService.captureAndProcessMediaSimple(
+            inputPath: imagePath,
+            inspectionId: widget.inspectionId,
+            type: 'image',
+            topicId: nonConformity.topicId,
+            itemId: nonConformity.itemId,
+            detailId: nonConformity.detailId,
+            nonConformityId: nonConformity.id,
+            source: 'camera', // This is a simplification
+          );
+        }
+      }
 
       // Notify counter change to update NC badges
       MediaCounterNotifier.instance.invalidateAll();
@@ -284,6 +325,13 @@ class _NonConformityFormState extends State<NonConformityForm> {
     setState(() {
       _severity = null;
       _isCreating = false;
+      // Desativa limpeza no dispose, pois as fotos foram salvas
+      _shouldCleanupOnDispose = false;
+      // Limpa a lista de paths, mas não deleta os arquivos
+      // pois já foram processados e movidos pelo mediaService
+      _stagedMediaPaths.clear();
+      // Reativa limpeza para futuras fotos
+      _shouldCleanupOnDispose = true;
     });
   }
 
@@ -300,6 +348,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
             const SizedBox(height: 8),
             _buildNonConformityDetailsCard(),
             const SizedBox(height: 8),
+            _buildMediaCard(),
+            const SizedBox(height: 8),
             _buildSaveButton(),
             const SizedBox(
                 height: 80), // Extra padding para evitar sobreposição
@@ -309,10 +359,112 @@ class _NonConformityFormState extends State<NonConformityForm> {
     );
   }
 
+  Widget _buildMediaCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Grid de imagens
+            if (_stagedMediaPaths.isNotEmpty)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1,
+                ),
+                itemCount: _stagedMediaPaths.length,
+                itemBuilder: (context, index) {
+                  final path = _stagedMediaPaths[index];
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(path),
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () async {
+                            // Deleta o arquivo do dispositivo
+                            try {
+                              final file = File(path);
+                              if (await file.exists()) {
+                                await file.delete();
+                              }
+                            } catch (e) {
+                              debugPrint('Erro ao deletar arquivo: $e');
+                            }
+                            setState(() {
+                              _stagedMediaPaths.removeAt(index);
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close,
+                                color: Colors.white, size: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            if (_stagedMediaPaths.isNotEmpty) const SizedBox(height: 12),
+            // Botão de adicionar mídia
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _captureFromCamera,
+                    icon: const Icon(Icons.add_a_photo),
+                    label: const Text('Adicionar Mídia'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _captureFromCamera() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InspectionCameraScreen(
+          inspectionId: widget.inspectionId,
+          onMediaCaptured: (capturedFiles) {
+            setState(() {
+              _stagedMediaPaths.addAll(capturedFiles);
+            });
+            // Não fazer pop aqui - a câmera já fecha automaticamente
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildLocationCard() {
     // Detectar se é hierarquia direta baseado no tópico selecionado
     final isDirectHierarchy = widget.selectedTopic?.directDetails == true;
-    
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -435,30 +587,70 @@ class _NonConformityFormState extends State<NonConformityForm> {
             ),
             const SizedBox(height: 12),
 
-            // Corrective action field with popup
-            GestureDetector(
-              onTap: _editCorrectiveActionDialog,
-              child: AbsorbPointer(
-                child: TextFormField(
-                  controller: _correctiveActionController,
-                  decoration: InputDecoration(
-                    labelText: 'Ação Corretiva (opcional)',
-                    labelStyle: const TextStyle(fontSize: 12),
-                    hintText: _correctiveActionController.text.isEmpty
-                        ? 'Toque para adicionar ação corretiva...'
-                        : null,
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.build),
-                    suffixIcon: const Icon(Icons.edit, size: 16),
+            // Container expansível para opções adicionais
+            _buildOptionsExpansionTile(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionsExpansionTile() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          title: const Row(
+            children: [
+              Icon(Icons.tune, size: 18, color: Colors.blue),
+              SizedBox(width: 8),
+              Text(
+                'Opções',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          initiallyExpanded: _isOptionsExpanded,
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _isOptionsExpanded = expanded;
+            });
+          },
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                children: [
+                  // Ação Corretiva
+                  GestureDetector(
+                    onTap: _editCorrectiveActionDialog,
+                    child: AbsorbPointer(
+                      child: TextFormField(
+                        controller: _correctiveActionController,
+                        decoration: InputDecoration(
+                          labelText: 'Ação Corretiva',
+                          labelStyle: const TextStyle(fontSize: 12),
+                          hintText: _correctiveActionController.text.isEmpty
+                              ? 'Toque para adicionar ação corretiva...'
+                              : null,
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.build),
+                          suffixIcon: const Icon(Icons.edit, size: 16),
+                        ),
+                        maxLines: 1,
+                      ),
+                    ),
                   ),
-                  maxLines: 1,
-                ),
+                  const SizedBox(height: 12),
+                  // Severidade
+                  _buildSeverityDropdown(),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-
-            // Severidade (opcional) - movida para o final
-            _buildSeverityDropdown(),
           ],
         ),
       ),

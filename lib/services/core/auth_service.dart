@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:lince_inspecoes/storage/database_helper.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AuthService {
   final FirebaseService _firebase = FirebaseService();
@@ -136,6 +138,40 @@ class AuthService {
 
   Future<bool> isUserInspector(String userId) async {
     return await checkUserRole(userId, 'inspector');
+  }
+
+  /// Clean up all local data (media files and database)
+  Future<void> clearAllLocalData() async {
+    try {
+      debugPrint('AuthService: Starting local data cleanup...');
+
+      // 1. Delete all physical media files
+      final appDir = await getApplicationDocumentsDirectory();
+      final mediaDir = Directory('${appDir.path}/media');
+      final thumbnailsDir = Directory('${appDir.path}/thumbnails');
+
+      if (await mediaDir.exists()) {
+        debugPrint('AuthService: Deleting media directory...');
+        await mediaDir.delete(recursive: true);
+        debugPrint('AuthService: Media directory deleted');
+      }
+
+      if (await thumbnailsDir.exists()) {
+        debugPrint('AuthService: Deleting thumbnails directory...');
+        await thumbnailsDir.delete(recursive: true);
+        debugPrint('AuthService: Thumbnails directory deleted');
+      }
+
+      // 2. Clear all database data
+      debugPrint('AuthService: Clearing database...');
+      await DatabaseHelper.clearAllData();
+      debugPrint('AuthService: Database cleared');
+
+      debugPrint('AuthService: Local data cleanup completed successfully');
+    } catch (e) {
+      debugPrint('AuthService: Error during local data cleanup: $e');
+      // Don't throw - continue with logout even if cleanup fails
+    }
   }
 
   Future<void> signOut() async {

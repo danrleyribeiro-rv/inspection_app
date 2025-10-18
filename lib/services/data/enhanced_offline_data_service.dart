@@ -552,6 +552,10 @@ class OfflineDataService {
     await _mediaRepository.markAsUploaded(mediaId, cloudUrl);
   }
 
+  Future<void> updateMediaUploadStatus(String mediaId, bool isUploaded) async {
+    await _mediaRepository.updateUploadStatus(mediaId, isUploaded);
+  }
+
   Future<void> setMediaThumbnail(String mediaId, String thumbnailPath) async {
     await _mediaRepository.setThumbnail(mediaId, thumbnailPath);
   }

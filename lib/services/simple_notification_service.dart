@@ -17,26 +17,27 @@ class SimpleNotificationService {
   
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
-  
+
   static const String _channelId = 'lince_sync_channel';
   static const String _channelName = 'Lince - Sincronização';
   static const String _channelDescription = 'Notificações de sincronização de inspeções';
-  
+
   // Notification IDs
   static const int _syncProgressId = 1001;
   static const int _downloadProgressId = 1002;
   static const int _completionId = 1003;
   static const int _errorId = 1004;
+
+  // Callback for sync cancellation
+  Function(String)? _onCancelSync;
+  String? _currentSyncInspectionId;
   
   Future<bool> initialize() async {
     if (_isInitialized) return true;
 
     try {
-      debugPrint('SimpleNotificationService: Initializing...');
-
       // Use in-app toasts for desktop platforms
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        debugPrint('SimpleNotificationService: Desktop platform detected, using in-app toast notifications');
         _isInitialized = true;
         return true;
       }
@@ -44,7 +45,6 @@ class SimpleNotificationService {
       // Request permissions first
       final permissionGranted = await _requestPermissions();
       if (!permissionGranted) {
-        debugPrint('SimpleNotificationService: Permissions not granted');
         return false;
       }
 
@@ -65,6 +65,7 @@ class SimpleNotificationService {
 
       await _flutterLocalNotificationsPlugin.initialize(
         initializationSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
       );
 
       // Create notification channel for Android
@@ -73,7 +74,6 @@ class SimpleNotificationService {
       }
 
       _isInitialized = true;
-      debugPrint('SimpleNotificationService: Initialized successfully');
       return true;
 
     } catch (e) {
@@ -82,6 +82,28 @@ class SimpleNotificationService {
     }
   }
   
+  /// Set callback for sync cancellation
+  void setSyncCancelCallback(Function(String) callback, String inspectionId) {
+    _onCancelSync = callback;
+    _currentSyncInspectionId = inspectionId;
+  }
+
+  /// Clear sync cancel callback
+  void clearSyncCancelCallback() {
+    _onCancelSync = null;
+    _currentSyncInspectionId = null;
+  }
+
+  /// Handle notification tap
+  void _onNotificationTapped(NotificationResponse response) {
+    debugPrint('SimpleNotificationService: Notification tapped with action: ${response.actionId}');
+
+    if (response.actionId == 'cancel_sync' && _currentSyncInspectionId != null && _onCancelSync != null) {
+      debugPrint('SimpleNotificationService: Cancelling sync for inspection $_currentSyncInspectionId');
+      _onCancelSync!(_currentSyncInspectionId!);
+    }
+  }
+
   Future<bool> _requestPermissions() async {
     try {
       if (Platform.isAndroid) {
@@ -221,6 +243,16 @@ class SimpleNotificationService {
         autoCancel: false,
         showWhen: false,
         icon: '@mipmap/ic_launcher',
+        actions: id == _syncProgressId
+            ? <AndroidNotificationAction>[
+                const AndroidNotificationAction(
+                  'cancel_sync',
+                  'Cancelar',
+                  cancelNotification: true,
+                  showsUserInterface: false,
+                ),
+              ]
+            : null,
       );
 
       // Para iOS, incluir o progresso no texto da mensagem
@@ -248,7 +280,6 @@ class SimpleNotificationService {
         platformChannelSpecifics,
       );
 
-      debugPrint('SimpleNotificationService: Progress notification shown: $title - ${Platform.isIOS ? iOSMessage : message}');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing progress notification: $e');
     }
@@ -306,7 +337,6 @@ class SimpleNotificationService {
         platformChannelSpecifics,
       );
 
-      debugPrint('SimpleNotificationService: Completion notification shown: $title - $message');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing completion notification: $e');
     }
@@ -362,7 +392,6 @@ class SimpleNotificationService {
         platformChannelSpecifics,
       );
 
-      debugPrint('SimpleNotificationService: Error notification shown: $title - $message');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error showing error notification: $e');
     }
@@ -375,7 +404,6 @@ class SimpleNotificationService {
       } else {
         await _flutterLocalNotificationsPlugin.cancelAll();
       }
-      debugPrint('SimpleNotificationService: All notifications hidden');
     } catch (e) {
       debugPrint('SimpleNotificationService: Error hiding notifications: $e');
     }

@@ -18,6 +18,9 @@ class NonConformityList extends StatefulWidget {
   final Function()? onNonConformityUpdated;
   final String searchQuery;
   final String? levelFilter;
+  final String? filterTopicId;
+  final String? filterItemId;
+  final String? filterDetailId;
 
   const NonConformityList({
     super.key,
@@ -30,6 +33,9 @@ class NonConformityList extends StatefulWidget {
     this.onNonConformityUpdated,
     this.searchQuery = '',
     this.levelFilter,
+    this.filterTopicId,
+    this.filterItemId,
+    this.filterDetailId,
   });
 
   @override
@@ -314,10 +320,29 @@ class _NonConformityListState extends State<NonConformityList> {
 
     List<Map<String, dynamic>> filteredNCs = widget.nonConformities;
 
-    // Apply detail filter if provided
+    // Apply detail filter if provided (legacy filter)
     if (widget.filterByDetailId != null) {
       filteredNCs = filteredNCs
           .where((nc) => nc['detail_id'] == widget.filterByDetailId)
+          .toList();
+    }
+
+    // Apply advanced filters (topic/item/detail hierarchy)
+    if (widget.filterTopicId != null) {
+      filteredNCs = filteredNCs
+          .where((nc) => nc['topic_id'] == widget.filterTopicId)
+          .toList();
+    }
+
+    if (widget.filterItemId != null) {
+      filteredNCs = filteredNCs
+          .where((nc) => nc['item_id'] == widget.filterItemId)
+          .toList();
+    }
+
+    if (widget.filterDetailId != null) {
+      filteredNCs = filteredNCs
+          .where((nc) => nc['detail_id'] == widget.filterDetailId)
           .toList();
     }
 

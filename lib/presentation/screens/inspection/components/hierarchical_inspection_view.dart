@@ -7,6 +7,7 @@ import 'package:lince_inspecoes/presentation/screens/inspection/components/topic
 import 'package:lince_inspecoes/presentation/screens/inspection/components/item_details_section.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/details_list_section.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
 class HierarchicalInspectionView extends StatefulWidget {
   final String inspectionId;
@@ -61,6 +62,15 @@ class _HierarchicalInspectionViewState
     _topicPageController = PageController();
     _itemPageController = PageController();
     _updateIndicatorCaches();
+
+    // Listen to media/NC changes to update indicators in real-time
+    MediaCounterNotifier.instance.addListener(_onMediaCounterChanged);
+  }
+
+  void _onMediaCounterChanged() {
+    if (mounted) {
+      _updateIndicatorCaches();
+    }
   }
 
   @override
@@ -118,19 +128,31 @@ class _HierarchicalInspectionViewState
     final newItemHasNC = <String, bool>{};
 
     for (final topic in widget.topics) {
-      // Topic level
-      newTopicHasPhoto[topic.id] = allMedia
+      // Topic level - check if topic itself or ANY of its children have media/NCs
+      final topicHasOwnMedia = allMedia
           .any((m) => m.topicId == topic.id && m.itemId == null && m.detailId == null);
-      newTopicHasNC[topic.id] = allNCs.any(
+      final topicHasOwnNC = allNCs.any(
           (nc) => nc.topicId == topic.id && nc.itemId == null && nc.detailId == null);
+
+      // Check if ANY child (item, detail, or NC) has media
+      final topicHasChildMedia = allMedia.any((m) => m.topicId == topic.id);
+      final topicHasChildNC = allNCs.any((nc) => nc.topicId == topic.id);
+
+      newTopicHasPhoto[topic.id] = topicHasOwnMedia || topicHasChildMedia;
+      newTopicHasNC[topic.id] = topicHasOwnNC || topicHasChildNC;
 
       final items = widget.itemsCache[topic.id] ?? [];
       for (final item in items) {
-        // Item level
-        newItemHasPhoto[item.id] =
-            allMedia.any((m) => m.itemId == item.id && m.detailId == null);
-        newItemHasNC[item.id] =
-            allNCs.any((nc) => nc.itemId == item.id && nc.detailId == null);
+        // Item level - check if item itself or ANY of its details have media/NCs
+        final itemHasOwnMedia = allMedia.any((m) => m.itemId == item.id && m.detailId == null);
+        final itemHasOwnNC = allNCs.any((nc) => nc.itemId == item.id && nc.detailId == null);
+
+        // Check if ANY child detail has media
+        final itemHasChildMedia = allMedia.any((m) => m.itemId == item.id);
+        final itemHasChildNC = allNCs.any((nc) => nc.itemId == item.id);
+
+        newItemHasPhoto[item.id] = itemHasOwnMedia || itemHasChildMedia;
+        newItemHasNC[item.id] = itemHasOwnNC || itemHasChildNC;
       }
     }
 
@@ -150,6 +172,7 @@ class _HierarchicalInspectionViewState
 
   @override
   void dispose() {
+    MediaCounterNotifier.instance.removeListener(_onMediaCounterChanged);
     _topicPageController?.dispose();
     _itemPageController?.dispose();
     super.dispose();

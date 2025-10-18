@@ -62,13 +62,9 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
   void _setupSyncProgressListener() {
     NativeSyncService.instance.syncProgressStream.listen((progress) {
-      debugPrint(
-          'InspectionTab: Sync progress received - ID: ${progress.inspectionId}, Phase: ${progress.phase}');
       if (mounted) {
         setState(() {
           if (progress.phase == SyncPhase.completed) {
-            debugPrint(
-                'InspectionTab: Processing sync completion for ${progress.inspectionId}');
             // Download/Upload completed, remove from downloading set
             _downloadingInspections.remove(progress.inspectionId);
 
@@ -246,8 +242,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
           // Reset any syncing status that might be stuck
           for (final inspectionId in currentInspectionIds) {
             if (_syncingStatus[inspectionId] == true) {
-              debugPrint(
-                  'InspectionTab: Resetting stuck syncing status for $inspectionId');
               _syncingStatus[inspectionId] = false;
             }
           }
@@ -297,14 +291,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
           final inspectionMap = inspection.toMap();
           inspectionMap['_is_cached'] = true;
           inspectionMap['_local_status'] = inspection.status;
-
-          // Debug: Log status para troubleshooting
-          if (inspection.id == 'ggamoZ2ezDpuAo4xmH9H') {
-            debugPrint(
-                'InspectionTab: Loading inspection ${inspection.id} with status: "${inspection.status}"');
-            debugPrint(
-                'InspectionTab: _local_status set to: "${inspectionMap['_local_status']}"');
-          }
 
           // Check if there are actual local changes that need sync
           final hasRealChanges = await _checkForRealLocalChanges(inspection.id);
@@ -485,6 +471,42 @@ class _InspectionsTabState extends State<InspectionsTab> {
     }
   }
 
+  Future<void> _cancelSync(String inspectionId) async {
+    try {
+      // Cancel the sync operation
+      await _serviceFactory.syncService.cancelSync(inspectionId);
+
+      // Update syncing status
+      if (mounted) {
+        setState(() {
+          _syncingStatus[inspectionId] = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sincronização cancelada'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Refresh the list
+        _loadInspections();
+      }
+    } catch (e) {
+      debugPrint('Error cancelling sync: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao cancelar: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<bool> _checkForRealLocalChanges(String inspectionId) async {
     try {
       // Check ONLY if this specific inspection and its related entities need sync
@@ -512,8 +534,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
       if (inspectionIndex >= 0) {
         _inspections[inspectionIndex]['has_local_changes'] = false;
         _inspections[inspectionIndex]['_local_status'] = null;
-        debugPrint(
-            'InspectionTab: Marked inspection $inspectionId as synced - local flags cleared in memory');
       }
 
       // Força atualização da lista
@@ -695,7 +715,6 @@ class _InspectionsTabState extends State<InspectionsTab> {
 
       // Upload pending media for this specific inspection
       // Upload manual seria implementado aqui no futuro
-      debugPrint('Manual upload would be implemented here');
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
@@ -836,6 +855,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
                                       _syncInspectionImages(inspection['id'])
                                   : null,
                               onRemove: () => _removeInspection(inspectionId),
+                              onCancelSync: () => _cancelSync(inspectionId),
                               pendingImagesCount:
                                   _getPendingImagesCount(inspection['id']),
                             );

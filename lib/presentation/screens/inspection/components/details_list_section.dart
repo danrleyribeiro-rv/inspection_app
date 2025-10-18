@@ -120,8 +120,22 @@ class _DetailsListSectionState extends State<DetailsListSection> {
   @override
   void didUpdateWidget(DetailsListSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.details != oldWidget.details ||
-        widget.details.length != oldWidget.details.length) {
+
+    // Check if detail IDs or order changed
+    bool detailsChanged = false;
+    if (widget.details.length != oldWidget.details.length) {
+      detailsChanged = true;
+    } else {
+      // Same length - check if IDs or order changed
+      for (int i = 0; i < widget.details.length; i++) {
+        if (widget.details[i].id != oldWidget.details[i].id) {
+          detailsChanged = true;
+          break;
+        }
+      }
+    }
+
+    if (detailsChanged) {
       debugPrint(
           'DetailsListSection: didUpdateWidget - Details changed from ${oldWidget.details.length} to ${widget.details.length} for topic ${widget.topic.id}');
 
@@ -247,8 +261,7 @@ class _DetailsListSectionState extends State<DetailsListSection> {
           final isExpanded = index == _expandedDetailIndex;
 
           return DetailListItem(
-            key: ValueKey(
-                '${widget.topic.id}_${widget.item?.id ?? 'direct'}_${detail.id}_$index'),
+            key: ValueKey(detail.id),
             index: index,
             detail: detail,
             item: widget.item,

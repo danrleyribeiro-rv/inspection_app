@@ -7,6 +7,7 @@ import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_form.dart';
 import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_list.dart';
+import 'package:lince_inspecoes/presentation/screens/inspection/components/non_conformity_filter_dialog.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
@@ -51,11 +52,16 @@ class _NonConformityScreenState extends State<NonConformityScreen>
 
   bool _isProcessing = false;
   String? _filterByDetailId;
-  
+
   // New filter properties for search and level filter
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _levelFilter;
+
+  // Advanced filter properties
+  String? _filterTopicId;
+  String? _filterItemId;
+  String? _filterDetailId;
 
   @override
   void initState() {
@@ -531,6 +537,33 @@ class _NonConformityScreenState extends State<NonConformityScreen>
     _tabController.animateTo(1);
   }
 
+  Future<void> _openFilterDialog() async {
+    final result = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (context) => NonConformityFilterDialog(
+        inspectionId: widget.inspectionId,
+        initialTopicId: _filterTopicId,
+        initialItemId: _filterItemId,
+        initialDetailId: _filterDetailId,
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _filterTopicId = result['topicId'];
+        _filterItemId = result['itemId'];
+        _filterDetailId = result['detailId'];
+      });
+    }
+  }
+
+  void _clearAdvancedFilters() {
+    setState(() {
+      _filterTopicId = null;
+      _filterItemId = null;
+      _filterDetailId = null;
+    });
+  }
 
   String _determineLevel() {
     // Determine the appropriate level based on preselected parameters
@@ -591,34 +624,94 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Search Bar
-                          TextField(
-                            controller: _searchController,
-                            style: theme.textTheme.bodyLarge,
-                            decoration: InputDecoration(
-                              hintText: 'Pesquisar não conformidades...',
-                              hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith(fontSize: 12),
-                              prefixIcon: Icon(Icons.search, color: theme.inputDecorationTheme.hintStyle?.color),
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: Icon(Icons.clear, color: theme.inputDecorationTheme.hintStyle?.color),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _searchQuery = '');
-                                      },
-                                    )
-                                  : null,
-                              filled: true,
-                              fillColor: theme.inputDecorationTheme.fillColor,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
+                          // Search Bar with Filter Button
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  style: theme.textTheme.bodyLarge,
+                                  decoration: InputDecoration(
+                                    hintText: 'Pesquisar não conformidades...',
+                                    hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith(fontSize: 12),
+                                    prefixIcon: Icon(Icons.search, color: theme.inputDecorationTheme.hintStyle?.color),
+                                    suffixIcon: _searchQuery.isNotEmpty
+                                        ? IconButton(
+                                            icon: Icon(Icons.clear, color: theme.inputDecorationTheme.hintStyle?.color),
+                                            onPressed: () {
+                                              _searchController.clear();
+                                              setState(() => _searchQuery = '');
+                                            },
+                                          )
+                                        : null,
+                                    filled: true,
+                                    fillColor: theme.inputDecorationTheme.fillColor,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() => _searchQuery = value);
+                                  },
+                                ),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            ),
-                            onChanged: (value) {
-                              setState(() => _searchQuery = value);
-                            },
+                              const SizedBox(width: 8),
+                              // Filter Button
+                              Stack(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: (_filterTopicId != null || _filterItemId != null || _filterDetailId != null)
+                                          ? theme.colorScheme.primary
+                                          : theme.inputDecorationTheme.fillColor,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(
+                                        Icons.filter_list,
+                                        color: (_filterTopicId != null || _filterItemId != null || _filterDetailId != null)
+                                            ? Colors.white
+                                            : theme.inputDecorationTheme.hintStyle?.color,
+                                      ),
+                                      onPressed: _openFilterDialog,
+                                      tooltip: 'Filtros Avançados',
+                                    ),
+                                  ),
+                                  if (_filterTopicId != null || _filterItemId != null || _filterDetailId != null)
+                                    Positioned(
+                                      right: 8,
+                                      top: 8,
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              // Clear filters button (only visible when filters are active)
+                              if (_filterTopicId != null || _filterItemId != null || _filterDetailId != null)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  decoration: BoxDecoration(
+                                    color: theme.inputDecorationTheme.fillColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: IconButton(
+                                    icon: Icon(
+                                      Icons.clear_all,
+                                      color: theme.inputDecorationTheme.hintStyle?.color,
+                                    ),
+                                    onPressed: _clearAdvancedFilters,
+                                    tooltip: 'Limpar Filtros',
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           
@@ -689,6 +782,9 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                         onNonConformityUpdated: _loadNonConformities,
                         searchQuery: _searchQuery,
                         levelFilter: _levelFilter,
+                        filterTopicId: _filterTopicId,
+                        filterItemId: _filterItemId,
+                        filterDetailId: _filterDetailId,
                       ),
                     ),
                   ],

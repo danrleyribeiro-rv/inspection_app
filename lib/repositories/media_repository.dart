@@ -172,10 +172,25 @@ class MediaRepository {
   Future<void> markAsUploaded(String mediaId, String cloudUrl) async {
     final media = await findById(mediaId);
     if (media != null) {
+      // IMPORTANTE: Marcar como uploaded somente se o cloudUrl for válido
+      // A verificação real será feita pelo CloudVerificationService
+      // Aqui apenas garantimos que há um cloudUrl
       final updatedMedia = media.copyWith(
-        isUploaded: true,
+        isUploaded: cloudUrl.isNotEmpty, // Só marca true se cloudUrl existir
         cloudUrl: cloudUrl,
-        uploadProgress: 100.0,
+        uploadProgress: cloudUrl.isNotEmpty ? 100.0 : media.uploadProgress,
+        updatedAt: DateFormatter.now(),
+      );
+      await update(updatedMedia);
+    }
+  }
+
+  Future<void> updateUploadStatus(String mediaId, bool isUploaded) async {
+    final media = await findById(mediaId);
+    if (media != null) {
+      final updatedMedia = media.copyWith(
+        isUploaded: isUploaded,
+        uploadProgress: isUploaded ? 100.0 : 0.0,
         updatedAt: DateFormatter.now(),
       );
       await update(updatedMedia);

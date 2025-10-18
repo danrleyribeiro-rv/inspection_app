@@ -74,6 +74,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _signOut() async {
     setState(() => _isLoading = true);
     try {
+      // Clear all local data (media files and database) before signing out
+      await _serviceFactory.authService.clearAllLocalData();
+
       await _serviceFactory.authService.signOut();
       if (mounted) {
         Navigator.of(context)
@@ -142,6 +145,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             .update({'deleted_at': FieldValue.serverTimestamp()});
         if (!mounted) return;
       }
+
+      // Clear all local data (media files and database) before signing out
+      await _serviceFactory.authService.clearAllLocalData();
 
       await _serviceFactory.authService.signOut();
       if (mounted) {

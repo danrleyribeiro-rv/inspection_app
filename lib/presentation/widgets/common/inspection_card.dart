@@ -10,6 +10,7 @@ class InspectionCard extends StatelessWidget {
   final Function()? onDownload;
   final Function()? onSyncImages; // Callback para sincronizar imagens
   final Function()? onRemove; // Callback para remover inspeção
+  final Function()? onCancelSync; // Callback para cancelar sincronização
   final int? pendingImagesCount; // Contador de imagens pendentes
   final String googleMapsApiKey;
   final bool isFullyDownloaded; // Status de download completo
@@ -27,6 +28,7 @@ class InspectionCard extends StatelessWidget {
     this.onDownload,
     this.onSyncImages,
     this.onRemove,
+    this.onCancelSync,
     this.pendingImagesCount,
     required this.googleMapsApiKey, // <<< Make it required in the constructor
     this.isFullyDownloaded = false,
@@ -90,7 +92,7 @@ class InspectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: InkWell(
-        onTap: onViewDetails,
+        onTap: isSyncing ? null : onViewDetails,
         borderRadius: BorderRadius.circular(6),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -328,25 +330,27 @@ class InspectionCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Continue button - always show if downloaded
+                        // Continue button - always show if downloaded, but disabled during sync
                         if (isFullyDownloaded)
                           ElevatedButton(
-                            onPressed: onViewDetails,
+                            onPressed: isSyncing ? null : onViewDetails,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF6F4B99),
                               foregroundColor: Colors.white,
                               minimumSize: const Size(0, 32),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 4),
+                              disabledBackgroundColor: Colors.grey,
+                              disabledForegroundColor: Colors.white70,
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.edit, size: 14),
-                                SizedBox(width: 4),
+                                Icon(Icons.edit, size: 14, color: isSyncing ? Colors.white70 : Colors.white),
+                                const SizedBox(width: 4),
                                 Text(
-                                  'Editar',
-                                  style: TextStyle(fontSize: 12),
+                                  isSyncing ? 'Aguarde...' : 'Editar',
+                                  style: const TextStyle(fontSize: 12),
                                 ),
                               ],
                             ),
@@ -400,10 +404,10 @@ class InspectionCard extends StatelessWidget {
       child: isSyncing
           ? Builder(
               builder: (context) {
-                return const Row(
+                return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
@@ -411,8 +415,8 @@ class InspectionCard extends StatelessWidget {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Flexible(
+                    const SizedBox(width: 8),
+                    const Flexible(
                       child: Text(
                         'Sincronizando...',
                         style: TextStyle(
@@ -421,6 +425,20 @@ class InspectionCard extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    // Cancel button
+                    InkWell(
+                      onTap: onCancelSync,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],

@@ -3,10 +3,10 @@ import 'dart:developer';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:lince_inspecoes/services/cloud_verification_service.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
-// import 'package:lince_inspecoes/services/firebase_token_manager.dart'; // Temporariamente removido
 
 /// Serviço para upload automático periódico de imagens em background
 /// Mantém os status da inspeção inalterados - apenas acelera o upload futuro
@@ -74,6 +74,9 @@ class BackgroundMediaSyncService {
       // Processa cada inspeção
       for (final inspection in inspections) {
         await _syncInspectionMedia(inspection.id);
+        // Após o upload, verifica a integridade dos arquivos na nuvem
+        final verificationResult = await CloudVerificationService.instance.verifyInspectionSync(inspection.id);
+        log('BackgroundMediaSyncService: Verificação da inspeção ${inspection.id} concluída com resultado: ${verificationResult.summary}');
       }
       
     } catch (e) {

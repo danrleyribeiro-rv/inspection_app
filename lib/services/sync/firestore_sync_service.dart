@@ -22,10 +22,14 @@ class FirestoreSyncService {
   final FirebaseService _firebaseService;
   final OfflineDataService _offlineService;
   bool _isSyncing = false;
-  
+
   // Stream controller for detailed sync progress
   final _syncProgressController = StreamController<SyncProgress>.broadcast();
   Stream<SyncProgress> get syncProgressStream => _syncProgressController.stream;
+
+  // Track active sync operations for cancellation
+  final Map<String, bool> _activeSyncs = {};
+  final Map<String, Completer<void>> _syncCompleters = {};
 
   // Singleton pattern
   static FirestoreSyncService? _instance;
@@ -62,6 +66,46 @@ class FirestoreSyncService {
   Future<bool> isConnected() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     return !connectivityResult.contains(ConnectivityResult.none);
+  }
+
+  // ===============================
+  // SYNC CANCELLATION METHODS
+  // ===============================
+
+  /// Check if an inspection is currently syncing
+  bool isSyncingInspection(String inspectionId) {
+    return _activeSyncs[inspectionId] == true;
+  }
+
+  /// Cancel an active sync operation
+  Future<void> cancelSync(String inspectionId) async {
+    if (_activeSyncs[inspectionId] == true) {
+      debugPrint('FirestoreSyncService: Cancelling sync for inspection $inspectionId');
+      _activeSyncs[inspectionId] = false;
+
+      // Complete the completer to unblock any waiting operations
+      final completer = _syncCompleters[inspectionId];
+      if (completer != null && !completer.isCompleted) {
+        completer.complete();
+      }
+
+      // Clean up
+      _syncCompleters.remove(inspectionId);
+
+      // Emit cancellation progress
+      _syncProgressController.add(SyncProgress(
+        inspectionId: inspectionId,
+        phase: SyncPhase.error,
+        current: 0,
+        total: 1,
+        message: 'Sincronização cancelada pelo usuário',
+      ));
+
+      // Hide notification
+      await SimpleNotificationService.instance.hideAllNotifications();
+
+      debugPrint('FirestoreSyncService: Sync cancelled for inspection $inspectionId');
+    }
   }
 
   // ===============================
@@ -262,31 +306,36 @@ class FirestoreSyncService {
     final stopwatch = Stopwatch()..start();
     Timer? notificationTimer;
     String? sessionId;
-    
+
     try {
       final mediaFiles = await _offlineService.getMediaPendingUpload();
       final inspectionMediaFiles = mediaFiles.where((media) => media.inspectionId == inspectionId).toList();
-      
+
       if (inspectionMediaFiles.isEmpty) {
         return;
       }
-      
+
       // Sort por tamanho para melhor percepção de velocidade
       inspectionMediaFiles.sort((a, b) => (a.fileSize ?? 0).compareTo(b.fileSize ?? 0));
-      
+
       // Preparar itens para tracking de progresso
       final uploadItems = inspectionMediaFiles.map((media) => UploadItem(
         id: media.id,
         filename: media.filename,
         totalBytes: media.fileSize ?? 1024, // fallback 1KB
       )).toList();
-      
+
       // Iniciar tracking de progresso
       sessionId = 'batch_$inspectionId';
       UploadProgressService.instance.startUploadTracking(sessionId, uploadItems);
-      
+
       // Timer para atualizar notificação a cada 2 segundos
       notificationTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+        // Stop timer if sync was cancelled
+        if (_activeSyncs[inspectionId] == false) {
+          return;
+        }
+
         final stats = UploadProgressService.instance.getUploadStats(sessionId!);
         if (stats != null) {
           await SimpleNotificationService.instance.showSyncProgress(
@@ -300,14 +349,19 @@ class FirestoreSyncService {
           );
         }
       });
-      
+
       const int maxConcurrent = 3; // Máximo para upload manual
       const int chunkSize = 10; // Chunks para processar
-      
+
       int totalUploaded = 0;
-      
+
       // Process em chunks com máximo paralelismo
       for (int i = 0; i < inspectionMediaFiles.length; i += chunkSize) {
+        // Check for cancellation before each chunk
+        if (_activeSyncs[inspectionId] == false) {
+          throw Exception('Upload cancelled by user');
+        }
+
         final chunk = inspectionMediaFiles.skip(i).take(chunkSize).toList();
 
         // Controle de concorrência
@@ -315,6 +369,11 @@ class FirestoreSyncService {
         final uploadFutures = <Future<bool>>[];
 
         for (final media in chunk) {
+          // Check cancellation before each media
+          if (_activeSyncs[inspectionId] == false) {
+            throw Exception('Upload cancelled by user');
+          }
+
           // Aguarda slot disponível
           while (semaphore.length >= maxConcurrent) {
             await semaphore.removeAt(0);
@@ -326,10 +385,29 @@ class FirestoreSyncService {
           uploadFutures.add(uploadFuture);
         }
 
-        // Aguarda todos os uploads do chunk
-        final results = await Future.wait(uploadFutures);
-        final chunkUploaded = results.where((success) => success).length;
-        totalUploaded += chunkUploaded;
+        // Aguarda todos os uploads do chunk OU cancelamento
+        try {
+          final results = await Future.any([
+            Future.wait(uploadFutures),
+            _syncCompleters[inspectionId]?.future ?? Future.value(),
+          ]).timeout(
+            const Duration(minutes: 5),
+            onTimeout: () => throw TimeoutException('Upload timeout'),
+          );
+
+          if (results is List<bool>) {
+            final chunkUploaded = results.where((success) => success).length;
+            totalUploaded += chunkUploaded;
+          } else {
+            // Completer foi completado (cancelamento)
+            throw Exception('Upload cancelled by user');
+          }
+        } catch (e) {
+          if (_activeSyncs[inspectionId] == false) {
+            throw Exception('Upload cancelled by user');
+          }
+          rethrow;
+        }
 
         // Delay mínimo entre chunks
         if (i + chunkSize < inspectionMediaFiles.length) {
@@ -343,12 +421,12 @@ class FirestoreSyncService {
       notificationTimer.cancel();
       UploadProgressService.instance.stopUploadTracking(sessionId);
       
-      // Log resultado final apenas se houver upload
-      if (totalUploaded > 0) {
+      // Log resultado final apenas se houver upload e não foi cancelado
+      if (totalUploaded > 0 && _activeSyncs[inspectionId] != false) {
         final timeSeconds = (stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1);
         log('Upload: $totalUploaded/${inspectionMediaFiles.length} em ${timeSeconds}s');
 
-        // Notificação final de conclusão
+        // Notificação final de conclusão - apenas se não foi cancelado
         await SimpleNotificationService.instance.showSyncProgress(
           title: 'Upload Concluído',
           message: 'Todas as $totalUploaded mídias foram enviadas com sucesso!',
@@ -364,7 +442,11 @@ class FirestoreSyncService {
       if (sessionId != null) {
         UploadProgressService.instance.stopUploadTracking(sessionId);
       }
-      log('Erro no upload: $e');
+
+      // Só loga erro se não for cancelamento
+      if (!e.toString().contains('cancelled')) {
+        log('Erro no upload: $e');
+      }
     }
   }
 
@@ -1318,9 +1400,12 @@ class FirestoreSyncService {
     }
 
     try {
+      // Mark sync as active
+      _activeSyncs[inspectionId] = true;
+      _syncCompleters[inspectionId] = Completer<void>();
+
       // Enable Firestore network for sync operation
       await _firebaseService.enableNetwork();
-      debugPrint('FirestoreSyncService: Starting enhanced sync for inspection $inspectionId');
 
       // Emit starting progress
       _syncProgressController.add(SyncProgress(
@@ -1330,6 +1415,11 @@ class FirestoreSyncService {
         total: 100,
         message: 'Preparando sincronização...',
       ));
+
+      // Check for cancellation
+      if (_activeSyncs[inspectionId] == false) {
+        return {'success': false, 'error': 'Sync cancelled by user'};
+      }
 
       // Get local inspection first to check for conflicts
       final localInspection = await _offlineService.getInspection(inspectionId);
@@ -1345,8 +1435,11 @@ class FirestoreSyncService {
 
       // *** PRIMEIRO: Upload das mudanças locais (incluindo exclusões) ***
       if (localInspection != null) {
-        debugPrint('FirestoreSyncService: 🔧 UPLOAD PRIMEIRO - Uploading local changes (data + media) for inspection $inspectionId');
-        
+        // Check for cancellation before upload
+        if (_activeSyncs[inspectionId] == false) {
+          return {'success': false, 'error': 'Sync cancelled by user'};
+        }
+
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,
           phase: SyncPhase.uploading,
@@ -1356,10 +1449,15 @@ class FirestoreSyncService {
           currentItem: 'Mídias pendentes',
           itemType: 'Arquivo',
         ));
-        
+
         // PRIMEIRO: Upload das mídias pendentes
         await uploadMedia(inspectionId);
-        
+
+        // Check for cancellation after media upload
+        if (_activeSyncs[inspectionId] == false) {
+          return {'success': false, 'error': 'Sync cancelled by user'};
+        }
+
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,
           phase: SyncPhase.uploading,
@@ -1369,18 +1467,18 @@ class FirestoreSyncService {
           currentItem: localInspection.title,
           itemType: 'Inspeção',
         ));
-        
+
         // SEGUNDO: Upload da inspeção com estrutura completa
         await _uploadSingleInspectionWithNestedStructure(inspectionId);
-        
-        debugPrint('FirestoreSyncService: ✅ Successfully uploaded all local changes for inspection $inspectionId');
 
-        debugPrint('FirestoreSyncService: Successfully uploaded inspection $inspectionId');
+        // Check for cancellation after data upload
+        if (_activeSyncs[inspectionId] == false) {
+          return {'success': false, 'error': 'Sync cancelled by user'};
+        }
       }
 
       // *** DOWNLOAD APENAS SE NÃO TEMOS DADOS LOCAIS (primeiro download) ***
       if (docSnapshot.exists && localInspection == null) {
-        debugPrint('FirestoreSyncService: 📥 PRIMEIRO DOWNLOAD - No local data found, downloading from cloud');
         
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,
@@ -1441,7 +1539,12 @@ class FirestoreSyncService {
 
       // *** NOVA ETAPA: Verificação na nuvem (opcional e rápida) ***
       CloudVerificationResult? verificationResult;
-      
+
+      // Check for cancellation before verification
+      if (_activeSyncs[inspectionId] == false) {
+        return {'success': false, 'error': 'Sync cancelled by user'};
+      }
+
       try {
         _syncProgressController.add(SyncProgress(
           inspectionId: inspectionId,
@@ -1454,12 +1557,15 @@ class FirestoreSyncService {
           isVerifying: true,
         ));
 
-        // Verificação rápida com timeout curto - se falhar, assume sucesso
-        verificationResult = await CloudVerificationService.instance.verifyInspectionSync(inspectionId, quickCheck: true);
-        
-        debugPrint('FirestoreSyncService: Verificação ${verificationResult.isComplete ? 'passou' : 'falhou'}: ${verificationResult.summary}');
+        // Verificação rápida - verifica apenas mídias pendentes
+        verificationResult = await CloudVerificationService.instance.verifyInspectionSync(inspectionId);
+
+        // Check for cancellation after verification
+        if (_activeSyncs[inspectionId] == false) {
+          return {'success': false, 'error': 'Sync cancelled by user'};
+        }
       } catch (e) {
-        debugPrint('FirestoreSyncService: Erro na verificação (ignorando): $e');
+        // Erro na verificação (ignorando)
         // Se a verificação falhar por qualquer motivo, assumir sucesso
         verificationResult = CloudVerificationResult(
           isComplete: true,
@@ -1476,20 +1582,20 @@ class FirestoreSyncService {
         phase: SyncPhase.completed,
         current: totalSteps,
         total: totalSteps,
-        message: 'Sincronização completa e verificada! ${verificationResult.summary}',
+        message: verificationResult.isComplete
+            ? 'Sincronização completa!'
+            : 'Sincronização concluída - ${verificationResult.summary}',
       ));
 
-      debugPrint(
-          'FirestoreSyncService: Finished syncing inspection $inspectionId with verification');
       return {
-        'success': true, 
+        'success': true,
         'hasConflicts': false,
         'verification': verificationResult
       };
     } catch (e) {
       debugPrint(
           'FirestoreSyncService: Error syncing inspection $inspectionId: $e');
-      
+
       _syncProgressController.add(SyncProgress(
         inspectionId: inspectionId,
         phase: SyncPhase.error,
@@ -1500,8 +1606,9 @@ class FirestoreSyncService {
 
       return {'success': false, 'error': e.toString()};
     } finally {
-      // Keep network enabled for continuous operation
-      debugPrint('Sync operation completed');
+      // Cleanup: Remove from active syncs
+      _activeSyncs.remove(inspectionId);
+      _syncCompleters.remove(inspectionId);
     }
   }
 

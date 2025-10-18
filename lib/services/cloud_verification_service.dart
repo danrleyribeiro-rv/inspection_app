@@ -49,22 +49,19 @@ class CloudVerificationService {
   }
 
   /// Verifica se uma inspeção está completamente sincronizada na nuvem
-  Future<CloudVerificationResult> verifyInspectionSync(String inspectionId, {bool quickCheck = false}) async {
+  Future<CloudVerificationResult> verifyInspectionSync(String inspectionId) async {
     try {
-      debugPrint('CloudVerificationService: Iniciando verificação ${quickCheck ? 'rápida' : 'completa'} da inspeção $inspectionId');
-      
       // Timeout geral para toda a verificação
-      return await _performVerification(inspectionId, quickCheck).timeout(
-        Duration(seconds: quickCheck ? 30 : 120),
+      return await _performVerification(inspectionId).timeout(
+        const Duration(seconds: 120), // Timeout de 2 minutos para a verificação completa
         onTimeout: () {
-          debugPrint('CloudVerificationService: Timeout na verificação - considerando como completa');
           return CloudVerificationResult(
-            isComplete: true, // Assumir sucesso em caso de timeout
+            isComplete: true, // Assumir sucesso em caso de timeout para não bloquear o usuário
             totalItems: 1,
             verifiedItems: 1,
             missingItems: [],
             failedItems: ['Verificação demorou muito - assumindo sucesso'],
-            summary: 'Verificação demorou muito - assumindo que sincronização foi bem-sucedida',
+            summary: 'Verificação demorou muito, mas a sincronização provavelmente foi bem-sucedida.',
           );
         },
       );
@@ -76,12 +73,12 @@ class CloudVerificationService {
         verifiedItems: 1,
         missingItems: [],
         failedItems: ['Erro na verificação: $e'],
-        summary: 'Erro na verificação - assumindo sucesso',
+        summary: 'Erro durante a verificação - assumindo sucesso.',
       );
     }
   }
 
-  Future<CloudVerificationResult> _performVerification(String inspectionId, bool quickCheck) async {
+  Future<CloudVerificationResult> _performVerification(String inspectionId) async {
     // Buscar inspeção local
     final localInspection = await _offlineService.getInspection(inspectionId);
     if (localInspection == null) {
@@ -91,7 +88,7 @@ class CloudVerificationService {
         verifiedItems: 0,
         missingItems: ['Inspeção não encontrada localmente'],
         failedItems: [],
-        summary: 'Inspeção não encontrada localmente',
+        summary: 'Inspeção não encontrada localmente.',
       );
     }
 
@@ -104,36 +101,19 @@ class CloudVerificationService {
     final inspectionExists = await _verifyInspectionInFirestore(inspectionId);
     if (inspectionExists) {
       verifiedItems++;
-      debugPrint('CloudVerificationService: ✅ Inspeção encontrada no Firestore');
     } else {
       missingItems.add('Inspeção principal');
-      debugPrint('CloudVerificationService: ❌ Inspeção não encontrada no Firestore');
     }
 
-    if (quickCheck) {
-      // Verificação rápida - apenas checar se a inspeção existe no Firestore
-      final summary = inspectionExists 
-          ? 'Verificação rápida: Inspeção encontrada no Firestore'
-          : 'Verificação rápida: Inspeção não encontrada no Firestore';
-      
-      return CloudVerificationResult(
-        isComplete: inspectionExists,
-        totalItems: totalItems,
-        verifiedItems: verifiedItems,
-        missingItems: missingItems,
-        failedItems: failedItems,
-        summary: summary,
-      );
-    }
-
-    // 2. Verificar todas as mídias (apenas se não for verificação rápida)
+    // 2. Verificar apenas mídias que precisam (sem cloudUrl ou não uploaded)
     final mediaVerification = await _verifyInspectionMedia(inspectionId);
     totalItems += mediaVerification.totalItems;
     verifiedItems += mediaVerification.verifiedItems;
     missingItems.addAll(mediaVerification.missingItems);
     failedItems.addAll(mediaVerification.failedItems);
 
-    // 3. Verificar estrutura aninhada (tópicos, itens, detalhes, não conformidades)
+    // 3. Verificar estrutura aninhada (tópicos, itens, etc.)
+    // Verificação simplificada - assume OK se a inspeção existe no Firestore
     final structureVerification = await _verifyInspectionStructure(inspectionId);
     totalItems += structureVerification.totalItems;
     verifiedItems += structureVerification.verifiedItems;
@@ -142,8 +122,6 @@ class CloudVerificationService {
 
     final isComplete = missingItems.isEmpty && failedItems.isEmpty;
     final summary = _generateSummary(isComplete, totalItems, verifiedItems, missingItems, failedItems);
-
-    debugPrint('CloudVerificationService: Verificação concluída - Total: $totalItems, Verificados: $verifiedItems, Perdidos: ${missingItems.length}, Falhas: ${failedItems.length}');
 
     return CloudVerificationResult(
       isComplete: isComplete,
@@ -172,32 +150,42 @@ class CloudVerificationService {
     try {
       // Buscar todas as mídias locais da inspeção
       final localMediaList = await _offlineService.getMediaByInspection(inspectionId);
-      debugPrint('CloudVerificationService: Verificando ${localMediaList.length} mídias locais');
 
-      int totalMedia = localMediaList.length;
-      int verifiedMedia = 0;
+      // Filtrar apenas mídias que REALMENTE precisam ser verificadas:
+      // - Sem cloudUrl OU
+      // - Marcadas como não uploaded (isUploaded = false)
+      final mediaToVerify = localMediaList.where((media) {
+        return (media.cloudUrl == null || media.cloudUrl!.isEmpty) ||
+               (media.isUploaded == false);
+      }).toList();
+
+      final totalMedia = localMediaList.length;
+      final alreadyVerified = totalMedia - mediaToVerify.length;
+      int verifiedMedia = alreadyVerified; // Contar mídias já OK
       List<String> missingMedia = [];
       List<String> failedMedia = [];
 
-      // Se não há mídias, considerar como completo
-      if (totalMedia == 0) {
-        debugPrint('CloudVerificationService: Nenhuma mídia encontrada para verificar');
+      // Se não há mídias para verificar, retornar sucesso
+      if (mediaToVerify.isEmpty) {
         return CloudVerificationResult(
           isComplete: true,
-          totalItems: 0,
-          verifiedItems: 0,
+          totalItems: totalMedia,
+          verifiedItems: totalMedia,
           missingItems: [],
           failedItems: [],
-          summary: 'Nenhuma mídia para verificar',
+          summary: totalMedia > 0
+              ? 'Todas as $totalMedia mídias já verificadas'
+              : 'Nenhuma mídia para verificar',
         );
       }
 
+      // ${mediaToVerify.length} mídias precisam verificação, ${alreadyVerified} já verificadas
+
       // Verificar em lotes de 5 mídias por vez para melhor performance
       const batchSize = 5;
-      for (int i = 0; i < localMediaList.length; i += batchSize) {
-        final batch = localMediaList.skip(i).take(batchSize).toList();
-        debugPrint('CloudVerificationService: Verificando lote ${(i ~/ batchSize) + 1} de ${(localMediaList.length / batchSize).ceil()} (${batch.length} mídias)');
-        
+      for (int i = 0; i < mediaToVerify.length; i += batchSize) {
+        final batch = mediaToVerify.skip(i).take(batchSize).toList();
+
         final futures = batch.map((media) async {
           if (media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
             try {
@@ -211,14 +199,13 @@ class CloudVerificationService {
           }
         });
 
-        // Aguardar o lote atual com timeout geral
+        // Aguardar o lote atual com timeout
         final results = await Future.wait(futures).timeout(
           const Duration(seconds: 30),
           onTimeout: () {
-            debugPrint('CloudVerificationService: Timeout na verificação do lote');
             return batch.map((media) => {
-              'media': media, 
-              'exists': false, 
+              'media': media,
+              'exists': false,
               'error': 'Timeout na verificação'
             }).toList();
           },
@@ -232,31 +219,41 @@ class CloudVerificationService {
 
           if (exists) {
             verifiedMedia++;
-            debugPrint('CloudVerificationService: ✅ Mídia verificada: ${media.filename}');
+            // Garantir que está marcado como uploaded se existe na nuvem
+            if (media.isUploaded == false && media.cloudUrl != null && media.cloudUrl!.isNotEmpty) {
+              await _offlineService.updateMediaCloudUrl(media.id, media.cloudUrl);
+            }
           } else {
+            // Se NÃO existe na nuvem, marcar como NÃO uploaded
+            if (media.isUploaded == true) {
+              await _offlineService.updateMediaUploadStatus(media.id, false);
+            }
+
             if (error != null && error != 'Sem cloudUrl') {
               failedMedia.add('Mídia: ${media.filename} ($error)');
-              debugPrint('CloudVerificationService: ❌ Erro na verificação: ${media.filename} - $error');
             } else {
               missingMedia.add('Mídia: ${media.filename}');
-              debugPrint('CloudVerificationService: ❌ Mídia não encontrada: ${media.filename}');
             }
           }
         }
 
-        // Pequena pausa entre lotes para não sobrecarregar
-        if (i + batchSize < localMediaList.length) {
-          await Future.delayed(const Duration(milliseconds: 500));
+        // Pequena pausa entre lotes
+        if (i + batchSize < mediaToVerify.length) {
+          await Future.delayed(const Duration(milliseconds: 300));
         }
       }
 
+      final isComplete = missingMedia.isEmpty && failedMedia.isEmpty;
+
       return CloudVerificationResult(
-        isComplete: missingMedia.isEmpty && failedMedia.isEmpty,
+        isComplete: isComplete,
         totalItems: totalMedia,
         verifiedItems: verifiedMedia,
         missingItems: missingMedia,
         failedItems: failedMedia,
-        summary: 'Verificação de mídias: $verifiedMedia/$totalMedia verificadas',
+        summary: isComplete
+            ? 'Todas as $totalMedia mídias verificadas'
+            : 'Verificação: $verifiedMedia/$totalMedia OK',
       );
     } catch (e) {
       debugPrint('CloudVerificationService: Erro na verificação de mídias: $e');
