@@ -4,6 +4,9 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
+import 'package:lince_inspecoes/models/template_topic.dart';
+import 'package:lince_inspecoes/models/template_item.dart';
+import 'package:lince_inspecoes/models/template_detail.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 
 class TemplateSelectorDialog extends StatefulWidget {
@@ -41,90 +44,111 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
 
   Future<List<Map<String, dynamic>>> _loadTopicsFromTemplate(String templateId) async {
     try {
-      // First try to get template from DatabaseHelper
-      final template = await DatabaseHelper.getTemplate(templateId);
-      if (template != null) {
-        return _extractTopicsFromTemplate(template.toMap());
+      debugPrint('TemplateSelectorDialog: Loading topics from template $templateId');
+
+      // Check if it's a custom template (custom topics from this inspection)
+      if (templateId.startsWith('custom_')) {
+        debugPrint('TemplateSelectorDialog: Loading custom template topics');
+        return await _loadCustomTopics(templateId);
       }
 
-      // Try to get topics from the inspection's Hive box
-      if (widget.inspectionId != null) {
-        final topicsFromHive = await DatabaseHelper.getTopicsByInspection(widget.inspectionId!);
-        if (topicsFromHive.isNotEmpty) {
-          final availableTopics = <Map<String, dynamic>>[];
-          for (final topic in topicsFromHive) {
-            // Check if topic has items or direct details
-            final hasItems = DatabaseHelper.items.values.any((item) => item.topicId == topic.id);
-            final hasDirectDetails = DatabaseHelper.details.values.any((detail) => detail.topicId == topic.id && detail.itemId == null);
+      // Use TemplateService to get the complete template structure
+      final template = await _serviceFactory.templateService.getTemplate(templateId);
+      if (template == null) {
+        debugPrint('TemplateSelectorDialog: Template $templateId not found');
+        return [];
+      }
 
-            if (hasItems || hasDirectDetails) {
-              availableTopics.add({
-                'topicData': {
-                  'name': topic.topicName,
-                  'description': topic.topicLabel,
-                  'observation': topic.observation,
-                },
-                'templateId': templateId,
-                'templateName': 'Template da Inspeção',
-                'name': topic.topicName,
-                'description': topic.topicLabel ?? '',
-              });
-            }
-          }
+      final templateName = template['name'] ?? 'Template';
+      final topicsList = template['topics'] as List<dynamic>? ?? [];
 
-          if (availableTopics.isNotEmpty) {
-            return availableTopics;
-          }
+      final availableTopics = <Map<String, dynamic>>[];
+      for (final topicData in topicsList) {
+        if (topicData is Map<String, dynamic>) {
+          availableTopics.add({
+            'topicData': topicData,
+            'templateId': templateId,
+            'templateName': templateName,
+            'name': topicData['name'] ?? 'Tópico',
+            'description': topicData['description'] ?? '',
+          });
         }
       }
 
-      debugPrint('TemplateSelectorDialog: Template not found locally and no internet download needed');
-
-      return [];
+      debugPrint('TemplateSelectorDialog: Found ${availableTopics.length} topics in template $templateId');
+      return availableTopics;
     } catch (e) {
-      debugPrint('TemplateSelectorDialog: Error loading topics: $e');
+      debugPrint('TemplateSelectorDialog: Error loading topics from template: $e');
       return [];
     }
   }
 
-  List<Map<String, dynamic>> _extractTopicsFromTemplate(Map<String, dynamic> template) {
+  /// Load custom topics saved for this inspection
+  Future<List<Map<String, dynamic>>> _loadCustomTopics(String customTemplateId) async {
     try {
-      final List<Map<String, dynamic>> topics = [];
+      final templateTopics = await DatabaseHelper.getTemplateTopicsByTemplate(customTemplateId);
+      debugPrint('TemplateSelectorDialog: Found ${templateTopics.length} custom template topics');
 
-      if (template['structure'] != null) {
-        final structure = template['structure'];
-        if (structure is Map<String, dynamic> && structure['topics'] != null) {
-          final topicsList = structure['topics'] as List<dynamic>? ?? [];
-          for (final topicData in topicsList) {
-            if (topicData is Map<String, dynamic>) {
-              topics.add({
-                'topicData': topicData,
-                'templateId': template['id'],
-                'templateName': template['name'],
-                'name': topicData['name'] ?? 'Tópico',
-                'description': topicData['description'] ?? '',
-              });
+      final availableTopics = <Map<String, dynamic>>[];
+
+      for (final templateTopic in templateTopics) {
+        final topicData = <String, dynamic>{
+          'name': templateTopic.name,
+          'description': templateTopic.description,
+          'observation': templateTopic.observation,
+          'direct_details': templateTopic.directDetails,
+        };
+
+        if (templateTopic.directDetails) {
+          // Load direct details
+          final details = await DatabaseHelper.getTemplateDetailsByTopic(templateTopic.id);
+          topicData['details'] = details.map((d) => {
+            'name': d.name,
+            'type': d.type,
+            'options': d.options,
+            'required': d.required,
+          }).toList();
+        } else {
+          // Load items and details
+          final items = await DatabaseHelper.getTemplateItemsByTopic(templateTopic.id);
+          final itemsJson = <Map<String, dynamic>>[];
+
+          for (final item in items) {
+            final itemJson = <String, dynamic>{
+              'name': item.name,
+              'description': item.description,
+              'evaluable': item.evaluable,
+              'evaluation_options': item.evaluationOptions,
+            };
+
+            final details = await DatabaseHelper.getTemplateDetailsByItem(item.id);
+            if (details.isNotEmpty) {
+              itemJson['details'] = details.map((d) => {
+                'name': d.name,
+                'type': d.type,
+                'options': d.options,
+                'required': d.required,
+              }).toList();
             }
+
+            itemsJson.add(itemJson);
           }
+
+          topicData['items'] = itemsJson;
         }
-      } else if (template['topics'] != null) {
-        final topicsList = template['topics'] as List<dynamic>? ?? [];
-        for (final topicData in topicsList) {
-          if (topicData is Map<String, dynamic>) {
-            topics.add({
-              'topicData': topicData,
-              'templateId': template['id'],
-              'templateName': template['name'],
-              'name': topicData['name'] ?? 'Tópico',
-              'description': topicData['description'] ?? '',
-            });
-          }
-        }
+
+        availableTopics.add({
+          'topicData': topicData,
+          'templateId': customTemplateId,
+          'templateName': 'Tópicos Personalizados',
+          'name': templateTopic.name,
+          'description': templateTopic.description ?? '',
+        });
       }
 
-      return topics;
+      return availableTopics;
     } catch (e) {
-      debugPrint('TemplateSelectorDialog: Error extracting topics: $e');
+      debugPrint('TemplateSelectorDialog: Error loading custom topics: $e');
       return [];
     }
   }
@@ -133,7 +157,7 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
     try {
       final inspection = await _serviceFactory.dataService.getInspection(widget.inspectionId!);
 
-      // Get topics from Hive box
+      // Get ALL topics from Hive box (including deleted ones with structure still intact)
       final topicsFromHive = await DatabaseHelper.getTopicsByInspection(widget.inspectionId!);
       if (topicsFromHive.isEmpty) return [];
 
@@ -145,7 +169,7 @@ class _TemplateSelectorDialogState extends State<TemplateSelectorDialog> {
         // Get direct details for this topic (details without itemId)
         final topicDirectDetails = DatabaseHelper.details.values.where((detail) => detail.topicId == topic.id && detail.itemId == null).toList();
 
-        // Only include topics that have structure
+        // Include topics that currently have structure OR were created manually (even if empty now)
         if (topicItems.isNotEmpty || topicDirectDetails.isNotEmpty) {
           // Build topicData with complete structure
           final topicData = <String, dynamic>{
@@ -220,15 +244,50 @@ Future<void> _loadTemplateItems() async {
     List<Map<String, dynamic>> items = [];
 
     if (widget.type == 'topic') {
-      // Para tópicos, buscar sempre da estrutura da inspeção primeiro
-      if (widget.inspectionId != null) {
-        items = await _loadTopicsFromInspection();
+      final allTopics = <Map<String, dynamic>>[];
+      final existingNames = <String>{};
+
+      // 1. Buscar tópicos do template oficial
+      if (widget.templateId != null && widget.templateId!.isNotEmpty) {
+        final templateTopics = await _loadTopicsFromTemplate(widget.templateId!);
+        debugPrint('TemplateSelectorDialog: Loaded ${templateTopics.length} topics from template ${widget.templateId}');
+        allTopics.addAll(templateTopics);
+        existingNames.addAll(templateTopics.map((t) => t['name'] as String));
       }
 
-      // Se não encontrou tópicos na inspeção e tem templateId, tentar do template
-      if (items.isEmpty && widget.templateId != null && widget.templateId!.isNotEmpty) {
-        items = await _loadTopicsFromTemplate(widget.templateId!);
+      // 2. Buscar tópicos customizados salvos (criados/duplicados anteriormente)
+      if (widget.inspectionId != null) {
+        final customTemplateId = 'custom_${widget.inspectionId}';
+        final customTopics = await _loadTopicsFromTemplate(customTemplateId);
+        debugPrint('TemplateSelectorDialog: Loaded ${customTopics.length} custom topics');
+
+        for (final customTopic in customTopics) {
+          final topicName = customTopic['name'] as String;
+          if (!existingNames.contains(topicName)) {
+            allTopics.add(customTopic);
+            existingNames.add(topicName);
+            debugPrint('TemplateSelectorDialog: Added unique custom topic: $topicName');
+          }
+        }
       }
+
+      // 3. Buscar tópicos atualmente na inspeção (que ainda não foram salvos como custom)
+      if (widget.inspectionId != null) {
+        final inspectionTopics = await _loadTopicsFromInspection();
+        debugPrint('TemplateSelectorDialog: Loaded ${inspectionTopics.length} topics from current inspection');
+
+        for (final inspectionTopic in inspectionTopics) {
+          final topicName = inspectionTopic['name'] as String;
+          if (!existingNames.contains(topicName)) {
+            allTopics.add(inspectionTopic);
+            existingNames.add(topicName);
+            debugPrint('TemplateSelectorDialog: Added unique inspection topic: $topicName');
+          }
+        }
+      }
+
+      items = allTopics;
+      debugPrint('TemplateSelectorDialog: Total topics available: ${items.length}');
     } else if (widget.type == 'item' && widget.parentName.isNotEmpty) {
       // Para itens, vamos manter a lógica original simplificada
       final template = await _serviceFactory.templateService.getTemplate(widget.templateId!);
@@ -367,6 +426,10 @@ Future<void> _loadTemplateItems() async {
         debugPrint('TemplateSelectorDialog: Creating items and details for topic');
         await _createItemsAndDetails(topicId, sanitizedTopicData);
       }
+
+      // IMPORTANT: Save this topic structure as a TemplateTopic for the inspection
+      // This allows it to be reused even after deletion
+      await _saveTopicAsCustomTemplate(topicId, widget.inspectionId!, sanitizedTopicData, uniqueTopicName, hasDirectDetails);
 
       if (mounted) {
         Navigator.of(context).pop(newTopic);
@@ -541,6 +604,81 @@ Future<void> _loadTemplateItems() async {
     } catch (e) {
       debugPrint('Error getting next topic order: $e');
       return 0;
+    }
+  }
+
+  /// Salva o tópico customizado como TemplateTopic para permitir reutilização
+  Future<void> _saveTopicAsCustomTemplate(
+    String topicId,
+    String inspectionId,
+    Map<String, dynamic> topicData,
+    String topicName,
+    bool hasDirectDetails,
+  ) async {
+    try {
+      debugPrint('TemplateSelectorDialog: Saving custom topic as template for reuse');
+
+      // Use inspection ID as template ID for custom topics
+      final customTemplateId = 'custom_$inspectionId';
+
+      // Get current count of custom topics for this inspection
+      final existingCustomTopics = await DatabaseHelper.getTemplateTopicsByTemplate(customTemplateId);
+      final position = existingCustomTopics.length;
+
+      // Create TemplateTopic
+      final templateTopic = TemplateTopic(
+        id: '${customTemplateId}_topic_$position',
+        templateId: customTemplateId,
+        name: topicName,
+        description: topicData['description']?.toString(),
+        directDetails: hasDirectDetails,
+        observation: topicData['observation']?.toString(),
+        position: position,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await DatabaseHelper.insertTemplateTopic(templateTopic);
+      debugPrint('TemplateSelectorDialog: Saved TemplateTopic ${templateTopic.id}');
+
+      // Save items and details structure
+      if (hasDirectDetails) {
+        // Save direct details
+        final details = topicData['details'] as List<dynamic>? ?? [];
+        for (int i = 0; i < details.length; i++) {
+          final detailData = details[i] as Map<String, dynamic>;
+          final templateDetail = TemplateDetail.fromJson(
+            detailData,
+            templateTopic.id,
+            i,
+          );
+          await DatabaseHelper.insertTemplateDetail(templateDetail);
+        }
+      } else {
+        // Save items and their details
+        final items = topicData['items'] as List<dynamic>? ?? [];
+        for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+          final itemData = items[itemIndex] as Map<String, dynamic>;
+          final templateItem = TemplateItem.fromJson(itemData, templateTopic.id, itemIndex);
+          await DatabaseHelper.insertTemplateItem(templateItem);
+
+          final details = itemData['details'] as List<dynamic>? ?? [];
+          for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
+            final detailData = details[detailIndex] as Map<String, dynamic>;
+            final templateDetail = TemplateDetail.fromJson(
+              detailData,
+              templateTopic.id,
+              detailIndex,
+              itemId: templateItem.id,
+            );
+            await DatabaseHelper.insertTemplateDetail(templateDetail);
+          }
+        }
+      }
+
+      debugPrint('TemplateSelectorDialog: Custom topic saved as template for future reuse');
+    } catch (e) {
+      debugPrint('TemplateSelectorDialog: Error saving custom topic as template: $e');
     }
   }
 

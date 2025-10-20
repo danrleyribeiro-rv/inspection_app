@@ -10,6 +10,9 @@ import 'package:lince_inspecoes/models/non_conformity.dart';
 import 'package:lince_inspecoes/models/offline_media.dart';
 import 'package:lince_inspecoes/models/sync_queue.dart';
 import 'package:lince_inspecoes/models/template.dart';
+import 'package:lince_inspecoes/models/template_detail.dart';
+import 'package:lince_inspecoes/models/template_item.dart';
+import 'package:lince_inspecoes/models/template_topic.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 
 extension HiveRegistrar on HiveInterface {
@@ -21,6 +24,9 @@ extension HiveRegistrar on HiveInterface {
     registerAdapter(OfflineMediaAdapter());
     registerAdapter(SyncQueueAdapter());
     registerAdapter(TemplateAdapter());
+    registerAdapter(TemplateDetailAdapter());
+    registerAdapter(TemplateItemAdapter());
+    registerAdapter(TemplateTopicAdapter());
     registerAdapter(TopicAdapter());
   }
 }
@@ -34,6 +40,9 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
     registerAdapter(OfflineMediaAdapter());
     registerAdapter(SyncQueueAdapter());
     registerAdapter(TemplateAdapter());
+    registerAdapter(TemplateDetailAdapter());
+    registerAdapter(TemplateItemAdapter());
+    registerAdapter(TemplateTopicAdapter());
     registerAdapter(TopicAdapter());
   }
 }

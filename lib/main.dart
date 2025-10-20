@@ -46,8 +46,6 @@ Future<void> main() async {
   // 5. Inicializa serviço de upload automático de imagens em background
   BackgroundMediaSyncService.instance.startBackgroundSync();
 
-  debugPrint('Main: All services initialized successfully');
-
   // Configuração da UI
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

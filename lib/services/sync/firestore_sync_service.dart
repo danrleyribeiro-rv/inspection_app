@@ -1404,9 +1404,6 @@ class FirestoreSyncService {
       _activeSyncs[inspectionId] = true;
       _syncCompleters[inspectionId] = Completer<void>();
 
-      // Enable Firestore network for sync operation
-      await _firebaseService.enableNetwork();
-
       // Emit starting progress
       _syncProgressController.add(SyncProgress(
         inspectionId: inspectionId,
@@ -1773,13 +1770,12 @@ class FirestoreSyncService {
   /// Downloads a specific inspection from the cloud, replacing the local version
   Future<void> downloadSpecificInspection(String inspectionId) async {
     try {
-      // Enable Firestore network for download operation
-      await _firebaseService.enableNetwork();
-      debugPrint('FirestoreSyncService: Downloading specific inspection $inspectionId to resolve conflicts');
-
+      // Check network connectivity
       if (!await isConnected()) {
         throw Exception('Sem conexão com a internet');
       }
+
+      debugPrint('FirestoreSyncService: Downloading specific inspection $inspectionId to resolve conflicts');
 
       final docSnapshot = await _firebaseService.firestore
           .collection('inspections')

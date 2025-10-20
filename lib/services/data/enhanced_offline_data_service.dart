@@ -49,7 +49,6 @@ class OfflineDataService {
     _mediaRepository = MediaRepository();
 
     _isInitialized = true;
-    debugPrint('OfflineDataService: Initialized with repository pattern');
   }
 
   // ===============================
@@ -1208,7 +1207,6 @@ class OfflineDataService {
         version: templateData['version'] ?? '1.0',
         description: templateData['description'],
         category: templateData['category'],
-        structure: templateData.toString(), // Store as string for now
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isActive: true,

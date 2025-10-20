@@ -6,6 +6,9 @@ import '../models/detail.dart';
 import '../models/non_conformity.dart';
 import '../models/offline_media.dart';
 import '../models/template.dart';
+import '../models/template_topic.dart';
+import '../models/template_item.dart';
+import '../models/template_detail.dart';
 
 class DatabaseHelper {
   static bool _initialized = false;
@@ -18,6 +21,9 @@ class DatabaseHelper {
   static const String _nonConformitiesBox = 'non_conformities';
   static const String _offlineMediaBox = 'offline_media';
   static const String _templatesBox = 'templates';
+  static const String _templateTopicsBox = 'template_topics';
+  static const String _templateItemsBox = 'template_items';
+  static const String _templateDetailsBox = 'template_details';
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -32,6 +38,9 @@ class DatabaseHelper {
     Hive.registerAdapter(NonConformityAdapter());
     Hive.registerAdapter(OfflineMediaAdapter());
     Hive.registerAdapter(TemplateAdapter());
+    Hive.registerAdapter(TemplateTopicAdapter());
+    Hive.registerAdapter(TemplateItemAdapter());
+    Hive.registerAdapter(TemplateDetailAdapter());
 
     // Open boxes
     await Hive.openBox<Inspection>(_inspectionsBox);
@@ -50,6 +59,9 @@ class DatabaseHelper {
     }
 
     await Hive.openBox<Template>(_templatesBox);
+    await Hive.openBox<TemplateTopic>(_templateTopicsBox);
+    await Hive.openBox<TemplateItem>(_templateItemsBox);
+    await Hive.openBox<TemplateDetail>(_templateDetailsBox);
 
     _initialized = true;
   }
@@ -65,6 +77,9 @@ class DatabaseHelper {
   static Box<OfflineMedia> get _offlineMedia =>
       Hive.box<OfflineMedia>(_offlineMediaBox);
   static Box<Template> get _templates => Hive.box<Template>(_templatesBox);
+  static Box<TemplateTopic> get _templateTopics => Hive.box<TemplateTopic>(_templateTopicsBox);
+  static Box<TemplateItem> get _templateItems => Hive.box<TemplateItem>(_templateItemsBox);
+  static Box<TemplateDetail> get _templateDetails => Hive.box<TemplateDetail>(_templateDetailsBox);
 
   // Public accessors for repositories
   static Box<Inspection> get inspections => _inspections;
@@ -74,6 +89,9 @@ class DatabaseHelper {
   static Box<NonConformity> get nonConformities => _nonConformities;
   static Box<OfflineMedia> get offlineMedia => _offlineMedia;
   static Box<Template> get templates => _templates;
+  static Box<TemplateTopic> get templateTopics => _templateTopics;
+  static Box<TemplateItem> get templateItems => _templateItems;
+  static Box<TemplateDetail> get templateDetails => _templateDetails;
 
   // Utility methods
   static Future<void> closeDatabase() async {
@@ -123,6 +141,9 @@ class DatabaseHelper {
     await _nonConformities.clear();
     await _offlineMedia.clear();
     await _templates.clear();
+    await _templateTopics.clear();
+    await _templateItems.clear();
+    await _templateDetails.clear();
   }
 
   // Clear only offline media data to fix schema issues
@@ -300,6 +321,126 @@ class DatabaseHelper {
 
   static Future<void> deleteTemplate(String id) async {
     await _templates.delete(id);
+    // Also delete all related template topics, items, and details
+    final topicsToDelete = _templateTopics.values
+        .where((topic) => topic.templateId == id)
+        .map((topic) => topic.id)
+        .toList();
+
+    for (final topicId in topicsToDelete) {
+      await deleteTemplateTopic(topicId);
+    }
+  }
+
+  // TemplateTopic CRUD operations
+  static Future<void> insertTemplateTopic(TemplateTopic topic) async {
+    await _templateTopics.put(topic.id, topic);
+  }
+
+  static Future<TemplateTopic?> getTemplateTopic(String id) async {
+    return _templateTopics.get(id);
+  }
+
+  static Future<List<TemplateTopic>> getTemplateTopicsByTemplate(String templateId) async {
+    final topics = _templateTopics.values
+        .where((topic) => topic.templateId == templateId)
+        .toList();
+    topics.sort((a, b) => a.position.compareTo(b.position));
+    return topics;
+  }
+
+  static Future<void> updateTemplateTopic(TemplateTopic topic) async {
+    await _templateTopics.put(topic.id, topic);
+  }
+
+  static Future<void> deleteTemplateTopic(String id) async {
+    await _templateTopics.delete(id);
+    // Also delete all related template items and details
+    final itemsToDelete = _templateItems.values
+        .where((item) => item.topicId == id)
+        .map((item) => item.id)
+        .toList();
+
+    for (final itemId in itemsToDelete) {
+      await deleteTemplateItem(itemId);
+    }
+
+    // Delete direct details (details without itemId)
+    final detailsToDelete = _templateDetails.values
+        .where((detail) => detail.topicId == id && detail.itemId == null)
+        .map((detail) => detail.id)
+        .toList();
+
+    for (final detailId in detailsToDelete) {
+      await _templateDetails.delete(detailId);
+    }
+  }
+
+  // TemplateItem CRUD operations
+  static Future<void> insertTemplateItem(TemplateItem item) async {
+    await _templateItems.put(item.id, item);
+  }
+
+  static Future<TemplateItem?> getTemplateItem(String id) async {
+    return _templateItems.get(id);
+  }
+
+  static Future<List<TemplateItem>> getTemplateItemsByTopic(String topicId) async {
+    final items = _templateItems.values
+        .where((item) => item.topicId == topicId)
+        .toList();
+    items.sort((a, b) => a.position.compareTo(b.position));
+    return items;
+  }
+
+  static Future<void> updateTemplateItem(TemplateItem item) async {
+    await _templateItems.put(item.id, item);
+  }
+
+  static Future<void> deleteTemplateItem(String id) async {
+    await _templateItems.delete(id);
+    // Also delete all related template details
+    final detailsToDelete = _templateDetails.values
+        .where((detail) => detail.itemId == id)
+        .map((detail) => detail.id)
+        .toList();
+
+    for (final detailId in detailsToDelete) {
+      await _templateDetails.delete(detailId);
+    }
+  }
+
+  // TemplateDetail CRUD operations
+  static Future<void> insertTemplateDetail(TemplateDetail detail) async {
+    await _templateDetails.put(detail.id, detail);
+  }
+
+  static Future<TemplateDetail?> getTemplateDetail(String id) async {
+    return _templateDetails.get(id);
+  }
+
+  static Future<List<TemplateDetail>> getTemplateDetailsByItem(String itemId) async {
+    final details = _templateDetails.values
+        .where((detail) => detail.itemId == itemId)
+        .toList();
+    details.sort((a, b) => a.position.compareTo(b.position));
+    return details;
+  }
+
+  static Future<List<TemplateDetail>> getTemplateDetailsByTopic(String topicId) async {
+    final details = _templateDetails.values
+        .where((detail) => detail.topicId == topicId && detail.itemId == null)
+        .toList();
+    details.sort((a, b) => a.position.compareTo(b.position));
+    return details;
+  }
+
+  static Future<void> updateTemplateDetail(TemplateDetail detail) async {
+    await _templateDetails.put(detail.id, detail);
+  }
+
+  static Future<void> deleteTemplateDetail(String id) async {
+    await _templateDetails.delete(id);
   }
 
 }

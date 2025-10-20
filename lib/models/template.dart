@@ -14,8 +14,6 @@ class Template {
   final String? description;
   @HiveField(4)
   final String? category;
-  @HiveField(5)
-  final String structure;
   @HiveField(6)
   final DateTime createdAt;
   @HiveField(7)
@@ -29,7 +27,6 @@ class Template {
     required this.version,
     this.description,
     this.category,
-    required this.structure,
     required this.createdAt,
     required this.updatedAt,
     this.isActive = true,
@@ -42,7 +39,6 @@ class Template {
       version: json['version'],
       description: json['description'],
       category: json['category'],
-      structure: json['structure'],
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
       isActive: json['is_active'] == 1 || json['is_active'] == true,
@@ -56,7 +52,6 @@ class Template {
       'version': version,
       'description': description,
       'category': category,
-      'structure': structure,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_active': isActive ? 1 : 0,
@@ -72,7 +67,6 @@ class Template {
     String? version,
     String? description,
     String? category,
-    String? structure,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isActive,
@@ -83,7 +77,6 @@ class Template {
       version: version ?? this.version,
       description: description ?? this.description,
       category: category ?? this.category,
-      structure: structure ?? this.structure,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,

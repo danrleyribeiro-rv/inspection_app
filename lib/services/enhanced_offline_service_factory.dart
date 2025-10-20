@@ -81,26 +81,18 @@ class EnhancedOfflineServiceFactory {
     if (_isInitialized) return;
 
     try {
-      debugPrint(
-          'EnhancedOfflineServiceFactory: Initializing enhanced offline services...');
-
       // 1. Inicializar o banco de dados Hive
       await DatabaseHelper.init();
-      debugPrint('EnhancedOfflineServiceFactory: Database initialized');
 
       // 2. Inicializar Firebase Service
       _firebaseService = FirebaseService();
-      debugPrint('EnhancedOfflineServiceFactory: Firebase service initialized');
 
       // 3. Inicializar Auth Service
       _authService = AuthService();
-      debugPrint('EnhancedOfflineServiceFactory: Auth service initialized');
 
       // 4. Inicializar Enhanced Data Service
       _dataService = OfflineDataService.instance;
       await _dataService!.initialize();
-      debugPrint(
-          'EnhancedOfflineServiceFactory: Enhanced data service initialized');
 
       // 5. Inicializar Sync Service
       FirestoreSyncService.initialize(
@@ -108,32 +100,20 @@ class EnhancedOfflineServiceFactory {
         offlineService: _dataService!,
       );
       _syncService = FirestoreSyncService.instance;
-      debugPrint('EnhancedOfflineServiceFactory: Sync service initialized');
 
       // 6. Inicializar Enhanced Media Service
       _mediaService = EnhancedOfflineMediaService.instance;
       await _mediaService!.initialize();
-      debugPrint(
-          'EnhancedOfflineServiceFactory: Enhanced media service initialized');
 
       // 7. Inicializar Settings Service
       _settingsService = SettingsService();
-      debugPrint('EnhancedOfflineServiceFactory: Settings service initialized');
 
-      // 8. Storage Service removed - using Hive via DatabaseHelper directly
-      debugPrint(
-          'EnhancedOfflineServiceFactory: Using Hive storage via DatabaseHelper');
-
-      // 9. Inicializar Template Service
+      // 8. Inicializar Template Service
       _templateService = TemplateService();
-      debugPrint('EnhancedOfflineServiceFactory: Template service initialized');
 
       _isInitialized = true;
-      debugPrint(
-          'EnhancedOfflineServiceFactory: All enhanced offline services initialized successfully');
     } catch (e) {
-      debugPrint(
-          'EnhancedOfflineServiceFactory: Error initializing services: $e');
+      debugPrint('EnhancedOfflineServiceFactory: Error initializing services: $e');
       rethrow;
     }
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,11 +28,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _cameraPermission = true;
   String _themeMode = 'system'; // 'light', 'dark', ou 'system'
   bool _isLoading = false;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _saveDebounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -58,17 +66,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    try {
-      await _settingsService.saveSettings(
-        notificationsEnabled: _notificationsEnabled,
-        locationPermission: true, // valor padrão
-        cameraPermission: _cameraPermission,
-        themeMode: _themeMode,
-      );
-      debugPrint('Configurações salvas com sucesso');
-    } catch (e) {
-      debugPrint('Erro ao salvar configurações: $e');
-    }
+    // Cancela o timer anterior se existir
+    _saveDebounce?.cancel();
+
+    // Cria um novo timer para salvar após 500ms de inatividade
+    _saveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        await _settingsService.saveSettings(
+          notificationsEnabled: _notificationsEnabled,
+          locationPermission: true, // valor padrão
+          cameraPermission: _cameraPermission,
+          themeMode: _themeMode,
+        );
+        debugPrint('Configurações salvas com sucesso');
+      } catch (e) {
+        debugPrint('Erro ao salvar configurações: $e');
+      }
+    });
   }
 
   Future<void> _signOut() async {
@@ -193,6 +207,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await openAppSettings();
     }
   }
+
 
   Future<void> _clearCache() async {
     final confirm = await showDialog<bool>(

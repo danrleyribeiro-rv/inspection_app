@@ -13,6 +13,7 @@
     <!-- Permissões para Android >= 13 (API 33+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
     <!-- Permissão especial para gerenciar todos os arquivos (necessária para acesso Downloads) -->
     <!-- Removido maxSdkVersion para funcionar em todas as versões Android -->

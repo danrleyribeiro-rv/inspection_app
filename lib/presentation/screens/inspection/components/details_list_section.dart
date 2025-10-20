@@ -14,10 +14,6 @@ import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_sc
 import 'package:lince_inspecoes/presentation/widgets/inputs/multi_select_field.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
 
-// O widget DetailsListSection e seu State permanecem os mesmos.
-// A mudança principal está dentro do DetailListItem.
-// ... (código do DetailsListSection inalterado)
-
 class DetailsListSection extends StatefulWidget {
   final List<Detail> details;
   final Item? item; // Tornado opcional para hierarquias flexíveis
@@ -483,7 +479,7 @@ class DetailListItem extends StatefulWidget {
   State<DetailListItem> createState() => _DetailListItemState();
 }
 
-class _DetailListItemState extends State<DetailListItem> {
+class _DetailListItemState extends State<DetailListItem> with AutomaticKeepAliveClientMixin {
   final EnhancedOfflineServiceFactory _serviceFactory =
       EnhancedOfflineServiceFactory.instance;
   final TextEditingController _valueController = TextEditingController();
@@ -506,11 +502,15 @@ class _DetailListItemState extends State<DetailListItem> {
 
   bool _hasMedia = false;
   bool _hasNCs = false;
+  bool _controllersInitialized = false; // Track if controllers have been initialized
+
+  @override
+  bool get wantKeepAlive => true; // Mantém o estado do widget vivo
 
   @override
   void initState() {
     super.initState();
-    _initializeControllers();
+    _initializeControllersOnce();
     _observationController.addListener(_updateDetail);
     _currentSelectValue = widget.detail.detailValue?.isEmpty == true
         ? null
@@ -519,6 +519,13 @@ class _DetailListItemState extends State<DetailListItem> {
     // Escutar mudanças nos contadores de mídia
     MediaCounterNotifier.instance.addListener(_onCounterChanged);
     _updateIndicatorCounts();
+  }
+
+  void _initializeControllersOnce() {
+    if (!_controllersInitialized) {
+      _initializeControllers();
+      _controllersInitialized = true;
+    }
   }
 
   Future<void> _updateIndicatorCounts() async {
@@ -568,11 +575,21 @@ class _DetailListItemState extends State<DetailListItem> {
   void didUpdateWidget(DetailListItem oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Sempre verificar se o nome mudou
+    // Sempre verificar se o nome mudou OU se é um detail diferente
+    if (widget.detail.id != oldWidget.detail.id) {
+      debugPrint(
+          'Detail changed from ${oldWidget.detail.id} to ${widget.detail.id}');
+      _controllersInitialized = false; // Reset flag para novo detail
+      _initializeControllersOnce();
+      return;
+    }
+
+    // Verificar se o nome mudou
     if (widget.detail.detailName != _currentDetailName) {
       debugPrint(
           'Detail name changed from $_currentDetailName to ${widget.detail.detailName}');
-      _initializeControllers();
+      _controllersInitialized = false; // Reset flag
+      _initializeControllersOnce();
       return;
     }
 
@@ -1310,6 +1327,8 @@ class _DetailListItemState extends State<DetailListItem> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Necessário para AutomaticKeepAliveClientMixin
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final detailColor = isDark ? const Color(0xFF81C784) : Colors.green;

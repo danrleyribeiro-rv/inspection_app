@@ -31,7 +31,6 @@ class EnhancedOfflineMediaService {
     _syncService = FirestoreSyncService.instance;
 
     _isInitialized = true;
-    debugPrint('EnhancedOfflineMediaService: Initialized');
   }
 
   // ===============================

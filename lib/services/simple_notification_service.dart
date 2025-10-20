@@ -108,7 +108,6 @@ class SimpleNotificationService {
     try {
       if (Platform.isAndroid) {
         final status = await Permission.notification.request();
-        debugPrint('SimpleNotificationService: Android notification permission status: $status');
         return status.isGranted;
       } else if (Platform.isIOS) {
         final result = await _flutterLocalNotificationsPlugin
@@ -118,12 +117,10 @@ class SimpleNotificationService {
               badge: true,
               sound: true,
             );
-        debugPrint('SimpleNotificationService: iOS notification permission result: $result');
         return result ?? false;
       }
       return true;
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error requesting permissions: $e');
       return false;
     }
   }
@@ -143,10 +140,8 @@ class SimpleNotificationService {
       await _flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
-      
-      debugPrint('SimpleNotificationService: Notification channel created');
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error creating notification channel: $e');
+      // Error creating notification channel
     }
   }
   

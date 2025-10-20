@@ -1,53 +1,56 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'template.dart';
+part of 'template_item.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class TemplateAdapter extends TypeAdapter<Template> {
+class TemplateItemAdapter extends TypeAdapter<TemplateItem> {
   @override
-  final typeId = 8;
+  final typeId = 21;
 
   @override
-  Template read(BinaryReader reader) {
+  TemplateItem read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Template(
+    return TemplateItem(
       id: fields[0] as String,
-      name: fields[1] as String,
-      version: fields[2] as String,
+      topicId: fields[1] as String,
+      name: fields[2] as String,
       description: fields[3] as String?,
-      category: fields[4] as String?,
-      createdAt: fields[6] as DateTime,
-      updatedAt: fields[7] as DateTime,
-      isActive: fields[8] == null ? true : fields[8] as bool,
+      evaluable: fields[4] == null ? false : fields[4] as bool,
+      evaluationOptions: (fields[5] as List?)?.cast<String>(),
+      position: (fields[6] as num).toInt(),
+      createdAt: fields[7] as DateTime,
+      updatedAt: fields[8] as DateTime,
     );
   }
 
   @override
-  void write(BinaryWriter writer, Template obj) {
+  void write(BinaryWriter writer, TemplateItem obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.name)
+      ..write(obj.topicId)
       ..writeByte(2)
-      ..write(obj.version)
+      ..write(obj.name)
       ..writeByte(3)
       ..write(obj.description)
       ..writeByte(4)
-      ..write(obj.category)
+      ..write(obj.evaluable)
+      ..writeByte(5)
+      ..write(obj.evaluationOptions)
       ..writeByte(6)
-      ..write(obj.createdAt)
+      ..write(obj.position)
       ..writeByte(7)
-      ..write(obj.updatedAt)
+      ..write(obj.createdAt)
       ..writeByte(8)
-      ..write(obj.isActive);
+      ..write(obj.updatedAt);
   }
 
   @override
@@ -56,7 +59,7 @@ class TemplateAdapter extends TypeAdapter<Template> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is TemplateAdapter &&
+      other is TemplateItemAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

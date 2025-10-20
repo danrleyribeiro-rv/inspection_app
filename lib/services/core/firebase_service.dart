@@ -23,12 +23,13 @@ class FirebaseService {
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
 
-      debugPrint('FirebaseService: Configured for offline-first operation');
+      // Configure Firebase Auth locale
+      FirebaseAuth.instance.setLanguageCode('pt');
 
       // Note: Don't disable network during initialization as Auth needs it for login
       // Network will be controlled by sync operations only
     } catch (e) {
-      debugPrint('FirebaseService: Settings already configured: $e');
+      // Settings already configured
     }
   }
 
@@ -40,26 +41,6 @@ class FirebaseService {
 
   Future<void> signOut() async {
     await auth.signOut();
-  }
-
-  /// Enable Firestore network for sync operations
-  Future<void> enableNetwork() async {
-    try {
-      await firestore.enableNetwork();
-      debugPrint('FirebaseService: Network enabled for sync');
-    } catch (e) {
-      debugPrint('FirebaseService: Error enabling network: $e');
-    }
-  }
-
-  /// Disable Firestore network to prevent connection attempts
-  Future<void> disableNetwork() async {
-    try {
-      await firestore.disableNetwork();
-      debugPrint('FirebaseService: Network disabled');
-    } catch (e) {
-      debugPrint('FirebaseService: Error disabling network: $e');
-    }
   }
 
   Future<Map<String, dynamic>?> getInspectorData() async {

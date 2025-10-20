@@ -24,7 +24,6 @@ class Inspection {
   final String? zipCode;
   @HiveField(8)
   final String? addressString;
-  @HiveField(9)
   final Map<String, dynamic>? address;
   @HiveField(10)
   final String status;

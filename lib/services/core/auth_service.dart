@@ -114,9 +114,6 @@ class AuthService {
 
   Future<bool> checkUserRole(String userId, String role) async {
     try {
-      // Temporarily enable network for user role check
-      await _firebase.enableNetwork();
-
       final doc =
           await _firebase.firestore.collection('users').doc(userId).get();
 

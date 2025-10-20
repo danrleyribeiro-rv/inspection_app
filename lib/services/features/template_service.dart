@@ -3,6 +3,9 @@ import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:lince_inspecoes/storage/database_helper.dart';
 import 'package:lince_inspecoes/repositories/inspection_repository.dart';
 import 'package:lince_inspecoes/models/template.dart';
+import 'package:lince_inspecoes/models/template_topic.dart';
+import 'package:lince_inspecoes/models/template_item.dart';
+import 'package:lince_inspecoes/models/template_detail.dart';
 import 'package:lince_inspecoes/utils/inspection_json_converter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -14,11 +17,135 @@ class TemplateService {
   // MÉTODOS PARA CACHE E DOWNLOAD DE TEMPLATES OFFLINE
   // =========================================================================
   
+  /// Reconstrói a estrutura completa do template a partir dos dados persistidos
+  Future<Map<String, dynamic>> _buildTemplateStructure(String templateId) async {
+    debugPrint('TemplateService: Building template structure for $templateId');
+
+    final templateTopics = await DatabaseHelper.getTemplateTopicsByTemplate(templateId);
+    final topics = <Map<String, dynamic>>[];
+
+    for (final templateTopic in templateTopics) {
+      final topicData = <String, dynamic>{
+        'name': templateTopic.name,
+        'description': templateTopic.description,
+        'observation': templateTopic.observation,
+        'direct_details': templateTopic.directDetails,
+      };
+
+      if (templateTopic.directDetails) {
+        // Load direct details
+        final templateDetails = await DatabaseHelper.getTemplateDetailsByTopic(templateTopic.id);
+        topicData['details'] = templateDetails.map((detail) => {
+          'name': detail.name,
+          'type': detail.type,
+          'options': detail.options,
+          'required': detail.required,
+        }).toList();
+      } else {
+        // Load items and their details
+        final templateItems = await DatabaseHelper.getTemplateItemsByTopic(templateTopic.id);
+        final items = <Map<String, dynamic>>[];
+
+        for (final templateItem in templateItems) {
+          final itemData = <String, dynamic>{
+            'name': templateItem.name,
+            'description': templateItem.description,
+            'evaluable': templateItem.evaluable,
+            'evaluation_options': templateItem.evaluationOptions,
+          };
+
+          // Load item details
+          final templateDetails = await DatabaseHelper.getTemplateDetailsByItem(templateItem.id);
+          if (templateDetails.isNotEmpty) {
+            itemData['details'] = templateDetails.map((detail) => {
+              'name': detail.name,
+              'type': detail.type,
+              'options': detail.options,
+              'required': detail.required,
+            }).toList();
+          }
+
+          items.add(itemData);
+        }
+
+        topicData['items'] = items;
+      }
+
+      topics.add(topicData);
+    }
+
+    debugPrint('TemplateService: Built structure with ${topics.length} topics for template $templateId');
+    return {'topics': topics};
+  }
+
+  /// Salva a estrutura completa do template (topics, items, details)
+  Future<void> _saveTemplateStructure(String templateId, Map<String, dynamic> templateData) async {
+    debugPrint('TemplateService: Saving template structure for $templateId');
+    debugPrint('TemplateService: templateData keys: ${templateData.keys}');
+
+    final topics = templateData['topics'] as List<dynamic>? ?? [];
+    debugPrint('TemplateService: Found ${topics.length} topics to save');
+
+    for (int topicIndex = 0; topicIndex < topics.length; topicIndex++) {
+      final topicData = topics[topicIndex] as Map<String, dynamic>;
+      debugPrint('TemplateService: Processing topic $topicIndex: ${topicData['name']}');
+
+      // Create TemplateTopic
+      final templateTopic = TemplateTopic.fromJson(topicData, templateId, topicIndex);
+      await DatabaseHelper.insertTemplateTopic(templateTopic);
+
+      debugPrint('TemplateService: Saved template topic ${templateTopic.id} (${templateTopic.name})');
+
+      // Check if topic has direct details or items
+      if (topicData['direct_details'] == true || topicData['items'] == null) {
+        // Save direct details
+        final details = topicData['details'] as List<dynamic>? ?? [];
+        for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
+          final detailData = details[detailIndex] as Map<String, dynamic>;
+          final templateDetail = TemplateDetail.fromJson(
+            detailData,
+            templateTopic.id,
+            detailIndex,
+          );
+          await DatabaseHelper.insertTemplateDetail(templateDetail);
+          debugPrint('TemplateService: Saved direct template detail ${templateDetail.id}');
+        }
+      } else {
+        // Save items and their details
+        final items = topicData['items'] as List<dynamic>? ?? [];
+        for (int itemIndex = 0; itemIndex < items.length; itemIndex++) {
+          final itemData = items[itemIndex] as Map<String, dynamic>;
+
+          // Create TemplateItem
+          final templateItem = TemplateItem.fromJson(itemData, templateTopic.id, itemIndex);
+          await DatabaseHelper.insertTemplateItem(templateItem);
+          debugPrint('TemplateService: Saved template item ${templateItem.id}');
+
+          // Save item details
+          final details = itemData['details'] as List<dynamic>? ?? [];
+          for (int detailIndex = 0; detailIndex < details.length; detailIndex++) {
+            final detailData = details[detailIndex] as Map<String, dynamic>;
+            final templateDetail = TemplateDetail.fromJson(
+              detailData,
+              templateTopic.id,
+              detailIndex,
+              itemId: templateItem.id,
+            );
+            await DatabaseHelper.insertTemplateDetail(templateDetail);
+            debugPrint('TemplateService: Saved template detail ${templateDetail.id}');
+          }
+        }
+      }
+    }
+
+    debugPrint('TemplateService: Successfully saved complete structure for template $templateId');
+  }
+
   /// Baixa e salva um template para uso offline
   Future<bool> downloadTemplateForOffline(String templateId) async {
     try {
       debugPrint('TemplateService: Downloading template $templateId for offline use');
-      
+
       // Verificar se já existe localmente
       final existingTemplate = await DatabaseHelper.getTemplate(templateId);
       if (existingTemplate != null) {
@@ -38,10 +165,10 @@ class TemplateService {
       }
 
       final templateData = templateDoc.data()!;
-      
+
       // Convert Firestore data to JSON-safe format
       final jsonSafeData = _convertFirestoreData(templateData);
-      
+
       // Salvar template localmente
       final template = Template(
         id: templateId,
@@ -49,13 +176,15 @@ class TemplateService {
         version: jsonSafeData['version'] ?? '1.0',
         description: jsonSafeData['description'],
         category: jsonSafeData['category'],
-        structure: jsonSafeData.toString(),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isActive: jsonSafeData['is_active'] ?? true,
       );
       await DatabaseHelper.insertTemplate(template);
-      
+
+      // Save complete template structure
+      await _saveTemplateStructure(templateId, jsonSafeData);
+
       debugPrint('TemplateService: Successfully downloaded template $templateId');
       return true;
     } catch (e) {
@@ -148,12 +277,14 @@ class TemplateService {
           version: jsonSafeData['version'] ?? '1.0',
           description: jsonSafeData['description'],
           category: jsonSafeData['category'],
-          structure: jsonSafeData.toString(),
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isActive: jsonSafeData['is_active'] ?? true,
         );
         await DatabaseHelper.insertTemplate(template);
+
+        // Save complete template structure
+        await _saveTemplateStructure(doc.id, jsonSafeData);
       }
       return templates;
     } catch (e) {
@@ -167,42 +298,17 @@ class TemplateService {
       // First, try to get from local storage
       final localTemplate = await DatabaseHelper.getTemplate(templateId);
       if (localTemplate != null) {
-        // Try to parse structure back to original format
-        Map<String, dynamic> templateData;
-        try {
-          // If structure contains topics data, try to extract it
-          if (localTemplate.structure.contains('topics')) {
-            // This is a simplified approach - in practice, you might want to store JSON
-            templateData = {
-              'name': localTemplate.name,
-              'description': localTemplate.description,
-              'version': localTemplate.version,
-              'category': localTemplate.category,
-              'is_active': localTemplate.isActive,
-              'topics': [], // Will be populated from Firestore as fallback
-            };
-          } else {
-            templateData = {
-              'name': localTemplate.name,
-              'description': localTemplate.description,
-              'version': localTemplate.version,
-              'category': localTemplate.category,
-              'is_active': localTemplate.isActive,
-            };
-          }
-        } catch (e) {
-          debugPrint('TemplateService: Error parsing local template structure: $e');
-          templateData = {
-            'name': localTemplate.name,
-            'description': localTemplate.description,
-            'version': localTemplate.version,
-            'category': localTemplate.category,
-            'is_active': localTemplate.isActive,
-          };
-        }
+        debugPrint('TemplateService: Found template $templateId in local storage');
 
-        // If no topics in local data, fetch from Firestore to get complete structure
-        if (templateData['topics'] == null || (templateData['topics'] as List).isEmpty) {
+        // Build template structure from persisted data
+        final structure = await _buildTemplateStructure(templateId);
+        final topicsCount = (structure['topics'] as List).length;
+
+        debugPrint('TemplateService: Built template with $topicsCount topics');
+
+        // If no topics found, try to re-fetch from Firestore and save structure
+        if (topicsCount == 0) {
+          debugPrint('TemplateService: No topics found in local storage, checking Firestore...');
           try {
             final docSnapshot = await _firebaseService.firestore
                 .collection('templates')
@@ -212,18 +318,45 @@ class TemplateService {
             if (docSnapshot.exists) {
               final firestoreData = docSnapshot.data()!;
               final jsonSafeData = _convertFirestoreData(firestoreData);
-              templateData['topics'] = jsonSafeData['topics'] ?? [];
+
+              final firestoreTopics = jsonSafeData['topics'] as List<dynamic>? ?? [];
+              debugPrint('TemplateService: Found ${firestoreTopics.length} topics in Firestore, saving structure...');
+
+              if (firestoreTopics.isNotEmpty) {
+                // Save the complete structure
+                await _saveTemplateStructure(templateId, jsonSafeData);
+
+                // Rebuild structure
+                final newStructure = await _buildTemplateStructure(templateId);
+                return {
+                  'name': localTemplate.name,
+                  'description': localTemplate.description,
+                  'version': localTemplate.version,
+                  'category': localTemplate.category,
+                  'is_active': localTemplate.isActive,
+                  'topics': newStructure['topics'],
+                };
+              }
             }
           } catch (e) {
-            debugPrint('TemplateService: Could not fetch topics from Firestore: $e');
-            templateData['topics'] = [];
+            debugPrint('TemplateService: Could not fetch from Firestore: $e');
           }
         }
+
+        final templateData = {
+          'name': localTemplate.name,
+          'description': localTemplate.description,
+          'version': localTemplate.version,
+          'category': localTemplate.category,
+          'is_active': localTemplate.isActive,
+          'topics': structure['topics'],
+        };
 
         return templateData;
       }
 
       // If not in local storage, fetch from Firestore
+      debugPrint('TemplateService: Template $templateId not found locally, fetching from Firestore');
       final docSnapshot = await _firebaseService.firestore
           .collection('templates')
           .doc(templateId)
@@ -239,12 +372,15 @@ class TemplateService {
           version: jsonSafeData['version'] ?? '1.0',
           description: jsonSafeData['description'],
           category: jsonSafeData['category'],
-          structure: jsonSafeData.toString(),
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isActive: jsonSafeData['is_active'] ?? true,
         );
         await DatabaseHelper.insertTemplate(template);
+
+        // Save complete template structure
+        await _saveTemplateStructure(templateId, jsonSafeData);
+
         return jsonSafeData;
       }
       return null;
@@ -262,12 +398,14 @@ class TemplateService {
       version: data['version'] ?? '1.0',
       description: data['description'],
       category: data['category'],
-      structure: data.toString(),
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       isActive: data['is_active'] ?? true,
     );
     await DatabaseHelper.insertTemplate(template);
+
+    // Save complete template structure
+    await _saveTemplateStructure(id, data);
   }
 
   Future<bool> isTemplateAlreadyApplied(String inspectionId) async {

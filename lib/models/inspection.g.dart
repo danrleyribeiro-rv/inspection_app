@@ -26,7 +26,6 @@ class InspectionAdapter extends TypeAdapter<Inspection> {
       state: fields[6] as String?,
       zipCode: fields[7] as String?,
       addressString: fields[8] as String?,
-      address: (fields[9] as Map?)?.cast<String, dynamic>(),
       status: fields[10] as String,
       observation: fields[11] as String?,
       scheduledDate: fields[12] as DateTime?,
@@ -46,7 +45,7 @@ class InspectionAdapter extends TypeAdapter<Inspection> {
   @override
   void write(BinaryWriter writer, Inspection obj) {
     writer
-      ..writeByte(20)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -65,8 +64,6 @@ class InspectionAdapter extends TypeAdapter<Inspection> {
       ..write(obj.zipCode)
       ..writeByte(8)
       ..write(obj.addressString)
-      ..writeByte(9)
-      ..write(obj.address)
       ..writeByte(10)
       ..write(obj.status)
       ..writeByte(11)
