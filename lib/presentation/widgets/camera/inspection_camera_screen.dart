@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -588,11 +589,23 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       quarterTurns = -(deviceRotation / (math.pi / 2)).round();
     }
 
+    // Calculate 4:3 frame dimensions
+    double frameWidth, frameHeight;
+    if (isPortrait) {
+      // Portrait: width is screen width, height is width * 4/3
+      frameWidth = size.width;
+      frameHeight = frameWidth * 4 / 3;
+    } else {
+      // Landscape: height is screen height, width is height * 4/3
+      frameHeight = size.height;
+      frameWidth = frameHeight * 4 / 3;
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera Preview
+          // Blurred background camera preview
           FutureBuilder(
             future: cameraValue,
             builder: (context, snapshot) {
@@ -628,23 +641,56 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                   ),
                 );
               }
-              
-              if (cameraValue != null && 
-                  snapshot.connectionState == ConnectionState.done && 
+
+              if (cameraValue != null &&
+                  snapshot.connectionState == ConnectionState.done &&
                   cameraController?.value.isInitialized == true) {
-                return SizedBox(
-                  width: size.width,
-                  height: size.height,
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                      width: 100,
-                      child: RotatedBox(
-                        quarterTurns: quarterTurns,
-                        child: CameraPreview(cameraController!),
+                return Stack(
+                  children: [
+                    // Blurred background
+                    SizedBox(
+                      width: size.width,
+                      height: size.height,
+                      child: FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(
+                          width: 100,
+                          child: RotatedBox(
+                            quarterTurns: quarterTurns,
+                            child: ImageFiltered(
+                              imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                              child: CameraPreview(cameraController!),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    // Dark overlay on blurred area
+                    Container(
+                      width: size.width,
+                      height: size.height,
+                      color: Colors.black.withValues(alpha: 0.4),
+                    ),
+                    // Centered 4:3 frame with sharp preview
+                    Center(
+                      child: ClipRect(
+                        child: SizedBox(
+                          width: frameWidth,
+                          height: frameHeight,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: 100,
+                              child: RotatedBox(
+                                quarterTurns: quarterTurns,
+                                child: CameraPreview(cameraController!),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               } else {
                 return Center(
