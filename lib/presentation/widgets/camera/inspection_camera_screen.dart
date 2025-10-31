@@ -679,7 +679,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                             key: ValueKey('blur_$quarterTurns'),
                             quarterTurns: quarterTurns,
                             child: ImageFiltered(
-                              imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                              imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                               child: CameraPreview(cameraController!),
                             ),
                           ),
