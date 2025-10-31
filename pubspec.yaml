@@ -1,9 +1,9 @@
 name: lince_inspecoes
 description: "Aplicativo Lince Inspeções"
 
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 
-version: 1.0.0+10
+version: 1.0.1+1
 
 environment:
   sdk: ^3.6.2
