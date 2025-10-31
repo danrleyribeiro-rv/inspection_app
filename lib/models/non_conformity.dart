@@ -106,10 +106,10 @@ class NonConformity {
       topicId: map['topic_id'] as String?,
       itemId: map['item_id'] as String?,
       detailId: map['detail_id'] as String?,
-      title: map['title'] as String,
-      description: map['description'] as String,
-      severity: map['severity'] as String,
-      status: map['status'] as String,
+      title: (map['title'] as String?) ?? '',
+      description: (map['description'] as String?) ?? '',
+      severity: (map['severity'] as String?) ?? '',
+      status: (map['status'] as String?) ?? 'open',
       correctiveAction: map['corrective_action'] as String?,
       deadline: map['deadline'] != null
           ? DateTime.parse(map['deadline'] as String)
