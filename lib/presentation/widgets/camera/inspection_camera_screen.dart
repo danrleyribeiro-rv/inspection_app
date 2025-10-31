@@ -312,11 +312,14 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     }
   }
 
+  Timer? _rotationDebounceTimer;
+  double _pendingRotation = 0.0;
+
   void startAccelerometerListener() {
     accelerometerSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
       double angle = math.atan2(event.x, event.y);
       double newRotation = 0.0;
-      
+
       if (angle >= -math.pi/4 && angle < math.pi/4) {
         newRotation = 0.0;
       } else if (angle >= math.pi/4 && angle < 3*math.pi/4) {
@@ -326,10 +329,21 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       } else {
         newRotation = math.pi / 2;
       }
-      
+
+      // Only update if the rotation actually changed
       if ((deviceRotation - newRotation).abs() > 0.1) {
-        setState(() {
-          deviceRotation = newRotation;
+        _pendingRotation = newRotation;
+
+        // Cancel previous timer
+        _rotationDebounceTimer?.cancel();
+
+        // Set new timer with debounce to avoid rapid changes
+        _rotationDebounceTimer = Timer(const Duration(milliseconds: 150), () {
+          if (mounted && (deviceRotation - _pendingRotation).abs() > 0.1) {
+            setState(() {
+              deviceRotation = _pendingRotation;
+            });
+          }
         });
       }
     });
@@ -374,6 +388,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     debugPrint('Camera: Disposing camera screen...');
     WidgetsBinding.instance.removeObserver(this);
     recordingTimer?.cancel();
+    _rotationDebounceTimer?.cancel();
     accelerometerSubscription?.cancel();
 
     // Dispose camera controller safely
@@ -484,35 +499,39 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     );
   }
 
-  Widget buildCameraButton() {
-    if (isVideoMode && isRecording) {
-      return Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          color: Colors.deepPurple,
-          borderRadius: BorderRadius.circular(6),
-        ),
-      );
-    }
-    
+  double getIconRotation() {
     double finalRotation = deviceRotation;
-    
+
     if (deviceRotation.abs() > math.pi / 4 && deviceRotation.abs() < 3 * math.pi / 4) {
       finalRotation = -deviceRotation;
     }
-    
+
+    return finalRotation;
+  }
+
+  Widget buildCameraButton() {
+    if (isVideoMode && isRecording) {
+      return Transform.rotate(
+        angle: getIconRotation(),
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: Colors.deepPurple,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      );
+    }
+
     return Transform.rotate(
-      angle: finalRotation,
+      angle: getIconRotation(),
       child: Image.asset(
-        "assets/images/logo_lince.png", 
+        "assets/images/logo_lince.png",
         height: 40,
         width: 40,
         errorBuilder: (context, error, stackTrace) {
-          return Transform.rotate(
-            angle: finalRotation,
-            child: const Icon(Icons.camera, color: Colors.white, size: 40),
-          );
+          return const Icon(Icons.camera, color: Colors.white, size: 40);
         },
       ),
     );
@@ -581,11 +600,12 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     final orientation = MediaQuery.of(context).orientation;
     final isPortrait = orientation == Orientation.portrait;
 
-    // Calculate rotation for the preview when recording in landscape
+    // Calculate rotation for the preview based on device orientation
+    // On iOS, the camera preview needs to be rotated to match the device orientation
     int quarterTurns = 0;
-    if (isRecording && deviceRotation.abs() > 0.1) {
-      // We rotate the preview to match the UI orientation, which should be upright for the user.
-      // The UI elements rotate by -deviceRotation, so the preview should too.
+    if (deviceRotation.abs() > 0.1) {
+      // Rotate the preview to match the UI orientation
+      // The UI elements rotate by -deviceRotation, so the preview should too
       quarterTurns = -(deviceRotation / (math.pi / 2)).round();
     }
 
@@ -656,6 +676,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                         child: SizedBox(
                           width: 100,
                           child: RotatedBox(
+                            key: ValueKey('blur_$quarterTurns'),
                             quarterTurns: quarterTurns,
                             child: ImageFiltered(
                               imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -682,6 +703,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                             child: SizedBox(
                               width: 100,
                               child: RotatedBox(
+                                key: ValueKey('preview_$quarterTurns'),
                                 quarterTurns: quarterTurns,
                                 child: CameraPreview(cameraController!),
                               ),
@@ -729,14 +751,17 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                           shape: BoxShape.circle,
                         ),
                         padding: const EdgeInsets.all(10),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 30,
+                        child: Transform.rotate(
+                          angle: getIconRotation(),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 5),
                     // Flash Button
                     GestureDetector(
                       onTap: toggleFlash,
@@ -746,27 +771,13 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                           shape: BoxShape.circle,
                         ),
                         padding: const EdgeInsets.all(10),
-                        child: Icon(
-                          isFlashOn ? Icons.flash_on : Icons.flash_off,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Mode Toggle Button
-                    GestureDetector(
-                      onTap: toggleMode,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Color.fromARGB(100, 0, 0, 0),
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        child: Icon(
-                          isVideoMode ? Icons.videocam : Icons.photo_camera,
-                          color: Colors.white,
-                          size: 30,
+                        child: Transform.rotate(
+                          angle: getIconRotation(),
+                          child: Icon(
+                            isFlashOn ? Icons.flash_on : Icons.flash_off,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
                       ),
                     ),
@@ -781,34 +792,37 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
             SafeArea(
               child: Align(
                 alignment: Alignment.topCenter,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
+                child: Transform.rotate(
+                  angle: getIconRotation(),
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        formatDuration(recordingDuration),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(width: 8),
+                        Text(
+                          formatDuration(recordingDuration),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -830,11 +844,11 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                     SizedBox(
                       width: 70,
                       height: 70,
-                      child: capturedFiles.isNotEmpty 
+                      child: capturedFiles.isNotEmpty
                         ? buildLatestCapturedImage()
                         : const SizedBox.shrink(),
                     ),
-                    
+
                     // Center: Camera Button
                     GestureDetector(
                       onTap: () async {
@@ -871,7 +885,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                         ),
                       ),
                     ),
-                    
+
                     // Right: OK Button
                     SizedBox(
                       width: 70,
@@ -880,11 +894,42 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                         ? FloatingActionButton(
                             backgroundColor: Colors.green,
                             onPressed: _finishCapture,
-                            child: const Icon(Icons.check, color: Colors.white, size: 24),
+                            child: Transform.rotate(
+                              angle: getIconRotation(),
+                              child: const Icon(Icons.check, color: Colors.white, size: 24),
+                            ),
                           )
                         : const SizedBox.shrink(),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+
+          // Mode Toggle Button - positioned on the right side
+          Positioned(
+            bottom: 30,
+            right: 30,
+            child: SafeArea(
+              child: GestureDetector(
+                onTap: toggleMode,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: const BoxDecoration(
+                    color: Color.fromARGB(100, 0, 0, 0),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: Transform.rotate(
+                    angle: getIconRotation(),
+                    child: Icon(
+                      isVideoMode ? Icons.photo_camera : Icons.videocam,
+                      color: Colors.white,
+                      size: 25,
+                    ),
+                  ),
                 ),
               ),
             ),
