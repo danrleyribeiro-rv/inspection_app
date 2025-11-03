@@ -155,25 +155,8 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         topics = results[1] as List<Topic>;
       }
 
-      final previousCount = _allMedia.length;
-      final previousIds = _allMedia.map((m) => m['id']).toSet();
       _allMedia = allMedia;
       _topics = topics;
-      final newIds = _allMedia.map((m) => m['id']).toSet();
-
-      debugPrint(
-          'MediaGalleryScreen._loadData: Previous count: $previousCount, New count: ${_allMedia.length}');
-      debugPrint('MediaGalleryScreen._loadData: Previous IDs: $previousIds');
-      debugPrint('MediaGalleryScreen._loadData: New IDs: $newIds');
-
-      // Check if data actually changed (count or content)
-      bool dataChanged = previousCount != _allMedia.length ||
-          !previousIds.containsAll(newIds) ||
-          !newIds.containsAll(previousIds);
-
-      if (dataChanged) {
-        debugPrint('MediaGalleryScreen._loadData: Data changed detected');
-      }
 
       _applyFilters();
     } catch (e) {
@@ -286,12 +269,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
   }
 
   void _applyFilters() async {
-    debugPrint(
-        'MediaGalleryScreen: Applying filters on ${_allMedia.length} media items');
-    debugPrint(
-        'MediaGalleryScreen: Current filters - Topic: $_selectedTopicId, Item: $_selectedItemId, Detail: $_selectedDetailId');
-    debugPrint(
-        'MediaGalleryScreen: Filter options - TopicOnly: $_topicOnly, ItemOnly: $_itemOnly');
+    // Filter logs removed for performance
 
     // Sample media data logging removed for performance
 
@@ -313,8 +291,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
           final detailId = media['detailId'] ?? media['detail_id'];
           return itemId == null && detailId == null;
         }).toList();
-        debugPrint(
-            'MediaGalleryScreen: After topic-only filter: ${filteredMedia.length} items');
       }
     }
 
@@ -342,16 +318,12 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final detailId = media['detailId'] ?? media['detail_id'];
         return detailId == _selectedDetailId;
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After detail filter: ${filteredMedia.length} items');
     }
 
     if (_selectedMediaType != null) {
       filteredMedia = filteredMedia
           .where((media) => media['type'] == _selectedMediaType)
           .toList();
-      debugPrint(
-          'MediaGalleryScreen: After type filter: ${filteredMedia.length} items');
     }
 
     if (_selectedIsNonConformityOnly == true) {
@@ -359,8 +331,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final ncId = media['nonConformityId'] ?? media['non_conformity_id'];
         return ncId != null;
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After NC filter: ${filteredMedia.length} items');
     }
 
     if (_selectedNonConformityId != null) {
@@ -368,8 +338,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final ncId = media['nonConformityId'] ?? media['non_conformity_id'];
         return ncId == _selectedNonConformityId;
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After specific NC filter: ${filteredMedia.length} items');
     }
 
     if (_selectedMediaSource != null) {
@@ -377,8 +345,6 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         final source = media['source'];
         return source == _selectedMediaSource;
       }).toList();
-      debugPrint(
-          'MediaGalleryScreen: After source filter: ${filteredMedia.length} items');
     }
 
     if (_excludeResolutionMedia) {

@@ -405,42 +405,11 @@ class EnhancedOfflineMediaService {
 
       // Obter informações do arquivo
       final fileSize = await copiedFile.length();
-      int? width, height;
-      String? thumbnailPath;
-      
-      // File copied successfully (debug logging disabled)
-
-      // Processar imagem para obter dimensões e gerar thumbnail
-      if (type == 'image') {
-        try {
-          // Processing image for dimensions (debug logging disabled)
-          final imageBytes = await copiedFile.readAsBytes();
-          final image = img.decodeImage(imageBytes);
-
-          if (image != null) {
-            width = image.width;
-            height = image.height;
-            // Image dimensions extracted (debug logging disabled)
-
-            // Pular criação de thumbnail para salvamento rápido
-            // Skipping thumbnail for fast save (debug logging disabled)
-          } else {
-            debugPrint('EnhancedOfflineMediaService: Warning: Could not decode image');
-          }
-        } catch (e) {
-          debugPrint('EnhancedOfflineMediaService: Error processing image: $e');
-          // Continue without dimensions/thumbnail rather than failing completely
-        }
-      }
-
-      // Metadata removido
 
       // Determinar automaticamente se é mídia de resolução baseado no source
       final isResolutionMedia = source.contains('resolution');
-      
-      // Source analysis completed (debug logging disabled)
-      
-      // Criar registro de mídia com dados completos
+
+      // Criar registro de mídia com dados completos (dimensões serão atualizadas depois)
       final now = DateTime.now();
       final media = OfflineMedia(
         id: mediaId,
@@ -453,34 +422,46 @@ class EnhancedOfflineMediaService {
         localPath: localPath,
         filename: filename,
         fileSize: fileSize,
-        width: width,
-        height: height,
-        thumbnailPath: thumbnailPath,
+        width: null, // Será atualizado assincronamente
+        height: null, // Será atualizado assincronamente
+        thumbnailPath: null, // Será atualizado assincronamente
         isUploaded: false,
-        
+
         createdAt: now,
         updatedAt: now,
         source: source,
-        isResolutionMedia: isResolutionMedia, // Derivado automaticamente do source
+        isResolutionMedia: isResolutionMedia,
       );
 
-      // Salvar no repositório IMEDIATAMENTE
+      // Salvar no repositório IMEDIATAMENTE para resposta rápida
       await _mediaRepository.insert(media);
 
-      // Criar thumbnail de forma assíncrona (não bloqueia o retorno)
-      Future.microtask(() async {
-        try {
-          final asyncThumbnailPath = await _createImageThumbnail(localPath);
-          if (asyncThumbnailPath != null) {
-            // Atualizar mídia com thumbnail
-            final updatedMedia = media.copyWith(thumbnailPath: asyncThumbnailPath);
-            await _mediaRepository.update(updatedMedia);
-            // Thumbnail updated, no need to notify again - UI will refresh on next load
+      // Processar imagem de forma assíncrona (não bloqueia o retorno)
+      if (type == 'image') {
+        Future.microtask(() async {
+          try {
+            // Extrair dimensões e criar thumbnail em paralelo
+            final imageBytes = await copiedFile.readAsBytes();
+            final image = img.decodeImage(imageBytes);
+
+            String? asyncThumbnailPath;
+            if (image != null) {
+              // Criar thumbnail
+              asyncThumbnailPath = await _createImageThumbnail(localPath);
+
+              // Atualizar mídia com dimensões e thumbnail
+              final updatedMedia = media.copyWith(
+                width: image.width,
+                height: image.height,
+                thumbnailPath: asyncThumbnailPath,
+              );
+              await _mediaRepository.update(updatedMedia);
+            }
+          } catch (e) {
+            debugPrint('EnhancedOfflineMediaService: Error in async image processing: $e');
           }
-        } catch (e) {
-          debugPrint('EnhancedOfflineMediaService: Error in async thumbnail creation: $e');
-        }
-      });
+        });
+      }
 
       // Notificar contadores sobre nova mídia APENAS UMA VEZ
       MediaCounterNotifier.instance.notifyMediaAdded(
@@ -489,8 +470,6 @@ class EnhancedOfflineMediaService {
         itemId: itemId,
         detailId: detailId,
       );
-      
-      // Media saved successfully (debug logging disabled)
 
       return media;
     } catch (e) {

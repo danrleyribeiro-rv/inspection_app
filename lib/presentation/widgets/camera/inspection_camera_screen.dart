@@ -427,75 +427,78 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
 
   Widget buildLatestCapturedImage() {
     if (capturedFiles.isEmpty) return const SizedBox.shrink();
-    
+
     const double imageSize = 70.0; // Same size as camera button
-    
-    return Stack(
-      children: [
-        Container(
-          width: imageSize,
-          height: imageSize,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(35), // Circular like camera button
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(32),
-            child: isVideoFile(capturedFiles.last)
-                ? Container(
-                    color: Colors.grey[800],
-                    child: const Icon(
-                      Icons.play_circle_fill,
-                      color: Colors.white,
-                      size: 30,
+
+    return GestureDetector(
+      onTap: _finishCapture,
+      child: Stack(
+        children: [
+          Container(
+            width: imageSize,
+            height: imageSize,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(35), // Circular like camera button
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: isVideoFile(capturedFiles.last)
+                  ? Container(
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.play_circle_fill,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    )
+                  : Image.file(
+                      File(capturedFiles.last),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.image,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        );
+                      },
                     ),
-                  )
-                : Image.file(
-                    File(capturedFiles.last),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[800],
-                        child: const Icon(
-                          Icons.image,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      );
-                    },
-                  ),
+            ),
           ),
-        ),
-        // Counter badge on top-right corner
-        if (capturedFiles.length > 1)
-          Positioned(
-            right: 0,
-            top: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white, width: 1),
-              ),
-              child: Text(
-                '${capturedFiles.length}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+          // Counter badge on top-right corner
+          if (capturedFiles.length > 1)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: Text(
+                  '${capturedFiles.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -828,8 +831,8 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
               ),
             ),
           
-          
-          // Bottom Controls Row: Images | Camera | OK Button
+
+          // Bottom Controls Row: Images | Camera | Mode Toggle
           Positioned(
             bottom: 30,
             left: 0,
@@ -886,50 +889,28 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                       ),
                     ),
 
-                    // Right: OK Button
-                    SizedBox(
-                      width: 70,
-                      height: 70,
-                      child: capturedFiles.isNotEmpty
-                        ? FloatingActionButton(
-                            backgroundColor: Colors.green,
-                            onPressed: _finishCapture,
-                            child: Transform.rotate(
-                              angle: getIconRotation(),
-                              child: const Icon(Icons.check, color: Colors.white, size: 24),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                    // Right: Mode Toggle Button
+                    GestureDetector(
+                      onTap: toggleMode,
+                      child: Container(
+                        width: 70,
+                        height: 70,
+                        decoration: const BoxDecoration(
+                          color: Color.fromARGB(100, 0, 0, 0),
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(15),
+                        child: Transform.rotate(
+                          angle: getIconRotation(),
+                          child: Icon(
+                            isVideoMode ? Icons.photo_camera : Icons.videocam,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
-                ),
-              ),
-            ),
-          ),
-
-          // Mode Toggle Button - positioned on the right side
-          Positioned(
-            bottom: 30,
-            right: 30,
-            child: SafeArea(
-              child: GestureDetector(
-                onTap: toggleMode,
-                child: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: const BoxDecoration(
-                    color: Color.fromARGB(100, 0, 0, 0),
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(10),
-                  child: Transform.rotate(
-                    angle: getIconRotation(),
-                    child: Icon(
-                      isVideoMode ? Icons.photo_camera : Icons.videocam,
-                      color: Colors.white,
-                      size: 25,
-                    ),
-                  ),
                 ),
               ),
             ),
