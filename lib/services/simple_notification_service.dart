@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:lince_inspecoes/services/app_toast_service.dart';
+import 'package:live_activities/live_activities.dart';
 
 class SimpleNotificationService {
   static SimpleNotificationService? _instance;
@@ -14,9 +15,11 @@ class SimpleNotificationService {
   }
   
   SimpleNotificationService._internal();
-  
+
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  final _liveActivitiesPlugin = LiveActivities();
   bool _isInitialized = false;
+  String? _currentActivityId;
 
   static const String _channelId = 'lince_sync_channel';
   static const String _channelName = 'Lince - Sincronização';
@@ -155,22 +158,47 @@ class SimpleNotificationService {
     int? totalItems,
     String? estimatedTime,
     String? speed,
+    String? inspectionId,
+    String? currentItemName,
+    String? topicName,
+    String phase = 'uploading',
+    int? mediaCount,
   }) async {
     // Formatar mensagem com progresso e tempo estimado
     String formattedMessage = message;
-    
+
     if (currentItem != null && totalItems != null) {
       formattedMessage = 'Enviando $currentItem/$totalItems';
-      
+
       if (estimatedTime != null) {
         formattedMessage += ' • $estimatedTime';
       }
-      
+
       if (speed != null) {
         formattedMessage += ' • $speed';
       }
     }
-    
+
+    // Atualizar Live Activity para iOS (Dynamic Island)
+    if (Platform.isIOS && inspectionId != null) {
+      await _updateLiveActivity(
+        inspectionId: inspectionId,
+        title: title,
+        message: formattedMessage,
+        current: currentItem ?? 0,
+        total: totalItems ?? 100,
+        progress: maxProgress != null && progress != null
+            ? (progress / maxProgress)
+            : 0.0,
+        currentItem: currentItemName,
+        topicName: topicName,
+        phase: phase,
+        mediaCount: mediaCount,
+        estimatedTime: estimatedTime,
+        speed: speed,
+      );
+    }
+
     await _showProgressNotification(
       id: _syncProgressId,
       title: title,
@@ -421,5 +449,85 @@ class SimpleNotificationService {
       return false;
     }
   }
-  
+
+  // Live Activities (Dynamic Island)
+
+  /// Cria ou atualiza uma Live Activity para iOS
+  Future<void> _updateLiveActivity({
+    required String inspectionId,
+    required String title,
+    required String message,
+    required int current,
+    required int total,
+    required double progress,
+    String? currentItem,
+    String? topicName,
+    required String phase,
+    int? mediaCount,
+    String? estimatedTime,
+    String? speed,
+  }) async {
+    if (!Platform.isIOS) return;
+
+    try {
+      // Dados da Live Activity
+      final activityData = {
+        'inspectionId': inspectionId,
+        'title': title,
+        'message': message,
+        'current': current,
+        'total': total,
+        'progress': progress,
+        'currentItem': currentItem,
+        'topicName': topicName,
+        'phase': phase,
+        'mediaCount': mediaCount,
+        'estimatedTime': estimatedTime,
+        'speed': speed,
+      };
+
+      // Se não existe uma atividade, cria uma nova
+      if (_currentActivityId == null) {
+        _currentActivityId = await _liveActivitiesPlugin.createActivity(activityData);
+        debugPrint('SimpleNotificationService: Live Activity created: $_currentActivityId');
+      } else {
+        // Atualiza a atividade existente
+        await _liveActivitiesPlugin.updateActivity(_currentActivityId!, activityData);
+        debugPrint('SimpleNotificationService: Live Activity updated: $_currentActivityId');
+      }
+    } catch (e) {
+      debugPrint('SimpleNotificationService: Error updating Live Activity: $e');
+    }
+  }
+
+  /// Finaliza a Live Activity atual
+  Future<void> endLiveActivity() async {
+    if (!Platform.isIOS || _currentActivityId == null) return;
+
+    try {
+      await _liveActivitiesPlugin.endActivity(_currentActivityId!);
+      debugPrint('SimpleNotificationService: Live Activity ended: $_currentActivityId');
+      _currentActivityId = null;
+    } catch (e) {
+      debugPrint('SimpleNotificationService: Error ending Live Activity: $e');
+    }
+  }
+
+  /// Verifica se Live Activities estão habilitadas
+  Future<bool> areLiveActivitiesEnabled() async {
+    if (!Platform.isIOS) return false;
+
+    try {
+      return await _liveActivitiesPlugin.areActivitiesEnabled();
+    } catch (e) {
+      debugPrint('SimpleNotificationService: Error checking Live Activities: $e');
+      return false;
+    }
+  }
+
+  /// Limpa todas as notificações e Live Activities
+  Future<void> clearAll() async {
+    await hideAllNotifications();
+    await endLiveActivity();
+  }
 }

@@ -27,25 +27,31 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to take photos for inspections</string>
+	<string>O Lince Inspeções precisa acessar sua câmera para capturar fotos e vídeos durante as inspeções, incluindo registro de não conformidades e evidências de resolução.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Este app precisa de acesso ao microfone para gravar vídeos durante as inspeções</string>
+	<string>O Lince Inspeções precisa acessar o microfone para gravar vídeos com áudio durante as inspeções, permitindo documentação completa das ocorrências.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Precisamos do acesso à sua localização para adicionar informações de geolocalização às fotos capturadas.</string>
+	<string>O Lince Inspeções utiliza sua localização para adicionar dados de geolocalização às fotos e vídeos capturados durante as inspeções, garantindo rastreabilidade e contexto geográfico das evidências.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Precisamos do acesso à sua localização para adicionar informações de geolocalização às fotos capturadas.</string>
+	<string>O Lince Inspeções utiliza sua localização para adicionar dados de geolocalização às fotos e vídeos capturados durante as inspeções, garantindo rastreabilidade e contexto geográfico das evidências.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Precisamos do acesso à sua localização para adicionar informações de geolocalização às fotos capturadas.</string>
+	<string>O Lince Inspeções utiliza sua localização para adicionar dados de geolocalização às fotos e vídeos capturados durante as inspeções, garantindo rastreabilidade e contexto geográfico das evidências.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>This app needs photo library access to save photos from inspections</string>
+	<string>O Lince Inspeções precisa salvar fotos e vídeos na sua biblioteca para armazenar evidências das inspeções realizadas.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to add photos to inspections</string>
+	<string>O Lince Inspeções precisa acessar sua biblioteca de fotos para selecionar e anexar imagens existentes às inspeções e não conformidades.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_dartobservatory._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>This app needs local network access for debugging and development purposes</string>
+	<string>O Lince Inspeções utiliza a rede local para sincronização de dados e depuração durante o desenvolvimento do aplicativo.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>O Lince Inspeções precisa enviar notificações para informar o progresso de sincronização de inspeções, conclusão de uploads de mídias e alertas sobre não conformidades pendentes.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

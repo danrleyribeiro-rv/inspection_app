@@ -28,5 +28,17 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>O Lince Inspeções precisa acessar sua câmera para capturar fotos e vídeos durante as inspeções, incluindo registro de não conformidades e evidências de resolução.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O Lince Inspeções precisa acessar o microfone para gravar vídeos com áudio durante as inspeções, permitindo documentação completa das ocorrências.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>O Lince Inspeções utiliza sua localização para adicionar dados de geolocalização às fotos e vídeos capturados durante as inspeções, garantindo rastreabilidade e contexto geográfico das evidências.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>O Lince Inspeções precisa salvar fotos e vídeos na sua biblioteca para armazenar evidências das inspeções realizadas.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O Lince Inspeções precisa acessar sua biblioteca de fotos para selecionar e anexar imagens existentes às inspeções e não conformidades.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>O Lince Inspeções utiliza a rede local para sincronização de dados e depuração durante o desenvolvimento do aplicativo.</string>
 </dict>
 </plist>
