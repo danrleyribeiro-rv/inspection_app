@@ -1,5 +1,6 @@
 // lib/presentation/widgets/media/non_conformity_media_widget.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/models/non_conformity.dart';
@@ -466,7 +467,7 @@ class _NonConformityMediaWidgetState extends State<NonConformityMediaWidget> {
                       const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
+                          child: AdaptiveProgressIndicator(radius: 8.0)),
                       const SizedBox(width: 12),
                       Text("Processando $_processingCount NC(s)...",
                           style: const TextStyle(fontStyle: FontStyle.italic)),

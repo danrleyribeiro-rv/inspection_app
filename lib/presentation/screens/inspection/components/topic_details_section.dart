@@ -183,19 +183,21 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
             return AlertDialog(
               title: const Text('Observações do Tópico',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: controller,
-                    maxLines: 3,
-                    autofocus: true,
-                    onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
-                    decoration: InputDecoration(
-                      hintText: 'Digite suas observações...',
-                      hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
-                      border: const OutlineInputBorder(),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: controller,
+                      maxLines: 3,
+                      autofocus: true,
+                      onChanged: (_) => setDialogState(() {}), // Atualiza apenas o dialog
+                      decoration: InputDecoration(
+                        hintText: 'Digite suas observações...',
+                        hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                        border: const OutlineInputBorder(),
                       suffixIcon: controller.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 20),
@@ -217,6 +219,7 @@ class _TopicDetailsSectionState extends State<TopicDetailsSection> {
                     ),
                   ),
                 ],
+                ),
               ),
               actions: [
                 TextButton(

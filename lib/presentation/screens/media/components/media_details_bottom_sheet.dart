@@ -1,6 +1,7 @@
 // lib/presentation/screens/media/components/media_details_bottom_sheet.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:lince_inspecoes/services/core/firebase_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -453,8 +454,8 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
                                     ? const SizedBox(
                                         width: 20,
                                         height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
+                                        child: AdaptiveProgressIndicator(
+                                          radius: 8.0,
                                         ),
                                       )
                                     : const Text('Salvar'),
@@ -626,7 +627,7 @@ class _MediaDetailsBottomSheetState extends State<MediaDetailsBottomSheet> {
       height: 300,
       color: Colors.grey.shade200,
       child: const Center(
-        child: CircularProgressIndicator(),
+        child: AdaptiveProgressIndicator(),
       ),
     );
   }

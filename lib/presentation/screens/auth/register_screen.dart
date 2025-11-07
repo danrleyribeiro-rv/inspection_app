@@ -6,6 +6,7 @@ import 'package:brasil_fields/brasil_fields.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:lince_inspecoes/utils/constants.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/terms_dialog.dart';
 import 'package:cpf_cnpj_validator/cpf_validator.dart' as cpf_validator;
@@ -403,7 +404,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: AdaptiveProgressIndicator(radius: 8.0),
                       )
                     : IconButton(
                         icon: const Icon(Icons.search),
@@ -597,8 +598,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+                          child: AdaptiveProgressIndicator(
+                            radius: 10.0,
                             color: Colors.white,
                           ),
                         )
@@ -702,6 +703,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildDropdownField() {
+    if (PlatformUtils.isIOS) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Profissão',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AdaptiveDropdown<String>(
+            value: _selectedProfession,
+            items: Constants.professions,
+            itemLabel: (profession) => profession,
+            onChanged: (String? newValue) {
+              setState(() => _selectedProfession = newValue);
+            },
+            hint: 'Selecione uma profissão',
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      );
+    }
+
     return DropdownButtonFormField<String>(
       initialValue: _selectedProfession,
       decoration: InputDecoration(

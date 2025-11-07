@@ -1,6 +1,7 @@
 // lib/presentation/screens/auth/reset_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -176,7 +177,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _resetPassword,
                   child: _isLoading
-                      ? const CircularProgressIndicator()
+                      ? const AdaptiveProgressIndicator(
+                          color: Colors.white,
+                          radius: 10.0,
+                        )
                       : const Text('Redefinir Senha'),
                 ),
               ),

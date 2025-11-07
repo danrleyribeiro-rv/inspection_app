@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -722,7 +723,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const CircularProgressIndicator(color: Colors.white),
+                      const AdaptiveProgressIndicator(color: Colors.white),
                       const SizedBox(height: 16),
                       Text(
                         'Inicializando câmera...',

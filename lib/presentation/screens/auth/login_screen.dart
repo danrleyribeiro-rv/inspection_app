@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/terms_dialog.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -298,8 +299,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signIn,
                             child: _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Color(0xFFFFFFFF))
+                                ? const AdaptiveProgressIndicator(
+                                    color: Color(0xFFFFFFFF),
+                                    radius: 10.0)
                                 : const Text('Login'),
                           ),
                         ),

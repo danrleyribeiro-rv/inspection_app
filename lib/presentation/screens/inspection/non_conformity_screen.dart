@@ -1,5 +1,6 @@
 // lib/presentation/screens/inspection/non_conformity_screen.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -596,7 +597,7 @@ class _NonConformityScreenState extends State<NonConformityScreen>
             : null,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AdaptiveProgressIndicator())
           : TabBarView(
               controller: _tabController,
               children: [
@@ -727,8 +728,19 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _levelFilter,
+                                child: AdaptiveDropdown<String?>(
+                                  value: _levelFilter,
+                                  items: const [null, 'topic', 'item', 'detail'],
+                                  itemLabel: (value) {
+                                    if (value == null) return 'Todos os níveis';
+                                    if (value == 'topic') return 'Apenas Tópicos';
+                                    if (value == 'item') return 'Apenas Itens';
+                                    if (value == 'detail') return 'Apenas Detalhes';
+                                    return value;
+                                  },
+                                  onChanged: (value) {
+                                    setState(() => _levelFilter = value);
+                                  },
                                   style: theme.textTheme.bodyLarge?.copyWith(fontSize: 12),
                                   decoration: InputDecoration(
                                     filled: true,
@@ -741,28 +753,6 @@ class _NonConformityScreenState extends State<NonConformityScreen>
                                     isDense: true,
                                   ),
                                   dropdownColor: theme.cardColor,
-                                  items: const [
-                                    DropdownMenuItem<String>(
-                                      value: null,
-                                      child: Text('Todos os níveis', style: TextStyle(fontSize: 12)),
-                                    ),
-                                    DropdownMenuItem<String>(
-                                      value: 'topic',
-                                      child: Text('Apenas Tópicos', style: TextStyle(fontSize: 12)),
-                                    ),
-                                    DropdownMenuItem<String>(
-                                      value: 'item',
-                                      child: Text('Apenas Itens', style: TextStyle(fontSize: 12)),
-                                    ),
-                                    DropdownMenuItem<String>(
-                                      value: 'detail',
-                                      child: Text('Apenas Detalhes', style: TextStyle(fontSize: 12)),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() => _levelFilter = value);
-                                  },
-                                  icon: Icon(Icons.arrow_drop_down, color: theme.inputDecorationTheme.hintStyle?.color),
                                 ),
                               ),
                             ],

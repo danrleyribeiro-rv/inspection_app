@@ -1,5 +1,7 @@
 // lib/presentation/screens/inspection/components/non_conformity_edit_dialog.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class NonConformityEditDialog extends StatefulWidget {
   final Map<String, dynamic> nonConformity;
@@ -67,17 +69,153 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
 
 
 
+  Widget _buildCupertinoContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Descrição:', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        CupertinoTextField(
+          controller: _descriptionController,
+          placeholder: 'Digite a descrição',
+          maxLines: 3,
+          padding: const EdgeInsets.all(12),
+        ),
+        const SizedBox(height: 16),
+        const Text('Ação Corretiva (opcional):', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        CupertinoTextField(
+          controller: _correctiveActionController,
+          placeholder: 'Digite a ação corretiva',
+          maxLines: 3,
+          padding: const EdgeInsets.all(12),
+        ),
+        const SizedBox(height: 16),
+        const Text('Severidade:', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => _showCupertinoPicker(context),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: CupertinoColors.systemGrey4),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _severity ?? 'Não definida',
+                  style: TextStyle(
+                    color: _severity == null
+                        ? CupertinoColors.systemGrey
+                        : CupertinoColors.label,
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_down, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCupertinoPicker(BuildContext context) {
+    final severities = [null, 'Baixa', 'Média', 'Alta', 'Crítica'];
+    int selectedIndex = severities.indexOf(_severity);
+    if (selectedIndex == -1) selectedIndex = 0;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 250,
+        color: CupertinoColors.systemBackground,
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CupertinoButton(
+                  child: const Text('Cancelar'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                CupertinoButton(
+                  child: const Text('Confirmar'),
+                  onPressed: () {
+                    setState(() => _severity = severities[selectedIndex]);
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                scrollController: FixedExtentScrollController(initialItem: selectedIndex),
+                itemExtent: 40,
+                onSelectedItemChanged: (index) => selectedIndex = index,
+                children: severities.map((s) => Center(
+                  child: Text(s ?? 'Não definida'),
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (PlatformUtils.isIOS) {
+      return CupertinoAlertDialog(
+        title: const Text('Editar Não Conformidade'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 16.0),
+          child: SingleChildScrollView(
+            child: _buildCupertinoContent(),
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              if (_descriptionController.text.isEmpty) {
+                return; // Simple validation
+              }
+              final updatedData = {
+                ...widget.nonConformity,
+                'description': _descriptionController.text,
+                'corrective_action': _correctiveActionController.text.isEmpty
+                    ? null
+                    : _correctiveActionController.text,
+                'severity': _severity?.isNotEmpty == true ? _severity : null,
+              };
+              widget.onSave(updatedData);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      );
+    }
+
     return AlertDialog(
       title: const Text('Editar Não Conformidade'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.9,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Description field
               const Text('Descrição:'),
               const SizedBox(height: 8),
@@ -210,6 +348,7 @@ class _NonConformityEditDialogState extends State<NonConformityEditDialog> {
 
             ],
           ),
+        ),
         ),
       ),
       actions: [

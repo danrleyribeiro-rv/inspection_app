@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -661,11 +662,34 @@ class _NonConformityFormState extends State<NonConformityForm> {
     required String label,
     required T? value,
     required List<T> items,
-    required Function(T?) onChanged,
+    required ValueChanged<T?> onChanged,
     required String Function(T) displayText,
     required IconData icon,
     bool enabled = true,
   }) {
+    if (PlatformUtils.isIOS) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AdaptiveDropdown<T>(
+            value: value,
+            items: items,
+            itemLabel: displayText,
+            onChanged: enabled ? onChanged : (T? val) {},
+            hint: label,
+          ),
+        ],
+      );
+    }
+
     return DropdownButtonFormField<T>(
       decoration: InputDecoration(
         labelText: label,
@@ -687,6 +711,34 @@ class _NonConformityFormState extends State<NonConformityForm> {
   }
 
   Widget _buildSeverityDropdown() {
+    if (PlatformUtils.isIOS) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Severidade (opcional)',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AdaptiveDropdown<String?>(
+            value: _severity,
+            items: const [null, 'Baixa', 'Média', 'Alta', 'Crítica'],
+            itemLabel: (value) {
+              if (value == null) return 'Não definida';
+              return value;
+            },
+            onChanged: (value) {
+              if (value != null) setState(() => _severity = value);
+            },
+            hint: 'Selecione a severidade',
+          ),
+        ],
+      );
+    }
+
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
         labelText: 'Severidade (opcional)',
@@ -769,8 +821,8 @@ class _NonConformityFormState extends State<NonConformityForm> {
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                    color: Colors.white, strokeWidth: 2),
+                child: AdaptiveProgressIndicator(
+                    color: Colors.white, radius: 8.0),
               )
             : const Icon(Icons.save),
         label: Text(

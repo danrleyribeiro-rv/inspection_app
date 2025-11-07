@@ -1,5 +1,6 @@
 // lib/presentation/widgets/inspection_card.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/presentation/widgets/common/map_location_card.dart';
 import 'package:lince_inspecoes/utils/date_formatter.dart';
 
@@ -410,9 +411,9 @@ class InspectionCard extends StatelessWidget {
                     const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      child: AdaptiveProgressIndicator(
+                        radius: 8.0,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 8),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -202,7 +203,7 @@ class _NonConformityFilterDialogState
             // Content
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: AdaptiveProgressIndicator())
                   : SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
                       child: Column(

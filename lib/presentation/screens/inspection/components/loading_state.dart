@@ -1,5 +1,6 @@
 // lib/presentation/screens/inspection/components/loading_state.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class LoadingState extends StatelessWidget {
   final bool isDownloading;
@@ -17,11 +18,11 @@ class LoadingState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(
+          AdaptiveProgressIndicator(
             color: isApplyingTemplate
                 ? Colors.orange
                 : Theme.of(context).primaryColor,
-            strokeWidth: 3,
+            radius: 14.0,
           ),
           const SizedBox(height: 24),
           Text(

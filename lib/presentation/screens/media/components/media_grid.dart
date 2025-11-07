@@ -7,6 +7,7 @@ import 'package:lince_inspecoes/presentation/screens/media/media_viewer_screen.d
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/common/cached_media_image.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/move_media_dialog.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class MediaGrid extends StatefulWidget {
   final List<Map<String, dynamic>> media;
@@ -701,8 +702,8 @@ class _MediaGridState extends State<MediaGrid> {
       child: SizedBox(
         width: 24,
         height: 24,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
+        child: AdaptiveProgressIndicator(
+          radius: 10.0,
           color: Colors.white,
         ),
       ),

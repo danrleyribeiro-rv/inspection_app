@@ -1,5 +1,6 @@
 // lib/presentation/widgets/template_selector_dialog.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
@@ -700,7 +701,7 @@ Future<void> _loadTemplateItems() async {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(),
+                      AdaptiveProgressIndicator(),
                       SizedBox(height: 16),
                       Text(
                         'Carregando tópicos...',

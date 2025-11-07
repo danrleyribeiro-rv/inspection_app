@@ -10,6 +10,7 @@ import 'package:lince_inspecoes/presentation/screens/media/components/media_grid
 import 'package:lince_inspecoes/presentation/widgets/camera/inspection_camera_screen.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/move_media_dialog.dart';
 import 'package:lince_inspecoes/services/media_counter_notifier.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class MediaGalleryScreen extends StatefulWidget {
   final String inspectionId;
@@ -555,7 +556,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AdaptiveProgressIndicator())
           : Column(
               children: [
                 if (_filteredMedia.isEmpty)

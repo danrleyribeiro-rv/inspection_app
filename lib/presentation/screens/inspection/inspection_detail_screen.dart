@@ -16,6 +16,7 @@ import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
 import 'package:lince_inspecoes/presentation/widgets/sync/sync_progress_overlay.dart';
 import 'package:lince_inspecoes/services/utils/inspection_export_service.dart';
 import 'package:lince_inspecoes/services/utils/inspection_import_service.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:file_picker/file_picker.dart';
 
 class InspectionDetailScreen extends StatefulWidget {
@@ -490,7 +491,7 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
+              AdaptiveProgressIndicator(),
               SizedBox(height: 16),
               Text('Por favor, aguarde...'),
             ],
@@ -663,8 +664,8 @@ class _InspectionDetailScreenState extends State<InspectionDetailScreen>
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                child: AdaptiveProgressIndicator(
+                  radius: 8.0,
                   color: theme.colorScheme.onPrimary,
                 ),
               ),

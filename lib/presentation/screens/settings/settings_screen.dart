@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lince_inspecoes/main.dart';
@@ -335,7 +336,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Configurações'),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AdaptiveProgressIndicator())
           : ListView(
               children: [
                 _buildSectionHeader('Aparência'),

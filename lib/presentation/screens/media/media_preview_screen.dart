@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
 import 'package:intl/intl.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class MediaPreviewScreen extends StatefulWidget {
   final String mediaUrl;
@@ -123,7 +124,7 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
       heroAttributes: PhotoViewHeroAttributes(tag: widget.mediaUrl),
       loadingBuilder: (context, event) {
         return Center(
-          child: CircularProgressIndicator(
+          child: AdaptiveProgressIndicator(
             value: event == null ? null : event.cumulativeBytesLoaded / (event.expectedTotalBytes ?? 1),
           ),
         );
@@ -150,7 +151,7 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
   Widget _buildVideoPlayer() {
     if (_videoController == null || !_videoController!.value.isInitialized) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: AdaptiveProgressIndicator(),
       );
     }
     

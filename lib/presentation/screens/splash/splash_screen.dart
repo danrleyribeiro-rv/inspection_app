@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lince_inspecoes/services/enhanced_offline_service_factory.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 
@@ -91,9 +92,9 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 40),
             // Loading spinner
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              strokeWidth: 3.0,
+            const AdaptiveProgressIndicator(
+              color: Colors.white,
+              radius: 14.0,
             ),
           ],
         ),

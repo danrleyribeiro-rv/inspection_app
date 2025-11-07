@@ -1,6 +1,7 @@
 // lib/presentation/screens/home/profile_tab.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lince_inspecoes/presentation/screens/profile/edit_profile_screen.dart';
@@ -134,7 +135,7 @@ class _ProfileTabState extends State<ProfileTab> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AdaptiveProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -577,24 +578,14 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   color: Colors.white),
             ),
             const SizedBox(height: 4),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedAction,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                isDense: true,
-                filled: true,
-                fillColor: Color(0xFF2D3748),
-              ),
-              style: const TextStyle(fontSize: 14, color: Colors.white),
-              dropdownColor: const Color(0xFF2D3748),
-              items: const [
-                DropdownMenuItem(value: 'move', child: Text('Mover Foto')),
-                DropdownMenuItem(
-                    value: 'move_to_nc',
-                    child: Text('Duplicar para NC')),
-              ],
+            AdaptiveDropdown<String>(
+              value: _selectedAction,
+              items: const ['move', 'move_to_nc'],
+              itemLabel: (value) {
+                if (value == 'move') return 'Mover Foto';
+                if (value == 'move_to_nc') return 'Duplicar para NC';
+                return value;
+              },
               onChanged: (value) {
                 if (value != null) {
                   setState(() {
@@ -616,12 +607,21 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                   }
                 }
               },
+              style: const TextStyle(fontSize: 14, color: Colors.white),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                isDense: true,
+                filled: true,
+                fillColor: Color(0xFF2D3748),
+              ),
+              dropdownColor: const Color(0xFF2D3748),
             ),
             const SizedBox(height: 4),
             if (_selectedAction == 'move') ...[
               if (_isLoading)
                 const Center(
-                    child: CircularProgressIndicator(color: Colors.orange))
+                    child: AdaptiveProgressIndicator(color: Colors.orange))
               else ...[
                 Text(
                   'Tópico:',
@@ -631,27 +631,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       color: Colors.white),
                 ),
                 const SizedBox(height: 4),
-                DropdownButtonFormField<Topic>(
-                  initialValue: _selectedTopic,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    isDense: true,
-                    filled: true,
-                    fillColor: Color(0xFF2D3748),
-                  ),
-                  style: const TextStyle(fontSize: 14, color: Colors.white),
-                  dropdownColor: const Color(0xFF2D3748),
-                  hint: const Text('Selecione um tópico',
-                      style: TextStyle(color: Colors.white70)),
-                  items: _topics.map((topic) {
-                    return DropdownMenuItem<Topic>(
-                      value: topic,
-                      child: Text(topic.topicName,
-                          style: const TextStyle(color: Colors.white)),
-                    );
-                  }).toList(),
+                AdaptiveDropdown<Topic>(
+                  value: _selectedTopic,
+                  items: _topics,
+                  itemLabel: (topic) => topic.topicName,
                   onChanged: (topic) async {
                     setState(() {
                       _selectedTopic = topic;
@@ -667,6 +650,16 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                       await _loadItems(topic.id);
                     }
                   },
+                  hint: 'Selecione um tópico',
+                  style: const TextStyle(fontSize: 14, color: Colors.white),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    isDense: true,
+                    filled: true,
+                    fillColor: Color(0xFF2D3748),
+                  ),
+                  dropdownColor: const Color(0xFF2D3748),
                 ),
                 const SizedBox(height: 4),
                 // Direct details dropdown for topics with directDetails = true
@@ -679,30 +672,23 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                         color: Colors.white),
                   ),
                   const SizedBox(height: 4),
-                  DropdownButtonFormField<Detail>(
-                    initialValue: _selectedDirectDetail,
+                  AdaptiveDropdown<Detail>(
+                    value: _selectedDirectDetail,
+                    items: _directDetails,
+                    itemLabel: (detail) => detail.detailName,
+                    onChanged: (detail) {
+                      setState(() => _selectedDirectDetail = detail);
+                    },
+                    hint: 'Selecione um detalhe',
+                    style: const TextStyle(fontSize: 14, color: Colors.white),
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       isDense: true,
                       filled: true,
                       fillColor: Color(0xFF2D3748),
                     ),
-                    style: const TextStyle(fontSize: 14, color: Colors.white),
                     dropdownColor: const Color(0xFF2D3748),
-                    hint: const Text('Selecione um detalhe',
-                        style: TextStyle(color: Colors.white70)),
-                    items: _directDetails.map((detail) {
-                      return DropdownMenuItem<Detail>(
-                        value: detail,
-                        child: Text(detail.detailName,
-                            style: const TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (detail) {
-                      setState(() => _selectedDirectDetail = detail);
-                    },
                   ),
                   const SizedBox(height: 4),
                 ],
@@ -716,27 +702,10 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                         color: Colors.white),
                   ),
                   const SizedBox(height: 4),
-                  DropdownButtonFormField<Item>(
-                    initialValue: _selectedItem,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      isDense: true,
-                      filled: true,
-                      fillColor: Color(0xFF2D3748),
-                    ),
-                    style: const TextStyle(fontSize: 14, color: Colors.white),
-                    dropdownColor: const Color(0xFF2D3748),
-                    hint: const Text('Selecione um item',
-                        style: TextStyle(color: Colors.white70)),
-                    items: _items.map((item) {
-                      return DropdownMenuItem<Item>(
-                        value: item,
-                        child: Text(item.itemName,
-                            style: const TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
+                  AdaptiveDropdown<Item>(
+                    value: _selectedItem,
+                    items: _items,
+                    itemLabel: (item) => item.itemName,
                     onChanged: (item) async {
                       setState(() {
                         _selectedItem = item;
@@ -748,6 +717,16 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                         await _loadDetails(item.id);
                       }
                     },
+                    hint: 'Selecione um item',
+                    style: const TextStyle(fontSize: 14, color: Colors.white),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Color(0xFF2D3748),
+                    ),
+                    dropdownColor: const Color(0xFF2D3748),
                   ),
                   const SizedBox(height: 4),
                 ],
@@ -760,30 +739,23 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                         color: Colors.white),
                   ),
                   const SizedBox(height: 4),
-                  DropdownButtonFormField<Detail>(
-                    initialValue: _selectedDetail,
+                  AdaptiveDropdown<Detail>(
+                    value: _selectedDetail,
+                    items: _details,
+                    itemLabel: (detail) => detail.detailName,
+                    onChanged: (detail) {
+                      setState(() => _selectedDetail = detail);
+                    },
+                    hint: 'Selecione um detalhe',
+                    style: const TextStyle(fontSize: 14, color: Colors.white),
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       isDense: true,
                       filled: true,
                       fillColor: Color(0xFF2D3748),
                     ),
-                    style: const TextStyle(fontSize: 14, color: Colors.white),
                     dropdownColor: const Color(0xFF2D3748),
-                    hint: const Text('Selecione um detalhe',
-                        style: TextStyle(color: Colors.white70)),
-                    items: _details.map((detail) {
-                      return DropdownMenuItem<Detail>(
-                        value: detail,
-                        child: Text(detail.detailName,
-                            style: const TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (detail) {
-                      setState(() => _selectedDetail = detail);
-                    },
                   ),
                   const SizedBox(height: 4),
                 ],
@@ -792,7 +764,7 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
             if (_selectedAction == 'move_to_nc') ...[
               if (_isLoadingNCs)
                 const Center(
-                    child: CircularProgressIndicator(color: Colors.orange))
+                    child: AdaptiveProgressIndicator(color: Colors.orange))
               else ...[
                 Text(
                   'Não Conformidades Existentes:',
@@ -970,10 +942,9 @@ class _MoveMediaDialogState extends State<MoveMediaDialog> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            child: AdaptiveProgressIndicator(
+                              radius: 8.0,
+                              color: Colors.white,
                             ),
                           )
                         : Text(

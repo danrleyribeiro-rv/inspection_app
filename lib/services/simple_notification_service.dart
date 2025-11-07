@@ -13,17 +13,19 @@ class SimpleNotificationService {
     _instance ??= SimpleNotificationService._internal();
     return _instance!;
   }
-  
+
   SimpleNotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
   final _liveActivitiesPlugin = LiveActivities();
   bool _isInitialized = false;
   String? _currentActivityId;
 
   static const String _channelId = 'lince_sync_channel';
   static const String _channelName = 'Lince - Sincronização';
-  static const String _channelDescription = 'Notificações de sincronização de inspeções';
+  static const String _channelDescription =
+      'Notificações de sincronização de inspeções';
 
   // Notification IDs
   static const int _syncProgressId = 1001;
@@ -34,7 +36,7 @@ class SimpleNotificationService {
   // Callback for sync cancellation
   Function(String)? _onCancelSync;
   String? _currentSyncInspectionId;
-  
+
   Future<bool> initialize() async {
     if (_isInitialized) return true;
 
@@ -52,16 +54,19 @@ class SimpleNotificationService {
       }
 
       // Android initialization
-      const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
 
       // iOS initialization
-      const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+      const DarwinInitializationSettings initializationSettingsIOS =
+          DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: false,
       );
 
-      const InitializationSettings initializationSettings = InitializationSettings(
+      const InitializationSettings initializationSettings =
+          InitializationSettings(
         android: initializationSettingsAndroid,
         iOS: initializationSettingsIOS,
       );
@@ -78,13 +83,12 @@ class SimpleNotificationService {
 
       _isInitialized = true;
       return true;
-
     } catch (e) {
       debugPrint('SimpleNotificationService: Error initializing: $e');
       return false;
     }
   }
-  
+
   /// Set callback for sync cancellation
   void setSyncCancelCallback(Function(String) callback, String inspectionId) {
     _onCancelSync = callback;
@@ -99,10 +103,14 @@ class SimpleNotificationService {
 
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
-    debugPrint('SimpleNotificationService: Notification tapped with action: ${response.actionId}');
+    debugPrint(
+        'SimpleNotificationService: Notification tapped with action: ${response.actionId}');
 
-    if (response.actionId == 'cancel_sync' && _currentSyncInspectionId != null && _onCancelSync != null) {
-      debugPrint('SimpleNotificationService: Cancelling sync for inspection $_currentSyncInspectionId');
+    if (response.actionId == 'cancel_sync' &&
+        _currentSyncInspectionId != null &&
+        _onCancelSync != null) {
+      debugPrint(
+          'SimpleNotificationService: Cancelling sync for inspection $_currentSyncInspectionId');
       _onCancelSync!(_currentSyncInspectionId!);
     }
   }
@@ -114,7 +122,8 @@ class SimpleNotificationService {
         return status.isGranted;
       } else if (Platform.isIOS) {
         final result = await _flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>()
             ?.requestPermissions(
               alert: true,
               badge: true,
@@ -127,7 +136,7 @@ class SimpleNotificationService {
       return false;
     }
   }
-  
+
   Future<void> _createNotificationChannel() async {
     try {
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -139,15 +148,16 @@ class SimpleNotificationService {
         enableVibration: false,
         showBadge: true,
       );
-      
+
       await _flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
     } catch (e) {
       // Error creating notification channel
     }
   }
-  
+
   Future<void> showSyncProgress({
     required String title,
     required String message,
@@ -208,7 +218,7 @@ class SimpleNotificationService {
       indeterminate: indeterminate,
     );
   }
-  
+
   Future<void> showDownloadProgress({
     required String title,
     required String message,
@@ -225,7 +235,7 @@ class SimpleNotificationService {
       indeterminate: indeterminate,
     );
   }
-  
+
   Future<void> _showProgressNotification({
     required int id,
     required String title,
@@ -235,7 +245,8 @@ class SimpleNotificationService {
     bool indeterminate = false,
   }) async {
     if (!_isInitialized) {
-      debugPrint('SimpleNotificationService: Not initialized, cannot show progress notification');
+      debugPrint(
+          'SimpleNotificationService: Not initialized, cannot show progress notification');
       return;
     }
 
@@ -251,8 +262,9 @@ class SimpleNotificationService {
       return;
     }
 
-    try{
-      final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+    try {
+      final AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
         _channelId,
         _channelName,
         channelDescription: _channelDescription,
@@ -280,12 +292,16 @@ class SimpleNotificationService {
 
       // Para iOS, incluir o progresso no texto da mensagem
       String iOSMessage = message;
-      if (Platform.isIOS && !indeterminate && progress != null && maxProgress != null) {
+      if (Platform.isIOS &&
+          !indeterminate &&
+          progress != null &&
+          maxProgress != null) {
         final percentage = ((progress / maxProgress) * 100).round();
         iOSMessage = '$message ($percentage%)';
       }
 
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+          DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: false,
@@ -302,19 +318,20 @@ class SimpleNotificationService {
         Platform.isIOS ? iOSMessage : message,
         platformChannelSpecifics,
       );
-
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error showing progress notification: $e');
+      debugPrint(
+          'SimpleNotificationService: Error showing progress notification: $e');
     }
   }
-  
+
   Future<void> showCompletionNotification({
     required String title,
     required String message,
     bool isSuccess = true,
   }) async {
     if (!_isInitialized) {
-      debugPrint('SimpleNotificationService: Not initialized, cannot show completion notification');
+      debugPrint(
+          'SimpleNotificationService: Not initialized, cannot show completion notification');
       return;
     }
 
@@ -329,7 +346,8 @@ class SimpleNotificationService {
     }
 
     try {
-      final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      final AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
         _channelId,
         _channelName,
         channelDescription: _channelDescription,
@@ -342,7 +360,8 @@ class SimpleNotificationService {
         icon: '@mipmap/ic_launcher',
       );
 
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+          DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: false,
@@ -359,18 +378,19 @@ class SimpleNotificationService {
         message,
         platformChannelSpecifics,
       );
-
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error showing completion notification: $e');
+      debugPrint(
+          'SimpleNotificationService: Error showing completion notification: $e');
     }
   }
-  
+
   Future<void> showErrorNotification({
     required String title,
     required String message,
   }) async {
     if (!_isInitialized) {
-      debugPrint('SimpleNotificationService: Not initialized, cannot show error notification');
+      debugPrint(
+          'SimpleNotificationService: Not initialized, cannot show error notification');
       return;
     }
 
@@ -384,7 +404,8 @@ class SimpleNotificationService {
     }
 
     try {
-      final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      final AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
         _channelId,
         _channelName,
         channelDescription: _channelDescription,
@@ -397,7 +418,8 @@ class SimpleNotificationService {
         icon: '@mipmap/ic_launcher',
       );
 
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics = DarwinNotificationDetails(
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+          DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: false,
@@ -414,12 +436,12 @@ class SimpleNotificationService {
         message,
         platformChannelSpecifics,
       );
-
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error showing error notification: $e');
+      debugPrint(
+          'SimpleNotificationService: Error showing error notification: $e');
     }
   }
-  
+
   Future<void> hideAllNotifications() async {
     try {
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -431,7 +453,7 @@ class SimpleNotificationService {
       debugPrint('SimpleNotificationService: Error hiding notifications: $e');
     }
   }
-  
+
   Future<bool> areNotificationsEnabled() async {
     try {
       if (Platform.isAndroid) {
@@ -439,13 +461,15 @@ class SimpleNotificationService {
         return status.isGranted;
       } else if (Platform.isIOS) {
         final result = await _flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>()
             ?.checkPermissions();
         return result?.isEnabled ?? false;
       }
       return true;
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error checking notification permissions: $e');
+      debugPrint(
+          'SimpleNotificationService: Error checking notification permissions: $e');
       return false;
     }
   }
@@ -488,12 +512,19 @@ class SimpleNotificationService {
 
       // Se não existe uma atividade, cria uma nova
       if (_currentActivityId == null) {
-        _currentActivityId = await _liveActivitiesPlugin.createActivity(activityData);
-        debugPrint('SimpleNotificationService: Live Activity created: $_currentActivityId');
+        _currentActivityId = await _liveActivitiesPlugin.createActivity(
+          activityData.toString(), // Convert Map to JSON string
+          <String,
+              dynamic>{}, // Provide an empty map or populate with required data
+        );
+        debugPrint(
+            'SimpleNotificationService: Live Activity created: $_currentActivityId');
       } else {
         // Atualiza a atividade existente
-        await _liveActivitiesPlugin.updateActivity(_currentActivityId!, activityData);
-        debugPrint('SimpleNotificationService: Live Activity updated: $_currentActivityId');
+        await _liveActivitiesPlugin.updateActivity(
+            _currentActivityId!, activityData);
+        debugPrint(
+            'SimpleNotificationService: Live Activity updated: $_currentActivityId');
       }
     } catch (e) {
       debugPrint('SimpleNotificationService: Error updating Live Activity: $e');
@@ -506,7 +537,8 @@ class SimpleNotificationService {
 
     try {
       await _liveActivitiesPlugin.endActivity(_currentActivityId!);
-      debugPrint('SimpleNotificationService: Live Activity ended: $_currentActivityId');
+      debugPrint(
+          'SimpleNotificationService: Live Activity ended: $_currentActivityId');
       _currentActivityId = null;
     } catch (e) {
       debugPrint('SimpleNotificationService: Error ending Live Activity: $e');
@@ -520,7 +552,8 @@ class SimpleNotificationService {
     try {
       return await _liveActivitiesPlugin.areActivitiesEnabled();
     } catch (e) {
-      debugPrint('SimpleNotificationService: Error checking Live Activities: $e');
+      debugPrint(
+          'SimpleNotificationService: Error checking Live Activities: $e');
       return false;
     }
   }

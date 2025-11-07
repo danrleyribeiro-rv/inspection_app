@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -264,8 +265,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                    child: AdaptiveProgressIndicator(
+                        radius: 8.0, color: Colors.white),
                   )
                 : const Icon(Icons.save),
             onPressed: _isLoading ? null : _saveProfile,
@@ -274,7 +275,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AdaptiveProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -469,7 +470,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: AdaptiveProgressIndicator(radius: 8.0),
                             )
                           : IconButton(
                               icon: const Icon(Icons.search),
@@ -555,8 +556,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                child: AdaptiveProgressIndicator(
+                                  radius: 10.0,
                                   color: Colors.white,
                                 ),
                               )
@@ -669,6 +670,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildDropdownField() {
     final theme = Theme.of(context);
+
+    if (PlatformUtils.isIOS) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Profissão',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AdaptiveDropdown<String>(
+            value: _selectedProfession,
+            items: Constants.professions,
+            itemLabel: (profession) => profession,
+            onChanged: (String? newValue) {
+              setState(() => _selectedProfession = newValue);
+            },
+            hint: 'Selecione uma profissão',
+            style: theme.textTheme.bodyLarge,
+          ),
+        ],
+      );
+    }
+
     return DropdownButtonFormField<String>(
       initialValue: _selectedProfession,
       decoration: InputDecoration(

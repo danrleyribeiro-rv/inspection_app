@@ -1,5 +1,6 @@
 // lib/presentation/screens/media/components/media_filter_panel.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/models/topic.dart';
 import 'package:lince_inspecoes/models/item.dart';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -190,38 +191,39 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
               // --- TOPIC FILTER ---
               const Text('Tópico', style: TextStyle(color: Colors.white70)),
               const SizedBox(height: 5),
-              Container(
-                decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(8)),
-                child: DropdownButtonFormField<String>(
-                  initialValue: _topicId,
-                  isExpanded: true,
-                  dropdownColor: Colors.grey[800],
-                  decoration: const InputDecoration(
-                      hintText: 'Todos os Tópicos',
-                      hintStyle: TextStyle(color: Colors.white70),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                      border: InputBorder.none),
-                  items: widget.topics
-                      .map((topic) => DropdownMenuItem<String>(
-                          value: topic.id, child: Text(topic.topicName)))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _topicId = value;
-                      _itemId = null;
-                      _detailId = null;
-                      _items = [];
-                      _details = [];
-                      _directDetails = [];
-                      _hasDirectDetails = false;
-                      _topicOnly = (value != null);
-                      _itemOnly = false;
-                    });
-                    if (value != null) _loadItems(value);
-                  },
+              AdaptiveDropdown<String?>(
+                value: _topicId,
+                items: [null, ...widget.topics.map((t) => t.id)],
+                itemLabel: (id) {
+                  if (id == null) return 'Todos os Tópicos';
+                  final topic = widget.topics.firstWhere((t) => t.id == id);
+                  return topic.topicName;
+                },
+                onChanged: (value) {
+                  setState(() {
+                    _topicId = value;
+                    _itemId = null;
+                    _detailId = null;
+                    _items = [];
+                    _details = [];
+                    _directDetails = [];
+                    _hasDirectDetails = false;
+                    _topicOnly = (value != null);
+                    _itemOnly = false;
+                  });
+                  if (value != null) _loadItems(value);
+                },
+                hint: 'Todos os Tópicos',
+                style: const TextStyle(color: Colors.white70),
+                decoration: InputDecoration(
+                  hintText: 'Todos os Tópicos',
+                  hintStyle: const TextStyle(color: Colors.white70),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  border: InputBorder.none,
+                  filled: true,
+                  fillColor: Colors.grey[800],
                 ),
+                dropdownColor: Colors.grey[800],
               ),
               const SizedBox(height: 10),
 
@@ -253,29 +255,28 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 const SizedBox(height: 5),
                 _isLoadingItems
                     ? const LinearProgressIndicator()
-                    : Container(
-                        decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(8)),
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _detailId,
-                          isExpanded: true,
-                          dropdownColor: Colors.grey[800],
-                          decoration: const InputDecoration(
-                              hintText: 'Todos os Detalhes',
-                              hintStyle: TextStyle(color: Colors.white70),
-                              contentPadding:
-                                  EdgeInsets.symmetric(horizontal: 16),
-                              border: InputBorder.none),
-                          items: _directDetails
-                              .map((detail) => DropdownMenuItem<String>(
-                                  value: detail.id,
-                                  child: Text(detail.detailName)))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() => _detailId = value);
-                          },
+                    : AdaptiveDropdown<String?>(
+                        value: _detailId,
+                        items: [null, ..._directDetails.map((d) => d.id)],
+                        itemLabel: (id) {
+                          if (id == null) return 'Todos os Detalhes';
+                          final detail = _directDetails.firstWhere((d) => d.id == id);
+                          return detail.detailName;
+                        },
+                        onChanged: (value) {
+                          setState(() => _detailId = value);
+                        },
+                        hint: 'Todos os Detalhes',
+                        style: const TextStyle(color: Colors.white70),
+                        decoration: InputDecoration(
+                          hintText: 'Todos os Detalhes',
+                          hintStyle: const TextStyle(color: Colors.white70),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          border: InputBorder.none,
+                          filled: true,
+                          fillColor: Colors.grey[800],
                         ),
+                        dropdownColor: Colors.grey[800],
                       ),
               ],
 
@@ -286,34 +287,34 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 const SizedBox(height: 5),
                 _isLoadingItems
                     ? const LinearProgressIndicator()
-                    : Container(
-                        decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(8)),
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _itemId,
-                          isExpanded: true,
-                          dropdownColor: Colors.grey[800],
-                          decoration: const InputDecoration(
-                              hintText: 'Todos os Itens',
-                              hintStyle: TextStyle(color: Colors.white70),
-                              contentPadding:
-                                  EdgeInsets.symmetric(horizontal: 16),
-                              border: InputBorder.none),
-                          items: _items
-                              .map((item) => DropdownMenuItem<String>(
-                                  value: item.id, child: Text(item.itemName)))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _itemId = value;
-                              _detailId = null;
-                              _details = [];
-                              _itemOnly = (value != null);
-                            });
-                            if (value != null) _loadDetails(_topicId!, value);
-                          },
+                    : AdaptiveDropdown<String?>(
+                        value: _itemId,
+                        items: [null, ..._items.map((i) => i.id)],
+                        itemLabel: (id) {
+                          if (id == null) return 'Todos os Itens';
+                          final item = _items.firstWhere((i) => i.id == id);
+                          return item.itemName;
+                        },
+                        onChanged: (value) {
+                          setState(() {
+                            _itemId = value;
+                            _detailId = null;
+                            _details = [];
+                            _itemOnly = (value != null);
+                          });
+                          if (value != null) _loadDetails(_topicId!, value);
+                        },
+                        hint: 'Todos os Itens',
+                        style: const TextStyle(color: Colors.white70),
+                        decoration: InputDecoration(
+                          hintText: 'Todos os Itens',
+                          hintStyle: const TextStyle(color: Colors.white70),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          border: InputBorder.none,
+                          filled: true,
+                          fillColor: Colors.grey[800],
                         ),
+                        dropdownColor: Colors.grey[800],
                       ),
               ],
 
@@ -343,29 +344,28 @@ class _MediaFilterPanelState extends State<MediaFilterPanel> {
                 const SizedBox(height: 5),
                 _isLoadingDetails
                     ? const LinearProgressIndicator()
-                    : Container(
-                        decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(8)),
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _detailId,
-                          isExpanded: true,
-                          dropdownColor: Colors.grey[800],
-                          decoration: const InputDecoration(
-                              hintText: 'Todos os Detalhes',
-                              hintStyle: TextStyle(color: Colors.white70),
-                              contentPadding:
-                                  EdgeInsets.symmetric(horizontal: 16),
-                              border: InputBorder.none),
-                          items: _details
-                              .map((detail) => DropdownMenuItem<String>(
-                                  value: detail.id,
-                                  child: Text(detail.detailName)))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() => _detailId = value);
-                          },
+                    : AdaptiveDropdown<String?>(
+                        value: _detailId,
+                        items: [null, ..._details.map((d) => d.id)],
+                        itemLabel: (id) {
+                          if (id == null) return 'Todos os Detalhes';
+                          final detail = _details.firstWhere((d) => d.id == id);
+                          return detail.detailName;
+                        },
+                        onChanged: (value) {
+                          setState(() => _detailId = value);
+                        },
+                        hint: 'Todos os Detalhes',
+                        style: const TextStyle(color: Colors.white70),
+                        decoration: InputDecoration(
+                          hintText: 'Todos os Detalhes',
+                          hintStyle: const TextStyle(color: Colors.white70),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          border: InputBorder.none,
+                          filled: true,
+                          fillColor: Colors.grey[800],
                         ),
+                        dropdownColor: Colors.grey[800],
                       ),
               ],
               const SizedBox(height: 16),

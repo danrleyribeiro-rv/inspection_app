@@ -1,5 +1,6 @@
 // lib/presentation/screens/home/inspection_tab.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -702,7 +703,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           builder: (context) => AlertDialog(
             content: Row(
               children: [
-                const CircularProgressIndicator(),
+                const AdaptiveProgressIndicator(),
                 const SizedBox(width: 16),
                 const Expanded(
                   child: Text('Sincronizando imagens...'),
@@ -806,7 +807,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
         children: [
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: AdaptiveProgressIndicator())
                 : _filteredInspections.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
@@ -923,7 +924,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
         builder: (context) => const AlertDialog(
           content: Row(
             children: [
-              CircularProgressIndicator(),
+              AdaptiveProgressIndicator(),
               SizedBox(width: 16),
               Expanded(
                 child: Text('Carregando vistorias disponíveis...'),

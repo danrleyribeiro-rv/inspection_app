@@ -1,5 +1,6 @@
 // lib/presentation/widgets/details_list_section.dart
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:lince_inspecoes/models/detail.dart';
@@ -394,8 +395,8 @@ class _DetailsListSectionState extends State<DetailsListSection> {
                 SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
+                  child: AdaptiveProgressIndicator(
+                      radius: 8.0, color: Colors.white),
                 ),
                 SizedBox(width: 12),
                 Text('Duplicando detalhe...'),
@@ -941,10 +942,12 @@ class _DetailListItemState extends State<DetailListItem> with AutomaticKeepAlive
             return AlertDialog(
               title: const Text('Observações do Detalhe',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.9,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   TextFormField(
                     controller: controller,
                     maxLines: 3,
@@ -978,6 +981,7 @@ class _DetailListItemState extends State<DetailListItem> with AutomaticKeepAlive
                     ),
                   ),
                 ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -2175,14 +2179,17 @@ class _DetailListItemState extends State<DetailListItem> with AutomaticKeepAlive
         return AlertDialog(
           title: const Text('Opção Personalizada',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          content: TextFormField(
-            controller: controller,
-            maxLines: 1,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'Digite uma opção personalizada...',
-              hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
-              border: const OutlineInputBorder(),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: TextFormField(
+              controller: controller,
+              maxLines: 1,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Digite uma opção personalizada...',
+                hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                border: const OutlineInputBorder(),
+              ),
             ),
           ),
           actions: [

@@ -367,10 +367,12 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
             return AlertDialog(
               title: const Text('Observações do Item',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   TextFormField(
                     controller: controller,
                     maxLines: 3,
@@ -404,6 +406,7 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
                     ),
                   ),
                 ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -625,14 +628,17 @@ class _ItemDetailsSectionState extends State<ItemDetailsSection> {
         return AlertDialog(
           title: const Text('Avaliação Personalizada',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          content: TextFormField(
-            controller: controller,
-            maxLines: 1,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'Digite uma avaliação personalizada...',
-              hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
-              border: const OutlineInputBorder(),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: TextFormField(
+              controller: controller,
+              maxLines: 1,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Digite uma avaliação personalizada...',
+                hintStyle: TextStyle(fontSize: 11, color: theme.hintColor),
+                border: const OutlineInputBorder(),
+              ),
             ),
           ),
           actions: [

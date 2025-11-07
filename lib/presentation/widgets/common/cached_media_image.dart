@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/services/features/media_service.dart'; // Use MediaService
 import 'dart:developer';
 
@@ -90,7 +91,7 @@ class _CachedMediaImageState extends State<CachedMediaImage> {
 
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: AdaptiveProgressIndicator(),
       );
     }
 

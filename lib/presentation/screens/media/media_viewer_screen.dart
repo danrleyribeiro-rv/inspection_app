@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final List<Map<String, dynamic>> mediaItems;
@@ -131,7 +132,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   Widget _buildLoadingWidget() {
     return const Center(
-      child: CircularProgressIndicator(color: Colors.white),
+      child: AdaptiveProgressIndicator(color: Colors.white),
     );
   }
 

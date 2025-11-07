@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
+import 'package:lince_inspecoes/utils/platform_utils.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -156,7 +157,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _resetPassword,
                         child: _isLoading
-                            ? const CircularProgressIndicator()
+                            ? const AdaptiveProgressIndicator(
+                                color: Colors.white,
+                                radius: 10.0,
+                              )
                             : const Text('Enviar Link de Redefinição'),
                       ),
                     ),
