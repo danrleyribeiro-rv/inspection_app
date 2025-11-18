@@ -3,7 +3,7 @@ description: "Aplicativo Lince Inspeções"
 
 publish_to: 'none'
 
-version: 1.0.1+13
+version: 1.0.1+15
 
 environment:
   sdk: ^3.6.2

@@ -224,13 +224,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
-            Text('• Todas as vistorias baixadas'),
+            Text('• Todas as inspeções baixadas'),
             Text('• Arquivos de mídia offline'),
             Text('• Templates em cache'),
             Text('• Dados temporários'),
             SizedBox(height: 16),
             Text(
-              'Você precisará baixar novamente as vistorias para trabalhar offline.',
+              'Você precisará baixar novamente as inspeções para trabalhar offline.',
               style:
                   TextStyle(color: Colors.orange, fontWeight: FontWeight.w500),
             ),
@@ -273,7 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                'Cache limpo com sucesso! Todas as vistorias baixadas e dados temporários foram removidos.'),
+                'Cache limpo com sucesso! Todas as inspeções baixadas e dados temporários foram removidos.'),
             backgroundColor: Colors.green,
             duration: Duration(milliseconds: 800),
           ),
@@ -351,7 +351,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   title: const Text('Notificações'),
                   subtitle: const Text(
-                      'Receber alertas sobre novas vistorias e mensagens'),
+                      'Receber alertas sobre novas inspeções e mensagens'),
                   value: _notificationsEnabled,
                   activeThumbColor: const Color(0xFF6F4B99),
                   onChanged: (value) {
@@ -372,7 +372,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   title: const Text('Limpar Cache'),
                   subtitle: const Text(
-                      'Remover todas as vistorias baixadas e arquivos temporários'),
+                      'Remover todas as inspeções baixadas e arquivos temporários'),
                   leading: const Icon(Icons.cleaning_services),
                   onTap: _clearCache,
                 ),

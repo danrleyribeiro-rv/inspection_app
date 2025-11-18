@@ -724,13 +724,13 @@ Future<void> _loadTemplateItems() async {
                       Text(
                         widget.templateId != null
                             ? 'Nenhum tópico encontrado no template'
-                            : 'Esta vistoria não possui template associado',
+                            : 'Esta inspeção não possui template associado',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.grey),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Os tópicos do template devem vir junto com a vistoria',
+                        'Os tópicos do template devem vir junto com a inspeção',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.grey, fontSize: 12),
                       ),

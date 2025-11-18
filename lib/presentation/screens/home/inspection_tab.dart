@@ -152,7 +152,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao carregar as vistorias: ${e.toString()}'),
+            content: Text('Erro ao carregar as inspeções: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 2),
           ),
@@ -792,13 +792,13 @@ class _InspectionsTabState extends State<InspectionsTab> {
           // Download Button
           IconButton(
             icon: const Icon(Icons.cloud_download),
-            tooltip: 'Baixar Vistorias',
+            tooltip: 'Baixar Inspeções',
             onPressed: _isLoading ? null : _showDownloadDialog,
           ),
           // Refresh Button
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Atualizar Vistorias',
+            tooltip: 'Atualizar Inspeções',
             onPressed: _isLoading ? null : _loadInspections,
           ),
         ],
@@ -887,8 +887,8 @@ class _InspectionsTabState extends State<InspectionsTab> {
           const SizedBox(height: 16),
           Text(
             isEmptySearch
-                ? 'Nenhuma vistoria encontrada para "${_searchController.text}"'
-                : 'Nenhuma vistoria encontrada',
+                ? 'Nenhuma inspeção encontrada para "${_searchController.text}"'
+                : 'Nenhuma inspeção encontrada',
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
@@ -896,7 +896,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
           Text(
             isEmptySearch
                 ? 'Tente outro termo de pesquisa'
-                : 'Novas vistorias aparecerão aqui.',
+                : 'Novas inspeções aparecerão aqui.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
@@ -927,7 +927,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
               AdaptiveProgressIndicator(),
               SizedBox(width: 16),
               Expanded(
-                child: Text('Carregando vistorias disponíveis...'),
+                child: Text('Carregando inspeções disponíveis...'),
               ),
             ],
           ),
@@ -945,7 +945,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Nenhuma vistoria disponível para download.'),
+              content: Text('Nenhuma inspeção disponível para download.'),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 2),
             ),
@@ -982,7 +982,7 @@ class _InspectionsTabState extends State<InspectionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao carregar vistorias: $e'),
+            content: Text('Erro ao carregar inspeções: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 2),
           ),
@@ -1100,7 +1100,7 @@ class _AvailableInspectionsDialogState
       }).toList();
     }
 
-    // Filtro de vistorias baixadas
+    // Filtro de inspeções baixadas
     if (_hideDownloaded) {
       filtered = filtered
           .where((inspection) => !(inspection['isDownloaded'] ?? false))
@@ -1118,7 +1118,7 @@ class _AvailableInspectionsDialogState
 
   Widget _buildInspectionCard(Map<String, dynamic> inspection) {
     final theme = Theme.of(context);
-    final title = inspection['title'] ?? 'Vistoria sem título';
+    final title = inspection['title'] ?? 'Inspeção sem título';
     final cod = inspection['cod'] ?? '';
     final date = _formatDate(inspection['scheduled_date']);
     final address = inspection['address_string'] ?? 'Endereço não informado';
@@ -1155,7 +1155,7 @@ class _AvailableInspectionsDialogState
 
               const SizedBox(height: 8),
 
-              // Código da vistoria
+              // Código da inspeção
               if (cod.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -1284,7 +1284,7 @@ class _AvailableInspectionsDialogState
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Vistorias Disponíveis',
+                    'Inspeções Disponíveis',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontFamily: 'BricolageGrotesque',
                     ),
@@ -1374,7 +1374,7 @@ class _AvailableInspectionsDialogState
                 ),
                 // Counter on the right
                 Text(
-                  '${filteredInspections.length} de ${widget.inspections.length} vistorias',
+                  '${filteredInspections.length} de ${widget.inspections.length} inspeções',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.textTheme.bodySmall?.color
                         ?.withAlpha((0.6 * 255).round()),
@@ -1385,7 +1385,7 @@ class _AvailableInspectionsDialogState
 
             const SizedBox(height: 8),
 
-            // Lista de vistorias
+            // Lista de inspeções
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1405,10 +1405,10 @@ class _AvailableInspectionsDialogState
                             const SizedBox(height: 12),
                             Text(
                               _hideDownloaded
-                                  ? 'Todas as vistorias\njá foram baixadas'
+                                  ? 'Todas as inspeções\njá foram baixadas'
                                   : _searchQuery.isNotEmpty
-                                      ? 'Nenhuma vistoria encontrada\npara "$_searchQuery"'
-                                      : 'Nenhuma vistoria disponível',
+                                      ? 'Nenhuma inspeção encontrada\npara "$_searchQuery"'
+                                      : 'Nenhuma inspeção disponível',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyLarge?.copyWith(
                                 color: theme.textTheme.bodyLarge?.color

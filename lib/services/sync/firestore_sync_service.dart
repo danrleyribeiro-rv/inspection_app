@@ -1493,7 +1493,7 @@ class FirestoreSyncService {
         final convertedData = _convertFirestoreTimestamps(data);
         final cloudInspection = Inspection.fromMap(convertedData);
 
-        // Salvar a vistoria principal no banco local com timestamp de sync
+        // Salvar a inspeção principal no banco local com timestamp de sync
         final downloadedInspection = cloudInspection.copyWith(
           updatedAt: DateFormatter.now(),
           lastSyncAt: DateTime.now(),

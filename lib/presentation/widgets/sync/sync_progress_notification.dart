@@ -115,7 +115,7 @@ class SyncProgressNotification extends StatelessWidget {
                         if (progress.totalInspections != null && progress.totalInspections! > 1) ...[
                           const SizedBox(height: 2),
                           Text(
-                            'Vistoria ${progress.currentInspectionIndex ?? 1} de ${progress.totalInspections}',
+                            'Inspeção ${progress.currentInspectionIndex ?? 1} de ${progress.totalInspections}',
                             style: const TextStyle(
                               color: Colors.white60,
                               fontSize: 10,

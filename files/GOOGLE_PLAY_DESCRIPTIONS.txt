@@ -12,7 +12,7 @@ DESCRIÇÃO COMPLETA (4000 caracteres máximo)
 
 🔍 LINCE INSPEÇÕES - Sua Ferramenta Profissional de Inspeção
 
-O Lince Inspeções é um aplicativo desenvolvido especialmente para profissionais que realizam inspeções técnicas, auditorias e vistorias. Com uma interface intuitiva e funcionalidades robustas, você pode documentar, organizar e gerenciar suas inspeções de forma eficiente.
+O Lince Inspeções é um aplicativo desenvolvido especialmente para profissionais que realizam inspeções técnicas, auditorias e inspeções. Com uma interface intuitiva e funcionalidades robustas, você pode documentar, organizar e gerenciar suas inspeções de forma eficiente.
 
 📱 PRINCIPAIS FUNCIONALIDADES
 

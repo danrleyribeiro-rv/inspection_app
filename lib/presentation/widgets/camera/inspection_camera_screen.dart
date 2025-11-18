@@ -172,13 +172,13 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       final saveDuration = saveEndTime.difference(saveStartTime);
       debugPrint('📸 [TIMING] ✓ Salvamento concluído em ${saveDuration.inMilliseconds}ms');
 
-      // Etapa 7: Salvar na vistoria
+      // Etapa 7: Salvar na inspeção
       final inspectionSaveStartTime = DateTime.now();
-      debugPrint('📸 [TIMING] Salvando na vistoria...');
+      debugPrint('📸 [TIMING] Salvando na inspeção...');
       await _saveMediaToInspection(path, 'image');
       final inspectionSaveEndTime = DateTime.now();
       final inspectionSaveDuration = inspectionSaveEndTime.difference(inspectionSaveStartTime);
-      debugPrint('📸 [TIMING] ✓ Salvamento na vistoria concluído em ${inspectionSaveDuration.inMilliseconds}ms');
+      debugPrint('📸 [TIMING] ✓ Salvamento na inspeção concluído em ${inspectionSaveDuration.inMilliseconds}ms');
 
       // Etapa 8: Atualizar UI
       if (mounted) {
@@ -197,7 +197,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       debugPrint('📸 [TIMING]   - Rotação:              ${rotateDuration.inMilliseconds}ms (${(rotateDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
       debugPrint('📸 [TIMING]   - Codificação JPG:      ${encodeDuration.inMilliseconds}ms (${(encodeDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
       debugPrint('📸 [TIMING]   - Salvamento disco:     ${saveDuration.inMilliseconds}ms (${(saveDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
-      debugPrint('📸 [TIMING]   - Salvamento vistoria:  ${inspectionSaveDuration.inMilliseconds}ms (${(inspectionSaveDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Salvamento inspeção:  ${inspectionSaveDuration.inMilliseconds}ms (${(inspectionSaveDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
       debugPrint('📸 [TIMING] =========================================');
 
     } catch (e) {
@@ -235,7 +235,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       final file = File(path);
       await file.writeAsBytes(await video.readAsBytes());
 
-      // Salvar automaticamente na vistoria
+      // Salvar automaticamente na inspeção
       await _saveMediaToInspection(path, 'video');
 
       isRecording = false;
@@ -259,7 +259,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
         source: widget.source ?? 'camera',
       );
     } catch (e) {
-      debugPrint('Erro ao salvar mídia na vistoria: $e');
+      debugPrint('Erro ao salvar mídia na inspeção: $e');
       rethrow;
     }
   }

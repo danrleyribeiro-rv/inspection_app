@@ -152,7 +152,7 @@ class NativeSyncService {
         
         // Success notification with count
         await SimpleNotificationService.instance.showCompletionNotification(
-          title: 'Sincronização de $totalCount vistorias concluída',
+          title: 'Sincronização de $totalCount inspeções concluída',
           message: 'Todas as $successCount inspeções foram sincronizadas com sucesso!',
           isSuccess: true,
         );
@@ -168,7 +168,7 @@ class NativeSyncService {
         
         // Partial success notification
         await SimpleNotificationService.instance.showErrorNotification(
-          title: 'Sincronização de $totalCount vistorias concluída',
+          title: 'Sincronização de $totalCount inspeções concluída',
           message: '$successCount sincronizadas, $failureCount falharam',
         );
         
@@ -207,7 +207,7 @@ class NativeSyncService {
     switch (progress.phase) {
       case SyncPhase.starting:
         String message = progress.totalInspections != null && progress.totalInspections! > 1
-            ? 'Preparando sincronização de ${progress.totalInspections} vistorias...'
+            ? 'Preparando sincronização de ${progress.totalInspections} inspeções...'
             : 'Preparando sincronização...';
         SimpleNotificationService.instance.showSyncProgress(
           title: 'Sincronizando',
@@ -222,7 +222,7 @@ class NativeSyncService {
           message += '\n${progress.currentItem}';
         }
         if (progress.totalInspections != null && progress.totalInspections! > 1) {
-          message += '\nVistoria ${progress.currentInspectionIndex ?? 1} de ${progress.totalInspections}';
+          message += '\nInspeção ${progress.currentInspectionIndex ?? 1} de ${progress.totalInspections}';
         }
         
         SimpleNotificationService.instance.showSyncProgress(

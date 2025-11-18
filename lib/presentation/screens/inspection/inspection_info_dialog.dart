@@ -23,7 +23,7 @@ class InspectionInfoDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     if (PlatformUtils.isIOS) {
       return CupertinoAlertDialog(
-        title: const Text('Informações da Vistoria'),
+        title: const Text('Informações da Inspeção'),
         content: Padding(
           padding: const EdgeInsets.only(top: 16.0),
           child: Column(
@@ -48,7 +48,7 @@ class InspectionInfoDialog extends StatelessWidget {
     }
 
     return AlertDialog(
-      title: const Text('Informações da Vistoria',
+      title: const Text('Informações da Inspeção',
           style: TextStyle(
               color: Colors.white70,
               fontSize: 14,

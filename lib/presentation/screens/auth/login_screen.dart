@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                      'Apenas vistoriadores podem acessar este aplicativo.'),
+                      'Apenas inspetores podem acessar este aplicativo.'),
                   backgroundColor: Colors.red,
                   duration: Duration(seconds: 2),
                 ),
@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
           message = 'Este usuário foi desativado.';
           break;
         case 'unauthorized-role':
-          message = 'Apenas vistoriadores podem acessar este aplicativo.';
+          message = 'Apenas inspetores podem acessar este aplicativo.';
           break;
         case 'terms-not-accepted':
           // Show terms dialog and handle acceptance

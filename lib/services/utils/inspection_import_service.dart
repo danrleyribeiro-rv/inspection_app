@@ -18,7 +18,7 @@ class InspectionImportService {
   final EnhancedOfflineServiceFactory _serviceFactory =
       EnhancedOfflineServiceFactory.instance;
 
-  /// Importa dados do arquivo .tar e substitui na vistoria atual
+  /// Importa dados do arquivo .tar e substitui na inspeção atual
   /// Se currentInspectionId for null, cria uma nova inspeção com o ID exportado
   Future<bool> importInspection({
     required BuildContext context,
@@ -187,7 +187,7 @@ class InspectionImportService {
     }
   }
 
-  /// Remove todos os dados da vistoria atual antes de importar novos dados
+  /// Remove todos os dados da inspeção atual antes de importar novos dados
   Future<void> _clearCurrentInspectionData(String inspectionId) async {
     try {
       // Remover Topics
