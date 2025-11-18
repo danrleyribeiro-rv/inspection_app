@@ -1,16 +1,10 @@
 // lib/presentation/screens/auth/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
-import 'package:brasil_fields/brasil_fields.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:lince_inspecoes/utils/constants.dart';
 import 'package:lince_inspecoes/utils/platform_utils.dart';
 import 'package:lince_inspecoes/services/core/auth_service.dart';
 import 'package:lince_inspecoes/presentation/widgets/dialogs/terms_dialog.dart';
-import 'package:cpf_cnpj_validator/cpf_validator.dart' as cpf_validator;
-import 'package:cpf_cnpj_validator/cnpj_validator.dart' as cnpj_validator;
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -26,81 +20,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _documentController = TextEditingController();
-  final _cepController = TextEditingController();
-  final _streetController = TextEditingController();
-  final _neighborhoodController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
 
   String? _selectedProfession;
   final _authService = AuthService();
   bool _isLoading = false;
-  bool _isCepLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
-
-  Future<void> _fetchCepData(String cep) async {
-    final cepDigits = cep.replaceAll(RegExp(r'\D'), '');
-    if (cepDigits.length != 8) return;
-
-    setState(() => _isCepLoading = true);
-
-    try {
-      final url = Uri.parse('https://viacep.com.br/ws/$cepDigits/json/');
-      final response = await http.get(url);
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data.containsKey('erro') && data['erro'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('CEP não encontrado'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        } else {
-          setState(() {
-            _streetController.text = data['logradouro'] ?? '';
-            _neighborhoodController.text = data['bairro'] ?? '';
-            _cityController.text = data['localidade'] ?? '';
-            _stateController.text = data['uf'] ?? '';
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Endereço preenchido automaticamente'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao buscar CEP: ${response.statusCode}'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao buscar CEP: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isCepLoading = false);
-      }
-    }
-  }
 
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
@@ -116,44 +41,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final documentValue = _documentController.text;
-    final documentDigits = documentValue.replaceAll(RegExp(r'\D'), '');
-    bool isDocumentValid = false;
-    if (documentDigits.isNotEmpty) {
-      if (documentDigits.length == 11) {
-        isDocumentValid = cpf_validator.CPFValidator.isValid(documentValue);
-        if (!isDocumentValid) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('O CPF informado é inválido'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2)));
-          return;
-        }
-      } else if (documentDigits.length == 14) {
-        isDocumentValid = cnpj_validator.CNPJValidator.isValid(documentValue);
-        if (!isDocumentValid) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('O CNPJ informado é inválido'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2)));
-          return;
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'O documento deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2)));
-        return;
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Por favor, insira seu CPF ou CNPJ'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 2)));
-      return;
-    }
-
     setState(() => _isLoading = true);
 
     try {
@@ -162,13 +49,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'last_name': _lastNameController.text.trim(),
         'email': _emailController.text.trim(),
         'profession': _selectedProfession,
-        'document': documentDigits,
-        'cep': _cepController.text.replaceAll(RegExp(r'\D'), ''),
-        'street': _streetController.text.trim(),
-        'neighborhood': _neighborhoodController.text.trim(),
-        'city': _cityController.text.trim(),
-        'state': _stateController.text.trim(),
-        'phonenumber': _phoneController.text.replaceAll(RegExp(r'\D'), ''),
+        'document': '',
+        'cep': '',
+        'street': '',
+        'neighborhood': '',
+        'city': '',
+        'state': '',
+        'phonenumber': '',
       };
 
       // Show terms dialog BEFORE creating account
@@ -279,16 +166,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF312456),
+      backgroundColor: isDarkMode ? const Color(0xFF312456) : Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Registrar',
+          style: TextStyle(
+            color: isDarkMode ? Colors.white : Colors.black,
+          ),
         ),
-        backgroundColor: const Color(0xFF312456),
+        backgroundColor: isDarkMode ? const Color(0xFF312456) : Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(
+            Icons.arrow_back,
+            color: isDarkMode ? Colors.white : Colors.black,
+          ),
           onPressed: () {
             Navigator.of(context).pushReplacementNamed('/login');
           },
@@ -337,174 +232,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               _buildDropdownField(),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _phoneController,
-                label: 'Telefone',
-                icon: Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  TelefoneInputFormatter(),
-                ],
-                hintText: '(99) 99999-9999',
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira seu número de telefone';
-                  }
-                  final digits = value.replaceAll(RegExp(r'\D'), '');
-                  if (digits.length < 10 || digits.length > 11) {
-                    return 'Insira um número de telefone válido (10 ou 11 dígitos)';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _documentController,
-                label: 'CNPJ/CPF',
-                icon: Icons.badge_outlined,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CpfOuCnpjFormatter(),
-                ],
-                hintText: 'Digite o CNPJ ou CPF',
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira seu CNPJ ou CPF';
-                  }
-                  final digits = value.replaceAll(RegExp(r'\D'), '');
-                  if (digits.length != 11 && digits.length != 14) {
-                    return 'Insira 11 dígitos para CPF ou 14 para CNPJ';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              // Address Section
-              _buildSectionHeader('Endereço', Icons.location_on),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _cepController,
-                label: 'CEP',
-                icon: Icons.location_on_outlined,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CepInputFormatter(),
-                ],
-                hintText: '00.000-000',
-                suffixIcon: _isCepLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: AdaptiveProgressIndicator(radius: 8.0),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.search),
-                        onPressed: () {
-                          final cep = _cepController.text;
-                          if (cep.isNotEmpty) {
-                            _fetchCepData(cep);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'Por favor, insira um CEP primeiro'),
-                                  duration: Duration(seconds: 2)),
-                            );
-                          }
-                        },
-                        tooltip: 'Buscar endereço',
-                      ),
-                onChanged: (value) {
-                  final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
-                  if (digitsOnly.length == 8) {
-                    _fetchCepData(digitsOnly);
-                  }
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira seu CEP';
-                  }
-                  final digits = value.replaceAll(RegExp(r'\D'), '');
-                  if (digits.length != 8) {
-                    return 'O CEP deve ter 8 dígitos';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _streetController,
-                label: 'Rua',
-                icon: Icons.location_city_outlined,
-                textCapitalization: TextCapitalization.words,
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Por favor, insira o endereço'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-
-              _buildTextField(
-                controller: _neighborhoodController,
-                label: 'Bairro',
-                icon: Icons.location_city_outlined,
-                textCapitalization: TextCapitalization.words,
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Por favor, insira o bairro'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: _buildTextField(
-                      controller: _cityController,
-                      label: 'Cidade',
-                      icon: Icons.location_city,
-                      textCapitalization: TextCapitalization.words,
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'Por favor, insira a cidade'
-                              : null,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildTextField(
-                      controller: _stateController,
-                      label: 'UF',
-                      icon: Icons.map_outlined,
-                      textCapitalization: TextCapitalization.characters,
-                      inputFormatters: [
-                        LengthLimitingTextInputFormatter(2),
-                      ],
-                      hintText: 'UF',
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Por favor, insira o estado';
-                        }
-                        if (value.trim().length != 2) {
-                          return 'Por favor, use 2 letras para o UF';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 32),
 
               // Account Security Section
@@ -586,7 +313,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
 
               // Register button
               SizedBox(
@@ -633,21 +360,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF6F4B99).withAlpha((255 * 0.1).round()),
+        color: Theme.of(context).primaryColor.withAlpha((255 * 0.1).round()),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-            color: const Color(0xFF6F4B99).withAlpha((255 * 0.3).round())),
+            color: Theme.of(context).primaryColor.withAlpha((255 * 0.3).round())),
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF6F4B99), size: 20),
+          Icon(icon, color: Theme.of(context).primaryColor, size: 20),
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF6F4B99),
+              color: Theme.of(context).primaryColor,
             ),
           ),
         ],
@@ -659,60 +386,65 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    String? hintText,
     TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
     bool obscureText = false,
     Widget? suffixIcon,
     TextCapitalization textCapitalization = TextCapitalization.none,
-    void Function(String)? onChanged,
   }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        hintText: hintText,
-        prefixIcon: Icon(icon, color: const Color(0xFF6F4B99)),
+        prefixIcon: Icon(icon, color: theme.primaryColor),
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: isDarkMode ? Colors.grey[600]! : Colors.grey[400]!),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF6F4B99), width: 2),
+          borderSide: BorderSide(color: theme.primaryColor, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: isDarkMode ? Colors.grey[600]! : Colors.grey[400]!),
         ),
         filled: true,
-        fillColor: Colors.white10,
-        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
-        hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+        fillColor: isDarkMode ? Colors.white10 : Colors.grey[100],
+        labelStyle: TextStyle(
+          color: isDarkMode ? Colors.white70 : Colors.black87,
+          fontSize: 12,
+        ),
       ),
-      style: const TextStyle(color: Colors.white, fontSize: 12),
+      style: TextStyle(
+        color: isDarkMode ? Colors.white : Colors.black,
+        fontSize: 12,
+      ),
       keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
       validator: validator,
       obscureText: obscureText,
       textCapitalization: textCapitalization,
-      onChanged: onChanged,
     );
   }
 
   Widget _buildDropdownField() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+
     if (PlatformUtils.isIOS) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Profissão',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.white70,
+              color: isDarkMode ? Colors.white70 : Colors.black87,
             ),
           ),
           const SizedBox(height: 6),
@@ -724,7 +456,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               setState(() => _selectedProfession = newValue);
             },
             hint: 'Selecione uma profissão',
-            style: const TextStyle(color: Colors.white, fontSize: 12),
+            style: TextStyle(
+              color: isDarkMode ? Colors.white : Colors.black,
+              fontSize: 12,
+            ),
           ),
         ],
       );
@@ -734,30 +469,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialValue: _selectedProfession,
       decoration: InputDecoration(
         labelText: 'Profissão',
-        prefixIcon: const Icon(Icons.work_outline, color: Color(0xFF6F4B99)),
+        prefixIcon: Icon(Icons.work_outline, color: theme.primaryColor),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: isDarkMode ? Colors.grey[600]! : Colors.grey[400]!),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF6F4B99), width: 2),
+          borderSide: BorderSide(color: theme.primaryColor, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[600]!),
+          borderSide: BorderSide(color: isDarkMode ? Colors.grey[600]! : Colors.grey[400]!),
         ),
         filled: true,
-        fillColor: Colors.white10,
-        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+        fillColor: isDarkMode ? Colors.white10 : Colors.grey[100],
+        labelStyle: TextStyle(
+          color: isDarkMode ? Colors.white70 : Colors.black87,
+          fontSize: 12,
+        ),
       ),
-      style: const TextStyle(color: Colors.white, fontSize: 12),
-      dropdownColor: Colors.grey[800],
+      style: TextStyle(
+        color: isDarkMode ? Colors.white : Colors.black,
+        fontSize: 12,
+      ),
+      dropdownColor: isDarkMode ? Colors.grey[800] : Colors.white,
       items: Constants.professions.map((String value) {
         return DropdownMenuItem<String>(
           value: value,
-          child: Text(value,
-              style: const TextStyle(color: Colors.white, fontSize: 12)),
+          child: Text(
+            value,
+            style: TextStyle(
+              color: isDarkMode ? Colors.white : Colors.black,
+              fontSize: 12,
+            ),
+          ),
         );
       }).toList(),
       onChanged: (String? newValue) {
@@ -774,13 +520,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _phoneController.dispose();
-    _documentController.dispose();
-    _cepController.dispose();
-    _streetController.dispose();
-    _neighborhoodController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     super.dispose();
   }
 }

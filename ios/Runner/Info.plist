@@ -40,6 +40,8 @@
 	<string>O Lince Inspeções precisa salvar fotos e vídeos na sua biblioteca para armazenar evidências das inspeções realizadas.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>O Lince Inspeções precisa acessar sua biblioteca de fotos para selecionar e anexar imagens existentes às inspeções e não conformidades.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>O Lince Inspeções pode utilizar reconhecimento de voz para facilitar a entrada de dados e observações durante as inspeções.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_dartobservatory._tcp</string>

@@ -5,7 +5,6 @@ import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:lince_inspecoes/utils/platform_utils.dart';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -88,6 +87,11 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
 
     _isCapturing = true;
 
+    // ⏱️ INÍCIO DA MEDIÇÃO DE TEMPO
+    final startTime = DateTime.now();
+    debugPrint('📸 [TIMING] ========== INÍCIO DA CAPTURA ==========');
+    debugPrint('📸 [TIMING] Timestamp inicial: ${startTime.toIso8601String()}');
+
     try {
       // Verificar se o controller ainda está válido antes de usar
       final controller = cameraController;
@@ -95,37 +99,111 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
         throw Exception('Camera controller não está disponível');
       }
 
-      debugPrint('Camera: Taking photo...');
+      // Etapa 1: Tirar foto
+      final captureStartTime = DateTime.now();
+      debugPrint('📸 [TIMING] Iniciando captura da câmera...');
       final image = await controller.takePicture();
-      final imageBytes = await image.readAsBytes();
+      final captureEndTime = DateTime.now();
+      final captureDuration = captureEndTime.difference(captureStartTime);
+      debugPrint('📸 [TIMING] ✓ Captura concluída em ${captureDuration.inMilliseconds}ms');
 
-      // Decodificar a imagem
+      // Etapa 2: Ler bytes da imagem
+      final readStartTime = DateTime.now();
+      debugPrint('📸 [TIMING] Lendo bytes da imagem...');
+      final imageBytes = await image.readAsBytes();
+      final readEndTime = DateTime.now();
+      final readDuration = readEndTime.difference(readStartTime);
+      debugPrint('📸 [TIMING] ✓ Leitura concluída em ${readDuration.inMilliseconds}ms (${imageBytes.length} bytes)');
+
+      // Etapa 3: Decodificar a imagem
+      final decodeStartTime = DateTime.now();
+      debugPrint('📸 [TIMING] Decodificando imagem...');
       img.Image? originalImage = img.decodeImage(imageBytes);
       if (originalImage == null) {
         throw Exception('Erro ao decodificar imagem');
       }
+      final decodeEndTime = DateTime.now();
+      final decodeDuration = decodeEndTime.difference(decodeStartTime);
+      debugPrint('📸 [TIMING] ✓ Decodificação concluída em ${decodeDuration.inMilliseconds}ms (${originalImage.width}x${originalImage.height})');
 
-      // Rotaciona a imagem para corresponder à orientação do dispositivo no momento da captura.
-      // A imagem decodificada (originalImage) já vem orientada em pé (retrato).
-      // `deviceRotation` nos dá a orientação do aparelho, então rotacionamos para corresponder.
-      final angle = deviceRotation * 180 / math.pi;
-      final correctedImage = img.copyRotate(originalImage, angle: angle);
+      // Etapa 4: Aplicar rotação
+      final rotateStartTime = DateTime.now();
+      img.Image rotatedImage = originalImage;
+      final degrees = (deviceRotation * 180 / math.pi).round();
+      debugPrint('📸 [TIMING] Aplicando rotação ($degrees°)...');
 
-      // Salvar a imagem corrigida
+      if (degrees == 90 || degrees == -270) {
+        rotatedImage = img.copyRotate(originalImage, angle: 90);
+      } else if (degrees == -90 || degrees == 270) {
+        rotatedImage = img.copyRotate(originalImage, angle: -90);
+      } else if (degrees == 180 || degrees == -180) {
+        rotatedImage = img.copyRotate(originalImage, angle: 180);
+      }
+      final rotateEndTime = DateTime.now();
+      final rotateDuration = rotateEndTime.difference(rotateStartTime);
+      debugPrint('📸 [TIMING] ✓ Rotação concluída em ${rotateDuration.inMilliseconds}ms');
+
+      // Etapa 5: Codificar para JPG
+      final encodeStartTime = DateTime.now();
+      // Qualidade 85: balanço entre tamanho de arquivo e qualidade visual
+      // Valores: 0-100 (85 é recomendado para boa qualidade com compressão eficiente)
+      const int jpegQuality = 85;
+      debugPrint('📸 [TIMING] Codificando para JPG (qualidade: $jpegQuality)...');
+      final encodedBytes = img.encodeJpg(rotatedImage, quality: jpegQuality);
+      final encodeEndTime = DateTime.now();
+      final encodeDuration = encodeEndTime.difference(encodeStartTime);
+
+      // Calcular taxa de compressão
+      final compressionRatio = ((1 - (encodedBytes.length / imageBytes.length)) * 100).toStringAsFixed(1);
+      final sizeDiff = imageBytes.length - encodedBytes.length;
+      final sizeDiffKB = (sizeDiff / 1024).toStringAsFixed(1);
+
+      debugPrint('📸 [TIMING] ✓ Codificação concluída em ${encodeDuration.inMilliseconds}ms');
+      debugPrint('📸 [TIMING]   Original: ${(imageBytes.length / 1024).toStringAsFixed(1)}KB → Comprimido: ${(encodedBytes.length / 1024).toStringAsFixed(1)}KB');
+      debugPrint('📸 [TIMING]   Redução: ${sizeDiffKB}KB ($compressionRatio%)');
+
+      // Etapa 6: Salvar no disco
+      final saveStartTime = DateTime.now();
       final path = await getMediaPath("jpg");
+      debugPrint('📸 [TIMING] Salvando no disco: $path');
       final file = File(path);
-      await file.writeAsBytes(img.encodeJpg(correctedImage));
+      await file.writeAsBytes(encodedBytes);
+      final saveEndTime = DateTime.now();
+      final saveDuration = saveEndTime.difference(saveStartTime);
+      debugPrint('📸 [TIMING] ✓ Salvamento concluído em ${saveDuration.inMilliseconds}ms');
 
-      // Salvar automaticamente na vistoria
+      // Etapa 7: Salvar na vistoria
+      final inspectionSaveStartTime = DateTime.now();
+      debugPrint('📸 [TIMING] Salvando na vistoria...');
       await _saveMediaToInspection(path, 'image');
+      final inspectionSaveEndTime = DateTime.now();
+      final inspectionSaveDuration = inspectionSaveEndTime.difference(inspectionSaveStartTime);
+      debugPrint('📸 [TIMING] ✓ Salvamento na vistoria concluído em ${inspectionSaveDuration.inMilliseconds}ms');
 
+      // Etapa 8: Atualizar UI
       if (mounted) {
         setState(() => capturedFiles.add(path));
       }
 
-      debugPrint('Camera: Photo captured successfully: $path');
+      // ⏱️ TEMPO TOTAL
+      final endTime = DateTime.now();
+      final totalDuration = endTime.difference(startTime);
+      debugPrint('📸 [TIMING] ========== FIM DA CAPTURA ==========');
+      debugPrint('📸 [TIMING] ⏱️ TEMPO TOTAL: ${totalDuration.inMilliseconds}ms (${(totalDuration.inMilliseconds / 1000).toStringAsFixed(2)}s)');
+      debugPrint('📸 [TIMING] Breakdown:');
+      debugPrint('📸 [TIMING]   - Captura:              ${captureDuration.inMilliseconds}ms (${(captureDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Leitura:              ${readDuration.inMilliseconds}ms (${(readDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Decodificação:        ${decodeDuration.inMilliseconds}ms (${(decodeDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Rotação:              ${rotateDuration.inMilliseconds}ms (${(rotateDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Codificação JPG:      ${encodeDuration.inMilliseconds}ms (${(encodeDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Salvamento disco:     ${saveDuration.inMilliseconds}ms (${(saveDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING]   - Salvamento vistoria:  ${inspectionSaveDuration.inMilliseconds}ms (${(inspectionSaveDuration.inMilliseconds / totalDuration.inMilliseconds * 100).toStringAsFixed(1)}%)');
+      debugPrint('📸 [TIMING] =========================================');
+
     } catch (e) {
-      debugPrint('Camera: Error capturing photo: $e');
+      final errorTime = DateTime.now();
+      final errorDuration = errorTime.difference(startTime);
+      debugPrint('📸 [TIMING] ❌ ERRO após ${errorDuration.inMilliseconds}ms: $e');
       if (mounted) {
         _showCaptureError('Erro ao capturar foto: $e');
       }
@@ -134,27 +212,11 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     }
   }
 
-  DeviceOrientation _getOrientationFromRotation(double rotation) {
-    final degrees = rotation * 180 / math.pi;
-    // The video was being saved inverted, so we swap the landscape orientations
-    // to correct the final output.
-    if (degrees > 45 && degrees < 135) { // deviceRotation is pi/2 (Landscape Left)
-      return DeviceOrientation.landscapeRight; // Return opposite
-    } else if (degrees < -45 && degrees > -135) { // deviceRotation is -pi/2 (Landscape Right)
-      return DeviceOrientation.landscapeLeft; // Return opposite
-    } else if (degrees >= 135 || degrees <= -135) {
-      return DeviceOrientation.portraitDown;
-    } else {
-      return DeviceOrientation.portraitUp;
-    }
-  }
-
   Future<void> startVideoRecording() async {
     if (cameraController?.value.isInitialized != true || cameraController!.value.isRecordingVideo) return;
 
     try {
-      final orientation = _getOrientationFromRotation(deviceRotation);
-      await cameraController!.lockCaptureOrientation(orientation);
+      // Não bloquear orientação - deixar o vídeo usar a orientação natural do dispositivo
       await cameraController!.startVideoRecording();
       isRecording = true;
       startRecordingTimer();
@@ -172,20 +234,15 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
       final path = await getMediaPath("mp4");
       final file = File(path);
       await file.writeAsBytes(await video.readAsBytes());
-      
+
       // Salvar automaticamente na vistoria
       await _saveMediaToInspection(path, 'video');
-      
+
       isRecording = false;
       stopRecordingTimer();
       setState(() => capturedFiles.add(path));
-      
-      // Mostrar feedback visual
     } catch (e) {
       _showCaptureError('Erro ao gravar vídeo: $e');
-    } finally {
-      // Always unlock orientation
-      await cameraController?.unlockCaptureOrientation();
     }
   }
 
@@ -604,15 +661,6 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
     final orientation = MediaQuery.of(context).orientation;
     final isPortrait = orientation == Orientation.portrait;
 
-    // Calculate rotation for the preview based on device orientation
-    // On iOS, the camera preview needs to be rotated to match the device orientation
-    int quarterTurns = 0;
-    if (deviceRotation.abs() > 0.1) {
-      // Rotate the preview to match the UI orientation
-      // The UI elements rotate by -deviceRotation, so the preview should too
-      quarterTurns = -(deviceRotation / (math.pi / 2)).round();
-    }
-
     // Calculate 4:3 frame dimensions
     double frameWidth, frameHeight;
     if (isPortrait) {
@@ -679,13 +727,9 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                         fit: BoxFit.cover,
                         child: SizedBox(
                           width: 100,
-                          child: RotatedBox(
-                            key: ValueKey('blur_$quarterTurns'),
-                            quarterTurns: quarterTurns,
-                            child: ImageFiltered(
-                              imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                              child: CameraPreview(cameraController!),
-                            ),
+                          child: ImageFiltered(
+                            imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                            child: CameraPreview(cameraController!),
                           ),
                         ),
                       ),
@@ -706,11 +750,7 @@ class _InspectionCameraScreenState extends State<InspectionCameraScreen> with Wi
                             fit: BoxFit.cover,
                             child: SizedBox(
                               width: 100,
-                              child: RotatedBox(
-                                key: ValueKey('preview_$quarterTurns'),
-                                quarterTurns: quarterTurns,
-                                child: CameraPreview(cameraController!),
-                              ),
+                              child: CameraPreview(cameraController!),
                             ),
                           ),
                         ),

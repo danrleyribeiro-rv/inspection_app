@@ -85,16 +85,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
 
       if (!_hasProfileImage && widget.profile['id'] != null) {
-        final imagesSnapshot = await _firestore
-            .collection('profile_images')
-            .where('inspector_id', isEqualTo: widget.profile['id'])
-            .limit(1)
-            .get();
+        try {
+          final imagesSnapshot = await _firestore
+              .collection('profile_images')
+              .where('inspector_id', isEqualTo: widget.profile['id'])
+              .limit(1)
+              .get();
 
-        if (mounted) {
-          setState(() {
-            _hasProfileImage = imagesSnapshot.docs.isNotEmpty;
-          });
+          if (mounted) {
+            setState(() {
+              _hasProfileImage = imagesSnapshot.docs.isNotEmpty;
+            });
+          }
+        } catch (firestoreError) {
+          // Silently ignore permission errors for profile_images collection
         }
       }
     } catch (e) {

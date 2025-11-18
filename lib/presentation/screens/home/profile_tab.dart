@@ -64,6 +64,7 @@ class _ProfileTabState extends State<ProfileTab> {
     if (_profile == null) return;
 
     try {
+      // First, check if profileImageUrl exists in the profile document
       if (_profile!.containsKey('profileImageUrl') &&
           _profile!['profileImageUrl'] != null) {
         setState(() {
@@ -72,20 +73,27 @@ class _ProfileTabState extends State<ProfileTab> {
         return;
       }
 
+      // If no profileImageUrl in profile, try to get from profile_images collection
+      // This is optional and will fail silently if permissions are not set
       final userId = _auth.currentUser?.uid;
       if (userId == null) return;
 
-      final imagesCollection = await _firestore
-          .collection('profile_images')
-          .where('inspector_id', isEqualTo: userId)
-          .limit(1)
-          .get();
+      try {
+        final imagesCollection = await _firestore
+            .collection('profile_images')
+            .where('inspector_id', isEqualTo: userId)
+            .limit(1)
+            .get();
 
-      if (imagesCollection.docs.isNotEmpty &&
-          imagesCollection.docs[0].data()['image_data'] != null) {
-        setState(() {
-          _profileImageBase64 = imagesCollection.docs[0].data()['image_data'];
-        });
+        if (imagesCollection.docs.isNotEmpty &&
+            imagesCollection.docs[0].data()['image_data'] != null) {
+          setState(() {
+            _profileImageBase64 = imagesCollection.docs[0].data()['image_data'];
+          });
+        }
+      } catch (firestoreError) {
+        // Silently ignore permission errors for profile_images collection
+        // This collection may not be accessible or may not exist
       }
     } catch (e) {
       debugPrint('Erro ao carregar imagem: $e');
